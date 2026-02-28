@@ -1,5 +1,18 @@
 import Link from "next/link";
+import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { db } from "@/db";
+import {
+  areas,
+  borrower_info,
+  branch,
+  collections,
+  employee_area_assignment,
+  employee_info,
+  loan_records,
+  roles,
+  users,
+} from "@/db/schema";
 import { createClient } from "@/lib/supabase/server";
 import { LoanDetailForm } from "@/app/dashboard/loans/[loanId]/loan-detail-form";
 import type { CollectionHistoryRow } from "@/app/dashboard/loans/[loanId]/state";
@@ -15,59 +28,6 @@ type AppUserRow = {
 type RoleRow = {
   role_id: string;
   role_name: string;
-};
-
-type LoanRow = {
-  loan_id: string | number;
-  borrower_id: string;
-  principal: number | string;
-  interest: number | string;
-  start_date: string;
-  due_date: string;
-  branch_id: string | number;
-  status: string;
-};
-
-type BorrowerInfoRow = {
-  user_id: string;
-  first_name: string | null;
-  last_name: string | null;
-  contact_number: string | null;
-  address: string | null;
-};
-
-type BorrowerUserRow = {
-  user_id: string;
-  username: string | null;
-};
-
-type BranchRow = {
-  branch_id: string | number;
-  branch_name: string;
-  branch_address: string | null;
-};
-
-type CollectionRow = {
-  collection_id: string | number;
-  amount: number | string;
-  note: string | null;
-  collector_id: string | null;
-  collection_date: string;
-};
-
-type CollectorUserRow = {
-  user_id: string;
-  username: string | null;
-};
-
-type EmployeeInfoRow = {
-  user_id: string;
-  first_name: string | null;
-  last_name: string | null;
-};
-
-type AssignmentRow = {
-  employee_user_id: string;
 };
 
 type CollectorOption = {
@@ -154,11 +114,27 @@ export default async function LoanDetailPage({ params }: PageProps) {
     );
   }
 
-  const { data: loan } = await supabase
-    .from("loan_records")
-    .select("loan_id, borrower_id, principal, interest, start_date, due_date, branch_id, status")
-    .eq("loan_id", toDbId(loanId))
-    .maybeSingle<LoanRow>();
+  const loanIdDb = toDbId(loanId);
+  const loan =
+    typeof loanIdDb === "number"
+      ? await db
+          .select({
+            loan_id: loan_records.loan_id,
+            loan_code: loan_records.loan_code,
+            borrower_id: loan_records.borrower_id,
+            principal: loan_records.principal,
+            interest: loan_records.interest,
+            start_date: loan_records.start_date,
+            due_date: loan_records.due_date,
+            branch_id: loan_records.branch_id,
+            status: loan_records.status,
+          })
+          .from(loan_records)
+          .where(eq(loan_records.loan_id, loanIdDb))
+          .limit(1)
+          .then((rows) => rows[0] ?? null)
+          .catch(() => null)
+      : null;
 
   if (!loan) {
     return (
@@ -178,71 +154,119 @@ export default async function LoanDetailPage({ params }: PageProps) {
     );
   }
 
-  const { data: borrowerInfo } = await supabase
-    .from("borrower_info")
-    .select("user_id, first_name, last_name, contact_number, address")
-    .eq("user_id", loan.borrower_id)
-    .maybeSingle<BorrowerInfoRow>();
+  const borrowerInfo = await db
+    .select({
+      user_id: borrower_info.user_id,
+      area_id: borrower_info.area_id,
+      first_name: borrower_info.first_name,
+      last_name: borrower_info.last_name,
+      contact_number: borrower_info.contact_number,
+      address: borrower_info.address,
+    })
+    .from(borrower_info)
+    .where(eq(borrower_info.user_id, loan.borrower_id))
+    .limit(1)
+    .then((rows) => rows[0] ?? null)
+    .catch(() => null);
 
-  const { data: borrowerUser } = await supabase
-    .from("users")
-    .select("user_id, username")
-    .eq("user_id", loan.borrower_id)
-    .maybeSingle<BorrowerUserRow>();
+  const borrowerUser = await db
+    .select({
+      user_id: users.user_id,
+      company_id: users.company_id,
+      username: users.username,
+    })
+    .from(users)
+    .where(eq(users.user_id, loan.borrower_id))
+    .limit(1)
+    .then((rows) => rows[0] ?? null)
+    .catch(() => null);
 
-  const { data: branch } = await supabase
-    .from("branch")
-    .select("branch_id, branch_name, branch_address")
-    .eq("branch_id", loan.branch_id)
-    .maybeSingle<BranchRow>();
+  const branchRow = await db
+    .select({
+      branch_id: branch.branch_id,
+      branch_name: branch.branch_name,
+      branch_address: branch.branch_address,
+    })
+    .from(branch)
+    .where(eq(branch.branch_id, loan.branch_id))
+    .limit(1)
+    .then((rows) => rows[0] ?? null)
+    .catch(() => null);
 
-  const { data: collectionsData } = await supabase
-    .from("collections")
-    .select("collection_id, amount, note, collector_id, collection_date")
-    .eq("loan_id", toDbId(loanId))
-    .order("collection_date", { ascending: true })
-    .order("collection_id", { ascending: true });
+  const collectionRows = await db
+    .select({
+      collection_id: collections.collection_id,
+      collection_code: collections.collection_code,
+      amount: collections.amount,
+      note: collections.note,
+      collector_id: collections.collector_id,
+      collection_date: collections.collection_date,
+    })
+    .from(collections)
+    .where(eq(collections.loan_id, loan.loan_id))
+    .orderBy(asc(collections.collection_date), asc(collections.collection_id))
+    .catch(() => []);
 
-  const collections = (collectionsData ?? []) as CollectionRow[];
+  const collectorRole = await db
+    .select({
+      role_id: roles.role_id,
+      role_name: roles.role_name,
+    })
+    .from(roles)
+    .where(eq(roles.role_name, "Collector"))
+    .limit(1)
+    .then((rows) => rows[0] ?? null)
+    .catch(() => null);
 
-  const { data: collectorRole } = await supabase
-    .from("roles")
-    .select("role_id, role_name")
-    .eq("role_name", "Collector")
-    .maybeSingle<RoleRow>();
+  const activeAssignments = await db
+    .select({
+      employee_user_id: employee_area_assignment.employee_user_id,
+    })
+    .from(employee_area_assignment)
+    .where(
+      and(
+        eq(employee_area_assignment.area_id, borrowerInfo?.area_id ?? -1),
+        isNull(employee_area_assignment.end_date),
+      ),
+    )
+    .catch(() => []);
 
-  const { data: activeAssignmentsData } = await supabase
-    .from("employee_branch_assignment")
-    .select("employee_user_id")
-    .eq("branch_id", loan.branch_id)
-    .is("end_date", null);
-
-  const activeAssignments = (activeAssignmentsData ?? []) as AssignmentRow[];
   const assignedCollectorIds = Array.from(
     new Set(activeAssignments.map((assignment) => assignment.employee_user_id)),
   );
 
-  const { data: collectorUsersData } =
+  const collectorUsers =
     collectorRole?.role_id && assignedCollectorIds.length
-      ? await supabase
-          .from("users")
-          .select("user_id, username")
-          .eq("role_id", collectorRole.role_id)
-          .in("user_id", assignedCollectorIds)
-          .order("username")
-      : { data: [] };
+      ? await db
+          .select({
+            user_id: users.user_id,
+            username: users.username,
+          })
+          .from(users)
+          .where(
+            and(
+              eq(users.role_id, collectorRole.role_id),
+              inArray(users.user_id, assignedCollectorIds),
+            ),
+          )
+          .orderBy(asc(users.username))
+          .catch(() => [])
+      : [];
 
-  const collectorUsers = (collectorUsersData ?? []) as CollectorUserRow[];
   const collectorUserIds = collectorUsers.map((collector) => collector.user_id);
 
-  const { data: collectorEmployeesData } = collectorUserIds.length
-    ? await supabase
-        .from("employee_info")
-        .select("user_id, first_name, last_name")
-        .in("user_id", collectorUserIds)
-    : { data: [] };
+  const collectorEmployees = collectorUserIds.length
+    ? await db
+        .select({
+          user_id: employee_info.user_id,
+          first_name: employee_info.first_name,
+          last_name: employee_info.last_name,
+        })
+        .from(employee_info)
+        .where(inArray(employee_info.user_id, collectorUserIds))
+        .catch(() => [])
+    : [];
 
-  const collectorEmployees = (collectorEmployeesData ?? []) as EmployeeInfoRow[];
   const collectorEmployeeMap = new Map(
     collectorEmployees.map((employee) => [employee.user_id, employee]),
   );
@@ -262,8 +286,9 @@ export default async function LoanDetailPage({ params }: PageProps) {
 
   const collectorLabelMap = new Map(collectorOptions.map((collector) => [collector.user_id, collector.label]));
 
-  const initialCollectionRows: CollectionHistoryRow[] = collections.map((collection) => ({
+  const initialCollectionRows: CollectionHistoryRow[] = collectionRows.map((collection) => ({
     collectionId: String(collection.collection_id),
+    collectionCode: collection.collection_code,
     collectionDate: collection.collection_date,
     amount: Number(collection.amount) || 0,
     note: collection.note,
@@ -282,8 +307,20 @@ export default async function LoanDetailPage({ params }: PageProps) {
     [borrowerInfo?.first_name, borrowerInfo?.last_name].filter(Boolean).join(" ") ||
     borrowerUser?.username ||
     loan.borrower_id;
-  const accountNumber = borrowerUser?.username || loan.borrower_id;
+  const borrowerCompanyId = borrowerUser?.company_id || borrowerUser?.username || loan.borrower_id;
   const borrowerAddress = borrowerInfo?.address || "N/A";
+  const borrowerArea =
+    borrowerInfo?.area_id !== undefined
+      ? await db
+          .select({
+            area_code: areas.area_code,
+          })
+          .from(areas)
+          .where(eq(areas.area_id, borrowerInfo.area_id))
+          .limit(1)
+          .then((rows) => rows[0] ?? null)
+          .catch(() => null)
+      : null;
 
   return (
     <main className="mx-auto min-h-screen w-full max-w-6xl p-6">
@@ -311,10 +348,16 @@ export default async function LoanDetailPage({ params }: PageProps) {
             <span className="font-medium">Address:</span> {borrowerAddress}
           </p>
           <p>
-            <span className="font-medium">Account Number:</span> {accountNumber}
+            <span className="font-medium">Borrower Company ID:</span> {borrowerCompanyId}
           </p>
           <p>
-            <span className="font-medium">Branch:</span> {branch?.branch_name || "N/A"}
+            <span className="font-medium">Loan Code:</span> {loan.loan_code}
+          </p>
+          <p>
+            <span className="font-medium">Branch:</span> {branchRow?.branch_name || "N/A"}
+          </p>
+          <p>
+            <span className="font-medium">Area:</span> {borrowerArea?.area_code || "N/A"}
           </p>
           <p>
             <span className="font-medium">Principal:</span> {formatMoney(principal)}

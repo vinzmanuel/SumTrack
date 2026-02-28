@@ -4,6 +4,7 @@ export type CreateLoanState = {
   fieldErrors?: {
     borrower_id?: string;
     branch_id?: string;
+    area_id?: string;
     principal?: string;
     interest?: string;
     start_date?: string;
@@ -11,6 +12,7 @@ export type CreateLoanState = {
   };
   result?: {
     loanId: string;
+    loanCode: string;
     borrowerName: string;
     branchName: string;
     principal: number;

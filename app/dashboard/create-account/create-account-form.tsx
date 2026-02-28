@@ -3,13 +3,7 @@
 import { useActionState, useMemo, useRef, useState, type FormEvent } from "react";
 import { useFormStatus } from "react-dom";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -20,20 +14,9 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  createAccountAction,
-} from "@/app/dashboard/create-account/actions";
-import {
-  initialCreateAccountState,
-  type CreateAccountState,
-} from "@/app/dashboard/create-account/state";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { createAccountAction } from "@/app/dashboard/create-account/actions";
+import { initialCreateAccountState, type CreateAccountState } from "@/app/dashboard/create-account/state";
 
 type RoleOption = {
   role_id: string | number;
@@ -45,34 +28,43 @@ type BranchOption = {
   branch_name: string;
 };
 
+type AreaOption = {
+  area_id: string | number;
+  branch_id: string | number;
+  area_no: string;
+  area_code: string;
+};
+
 type AccountCategory = "Employee" | "Borrower";
 
 type CreateAccountFormProps = {
   roles: RoleOption[];
   branches: BranchOption[];
+  areas: AreaOption[];
 };
 
-const EMPLOYEE_ROLE_NAMES = [
-  "Admin",
-  "Auditor",
-  "Branch Manager",
-  "Secretary",
-  "Collector",
-];
-const SINGLE_BRANCH_ROLE_NAMES = ["Branch Manager", "Secretary", "Collector"];
+const EMPLOYEE_ROLE_NAMES = ["Admin", "Auditor", "Branch Manager", "Secretary", "Collector"];
+const BRANCH_ONLY_ROLE_NAMES = ["Branch Manager", "Secretary"];
 
 function SubmitButton() {
   const { pending } = useFormStatus();
 
-  return (
-    <Button disabled={pending} type="submit">
-      {pending ? "Creating..." : "Create account"}
-    </Button>
-  );
+  return <Button type="submit" disabled={pending}>{pending ? "Creating..." : "Create account"}</Button>;
 }
 
-function getRoleError(state: CreateAccountState) {
-  return state.fieldErrors?.role_id;
+type FieldLabelProps = {
+  children: string;
+  htmlFor?: string;
+  required?: boolean;
+};
+
+function FieldLabel({ children, htmlFor, required = false }: FieldLabelProps) {
+  return (
+    <Label htmlFor={htmlFor}>
+      {children}
+      {required ? <span className="ml-1 text-destructive">*</span> : null}
+    </Label>
+  );
 }
 
 function buildAccountDetailsLines(result: NonNullable<CreateAccountState["result"]>) {
@@ -82,20 +74,26 @@ function buildAccountDetailsLines(result: NonNullable<CreateAccountState["result
     `Account Category: ${result.accountCategory}`,
     `Created Role: ${result.role}`,
     `Full Name: ${result.fullName}`,
-    `Initial Username: ${result.username}`,
+    `Company ID: ${result.companyId}`,
+    `Username: ${result.username}`,
     `Created User UID: ${result.userId}`,
     `Temporary Password: ${result.temporaryPassword}`,
   ];
 
-  if (result.accountCategory === "Employee" && result.assignedBranches.length > 0) {
-    lines.push(
-      `${result.assignedBranches.length > 1 ? "Assigned Branches" : "Assigned Branch"}: ${result.assignedBranches.join(", ")}`,
-    );
+  if (result.assignedBranch) {
+    lines.push(`Assigned Branch: ${result.assignedBranch}`);
   }
-
-  if (result.accountCategory === "Borrower") {
-    lines.push(`Contact Number: ${result.contactNumber ?? ""}`);
-    lines.push(`Address: ${result.address ?? ""}`);
+  if (result.assignedArea) {
+    lines.push(`Assigned Area: ${result.assignedArea}`);
+  }
+  if (result.assignedBranches.length > 0) {
+    lines.push(`Assigned Branches: ${result.assignedBranches.join(", ")}`);
+  }
+  if (result.contactNumber) {
+    lines.push(`Contact Number: ${result.contactNumber}`);
+  }
+  if (result.address) {
+    lines.push(`Address: ${result.address}`);
   }
 
   return lines;
@@ -110,16 +108,19 @@ function escapeHtml(value: string) {
     .replaceAll("'", "&#39;");
 }
 
-export function CreateAccountForm({ roles, branches }: CreateAccountFormProps) {
+export function CreateAccountForm({ roles, branches, areas }: CreateAccountFormProps) {
   const [state, formAction] = useActionState(createAccountAction, initialCreateAccountState);
   const formRef = useRef<HTMLFormElement>(null);
 
   const [accountCategory, setAccountCategory] = useState<AccountCategory>("Employee");
+  const [roleId, setRoleId] = useState("");
   const [firstName, setFirstName] = useState("");
+  const [middleName, setMiddleName] = useState("");
   const [lastName, setLastName] = useState("");
   const [contactNumber, setContactNumber] = useState("");
   const [address, setAddress] = useState("");
   const [singleBranchId, setSingleBranchId] = useState("");
+  const [areaId, setAreaId] = useState("");
   const [auditorBranchIds, setAuditorBranchIds] = useState<string[]>([]);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isConfirmedSubmit, setIsConfirmedSubmit] = useState(false);
@@ -135,7 +136,6 @@ export function CreateAccountForm({ roles, branches }: CreateAccountFormProps) {
     [roles],
   );
 
-  const [roleId, setRoleId] = useState<string>("");
   const borrowerRoleId = borrowerRole ? String(borrowerRole.role_id) : "";
   const hasSelectedEmployeeRole = employeeRoles.some((role) => String(role.role_id) === roleId);
   const effectiveRoleId =
@@ -149,31 +149,37 @@ export function CreateAccountForm({ roles, branches }: CreateAccountFormProps) {
 
   const selectedRole =
     employeeRoles.find((role) => String(role.role_id) === effectiveRoleId) ?? null;
-  const selectedRoleName = selectedRole?.role_name;
+  const selectedRoleName = selectedRole?.role_name ?? "";
 
-  const showBorrowerFields = accountCategory === "Borrower";
   const showRoleSelector = accountCategory === "Employee";
-  const showSingleBranchSelector =
-    showRoleSelector && !!selectedRoleName && SINGLE_BRANCH_ROLE_NAMES.includes(selectedRoleName);
+  const showBorrowerFields = accountCategory === "Borrower";
   const showAuditorBranchSelector = showRoleSelector && selectedRoleName === "Auditor";
+  const showAreaFlow =
+    accountCategory === "Borrower" ||
+    (showRoleSelector && selectedRoleName === "Collector");
+  const showBranchOnlySelector =
+    showRoleSelector && BRANCH_ONLY_ROLE_NAMES.includes(selectedRoleName);
+
+  const areaOptions = useMemo(
+    () => areas.filter((item) => String(item.branch_id) === singleBranchId),
+    [areas, singleBranchId],
+  );
 
   const selectedSingleBranchName =
-    branches.find((branch) => String(branch.branch_id) === singleBranchId)?.branch_name ?? "";
+    branches.find((item) => String(item.branch_id) === singleBranchId)?.branch_name ?? "";
+  const selectedAreaCode = areaOptions.find((item) => String(item.area_id) === areaId)?.area_code ?? "";
   const selectedAuditorBranchNames = branches
-    .filter((branch) => auditorBranchIds.includes(String(branch.branch_id)))
-    .map((branch) => branch.branch_name);
+    .filter((item) => auditorBranchIds.includes(String(item.branch_id)))
+    .map((item) => item.branch_name);
 
   function handleCategoryChange(value: AccountCategory) {
     setAccountCategory(value);
     setCopyStatus("");
+    setAreaId("");
+    setSingleBranchId("");
+    setAuditorBranchIds([]);
 
-    if (value === "Borrower") {
-      setSingleBranchId("");
-      setAuditorBranchIds([]);
-      return;
-    }
-
-    if (!hasSelectedEmployeeRole) {
+    if (value === "Employee" && !hasSelectedEmployeeRole) {
       setRoleId(employeeRoles[0] ? String(employeeRoles[0].role_id) : "");
     }
   }
@@ -181,17 +187,14 @@ export function CreateAccountForm({ roles, branches }: CreateAccountFormProps) {
   function handleRoleChange(value: string) {
     setRoleId(value);
     setCopyStatus("");
-
-    const role = employeeRoles.find((item) => String(item.role_id) === value)?.role_name;
-    if (role === "Auditor") {
-      setSingleBranchId("");
-      return;
-    }
-
+    setAreaId("");
+    setSingleBranchId("");
     setAuditorBranchIds([]);
-    if (role === "Admin") {
-      setSingleBranchId("");
-    }
+  }
+
+  function handleBranchChange(value: string) {
+    setSingleBranchId(value);
+    setAreaId("");
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -224,9 +227,7 @@ export function CreateAccountForm({ roles, branches }: CreateAccountFormProps) {
   }
 
   function handlePrintSlip() {
-    if (!state.result) {
-      return;
-    }
+    if (!state.result) return;
 
     const lines = buildAccountDetailsLines(state.result);
     const printableBody = lines.map((line) => escapeHtml(line)).join("<br />");
@@ -270,18 +271,14 @@ export function CreateAccountForm({ roles, branches }: CreateAccountFormProps) {
           <CardTitle>Create Account</CardTitle>
         </CardHeader>
         <CardContent>
-          <form
-            action={formAction}
-            className="space-y-4"
-            onSubmit={handleSubmit}
-            ref={formRef}
-          >
+          <form action={formAction} className="space-y-4" onSubmit={handleSubmit} ref={formRef}>
             <input name="account_category" type="hidden" value={accountCategory} />
             <input name="role_id" type="hidden" value={effectiveRoleId} />
-            <input name="branch_id" type="hidden" value={showSingleBranchSelector ? singleBranchId : ""} />
+            <input name="branch_id" type="hidden" value={singleBranchId} />
+            <input name="area_id" type="hidden" value={areaId} />
 
             <div className="space-y-2">
-              <Label>Account Category</Label>
+              <FieldLabel required>Account Category</FieldLabel>
               <Select onValueChange={handleCategoryChange} value={accountCategory}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select account category" />
@@ -298,11 +295,8 @@ export function CreateAccountForm({ roles, branches }: CreateAccountFormProps) {
 
             {showRoleSelector ? (
               <div className="space-y-2">
-                <Label>Role</Label>
-                <Select
-                  onValueChange={handleRoleChange}
-                  value={effectiveRoleId}
-                >
+                <FieldLabel required>Role</FieldLabel>
+                <Select onValueChange={handleRoleChange} value={effectiveRoleId}>
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select role" />
                   </SelectTrigger>
@@ -314,15 +308,17 @@ export function CreateAccountForm({ roles, branches }: CreateAccountFormProps) {
                     ))}
                   </SelectContent>
                 </Select>
-                {getRoleError(state) ? (
-                  <p className="text-sm text-destructive">{getRoleError(state)}</p>
+                {state.fieldErrors?.role_id ? (
+                  <p className="text-sm text-destructive">{state.fieldErrors.role_id}</p>
                 ) : null}
               </div>
             ) : null}
 
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-4 md:grid-cols-3">
               <div className="space-y-2">
-                <Label htmlFor="first_name">First Name</Label>
+                <FieldLabel htmlFor="first_name" required>
+                  First Name
+                </FieldLabel>
                 <Input
                   id="first_name"
                   name="first_name"
@@ -334,7 +330,21 @@ export function CreateAccountForm({ roles, branches }: CreateAccountFormProps) {
                 ) : null}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="last_name">Last Name</Label>
+                <FieldLabel htmlFor="middle_name">Middle Name</FieldLabel>
+                <Input
+                  id="middle_name"
+                  name="middle_name"
+                  onChange={(event) => setMiddleName(event.target.value)}
+                  value={middleName}
+                />
+                {state.fieldErrors?.middle_name ? (
+                  <p className="text-sm text-destructive">{state.fieldErrors.middle_name}</p>
+                ) : null}
+              </div>
+              <div className="space-y-2">
+                <FieldLabel htmlFor="last_name" required>
+                  Last Name
+                </FieldLabel>
                 <Input
                   id="last_name"
                   name="last_name"
@@ -348,16 +358,64 @@ export function CreateAccountForm({ roles, branches }: CreateAccountFormProps) {
             </div>
 
             <div className="rounded-md border p-3">
-              <p className="text-sm">Initial username will be the generated User ID</p>
+              <p className="text-sm">Username will be set to the generated Company ID.</p>
               <p className="mt-1 text-sm text-muted-foreground">
                 A temporary password will be generated automatically.
               </p>
             </div>
 
+            {showAreaFlow ? (
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <FieldLabel required>Branch</FieldLabel>
+                  <Select onValueChange={handleBranchChange} value={singleBranchId}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select branch" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {branches.map((item) => (
+                        <SelectItem key={String(item.branch_id)} value={String(item.branch_id)}>
+                          {item.branch_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {state.fieldErrors?.branch_id ? (
+                    <p className="text-sm text-destructive">{state.fieldErrors.branch_id}</p>
+                  ) : null}
+                </div>
+
+                <div className="space-y-2">
+                  <FieldLabel required>Area</FieldLabel>
+                  <Select disabled={!singleBranchId} onValueChange={setAreaId} value={areaId}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue
+                        placeholder={
+                          singleBranchId ? "Select area" : "Select branch first"
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {areaOptions.map((item) => (
+                        <SelectItem key={String(item.area_id)} value={String(item.area_id)}>
+                          {item.area_code}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {state.fieldErrors?.area_id ? (
+                    <p className="text-sm text-destructive">{state.fieldErrors.area_id}</p>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
+
             {showBorrowerFields ? (
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="contact_number">Contact Number</Label>
+                  <FieldLabel htmlFor="contact_number" required>
+                    Contact Number
+                  </FieldLabel>
                   <Input
                     id="contact_number"
                     inputMode="numeric"
@@ -374,7 +432,9 @@ export function CreateAccountForm({ roles, branches }: CreateAccountFormProps) {
                   ) : null}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="address">Address</Label>
+                  <FieldLabel htmlFor="address" required>
+                    Address
+                  </FieldLabel>
                   <Input
                     id="address"
                     name="address"
@@ -388,17 +448,17 @@ export function CreateAccountForm({ roles, branches }: CreateAccountFormProps) {
               </div>
             ) : null}
 
-            {showSingleBranchSelector ? (
+            {showBranchOnlySelector ? (
               <div className="space-y-2">
-                <Label>Branch (Required)</Label>
-                <Select onValueChange={setSingleBranchId} value={singleBranchId}>
+                <FieldLabel required>Branch</FieldLabel>
+                <Select onValueChange={handleBranchChange} value={singleBranchId}>
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select branch" />
                   </SelectTrigger>
                   <SelectContent>
-                    {branches.map((branch) => (
-                      <SelectItem key={String(branch.branch_id)} value={String(branch.branch_id)}>
-                        {branch.branch_name}
+                    {branches.map((item) => (
+                      <SelectItem key={String(item.branch_id)} value={String(item.branch_id)}>
+                        {item.branch_name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -411,19 +471,16 @@ export function CreateAccountForm({ roles, branches }: CreateAccountFormProps) {
 
             {showAuditorBranchSelector ? (
               <div className="space-y-2">
-                <Label>Assigned Branches (Select one or more)</Label>
+                <FieldLabel required>Assigned Branches (Select one or more)</FieldLabel>
                 <div className="space-y-2 rounded-md border p-3">
-                  {branches.map((branch) => (
-                    <label
-                      key={String(branch.branch_id)}
-                      className="flex items-center gap-2 text-sm"
-                    >
+                  {branches.map((item) => (
+                    <label className="flex items-center gap-2 text-sm" key={String(item.branch_id)}>
                       <input
-                        checked={auditorBranchIds.includes(String(branch.branch_id))}
+                        checked={auditorBranchIds.includes(String(item.branch_id))}
                         className="h-4 w-4"
                         name="branch_ids"
                         onChange={(event) => {
-                          const value = String(branch.branch_id);
+                          const value = String(item.branch_id);
                           setAuditorBranchIds((previous) => {
                             if (event.target.checked) {
                               return previous.includes(value) ? previous : [...previous, value];
@@ -432,9 +489,9 @@ export function CreateAccountForm({ roles, branches }: CreateAccountFormProps) {
                           });
                         }}
                         type="checkbox"
-                        value={String(branch.branch_id)}
+                        value={String(item.branch_id)}
                       />
-                      <span>{branch.branch_name}</span>
+                      <span>{item.branch_name}</span>
                     </label>
                   ))}
                 </div>
@@ -455,9 +512,7 @@ export function CreateAccountForm({ roles, branches }: CreateAccountFormProps) {
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Confirm Account Creation</DialogTitle>
-                <DialogDescription>
-                  Review the details below before creating the account.
-                </DialogDescription>
+                <DialogDescription>Review details before creating the account.</DialogDescription>
               </DialogHeader>
 
               <div className="space-y-2 text-sm">
@@ -466,15 +521,20 @@ export function CreateAccountForm({ roles, branches }: CreateAccountFormProps) {
                 </p>
                 <p>
                   <span className="font-medium">Role:</span>{" "}
-                  {accountCategory === "Borrower" ? "Borrower" : selectedRoleName ?? "N/A"}
+                  {accountCategory === "Borrower" ? "Borrower" : selectedRoleName || "N/A"}
                 </p>
                 <p>
                   <span className="font-medium">Full Name:</span>{" "}
-                  {[firstName, lastName].filter(Boolean).join(" ") || "N/A"}
+                  {[firstName, middleName, lastName].filter(Boolean).join(" ") || "N/A"}
                 </p>
-                {showSingleBranchSelector && selectedSingleBranchName ? (
+                {singleBranchId && selectedSingleBranchName ? (
                   <p>
-                    <span className="font-medium">Assigned Branch:</span> {selectedSingleBranchName}
+                    <span className="font-medium">Branch:</span> {selectedSingleBranchName}
+                  </p>
+                ) : null}
+                {areaId && selectedAreaCode ? (
+                  <p>
+                    <span className="font-medium">Area:</span> {selectedAreaCode}
                   </p>
                 ) : null}
                 {showAuditorBranchSelector && selectedAuditorBranchNames.length > 0 ? (
@@ -486,11 +546,10 @@ export function CreateAccountForm({ roles, branches }: CreateAccountFormProps) {
                 {accountCategory === "Borrower" ? (
                   <>
                     <p>
-                      <span className="font-medium">Contact Number:</span>{" "}
-                      {contactNumber || "N/A"}
+                      <span className="font-medium">Contact Number:</span> {contactNumber || ""}
                     </p>
                     <p>
-                      <span className="font-medium">Address:</span> {address || "N/A"}
+                      <span className="font-medium">Address:</span> {address || ""}
                     </p>
                   </>
                 ) : null}
@@ -539,7 +598,20 @@ export function CreateAccountForm({ roles, branches }: CreateAccountFormProps) {
             </p>
             <div className="flex flex-wrap items-center gap-2">
               <p>
-                <span className="font-medium">Initial Username:</span> {state.result.username}
+                <span className="font-medium">Company ID:</span> {state.result.companyId}
+              </p>
+              <Button
+                onClick={() => handleCopy(state.result!.companyId, "Company ID")}
+                size="xs"
+                type="button"
+                variant="outline"
+              >
+                Copy Company ID
+              </Button>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <p>
+                <span className="font-medium">Username:</span> {state.result.username}
               </p>
               <Button
                 onClick={() => handleCopy(state.result!.username, "Username")}
@@ -556,7 +628,7 @@ export function CreateAccountForm({ roles, branches }: CreateAccountFormProps) {
             <div className="flex flex-wrap items-center gap-2">
               <p>
                 <span className="font-medium">Temporary Password:</span>{" "}
-                {showPassword ? state.result.temporaryPassword : "••••••••••••"}
+                {showPassword ? state.result.temporaryPassword : "**************"}
               </p>
               <Button
                 onClick={() => setShowPassword((previous) => !previous)}
@@ -576,29 +648,31 @@ export function CreateAccountForm({ roles, branches }: CreateAccountFormProps) {
               </Button>
             </div>
 
-            {state.result.accountCategory === "Employee" &&
-            state.result.assignedBranches.length > 0 ? (
+            {state.result.assignedBranch ? (
               <p>
-                <span className="font-medium">
-                  {state.result.assignedBranches.length > 1
-                    ? "Assigned Branches"
-                    : "Assigned Branch"}
-                  :
-                </span>{" "}
+                <span className="font-medium">Assigned Branch:</span> {state.result.assignedBranch}
+              </p>
+            ) : null}
+            {state.result.assignedArea ? (
+              <p>
+                <span className="font-medium">Assigned Area:</span> {state.result.assignedArea}
+              </p>
+            ) : null}
+            {state.result.assignedBranches.length > 0 ? (
+              <p>
+                <span className="font-medium">Assigned Branches:</span>{" "}
                 {state.result.assignedBranches.join(", ")}
               </p>
             ) : null}
-
-            {state.result.accountCategory === "Borrower" ? (
-              <>
-                <p>
-                  <span className="font-medium">Contact Number:</span>{" "}
-                  {state.result.contactNumber ?? ""}
-                </p>
-                <p>
-                  <span className="font-medium">Address:</span> {state.result.address ?? ""}
-                </p>
-              </>
+            {state.result.contactNumber ? (
+              <p>
+                <span className="font-medium">Contact Number:</span> {state.result.contactNumber}
+              </p>
+            ) : null}
+            {state.result.address ? (
+              <p>
+                <span className="font-medium">Address:</span> {state.result.address}
+              </p>
             ) : null}
             {copyStatus ? <p className="text-muted-foreground text-xs">{copyStatus}</p> : null}
           </CardContent>

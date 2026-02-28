@@ -1,5 +1,6 @@
 export type CollectionHistoryRow = {
   collectionId: string;
+  collectionCode: string;
   collectionDate: string;
   amount: number;
   note: string | null;
@@ -19,6 +20,7 @@ export type LoanDetailState = {
   };
   result?: {
     collectionId: string;
+    collectionCode: string;
     collectionDate: string;
     amount: number;
     collectorName: string;

@@ -90,6 +90,7 @@ export function LoanDetailForm({
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isConfirmedSubmit, setIsConfirmedSubmit] = useState(false);
+  const [localNoteError, setLocalNoteError] = useState("");
   const hasCollectors = collectors.length > 0;
 
   const selectedCollector = useMemo(
@@ -111,12 +112,22 @@ export function LoanDetailForm({
     return sortCollections(Array.from(byId.values()));
   }, [initialCollections, state.appendedRows]);
 
+  const noteFieldError =
+    localNoteError || (missedPayment && !note.trim() ? "Note is required for missed payment." : "") || "";
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     if (isConfirmedSubmit) {
       setIsConfirmedSubmit(false);
       return;
     }
 
+    if (missedPayment && !note.trim()) {
+      event.preventDefault();
+      setLocalNoteError("Note is required for missed payment.");
+      return;
+    }
+
+    setLocalNoteError("");
     event.preventDefault();
     setIsConfirmOpen(true);
   }
@@ -133,6 +144,7 @@ export function LoanDetailForm({
       setAmount("0");
     } else {
       setAmount("");
+      setLocalNoteError("");
     }
   }
 
@@ -218,17 +230,25 @@ export function LoanDetailForm({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="note">Note</Label>
+        <Label htmlFor="note">
+          Note
+          {missedPayment ? <span className="ml-1 text-destructive">*</span> : null}
+        </Label>
         <textarea
           className="border-input focus-visible:border-ring focus-visible:ring-ring/50 min-h-24 w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
           id="note"
           name="note"
-          onChange={(event) => setNote(event.target.value)}
+          onChange={(event) => {
+            setNote(event.target.value);
+            if (localNoteError || state.fieldErrors?.note) {
+              setLocalNoteError("");
+            }
+          }}
           placeholder={missedPayment ? "Reason for missed payment" : "Optional note"}
           value={note}
         />
-        {state.fieldErrors?.note ? (
-          <p className="text-sm text-destructive">{state.fieldErrors.note}</p>
+        {noteFieldError || state.fieldErrors?.note ? (
+          <p className="text-sm text-destructive">{noteFieldError || state.fieldErrors?.note}</p>
         ) : null}
       </div>
 
@@ -264,7 +284,7 @@ export function LoanDetailForm({
             collectionForm
           ) : (
             <p className="text-sm text-muted-foreground">
-              No collectors are assigned to this branch.
+              No collectors are assigned to this area.
             </p>
           )}
         </DialogContent>
@@ -315,6 +335,9 @@ export function LoanDetailForm({
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
             <p>
+              <span className="font-medium">Collection Code:</span> {state.result.collectionCode}
+            </p>
+            <p>
               <span className="font-medium">Collection ID:</span> {state.result.collectionId}
             </p>
             <p>
@@ -352,7 +375,7 @@ export function LoanDetailForm({
         <CardContent>
           {!hasCollectors ? (
             <p className="mb-3 text-sm text-amber-700 dark:text-amber-400">
-              No collectors are assigned to this branch.
+              No collectors are assigned to this area.
             </p>
           ) : null}
           {historyWithBalance.length === 0 ? (
@@ -362,6 +385,7 @@ export function LoanDetailForm({
               <table className="w-full min-w-225 text-sm">
                 <thead>
                   <tr className="border-b text-left">
+                    <th className="px-2 py-2 font-medium">Collection Code</th>
                     <th className="px-2 py-2 font-medium">Date</th>
                     <th className="px-2 py-2 font-medium">Principal + Interest</th>
                     <th className="px-2 py-2 font-medium">Daily Payment</th>
@@ -374,6 +398,7 @@ export function LoanDetailForm({
                 <tbody>
                   {historyWithBalance.map((row) => (
                     <tr className="border-b" key={row.collectionId}>
+                      <td className="px-2 py-2">{row.collectionCode}</td>
                       <td className="px-2 py-2">{row.collectionDate}</td>
                       <td className="px-2 py-2">{formatMoney(totalPayable)}</td>
                       <td className="px-2 py-2">

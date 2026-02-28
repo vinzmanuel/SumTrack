@@ -1,38 +1,15 @@
 "use server";
 
+import { eq } from "drizzle-orm";
+import { db } from "@/db";
+import { areas, borrower_info, branch, loan_records, roles, users } from "@/db/schema";
 import { createClient } from "@/lib/supabase/server";
 import type { CreateLoanState } from "@/app/dashboard/create-loan/state";
-
-type RoleRow = {
-  role_name: string;
-};
-
-type AppUserRow = {
-  role_id: string | null;
-};
-
-type BorrowerInfoRow = {
-  user_id: string;
-  first_name: string | null;
-  last_name: string | null;
-};
-
-type UserRow = {
-  username: string | null;
-};
-
-type BranchRow = {
-  branch_id: string;
-  branch_name: string;
-};
-
-type LoanInsertRow = {
-  loan_id: string | number;
-};
 
 type FormFields = {
   borrower_id: string;
   branch_id: string;
+  area_id: string;
   principal: string;
   interest: string;
   start_date: string;
@@ -65,12 +42,42 @@ function parseNonNegativeNumber(value: string) {
   return parsed;
 }
 
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+async function generateNextLoanCode(borrowerId: string, borrowerCompanyId: string) {
+  const existingLoanCodes = await db
+    .select({ loan_code: loan_records.loan_code })
+    .from(loan_records)
+    .where(eq(loan_records.borrower_id, borrowerId));
+
+  const pattern = new RegExp(`^${escapeRegExp(borrowerCompanyId)}-L(\\d{3})$`);
+  let maxSequence = 0;
+
+  for (const row of existingLoanCodes) {
+    const match = row.loan_code.match(pattern);
+    if (!match) {
+      continue;
+    }
+
+    const parsed = Number(match[1]);
+    if (Number.isFinite(parsed)) {
+      maxSequence = Math.max(maxSequence, parsed);
+    }
+  }
+
+  const nextSequence = String(maxSequence + 1).padStart(3, "0");
+  return `${borrowerCompanyId}-L${nextSequence}`;
+}
+
 export async function createLoanAction(
   _prevState: CreateLoanState,
   formData: FormData,
 ): Promise<CreateLoanState> {
   const borrowerId = getTrimmed(formData, "borrower_id");
   const branchId = getTrimmed(formData, "branch_id");
+  const areaId = getTrimmed(formData, "area_id");
   const principalRaw = getTrimmed(formData, "principal");
   const interestRaw = getTrimmed(formData, "interest");
   const startDate = getTrimmed(formData, "start_date");
@@ -83,6 +90,9 @@ export async function createLoanAction(
   }
   if (!branchId) {
     fieldErrors.branch_id = "Branch is required.";
+  }
+  if (!areaId) {
+    fieldErrors.area_id = "Area is required.";
   }
 
   const principal = parseNonNegativeNumber(principalRaw);
@@ -127,24 +137,28 @@ export async function createLoanAction(
     };
   }
 
-  const { data: currentAppUser, error: currentAppUserError } = await supabase
-    .from("users")
-    .select("role_id")
-    .eq("user_id", currentAuthUser.id)
-    .maybeSingle<AppUserRow>();
+  const currentAppUser = await db
+    .select({ role_id: users.role_id })
+    .from(users)
+    .where(eq(users.user_id, currentAuthUser.id))
+    .limit(1)
+    .then((rows) => rows[0] ?? null)
+    .catch(() => null);
 
-  if (currentAppUserError || !currentAppUser?.role_id) {
+  if (!currentAppUser?.role_id) {
     return {
       status: "error",
       message: "Unable to verify your app account.",
     };
   }
 
-  const { data: currentRole } = await supabase
-    .from("roles")
-    .select("role_name")
-    .eq("role_id", currentAppUser.role_id)
-    .maybeSingle<RoleRow>();
+  const currentRole = await db
+    .select({ role_name: roles.role_name })
+    .from(roles)
+    .where(eq(roles.role_id, currentAppUser.role_id))
+    .limit(1)
+    .then((rows) => rows[0] ?? null)
+    .catch(() => null);
 
   if (currentRole?.role_name !== "Admin") {
     return {
@@ -153,61 +167,158 @@ export async function createLoanAction(
     };
   }
 
-  const { data: borrowerInfo, error: borrowerError } = await supabase
-    .from("borrower_info")
-    .select("user_id, first_name, last_name")
-    .eq("user_id", toDbId(borrowerId))
-    .maybeSingle<BorrowerInfoRow>();
+  const borrowerInfo = await db
+    .select({
+      user_id: borrower_info.user_id,
+      area_id: borrower_info.area_id,
+      first_name: borrower_info.first_name,
+      last_name: borrower_info.last_name,
+    })
+    .from(borrower_info)
+    .where(eq(borrower_info.user_id, String(toDbId(borrowerId))))
+    .limit(1)
+    .then((rows) => rows[0] ?? null)
+    .catch(() => null);
 
-  if (borrowerError || !borrowerInfo) {
+  if (!borrowerInfo) {
     return {
       status: "error",
       message: "Selected borrower was not found.",
     };
   }
 
-  const { data: borrowerUser } = await supabase
-    .from("users")
-    .select("username")
-    .eq("user_id", borrowerInfo.user_id)
-    .maybeSingle<UserRow>();
+  const borrowerUser = await db
+    .select({
+      company_id: users.company_id,
+      username: users.username,
+    })
+    .from(users)
+    .where(eq(users.user_id, borrowerInfo.user_id))
+    .limit(1)
+    .then((rows) => rows[0] ?? null)
+    .catch(() => null);
 
   const borrowerName =
     [borrowerInfo.first_name, borrowerInfo.last_name].filter(Boolean).join(" ") ||
     borrowerUser?.username ||
     borrowerInfo.user_id;
 
-  const { data: branch, error: branchError } = await supabase
-    .from("branch")
-    .select("branch_id, branch_name")
-    .eq("branch_id", toDbId(branchId))
-    .maybeSingle<BranchRow>();
+  const branchIdDb = toDbId(branchId);
+  const areaIdDb = toDbId(areaId);
+  const borrowerArea = await db
+    .select({
+      area_id: areas.area_id,
+      branch_id: areas.branch_id,
+    })
+    .from(areas)
+    .where(eq(areas.area_id, borrowerInfo.area_id))
+    .limit(1)
+    .then((rows) => rows[0] ?? null)
+    .catch(() => null);
 
-  if (branchError || !branch) {
+  if (!borrowerArea) {
     return {
       status: "error",
-      message: "Selected branch was not found.",
+      message: "Selected borrower area was not found.",
     };
   }
 
-  const { data: insertedLoan, error: insertError } = await supabase
-    .from("loan_records")
-    .insert({
-      borrower_id: borrowerInfo.user_id,
-      principal: principal!,
-      interest: interest!,
-      start_date: startDate,
-      due_date: dueDate,
+  const branchRow = await db
+    .select({
       branch_id: branch.branch_id,
-      status: NEW_LOAN_STATUS,
+      branch_name: branch.branch_name,
     })
-    .select("loan_id")
-    .maybeSingle<LoanInsertRow>();
+    .from(branch)
+    .where(eq(branch.branch_id, borrowerArea.branch_id))
+    .limit(1)
+    .then((rows) => rows[0] ?? null)
+    .catch(() => null);
 
-  if (insertError || !insertedLoan?.loan_id) {
+  if (!branchRow) {
     return {
       status: "error",
-      message: `Failed to create loan: ${insertError?.message ?? "Unknown error."}`,
+      message: "Borrower branch was not found.",
+    };
+  }
+
+  if (typeof branchIdDb !== "number") {
+    return {
+      status: "error",
+      message: "Selected branch was not found.",
+      fieldErrors: {
+        branch_id: "Please select a branch.",
+      },
+    };
+  }
+
+  if (typeof areaIdDb !== "number") {
+    return {
+      status: "error",
+      message: "Selected area was not found.",
+      fieldErrors: {
+        area_id: "Please select an area.",
+      },
+    };
+  }
+
+  if (borrowerArea.area_id !== areaIdDb) {
+    return {
+      status: "error",
+      message: "Selected area does not match the borrower's assigned area.",
+      fieldErrors: {
+        area_id: "Borrower belongs to a different area.",
+      },
+    };
+  }
+
+  if (branchRow.branch_id !== branchIdDb) {
+    return {
+      status: "error",
+      message: "Selected branch does not match the borrower's assigned branch.",
+      fieldErrors: {
+        branch_id: `Borrower belongs to ${branchRow.branch_name}.`,
+      },
+    };
+  }
+
+  if (!borrowerUser?.company_id) {
+    return {
+      status: "error",
+      message: "Borrower company ID is missing.",
+    };
+  }
+
+  const nextLoanCode = await generateNextLoanCode(borrowerInfo.user_id, borrowerUser.company_id).catch(
+    () => null,
+  );
+
+  if (!nextLoanCode) {
+    return {
+      status: "error",
+      message: "Failed to generate a loan code.",
+    };
+  }
+
+  const insertedLoan = await db
+    .insert(loan_records)
+    .values({
+      loan_code: nextLoanCode,
+      borrower_id: borrowerInfo.user_id,
+      principal: String(principal!),
+      interest: String(interest!),
+      start_date: startDate,
+      due_date: dueDate,
+      branch_id: branchRow.branch_id,
+      status: NEW_LOAN_STATUS,
+    })
+    .returning({ loan_id: loan_records.loan_id, loan_code: loan_records.loan_code })
+    .then((rows) => rows[0] ?? null)
+    .catch(() => null);
+
+  if (!insertedLoan?.loan_id || !insertedLoan.loan_code) {
+    return {
+      status: "error",
+      message: "Failed to create loan: Unknown error.",
     };
   }
 
@@ -216,8 +327,9 @@ export async function createLoanAction(
     message: "Loan created successfully.",
     result: {
       loanId: String(insertedLoan.loan_id),
+      loanCode: insertedLoan.loan_code,
       borrowerName,
-      branchName: branch.branch_name,
+      branchName: branchRow.branch_name,
       principal: principal!,
       interest: interest!,
       startDate,

@@ -14,12 +14,14 @@ type AppUserRow = {
 
 type BorrowerInfoRow = {
   user_id: string;
+  area_id: string | number;
   first_name: string | null;
   last_name: string | null;
 };
 
 type UserRow = {
   user_id: string;
+  company_id: string | null;
   username: string | null;
 };
 
@@ -28,8 +30,17 @@ type BranchRow = {
   branch_name: string;
 };
 
+type AreaRow = {
+  area_id: string | number;
+  branch_id: string | number;
+  area_no: string;
+  area_code: string;
+};
+
 type BorrowerOption = {
   user_id: string;
+  area_id: string | number;
+  company_id: string | null;
   label: string;
   full_name: string;
   first_name: string | null;
@@ -97,30 +108,39 @@ export default async function CreateLoanPage() {
 
   const { data: borrowersData } = await supabase
     .from("borrower_info")
-    .select("user_id, first_name, last_name")
+    .select("user_id, area_id, first_name, last_name")
     .order("first_name");
 
   const borrowerInfos = (borrowersData ?? []) as BorrowerInfoRow[];
   const borrowerUserIds = borrowerInfos.map((borrower) => borrower.user_id);
 
   const { data: usersData } = borrowerUserIds.length
-    ? await supabase.from("users").select("user_id, username").in("user_id", borrowerUserIds)
+    ? await supabase
+        .from("users")
+        .select("user_id, company_id, username")
+        .in("user_id", borrowerUserIds)
     : { data: [] };
 
   const borrowerUsers = (usersData ?? []) as UserRow[];
-  const usernameByUserId = new Map(borrowerUsers.map((item) => [item.user_id, item.username]));
+  const borrowerUserByUserId = new Map(borrowerUsers.map((item) => [item.user_id, item]));
 
   const borrowers: BorrowerOption[] = borrowerInfos.map((borrower) => {
+    const borrowerUser = borrowerUserByUserId.get(borrower.user_id);
+    const companyId = borrowerUser?.company_id ?? null;
+    const username = borrowerUser?.username ?? null;
     const fullName = [borrower.first_name, borrower.last_name].filter(Boolean).join(" ").trim();
-    const username = usernameByUserId.get(borrower.user_id) ?? null;
     const label = fullName
-      ? `${fullName}${username ? ` (${username})` : ""}`
-      : username
-        ? `${username} (${borrower.user_id})`
+      ? `${fullName}${companyId ? ` (${companyId})` : username ? ` (${username})` : ""}`
+      : companyId
+        ? `${companyId} (${borrower.user_id})`
+        : username
+          ? `${username} (${borrower.user_id})`
         : borrower.user_id;
 
     return {
       user_id: borrower.user_id,
+      area_id: borrower.area_id,
+      company_id: companyId,
       full_name: fullName || borrower.user_id,
       first_name: borrower.first_name,
       last_name: borrower.last_name,
@@ -135,6 +155,11 @@ export default async function CreateLoanPage() {
     .order("branch_name");
 
   const branches = (branchesData ?? []) as BranchRow[];
+  const { data: areasData } = await supabase
+    .from("areas")
+    .select("area_id, branch_id, area_no, area_code")
+    .order("area_code");
+  const areas = (areasData ?? []) as AreaRow[];
 
   return (
     <main className="mx-auto min-h-screen w-full max-w-5xl p-6">
@@ -155,7 +180,7 @@ export default async function CreateLoanPage() {
         </CardContent>
       </Card>
 
-      <CreateLoanForm branches={branches} borrowers={borrowers} />
+      <CreateLoanForm areas={areas} branches={branches} borrowers={borrowers} />
     </main>
   );
 }

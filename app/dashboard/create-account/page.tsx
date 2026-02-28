@@ -1,5 +1,8 @@
 import Link from "next/link";
+import { eq, inArray } from "drizzle-orm";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { db } from "@/db";
+import { areas, roles, users, branch } from "@/db/schema";
 import { createClient } from "@/lib/supabase/server";
 import { CreateAccountForm } from "@/app/dashboard/create-account/create-account-form";
 
@@ -13,8 +16,11 @@ type BranchRow = {
   branch_name: string;
 };
 
-type AppUserRow = {
-  role_id: string | null;
+type AreaRow = {
+  area_id: string;
+  branch_id: string;
+  area_no: string;
+  area_code: string;
 };
 
 const ALLOWED_ROLE_NAMES = [
@@ -50,19 +56,26 @@ export default async function CreateAccountPage() {
     );
   }
 
-  const { data: currentAppUser } = await supabase
-    .from("users")
-    .select("role_id")
-    .eq("user_id", user.id)
-    .maybeSingle<AppUserRow>();
+  const currentAppUser = await db
+    .select({ role_id: users.role_id })
+    .from(users)
+    .where(eq(users.user_id, user.id))
+    .limit(1)
+    .then((rows) => rows[0] ?? null)
+    .catch(() => null);
 
-  const { data: currentRole } = currentAppUser?.role_id
-    ? await supabase
-        .from("roles")
-        .select("role_id, role_name")
-        .eq("role_id", currentAppUser.role_id)
-        .maybeSingle<RoleRow>()
-    : { data: null };
+  const currentRole = currentAppUser?.role_id
+    ? await db
+        .select({
+          role_id: roles.role_id,
+          role_name: roles.role_name,
+        })
+        .from(roles)
+        .where(eq(roles.role_id, currentAppUser.role_id))
+        .limit(1)
+        .then((rows) => rows[0] ?? null)
+        .catch(() => null)
+    : null;
 
   if (currentRole?.role_name !== "Admin") {
     return (
@@ -84,19 +97,52 @@ export default async function CreateAccountPage() {
     );
   }
 
-  const { data: rolesData } = await supabase
-    .from("roles")
-    .select("role_id, role_name")
-    .in("role_name", ALLOWED_ROLE_NAMES)
-    .order("role_name");
+  const rolesData = await db
+    .select({
+      role_id: roles.role_id,
+      role_name: roles.role_name,
+    })
+    .from(roles)
+    .where(inArray(roles.role_name, ALLOWED_ROLE_NAMES))
+    .orderBy(roles.role_name)
+    .catch(() => []);
 
-  const { data: branchesData } = await supabase
-    .from("branch")
-    .select("branch_id, branch_name")
-    .order("branch_name");
+  const branchesData = await db
+    .select({
+      branch_id: branch.branch_id,
+      branch_name: branch.branch_name,
+    })
+    .from(branch)
+    .orderBy(branch.branch_name)
+    .catch(() => []);
 
-  const roles = (rolesData ?? []) as RoleRow[];
-  const branches = (branchesData ?? []) as BranchRow[];
+  const areasData = await db
+    .select({
+      area_id: areas.area_id,
+      branch_id: areas.branch_id,
+      area_no: areas.area_no,
+      area_code: areas.area_code,
+    })
+    .from(areas)
+    .orderBy(areas.area_code)
+    .catch(() => []);
+
+  const mappedRoles: RoleRow[] = rolesData.map((item) => ({
+    role_id: String(item.role_id),
+    role_name: item.role_name,
+  }));
+
+  const mappedBranches: BranchRow[] = branchesData.map((item) => ({
+    branch_id: String(item.branch_id),
+    branch_name: item.branch_name,
+  }));
+
+  const mappedAreas: AreaRow[] = areasData.map((item) => ({
+    area_id: String(item.area_id),
+    branch_id: String(item.branch_id),
+    area_no: item.area_no,
+    area_code: item.area_code,
+  }));
 
   return (
     <main className="mx-auto min-h-screen w-full max-w-5xl p-6">
@@ -114,7 +160,7 @@ export default async function CreateAccountPage() {
         </CardContent>
       </Card>
 
-      <CreateAccountForm branches={branches} roles={roles} />
+      <CreateAccountForm areas={mappedAreas} branches={mappedBranches} roles={mappedRoles} />
     </main>
   );
 }

@@ -1,6 +1,9 @@
 import Link from "next/link";
+import { desc, inArray } from "drizzle-orm";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { db } from "@/db";
+import { borrower_info, branch, loan_records, users } from "@/db/schema";
 import { createClient } from "@/lib/supabase/server";
 
 type AppUserRow = {
@@ -10,33 +13,6 @@ type AppUserRow = {
 type RoleRow = {
   role_id: string;
   role_name: string;
-};
-
-type LoanRow = {
-  loan_id: string | number;
-  borrower_id: string;
-  branch_id: string | number;
-  principal: number | string;
-  interest: number | string;
-  start_date: string;
-  due_date: string;
-  status: string;
-};
-
-type BorrowerInfoRow = {
-  user_id: string;
-  first_name: string | null;
-  last_name: string | null;
-};
-
-type UserRow = {
-  user_id: string;
-  username: string | null;
-};
-
-type BranchRow = {
-  branch_id: string | number;
-  branch_name: string;
 };
 
 function formatMoney(value: number) {
@@ -101,36 +77,57 @@ export default async function LoansPage() {
     );
   }
 
-  const { data: loansData } = await supabase
-    .from("loan_records")
-    .select("loan_id, borrower_id, branch_id, principal, interest, start_date, due_date, status")
-    .order("loan_id", { ascending: false });
+  const loans = await db
+    .select({
+      loan_id: loan_records.loan_id,
+      borrower_id: loan_records.borrower_id,
+      branch_id: loan_records.branch_id,
+      principal: loan_records.principal,
+      interest: loan_records.interest,
+      start_date: loan_records.start_date,
+      due_date: loan_records.due_date,
+      status: loan_records.status,
+    })
+    .from(loan_records)
+    .orderBy(desc(loan_records.loan_id))
+    .catch(() => []);
 
-  const loans = (loansData ?? []) as LoanRow[];
   const borrowerIds = Array.from(new Set(loans.map((loan) => loan.borrower_id)));
   const branchIds = Array.from(new Set(loans.map((loan) => loan.branch_id)));
 
-  const { data: borrowerInfoData } = borrowerIds.length
-    ? await supabase
-        .from("borrower_info")
-        .select("user_id, first_name, last_name")
-        .in("user_id", borrowerIds)
-    : { data: [] };
+  const borrowerInfos = borrowerIds.length
+    ? await db
+        .select({
+          user_id: borrower_info.user_id,
+          first_name: borrower_info.first_name,
+          last_name: borrower_info.last_name,
+        })
+        .from(borrower_info)
+        .where(inArray(borrower_info.user_id, borrowerIds))
+        .catch(() => [])
+    : [];
 
-  const { data: borrowerUsersData } = borrowerIds.length
-    ? await supabase.from("users").select("user_id, username").in("user_id", borrowerIds)
-    : { data: [] };
+  const borrowerUsers = borrowerIds.length
+    ? await db
+        .select({
+          user_id: users.user_id,
+          username: users.username,
+        })
+        .from(users)
+        .where(inArray(users.user_id, borrowerIds))
+        .catch(() => [])
+    : [];
 
-  const { data: branchesData } = branchIds.length
-    ? await supabase
-        .from("branch")
-        .select("branch_id, branch_name")
-        .in("branch_id", branchIds)
-    : { data: [] };
-
-  const borrowerInfos = (borrowerInfoData ?? []) as BorrowerInfoRow[];
-  const borrowerUsers = (borrowerUsersData ?? []) as UserRow[];
-  const branches = (branchesData ?? []) as BranchRow[];
+  const branches = branchIds.length
+    ? await db
+        .select({
+          branch_id: branch.branch_id,
+          branch_name: branch.branch_name,
+        })
+        .from(branch)
+        .where(inArray(branch.branch_id, branchIds))
+        .catch(() => [])
+    : [];
 
   const borrowerInfoMap = new Map(borrowerInfos.map((item) => [item.user_id, item]));
   const borrowerUserMap = new Map(borrowerUsers.map((item) => [item.user_id, item]));
@@ -164,7 +161,7 @@ export default async function LoansPage() {
             <p className="text-muted-foreground text-sm">No loans found.</p>
           ) : (
             <div className="overflow-auto">
-              <table className="w-full min-w-[1000px] text-sm">
+              <table className="w-full min-w-250 text-sm">
                 <thead>
                   <tr className="border-b text-left">
                     <th className="px-2 py-2 font-medium">Loan ID</th>

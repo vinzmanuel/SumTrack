@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { eq } from "drizzle-orm";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -7,22 +8,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { db } from "@/db";
+import { employee_info, roles, users } from "@/db/schema";
 import { createClient } from "@/lib/supabase/server";
-
-type AppUser = {
-  user_id: string;
-  username: string | null;
-  role_id: string | null;
-};
-
-type Role = {
-  role_name: string;
-};
-
-type EmployeeInfo = {
-  first_name: string | null;
-  last_name: string | null;
-};
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -48,27 +36,40 @@ export default async function DashboardPage() {
     );
   }
 
-  const { data: appUser } = await supabase
-    .from("users")
-    .select("user_id, username, role_id")
-    .eq("user_id", user.id)
-    .maybeSingle<AppUser>();
+  const appUser = await db
+    .select({
+      user_id: users.user_id,
+      username: users.username,
+      role_id: users.role_id,
+    })
+    .from(users)
+    .where(eq(users.user_id, user.id))
+    .limit(1)
+    .then((rows) => rows[0] ?? null)
+    .catch(() => null);
 
-  const { data: role } = appUser?.role_id
-    ? await supabase
-        .from("roles")
-        .select("role_name")
-        .eq("role_id", appUser.role_id)
-        .maybeSingle<Role>()
-    : { data: null };
+  const role = appUser?.role_id
+    ? await db
+        .select({ role_name: roles.role_name })
+        .from(roles)
+        .where(eq(roles.role_id, appUser.role_id))
+        .limit(1)
+        .then((rows) => rows[0] ?? null)
+        .catch(() => null)
+    : null;
 
-  const { data: employeeInfo } = appUser
-    ? await supabase
-        .from("employee_info")
-        .select("first_name, last_name")
-        .eq("user_id", user.id)
-        .maybeSingle<EmployeeInfo>()
-    : { data: null };
+  const employeeInfo = appUser
+    ? await db
+        .select({
+          first_name: employee_info.first_name,
+          last_name: employee_info.last_name,
+        })
+        .from(employee_info)
+        .where(eq(employee_info.user_id, user.id))
+        .limit(1)
+        .then((rows) => rows[0] ?? null)
+        .catch(() => null)
+    : null;
 
   const fullName = [employeeInfo?.first_name, employeeInfo?.last_name]
     .filter(Boolean)

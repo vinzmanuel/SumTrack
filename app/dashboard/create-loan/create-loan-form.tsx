@@ -26,6 +26,8 @@ import { initialCreateLoanState } from "@/app/dashboard/create-loan/state";
 
 type BorrowerOption = {
   user_id: string;
+  area_id: string | number;
+  company_id: string | null;
   label: string;
   full_name: string;
   first_name: string | null;
@@ -38,9 +40,17 @@ type BranchOption = {
   branch_name: string;
 };
 
+type AreaOption = {
+  area_id: string | number;
+  branch_id: string | number;
+  area_no: string;
+  area_code: string;
+};
+
 type CreateLoanFormProps = {
   borrowers: BorrowerOption[];
   branches: BranchOption[];
+  areas: AreaOption[];
 };
 
 const TERM_OPTIONS = [
@@ -103,7 +113,7 @@ function getDateDiffDays(startDate: string, dueDate: string) {
   return diff > 0 ? diff : null;
 }
 
-export function CreateLoanForm({ borrowers, branches }: CreateLoanFormProps) {
+export function CreateLoanForm({ borrowers, branches, areas }: CreateLoanFormProps) {
   const [state, formAction] = useActionState(createLoanAction, initialCreateLoanState);
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -116,7 +126,8 @@ export function CreateLoanForm({ borrowers, branches }: CreateLoanFormProps) {
 
   const [borrowerId, setBorrowerId] = useState("");
   const [borrowerSearch, setBorrowerSearch] = useState("");
-  const [branchId, setBranchId] = useState("");
+  const [selectedBranchId, setSelectedBranchId] = useState("");
+  const [selectedAreaId, setSelectedAreaId] = useState("");
   const [termMonths, setTermMonths] = useState(defaultTermMonths);
   const [principal, setPrincipal] = useState("");
   const [interest, setInterest] = useState("");
@@ -131,51 +142,68 @@ export function CreateLoanForm({ borrowers, branches }: CreateLoanFormProps) {
   );
 
   const selectedBranch = useMemo(
-    () => branches.find((branch) => String(branch.branch_id) === branchId) ?? null,
-    [branchId, branches],
+    () => branches.find((branch) => String(branch.branch_id) === selectedBranchId) ?? null,
+    [selectedBranchId, branches],
+  );
+
+  const areaOptions = useMemo(
+    () => areas.filter((area) => String(area.branch_id) === selectedBranchId),
+    [areas, selectedBranchId],
+  );
+
+  const selectedArea = useMemo(
+    () => areaOptions.find((area) => String(area.area_id) === selectedAreaId) ?? null,
+    [areaOptions, selectedAreaId],
   );
 
   const filteredBorrowers = useMemo(() => {
-  const query = borrowerSearch.trim().toLowerCase();
+    const query = borrowerSearch.trim().toLowerCase();
+    const areaBorrowers = borrowers.filter(
+      (borrower) => String(borrower.area_id) === selectedAreaId,
+    );
 
-  if (!query) {
-    return [];
-  }
+    if (!query) {
+      return [];
+    }
 
-  return borrowers
-    .map((borrower) => {
-      const firstName = (borrower.first_name ?? "").toLowerCase().trim();
-      const lastName = (borrower.last_name ?? "").toLowerCase().trim();
-      const fullName = `${firstName} ${lastName}`.trim();
-      const fullNameWords = fullName.split(/\s+/).filter(Boolean);
+    return areaBorrowers
+      .map((borrower) => {
+        const firstName = (borrower.first_name ?? "").toLowerCase().trim();
+        const lastName = (borrower.last_name ?? "").toLowerCase().trim();
+        const companyId = (borrower.company_id ?? "").toLowerCase().trim();
+        const fullName = `${firstName} ${lastName}`.trim();
+        const fullNameWords = fullName.split(/\s+/).filter(Boolean);
 
-      const startsWithFirst = firstName.startsWith(query);
-      const startsWithLast = lastName.startsWith(query);
-      const startsWithAnyWord = fullNameWords.some((word) => word.startsWith(query));
-      const includesFullName = fullName.includes(query);
+        const startsWithFirst = firstName.startsWith(query);
+        const startsWithLast = lastName.startsWith(query);
+        const startsWithAnyWord = fullNameWords.some((word) => word.startsWith(query));
+        const startsWithCompanyId = companyId.startsWith(query);
+        const includesFullName = fullName.includes(query);
+        const includesCompanyId = companyId.includes(query);
 
-      let score = 0;
+        let score = 0;
 
-      if (query.length === 1) {
-        // strict matching for single-letter searches
-        if (startsWithFirst) score = 5;
-        else if (startsWithLast) score = 4;
-        else if (startsWithAnyWord) score = 3;
-      } else {
-        // looser matching for longer searches
-        if (startsWithFirst) score = 5;
-        else if (startsWithLast) score = 4;
-        else if (startsWithAnyWord) score = 3;
-        else if (includesFullName) score = 2;
-      }
+        if (query.length === 1) {
+          if (startsWithFirst) score = 6;
+          else if (startsWithLast) score = 5;
+          else if (startsWithCompanyId) score = 4;
+          else if (startsWithAnyWord) score = 3;
+        } else {
+          if (startsWithFirst) score = 6;
+          else if (startsWithLast) score = 5;
+          else if (startsWithCompanyId) score = 4;
+          else if (startsWithAnyWord) score = 3;
+          else if (includesCompanyId) score = 2;
+          else if (includesFullName) score = 1;
+        }
 
-      return { borrower, score };
-    })
-    .filter((item) => item.score > 0)
-    .sort((a, b) => b.score - a.score || a.borrower.label.localeCompare(b.borrower.label))
-    .slice(0, 10)
-    .map((item) => item.borrower);
-  }, [borrowerSearch, borrowers]);
+        return { borrower, score };
+      })
+      .filter((item) => item.score > 0)
+      .sort((a, b) => b.score - a.score || a.borrower.label.localeCompare(b.borrower.label))
+      .slice(0, 10)
+      .map((item) => item.borrower);
+  }, [borrowerSearch, borrowers, selectedAreaId]);
 
   const parsedPrincipal = Number(principal);
   const parsedInterest = Number(interest);
@@ -186,7 +214,8 @@ export function CreateLoanForm({ borrowers, branches }: CreateLoanFormProps) {
       : null;
   const estimatedDailyPayment =
     totalPayable !== null && durationDays ? totalPayable / durationDays : null;
-  const shouldShowBorrowerSuggestions = borrowerSearch.trim().length > 0 && borrowerId === "";
+  const shouldShowBorrowerSuggestions =
+    Boolean(selectedAreaId) && borrowerSearch.trim().length > 0 && borrowerId === "";
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     if (isConfirmedSubmit) {
@@ -208,6 +237,19 @@ export function CreateLoanForm({ borrowers, branches }: CreateLoanFormProps) {
     const nextBorrower = borrowers.find((borrower) => borrower.user_id === nextBorrowerId);
     setBorrowerId(nextBorrowerId);
     setBorrowerSearch(nextBorrower?.label ?? "");
+  }
+
+  function handleBranchChange(nextBranchId: string) {
+    setSelectedBranchId(nextBranchId);
+    setSelectedAreaId("");
+    setBorrowerId("");
+    setBorrowerSearch("");
+  }
+
+  function handleAreaChange(nextAreaId: string) {
+    setSelectedAreaId(nextAreaId);
+    setBorrowerId("");
+    setBorrowerSearch("");
   }
 
   function handleTermChange(value: string) {
@@ -252,17 +294,65 @@ export function CreateLoanForm({ borrowers, branches }: CreateLoanFormProps) {
             ref={formRef}
           >
             <input name="borrower_id" type="hidden" value={borrowerId} />
-            <input name="branch_id" type="hidden" value={branchId} />
+            <input name="branch_id" type="hidden" value={selectedBranchId} />
+            <input name="area_id" type="hidden" value={selectedAreaId} />
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Branch</Label>
+                <Select onValueChange={handleBranchChange} value={selectedBranchId}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select branch" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {branches.map((branch) => (
+                      <SelectItem key={String(branch.branch_id)} value={String(branch.branch_id)}>
+                        {branch.branch_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {state.fieldErrors?.branch_id ? (
+                  <p className="text-sm text-destructive">{state.fieldErrors.branch_id}</p>
+                ) : null}
+              </div>
+
+              <div className="space-y-2">
+                <Label>Area</Label>
+                <Select
+                  disabled={!selectedBranchId}
+                  onValueChange={handleAreaChange}
+                  value={selectedAreaId}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue
+                      placeholder={selectedBranchId ? "Select area" : "Select branch first"}
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {areaOptions.map((area) => (
+                      <SelectItem key={String(area.area_id)} value={String(area.area_id)}>
+                        {area.area_code}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {state.fieldErrors?.area_id ? (
+                  <p className="text-sm text-destructive">{state.fieldErrors.area_id}</p>
+                ) : null}
+              </div>
+            </div>
 
             <div className="space-y-2">
               <Label htmlFor="borrower_search">Borrower Search</Label>
               <Input
+                disabled={!selectedAreaId}
                 id="borrower_search"
                 onChange={(event) => {
                   setBorrowerSearch(event.target.value);
                   setBorrowerId("");
                 }}
-                placeholder="Type borrower name"
+                placeholder={selectedAreaId ? "Type borrower name or company ID" : "Select area first"}
                 value={borrowerSearch}
               />
               {shouldShowBorrowerSuggestions ? (
@@ -283,29 +373,19 @@ export function CreateLoanForm({ borrowers, branches }: CreateLoanFormProps) {
                   )}
                 </div>
               ) : null}
+              {!selectedAreaId ? (
+                <p className="text-muted-foreground text-sm">
+                  Select a branch and area before searching for a borrower.
+                </p>
+              ) : null}
               {state.fieldErrors?.borrower_id ? (
                 <p className="text-sm text-destructive">{state.fieldErrors.borrower_id}</p>
               ) : null}
             </div>
 
-            <div className="space-y-2">
-              <Label>Branch</Label>
-              <Select onValueChange={setBranchId} value={branchId}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select branch" />
-                </SelectTrigger>
-                <SelectContent>
-                  {branches.map((branch) => (
-                    <SelectItem key={String(branch.branch_id)} value={String(branch.branch_id)}>
-                      {branch.branch_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {state.fieldErrors?.branch_id ? (
-                <p className="text-sm text-destructive">{state.fieldErrors.branch_id}</p>
-              ) : null}
-            </div>
+            <p className="text-muted-foreground text-sm">
+              Loan branch is derived from the selected borrower&apos;s area assignment.
+            </p>
 
             <div className="space-y-2">
               <Label>Loan Term</Label>
@@ -431,6 +511,9 @@ export function CreateLoanForm({ borrowers, branches }: CreateLoanFormProps) {
                   {selectedBranch?.branch_name || "N/A"}
                 </p>
                 <p>
+                  <span className="font-medium">Area:</span> {selectedArea?.area_code || "N/A"}
+                </p>
+                <p>
                   <span className="font-medium">Principal:</span> {principal || "N/A"}
                 </p>
                 <p>
@@ -466,6 +549,9 @@ export function CreateLoanForm({ borrowers, branches }: CreateLoanFormProps) {
             <CardTitle>Loan Created</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm">
+            <p>
+              <span className="font-medium">Loan Code:</span> {state.result.loanCode}
+            </p>
             <p>
               <span className="font-medium">Loan ID:</span> {state.result.loanId}
             </p>
