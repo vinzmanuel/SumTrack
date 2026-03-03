@@ -51,7 +51,38 @@ function SubmitButton() {
 }
 
 function formatMoney(value: number) {
-  return value.toFixed(2);
+  return `\u20B1${value.toLocaleString("en-PH", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+function sanitizeNumericInput(value: string) {
+  const cleaned = value.replace(/[^0-9.]/g, "");
+  const firstDotIndex = cleaned.indexOf(".");
+  if (firstDotIndex === -1) {
+    return cleaned;
+  }
+
+  const intPart = cleaned.slice(0, firstDotIndex);
+  const decimalPart = cleaned.slice(firstDotIndex + 1).replace(/\./g, "");
+  return `${intPart}.${decimalPart}`;
+}
+
+function formatMoneyDisplay(rawValue: string) {
+  if (!rawValue) {
+    return "";
+  }
+
+  const [intPartRaw, decimalPartRaw] = rawValue.split(".");
+  const intPart = intPartRaw || "0";
+  const formattedInt = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+
+  if (decimalPartRaw === undefined) {
+    return formattedInt;
+  }
+
+  return `${formattedInt}.${decimalPartRaw}`;
 }
 
 function getTodayDateString() {
@@ -92,6 +123,8 @@ export function LoanDetailForm({
   const [isConfirmedSubmit, setIsConfirmedSubmit] = useState(false);
   const [localNoteError, setLocalNoteError] = useState("");
   const hasCollectors = collectors.length > 0;
+  const amountDisplay = formatMoneyDisplay(amount);
+  const amountPreview = amountDisplay ? `\u20B1${amountDisplay}` : "";
 
   const selectedCollector = useMemo(
     () => collectors.find((collector) => collector.user_id === collectorId) ?? null,
@@ -177,6 +210,7 @@ export function LoanDetailForm({
     <form action={formAction} className="space-y-4" onSubmit={handleSubmit} ref={formRef}>
       <input name="loan_id" type="hidden" value={loanId} />
       <input name="collector_id" type="hidden" value={collectorId} />
+      <input name="amount" type="hidden" value={amount} />
 
       <div className="space-y-2">
         <Label>Collector</Label>
@@ -200,16 +234,21 @@ export function LoanDetailForm({
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="amount">Amount</Label>
-          <Input
-            disabled={missedPayment}
-            id="amount"
-            min="0"
-            name="amount"
-            onChange={(event) => setAmount(event.target.value)}
-            step="0.01"
-            type="number"
-            value={amount}
-          />
+          <div className="relative">
+            <span className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-sm">
+              ₱
+            </span>
+            <Input
+              className="pl-7"
+              disabled={missedPayment}
+              id="amount"
+              inputMode="decimal"
+              onChange={(event) => setAmount(sanitizeNumericInput(event.target.value))}
+              placeholder="0"
+              type="text"
+              value={amountDisplay}
+            />
+          </div>
           {state.fieldErrors?.amount ? (
             <p className="text-sm text-destructive">{state.fieldErrors.amount}</p>
           ) : null}
@@ -305,7 +344,7 @@ export function LoanDetailForm({
             </p>
             <p>
               <span className="font-medium">Amount:</span>{" "}
-              {missedPayment ? "Missed Payment (0.00)" : amount || "N/A"}
+              {missedPayment ? "Missed Payment (\u20B10.00)" : amountPreview || "N/A"}
             </p>
             <p>
               <span className="font-medium">Collection Date:</span> {collectionDate || "N/A"}
@@ -419,3 +458,4 @@ export function LoanDetailForm({
     </div>
   );
 }
+

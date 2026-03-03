@@ -52,7 +52,10 @@ function calculateDays(startDate: string, dueDate: string) {
 }
 
 function formatMoney(value: number) {
-  return value.toFixed(2);
+  return `\u20B1${value.toLocaleString("en-PH", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
 }
 
 export default async function LoanDetailPage({ params }: PageProps) {
@@ -394,3 +397,4 @@ export default async function LoanDetailPage({ params }: PageProps) {
     </main>
   );
 }
+

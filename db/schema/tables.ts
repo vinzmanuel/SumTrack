@@ -304,7 +304,9 @@ export const expenses = pgTable(
     }),
     branch_id: integer().notNull(),
     amount: numeric({ precision: 10, scale: 2 }).notNull(),
+    expense_category: varchar({ length: 50 }).notNull(),
     description: text().notNull(),
+    expense_date: date().notNull(),
     recorded_by: uuid().notNull(),
     recorded_at: timestamp({ mode: "string" }).defaultNow(),
   },
@@ -312,14 +314,26 @@ export const expenses = pgTable(
     foreignKey({
       columns: [table.branch_id],
       foreignColumns: [branch.branch_id],
-      name: "expenses_branch_id_fkey",
+      name: "fk_expenses_branch",
     }),
     foreignKey({
       columns: [table.recorded_by],
       foreignColumns: [users.user_id],
-      name: "expenses_recorded_by_fkey",
+      name: "fk_expenses_recorded_by",
     }),
     check("chk_expenses_amount_nonnegative", sql`amount >= (0)::numeric`),
+    check(
+      "chk_expenses_category",
+      sql`${table.expense_category} in (
+        'Rent',
+        'Electricity',
+        'Water',
+        'Transportation',
+        'Lunch',
+        'Salary',
+        'Miscellaneous'
+      )`,
+    ),
   ],
 );
 

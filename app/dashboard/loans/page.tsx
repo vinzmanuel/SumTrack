@@ -16,7 +16,10 @@ type RoleRow = {
 };
 
 function formatMoney(value: number) {
-  return value.toFixed(2);
+  return `\u20B1${value.toLocaleString("en-PH", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
 }
 
 export default async function LoansPage() {
@@ -217,3 +220,4 @@ export default async function LoansPage() {
     </main>
   );
 }
+

@@ -99,6 +99,21 @@ export default async function DashboardPage() {
                 Create loan
               </Button>
             </Link>
+            <Link href="/dashboard/expenses/create">
+              <Button type="button" variant="secondary">
+                Create expense
+              </Button>
+            </Link>
+            <Link href="/dashboard/expenses">
+              <Button type="button" variant="secondary">
+                View expenses
+              </Button>
+            </Link>
+            <Link href="/dashboard/incentives/rules">
+              <Button type="button" variant="secondary">
+                Incentive rules
+              </Button>
+            </Link>
             <form action="/auth/signout" method="post">
               <Button type="submit" variant="outline">
                 Sign out

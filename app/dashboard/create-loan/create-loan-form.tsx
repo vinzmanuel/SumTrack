@@ -75,6 +75,34 @@ function formatMoney(value: number) {
   return value.toFixed(2);
 }
 
+function sanitizeNumericInput(value: string) {
+  const cleaned = value.replace(/[^0-9.]/g, "");
+  const firstDotIndex = cleaned.indexOf(".");
+  if (firstDotIndex === -1) {
+    return cleaned;
+  }
+
+  const intPart = cleaned.slice(0, firstDotIndex);
+  const decimalPart = cleaned.slice(firstDotIndex + 1).replace(/\./g, "");
+  return `${intPart}.${decimalPart}`;
+}
+
+function formatMoneyDisplay(rawValue: string) {
+  if (!rawValue) {
+    return "";
+  }
+
+  const [intPartRaw, decimalPartRaw] = rawValue.split(".");
+  const intPart = intPartRaw || "0";
+  const formattedInt = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+
+  if (decimalPartRaw === undefined) {
+    return formattedInt;
+  }
+
+  return `${formattedInt}.${decimalPartRaw}`;
+}
+
 function formatDateInput(date: Date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -129,7 +157,7 @@ export function CreateLoanForm({ borrowers, branches, areas }: CreateLoanFormPro
   const [selectedBranchId, setSelectedBranchId] = useState("");
   const [selectedAreaId, setSelectedAreaId] = useState("");
   const [termMonths, setTermMonths] = useState(defaultTermMonths);
-  const [principal, setPrincipal] = useState("");
+  const [principalRaw, setPrincipalRaw] = useState("");
   const [interest, setInterest] = useState("");
   const [startDate, setStartDate] = useState(defaultStartDate);
   const [dueDate, setDueDate] = useState(defaultDueDate);
@@ -205,7 +233,7 @@ export function CreateLoanForm({ borrowers, branches, areas }: CreateLoanFormPro
       .map((item) => item.borrower);
   }, [borrowerSearch, borrowers, selectedAreaId]);
 
-  const parsedPrincipal = Number(principal);
+  const parsedPrincipal = Number(principalRaw);
   const parsedInterest = Number(interest);
   const durationDays = getDateDiffDays(startDate, dueDate);
   const totalPayable =
@@ -214,6 +242,8 @@ export function CreateLoanForm({ borrowers, branches, areas }: CreateLoanFormPro
       : null;
   const estimatedDailyPayment =
     totalPayable !== null && durationDays ? totalPayable / durationDays : null;
+  const principalDisplay = formatMoneyDisplay(principalRaw);
+  const interestSuffixLeft = `calc(0.75rem + ${Math.max(interest.length, 1)}ch)`;
   const shouldShowBorrowerSuggestions =
     Boolean(selectedAreaId) && borrowerSearch.trim().length > 0 && borrowerId === "";
 
@@ -296,6 +326,8 @@ export function CreateLoanForm({ borrowers, branches, areas }: CreateLoanFormPro
             <input name="borrower_id" type="hidden" value={borrowerId} />
             <input name="branch_id" type="hidden" value={selectedBranchId} />
             <input name="area_id" type="hidden" value={selectedAreaId} />
+            <input name="principal" type="hidden" value={principalRaw} />
+            <input name="interest" type="hidden" value={interest} />
 
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
@@ -406,15 +438,20 @@ export function CreateLoanForm({ borrowers, branches, areas }: CreateLoanFormPro
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="principal">Principal</Label>
-                <Input
-                  id="principal"
-                  min="0"
-                  name="principal"
-                  onChange={(event) => setPrincipal(event.target.value)}
-                  step="0.01"
-                  type="number"
-                  value={principal}
-                />
+                <div className="relative">
+                  <span className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-sm">
+                    ₱
+                  </span>
+                  <Input
+                    className="pl-7"
+                    id="principal"
+                    inputMode="decimal"
+                    onChange={(event) => setPrincipalRaw(sanitizeNumericInput(event.target.value))}
+                    placeholder="0"
+                    type="text"
+                    value={principalDisplay}
+                  />
+                </div>
                 {state.fieldErrors?.principal ? (
                   <p className="text-sm text-destructive">{state.fieldErrors.principal}</p>
                 ) : null}
@@ -423,18 +460,21 @@ export function CreateLoanForm({ borrowers, branches, areas }: CreateLoanFormPro
                 <Label htmlFor="interest">Interest</Label>
                 <div className="relative">
                   <Input
-                    className="pr-8"
                     id="interest"
-                    min="0"
-                    name="interest"
-                    onChange={(event) => setInterest(event.target.value)}
-                    step="0.01"
-                    type="number"
+                    inputMode="decimal"
+                    onChange={(event) => setInterest(sanitizeNumericInput(event.target.value))}
+                    placeholder="0%"
+                    type="text"
                     value={interest}
                   />
-                  <span className="text-muted-foreground pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-sm">
-                    %
-                  </span>
+                  {interest ? (
+                    <span
+                      className="text-muted-foreground pointer-events-none absolute top-1/2 -translate-y-1/2 text-sm"
+                      style={{ left: interestSuffixLeft }}
+                    >
+                      %
+                    </span>
+                  ) : null}
                 </div>
                 {state.fieldErrors?.interest ? (
                   <p className="text-sm text-destructive">{state.fieldErrors.interest}</p>
@@ -514,7 +554,7 @@ export function CreateLoanForm({ borrowers, branches, areas }: CreateLoanFormPro
                   <span className="font-medium">Area:</span> {selectedArea?.area_code || "N/A"}
                 </p>
                 <p>
-                  <span className="font-medium">Principal:</span> {principal || "N/A"}
+                  <span className="font-medium">Principal:</span> {principalDisplay || "N/A"}
                 </p>
                 <p>
                   <span className="font-medium">Interest:</span> {interest || "N/A"}
