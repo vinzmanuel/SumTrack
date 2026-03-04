@@ -3,7 +3,7 @@ import { desc, inArray } from "drizzle-orm";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { db } from "@/db";
-import { borrower_info, branch, loan_records, users } from "@/db/schema";
+import { borrower_info, branch, employee_info, loan_records, users } from "@/db/schema";
 import { createClient } from "@/lib/supabase/server";
 
 type AppUserRow = {
@@ -85,6 +85,7 @@ export default async function LoansPage() {
       loan_id: loan_records.loan_id,
       borrower_id: loan_records.borrower_id,
       branch_id: loan_records.branch_id,
+      collector_id: loan_records.collector_id,
       principal: loan_records.principal,
       interest: loan_records.interest,
       start_date: loan_records.start_date,
@@ -97,6 +98,9 @@ export default async function LoansPage() {
 
   const borrowerIds = Array.from(new Set(loans.map((loan) => loan.borrower_id)));
   const branchIds = Array.from(new Set(loans.map((loan) => loan.branch_id)));
+  const collectorIds = Array.from(
+    new Set(loans.map((loan) => loan.collector_id).filter((value): value is string => Boolean(value))),
+  );
 
   const borrowerInfos = borrowerIds.length
     ? await db
@@ -132,9 +136,34 @@ export default async function LoansPage() {
         .catch(() => [])
     : [];
 
+  const collectorUsers = collectorIds.length
+    ? await db
+        .select({
+          user_id: users.user_id,
+          username: users.username,
+        })
+        .from(users)
+        .where(inArray(users.user_id, collectorIds))
+        .catch(() => [])
+    : [];
+
+  const collectorInfos = collectorIds.length
+    ? await db
+        .select({
+          user_id: employee_info.user_id,
+          first_name: employee_info.first_name,
+          last_name: employee_info.last_name,
+        })
+        .from(employee_info)
+        .where(inArray(employee_info.user_id, collectorIds))
+        .catch(() => [])
+    : [];
+
   const borrowerInfoMap = new Map(borrowerInfos.map((item) => [item.user_id, item]));
   const borrowerUserMap = new Map(borrowerUsers.map((item) => [item.user_id, item]));
   const branchMap = new Map(branches.map((item) => [String(item.branch_id), item]));
+  const collectorUserMap = new Map(collectorUsers.map((item) => [item.user_id, item]));
+  const collectorInfoMap = new Map(collectorInfos.map((item) => [item.user_id, item]));
 
   return (
     <main className="mx-auto min-h-screen w-full max-w-6xl p-6">
@@ -170,6 +199,7 @@ export default async function LoansPage() {
                     <th className="px-2 py-2 font-medium">Loan ID</th>
                     <th className="px-2 py-2 font-medium">Borrower</th>
                     <th className="px-2 py-2 font-medium">Branch</th>
+                    <th className="px-2 py-2 font-medium">Collector</th>
                     <th className="px-2 py-2 font-medium">Principal</th>
                     <th className="px-2 py-2 font-medium">Interest</th>
                     <th className="px-2 py-2 font-medium">Start Date</th>
@@ -190,12 +220,21 @@ export default async function LoansPage() {
                       loan.borrower_id;
                     const branchName =
                       branchMap.get(String(loan.branch_id))?.branch_name || "N/A";
+                    const collectorId = loan.collector_id;
+                    const collectorInfo = collectorId ? collectorInfoMap.get(collectorId) : null;
+                    const collectorUser = collectorId ? collectorUserMap.get(collectorId) : null;
+                    const collectorName = collectorId
+                      ? [collectorInfo?.first_name, collectorInfo?.last_name].filter(Boolean).join(" ") ||
+                        collectorUser?.username ||
+                        collectorId
+                      : "N/A";
 
                     return (
                       <tr className="border-b" key={String(loan.loan_id)}>
                         <td className="px-2 py-2">{String(loan.loan_id)}</td>
                         <td className="px-2 py-2">{borrowerName}</td>
                         <td className="px-2 py-2">{branchName}</td>
+                        <td className="px-2 py-2">{collectorName}</td>
                         <td className="px-2 py-2">{formatMoney(Number(loan.principal) || 0)}</td>
                         <td className="px-2 py-2">{Number(loan.interest) || 0}%</td>
                         <td className="px-2 py-2">{loan.start_date}</td>

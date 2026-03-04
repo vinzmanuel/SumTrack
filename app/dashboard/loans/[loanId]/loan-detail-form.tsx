@@ -14,27 +14,15 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { createCollectionAction } from "@/app/dashboard/loans/[loanId]/actions";
 import {
   initialLoanDetailState,
   type CollectionHistoryRow,
 } from "@/app/dashboard/loans/[loanId]/state";
 
-type CollectorOption = {
-  user_id: string;
-  label: string;
-};
-
 type LoanDetailFormProps = {
   loanId: string;
-  collectors: CollectorOption[];
+  assignedCollectorLabel: string;
   initialCollections: CollectionHistoryRow[];
   totalPayable: number;
   estimatedDailyPayment: number | null;
@@ -105,7 +93,7 @@ function sortCollections(rows: CollectionHistoryRow[]) {
 
 export function LoanDetailForm({
   loanId,
-  collectors,
+  assignedCollectorLabel,
   initialCollections,
   totalPayable,
   estimatedDailyPayment,
@@ -113,7 +101,6 @@ export function LoanDetailForm({
   const [state, formAction] = useActionState(createCollectionAction, initialLoanDetailState);
   const formRef = useRef<HTMLFormElement>(null);
 
-  const [collectorId, setCollectorId] = useState("");
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
   const [collectionDate, setCollectionDate] = useState(getTodayDateString());
@@ -122,14 +109,8 @@ export function LoanDetailForm({
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isConfirmedSubmit, setIsConfirmedSubmit] = useState(false);
   const [localNoteError, setLocalNoteError] = useState("");
-  const hasCollectors = collectors.length > 0;
   const amountDisplay = formatMoneyDisplay(amount);
   const amountPreview = amountDisplay ? `\u20B1${amountDisplay}` : "";
-
-  const selectedCollector = useMemo(
-    () => collectors.find((collector) => collector.user_id === collectorId) ?? null,
-    [collectorId, collectors],
-  );
 
   const historyRows = useMemo(() => {
     const byId = new Map<string, CollectionHistoryRow>();
@@ -209,27 +190,7 @@ export function LoanDetailForm({
   const collectionForm = (
     <form action={formAction} className="space-y-4" onSubmit={handleSubmit} ref={formRef}>
       <input name="loan_id" type="hidden" value={loanId} />
-      <input name="collector_id" type="hidden" value={collectorId} />
       <input name="amount" type="hidden" value={amount} />
-
-      <div className="space-y-2">
-        <Label>Collector</Label>
-        <Select onValueChange={setCollectorId} value={collectorId}>
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="Select collector" />
-          </SelectTrigger>
-          <SelectContent>
-            {collectors.map((collector) => (
-              <SelectItem key={collector.user_id} value={collector.user_id}>
-                {collector.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {state.fieldErrors?.collector_id ? (
-          <p className="text-sm text-destructive">{state.fieldErrors.collector_id}</p>
-        ) : null}
-      </div>
 
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
@@ -319,13 +280,7 @@ export function LoanDetailForm({
             <DialogTitle>Add Payment Collection</DialogTitle>
             <DialogDescription>Record a payment or missed payment for this loan.</DialogDescription>
           </DialogHeader>
-          {hasCollectors ? (
-            collectionForm
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              No collectors are assigned to this area.
-            </p>
-          )}
+          {collectionForm}
         </DialogContent>
       </Dialog>
 
@@ -340,7 +295,7 @@ export function LoanDetailForm({
 
           <div className="space-y-2 text-sm">
             <p>
-              <span className="font-medium">Collector:</span> {selectedCollector?.label || "N/A"}
+              <span className="font-medium">Collector:</span> {assignedCollectorLabel || "N/A"}
             </p>
             <p>
               <span className="font-medium">Amount:</span>{" "}
@@ -402,7 +357,6 @@ export function LoanDetailForm({
           <CardTitle>Collection History</CardTitle>
           <CardAction>
             <Button
-              disabled={!hasCollectors}
               onClick={() => setIsFormOpen(true)}
               size="sm"
               type="button"
@@ -412,11 +366,6 @@ export function LoanDetailForm({
           </CardAction>
         </CardHeader>
         <CardContent>
-          {!hasCollectors ? (
-            <p className="mb-3 text-sm text-amber-700 dark:text-amber-400">
-              No collectors are assigned to this area.
-            </p>
-          ) : null}
           {historyWithBalance.length === 0 ? (
             <p className="text-muted-foreground text-sm">No collections recorded yet.</p>
           ) : (

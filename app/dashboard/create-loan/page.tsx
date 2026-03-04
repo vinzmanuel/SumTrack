@@ -37,6 +37,29 @@ type AreaRow = {
   area_code: string;
 };
 
+type CollectorUserRow = {
+  user_id: string;
+  username: string | null;
+};
+
+type CollectorInfoRow = {
+  user_id: string;
+  first_name: string | null;
+  last_name: string | null;
+};
+
+type CollectorAssignmentRow = {
+  employee_user_id: string;
+  area_id: string | number;
+  end_date: string | null;
+};
+
+type CollectorOption = {
+  user_id: string;
+  area_id: string | number;
+  label: string;
+};
+
 type BorrowerOption = {
   user_id: string;
   area_id: string | number;
@@ -86,25 +109,7 @@ export default async function CreateLoanPage() {
         .maybeSingle<RoleRow>()
     : { data: null };
 
-  if (currentRole?.role_name !== "Admin") {
-    return (
-      <main className="mx-auto flex min-h-screen w-full max-w-4xl items-center justify-center p-6">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle>Create Loan</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              You are logged in, but only Admin users can create loans.
-            </p>
-            <Link className="text-sm underline" href="/dashboard">
-              Back to dashboard
-            </Link>
-          </CardContent>
-        </Card>
-      </main>
-    );
-  }
+  const isAdmin = currentRole?.role_name === "Admin";
 
   const { data: borrowersData } = await supabase
     .from("borrower_info")
@@ -161,6 +166,54 @@ export default async function CreateLoanPage() {
     .order("area_code");
   const areas = (areasData ?? []) as AreaRow[];
 
+  const { data: collectorRole } = await supabase
+    .from("roles")
+    .select("role_id, role_name")
+    .eq("role_name", "Collector")
+    .maybeSingle<RoleRow>();
+
+  const { data: collectorUsersData } = collectorRole?.role_id
+    ? await supabase
+        .from("users")
+        .select("user_id, username")
+        .eq("role_id", collectorRole.role_id)
+    : { data: [] };
+  const collectorUsers = (collectorUsersData ?? []) as CollectorUserRow[];
+  const collectorUserIds = collectorUsers.map((collector) => collector.user_id);
+
+  const { data: collectorInfosData } = collectorUserIds.length
+    ? await supabase
+        .from("employee_info")
+        .select("user_id, first_name, last_name")
+        .in("user_id", collectorUserIds)
+    : { data: [] };
+  const collectorInfos = (collectorInfosData ?? []) as CollectorInfoRow[];
+  const collectorInfoByUserId = new Map(collectorInfos.map((item) => [item.user_id, item]));
+
+  const { data: assignmentsData } = collectorUserIds.length
+    ? await supabase
+        .from("employee_area_assignment")
+        .select("employee_user_id, area_id, end_date")
+        .in("employee_user_id", collectorUserIds)
+        .is("end_date", null)
+    : { data: [] };
+  const activeCollectorAssignments = (assignmentsData ?? []) as CollectorAssignmentRow[];
+
+  const collectors: CollectorOption[] = activeCollectorAssignments.map((assignment) => {
+    const collectorUser = collectorUsers.find((collector) => collector.user_id === assignment.employee_user_id) ?? null;
+    const collectorInfo = collectorInfoByUserId.get(assignment.employee_user_id);
+    const fullName = [collectorInfo?.first_name, collectorInfo?.last_name].filter(Boolean).join(" ");
+    const label = fullName
+      ? `${fullName}${collectorUser?.username ? ` (${collectorUser.username})` : ""}`
+      : collectorUser?.username || assignment.employee_user_id;
+
+    return {
+      user_id: assignment.employee_user_id,
+      area_id: assignment.area_id,
+      label,
+    };
+  });
+
   return (
     <main className="mx-auto min-h-screen w-full max-w-5xl p-6">
       <Card className="mb-6">
@@ -180,7 +233,13 @@ export default async function CreateLoanPage() {
         </CardContent>
       </Card>
 
-      <CreateLoanForm areas={areas} branches={branches} borrowers={borrowers} />
+      <CreateLoanForm
+        areas={areas}
+        branches={branches}
+        borrowers={borrowers}
+        collectors={collectors}
+        isAdmin={isAdmin}
+      />
     </main>
   );
 }

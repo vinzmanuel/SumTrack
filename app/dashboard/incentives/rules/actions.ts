@@ -1,10 +1,16 @@
 "use server";
 
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, eq, gt, isNull } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { branch, employee_branch_assignment, incentive_rules, roles, users } from "@/db/schema";
 import { createClient } from "@/lib/supabase/server";
 import type { IncentiveRuleFormState } from "@/app/dashboard/incentives/rules/state";
+import {
+  getCurrentPayPeriod,
+  getNextPayPeriod,
+  loadApplicableRuleVersionsForPeriod,
+} from "@/app/dashboard/incentives/lib";
 
 type FormFields = {
   branch_id: string;
@@ -228,70 +234,134 @@ export async function upsertIncentiveRuleAction(
     };
   }
 
-  const existingRules = await db
-    .select({ rule_id: incentive_rules.rule_id })
-    .from(incentive_rules)
-    .where(
-      and(
-        eq(incentive_rules.branch_id, branchRow.branch_id),
-        eq(incentive_rules.role_id, resolvedRole.role_id),
-      ),
-    )
-    .catch(() => []);
+  const currentPayPeriod = getCurrentPayPeriod();
+  if (!currentPayPeriod) {
+    return {
+      status: "error",
+      message: "Unable to resolve current month period.",
+    };
+  }
+
+  const nextPayPeriod = getNextPayPeriod(currentPayPeriod);
+  if (!nextPayPeriod) {
+    return {
+      status: "error",
+      message: "Unable to resolve next month period.",
+    };
+  }
+
+  const applicableNowMap = await loadApplicableRuleVersionsForPeriod(
+    [branchRow.branch_id],
+    [resolvedRole.role_id],
+    currentPayPeriod.periodStart,
+    currentPayPeriod.periodEnd,
+  );
+  const activeNow = applicableNowMap.get(`${branchRow.branch_id}:${resolvedRole.role_id}`) ?? null;
 
   let mode: "created" | "updated" = "created";
+  const appliesTo = "next_period" as const;
+  const effectiveStart = nextPayPeriod.periodStart;
+  const effectiveEnd: string | null = null;
+  const periodLabel = nextPayPeriod.label;
 
-  if (existingRules.length > 0) {
-    mode = "updated";
-    const existingRuleIds = existingRules.map((rule) => rule.rule_id);
+  try {
+    await db.transaction(async (tx) => {
+      if (activeNow && (!activeNow.effectiveEnd || activeNow.effectiveEnd > currentPayPeriod.periodEnd)) {
+        await tx
+          .update(incentive_rules)
+          .set({
+            effective_end: currentPayPeriod.periodEnd,
+          })
+          .where(eq(incentive_rules.rule_id, activeNow.ruleId));
+      }
 
-    await db
-      .update(incentive_rules)
-      .set({
-        percent_value: String(percentValue!),
-        flat_amount: String(flatAmount!),
-      })
-      .where(inArray(incentive_rules.rule_id, existingRuleIds))
-      .catch(() => null);
-  } else {
-    await db
-      .insert(incentive_rules)
-      .values({
+      const exactNextRule = await tx
+        .select({ rule_id: incentive_rules.rule_id })
+        .from(incentive_rules)
+        .where(
+          and(
+            eq(incentive_rules.branch_id, branchRow.branch_id),
+            eq(incentive_rules.role_id, resolvedRole.role_id),
+            eq(incentive_rules.effective_start, nextPayPeriod.periodStart),
+          ),
+        )
+        .limit(1)
+        .then((rows) => rows[0] ?? null);
+
+      if (exactNextRule) {
+        mode = "updated";
+        await tx
+          .update(incentive_rules)
+          .set({
+            percent_value: String(percentValue!),
+            flat_amount: String(flatAmount!),
+            effective_end: null,
+            created_by: currentAuthUser.id,
+          })
+          .where(eq(incentive_rules.rule_id, exactNextRule.rule_id));
+        return;
+      }
+
+      const futureRule = await tx
+        .select({
+          rule_id: incentive_rules.rule_id,
+        })
+        .from(incentive_rules)
+        .where(
+          and(
+            eq(incentive_rules.branch_id, branchRow.branch_id),
+            eq(incentive_rules.role_id, resolvedRole.role_id),
+            gt(incentive_rules.effective_start, currentPayPeriod.periodEnd),
+          ),
+        )
+        .orderBy(asc(incentive_rules.effective_start), asc(incentive_rules.rule_id))
+        .limit(1)
+        .then((rows) => rows[0] ?? null);
+
+      if (futureRule) {
+        mode = "updated";
+        await tx
+          .update(incentive_rules)
+          .set({
+            percent_value: String(percentValue!),
+            flat_amount: String(flatAmount!),
+            effective_start: nextPayPeriod.periodStart,
+            effective_end: null,
+            created_by: currentAuthUser.id,
+          })
+          .where(eq(incentive_rules.rule_id, futureRule.rule_id));
+        return;
+      }
+
+      await tx.insert(incentive_rules).values({
         branch_id: branchRow.branch_id,
         role_id: resolvedRole.role_id,
         percent_value: String(percentValue!),
         flat_amount: String(flatAmount!),
-      })
-      .catch(() => null);
-  }
-
-  const savedRule = await db
-    .select({
-      rule_id: incentive_rules.rule_id,
-    })
-    .from(incentive_rules)
-    .where(
-      and(
-        eq(incentive_rules.branch_id, branchRow.branch_id),
-        eq(incentive_rules.role_id, resolvedRole.role_id),
-      ),
-    )
-    .limit(1)
-    .then((rows) => rows[0] ?? null)
-    .catch(() => null);
-
-  if (!savedRule?.rule_id) {
+        effective_start: nextPayPeriod.periodStart,
+        effective_end: null,
+        created_by: currentAuthUser.id,
+      });
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error.";
     return {
       status: "error",
-      message: "Failed to save incentive rule.",
+      message: `Failed to save incentive rule: ${message}`,
     };
   }
+
+  revalidatePath("/dashboard/incentives/rules");
 
   return {
     status: "success",
     message: mode === "created" ? "Incentive rule created." : "Incentive rule updated.",
     result: {
       mode,
+      appliesTo,
+      effectiveStart,
+      effectiveEnd,
+      periodLabel,
       branchName: branchRow.branch_name,
       roleName: resolvedRole.role_name,
       percentValue: percentValue!,

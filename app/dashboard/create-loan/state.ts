@@ -5,6 +5,8 @@ export type CreateLoanState = {
     borrower_id?: string;
     branch_id?: string;
     area_id?: string;
+    collector_id?: string;
+    term_option?: string;
     principal?: string;
     interest?: string;
     start_date?: string;
@@ -15,10 +17,12 @@ export type CreateLoanState = {
     loanCode: string;
     borrowerName: string;
     branchName: string;
+    collectorName: string;
     principal: number;
     interest: number;
     startDate: string;
     dueDate: string;
+    termDays: number;
     status: string;
   };
 };

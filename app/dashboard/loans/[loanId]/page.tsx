@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { and, asc, eq, inArray, isNull } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { db } from "@/db";
 import {
@@ -7,10 +7,8 @@ import {
   borrower_info,
   branch,
   collections,
-  employee_area_assignment,
   employee_info,
   loan_records,
-  roles,
   users,
 } from "@/db/schema";
 import { createClient } from "@/lib/supabase/server";
@@ -28,11 +26,6 @@ type AppUserRow = {
 type RoleRow = {
   role_id: string;
   role_name: string;
-};
-
-type CollectorOption = {
-  user_id: string;
-  label: string;
 };
 
 function toDbId(value: string) {
@@ -129,6 +122,7 @@ export default async function LoanDetailPage({ params }: PageProps) {
             interest: loan_records.interest,
             start_date: loan_records.start_date,
             due_date: loan_records.due_date,
+            collector_id: loan_records.collector_id,
             branch_id: loan_records.branch_id,
             status: loan_records.status,
           })
@@ -202,7 +196,6 @@ export default async function LoanDetailPage({ params }: PageProps) {
       collection_code: collections.collection_code,
       amount: collections.amount,
       note: collections.note,
-      collector_id: collections.collector_id,
       collection_date: collections.collection_date,
     })
     .from(collections)
@@ -210,84 +203,27 @@ export default async function LoanDetailPage({ params }: PageProps) {
     .orderBy(asc(collections.collection_date), asc(collections.collection_id))
     .catch(() => []);
 
-  const collectorRole = await db
-    .select({
-      role_id: roles.role_id,
-      role_name: roles.role_name,
-    })
-    .from(roles)
-    .where(eq(roles.role_name, "Collector"))
-    .limit(1)
-    .then((rows) => rows[0] ?? null)
-    .catch(() => null);
-
-  const activeAssignments = await db
-    .select({
-      employee_user_id: employee_area_assignment.employee_user_id,
-    })
-    .from(employee_area_assignment)
-    .where(
-      and(
-        eq(employee_area_assignment.area_id, borrowerInfo?.area_id ?? -1),
-        isNull(employee_area_assignment.end_date),
-      ),
-    )
-    .catch(() => []);
-
-  const assignedCollectorIds = Array.from(
-    new Set(activeAssignments.map((assignment) => assignment.employee_user_id)),
-  );
-
-  const collectorUsers =
-    collectorRole?.role_id && assignedCollectorIds.length
-      ? await db
-          .select({
-            user_id: users.user_id,
-            username: users.username,
-          })
-          .from(users)
-          .where(
-            and(
-              eq(users.role_id, collectorRole.role_id),
-              inArray(users.user_id, assignedCollectorIds),
-            ),
-          )
-          .orderBy(asc(users.username))
-          .catch(() => [])
-      : [];
-
-  const collectorUserIds = collectorUsers.map((collector) => collector.user_id);
-
-  const collectorEmployees = collectorUserIds.length
+  const assignedCollector = loan.collector_id
     ? await db
         .select({
-          user_id: employee_info.user_id,
+          user_id: users.user_id,
+          username: users.username,
           first_name: employee_info.first_name,
           last_name: employee_info.last_name,
         })
-        .from(employee_info)
-        .where(inArray(employee_info.user_id, collectorUserIds))
-        .catch(() => [])
-    : [];
+        .from(users)
+        .leftJoin(employee_info, eq(employee_info.user_id, users.user_id))
+        .where(eq(users.user_id, loan.collector_id))
+        .limit(1)
+        .then((rows) => rows[0] ?? null)
+        .catch(() => null)
+    : null;
 
-  const collectorEmployeeMap = new Map(
-    collectorEmployees.map((employee) => [employee.user_id, employee]),
-  );
-
-  const collectorOptions: CollectorOption[] = collectorUsers.map((collector) => {
-    const employee = collectorEmployeeMap.get(collector.user_id);
-    const fullName = [employee?.first_name, employee?.last_name].filter(Boolean).join(" ");
-    const label = fullName
-      ? `${fullName}${collector.username ? ` (${collector.username})` : ""}`
-      : collector.username || collector.user_id;
-
-    return {
-      user_id: collector.user_id,
-      label,
-    };
-  });
-
-  const collectorLabelMap = new Map(collectorOptions.map((collector) => [collector.user_id, collector.label]));
+  const assignedCollectorLabel = assignedCollector
+    ? [assignedCollector.first_name, assignedCollector.last_name].filter(Boolean).join(" ") ||
+      assignedCollector.username ||
+      assignedCollector.user_id
+    : "N/A";
 
   const initialCollectionRows: CollectionHistoryRow[] = collectionRows.map((collection) => ({
     collectionId: String(collection.collection_id),
@@ -295,9 +231,7 @@ export default async function LoanDetailPage({ params }: PageProps) {
     collectionDate: collection.collection_date,
     amount: Number(collection.amount) || 0,
     note: collection.note,
-    collectorName: collection.collector_id
-      ? collectorLabelMap.get(collection.collector_id) || collection.collector_id
-      : "N/A",
+    collectorName: assignedCollectorLabel,
   }));
 
   const principal = Number(loan.principal) || 0;
@@ -378,6 +312,9 @@ export default async function LoanDetailPage({ params }: PageProps) {
             <span className="font-medium">Status:</span> {loan.status}
           </p>
           <p>
+            <span className="font-medium">Collector:</span> {assignedCollectorLabel}
+          </p>
+          <p>
             <span className="font-medium">Total Payable:</span> {formatMoney(totalPayable)}
           </p>
           <p>
@@ -388,7 +325,7 @@ export default async function LoanDetailPage({ params }: PageProps) {
       </Card>
 
       <LoanDetailForm
-        collectors={collectorOptions}
+        assignedCollectorLabel={assignedCollectorLabel}
         estimatedDailyPayment={estimatedDailyPayment}
         initialCollections={initialCollectionRows}
         loanId={String(loan.loan_id)}

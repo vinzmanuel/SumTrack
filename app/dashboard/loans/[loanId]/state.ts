@@ -12,7 +12,6 @@ export type LoanDetailState = {
   message?: string;
   appendedRows?: CollectionHistoryRow[];
   fieldErrors?: {
-    collector_id?: string;
     amount?: string;
     note?: string;
     collection_date?: string;

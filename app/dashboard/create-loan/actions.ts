@@ -1,8 +1,17 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
-import { areas, borrower_info, branch, loan_records, roles, users } from "@/db/schema";
+import {
+  areas,
+  borrower_info,
+  branch,
+  employee_area_assignment,
+  employee_info,
+  loan_records,
+  roles,
+  users,
+} from "@/db/schema";
 import { createClient } from "@/lib/supabase/server";
 import type { CreateLoanState } from "@/app/dashboard/create-loan/state";
 
@@ -10,10 +19,12 @@ type FormFields = {
   borrower_id: string;
   branch_id: string;
   area_id: string;
+  collector_id: string;
   principal: string;
   interest: string;
   start_date: string;
   due_date: string;
+  term_option: string;
 };
 
 type ActionFieldErrors = Partial<Record<keyof FormFields, string>>;
@@ -40,6 +51,26 @@ function parseNonNegativeNumber(value: string) {
   }
 
   return parsed;
+}
+
+function diffInDays(startDate: string, dueDate: string) {
+  const start = new Date(`${startDate}T00:00:00Z`);
+  const due = new Date(`${dueDate}T00:00:00Z`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(due.getTime())) {
+    return null;
+  }
+
+  const diff = Math.round((due.getTime() - start.getTime()) / 86400000);
+  return diff > 0 ? diff : null;
+}
+
+function addDays(startDate: string, days: number) {
+  const start = new Date(`${startDate}T00:00:00Z`);
+  if (Number.isNaN(start.getTime()) || !Number.isFinite(days) || days <= 0) {
+    return null;
+  }
+  start.setUTCDate(start.getUTCDate() + days);
+  return start.toISOString().slice(0, 10);
 }
 
 function escapeRegExp(value: string) {
@@ -78,10 +109,12 @@ export async function createLoanAction(
   const borrowerId = getTrimmed(formData, "borrower_id");
   const branchId = getTrimmed(formData, "branch_id");
   const areaId = getTrimmed(formData, "area_id");
+  const collectorId = getTrimmed(formData, "collector_id");
   const principalRaw = getTrimmed(formData, "principal");
   const interestRaw = getTrimmed(formData, "interest");
   const startDate = getTrimmed(formData, "start_date");
   const dueDate = getTrimmed(formData, "due_date");
+  const termOption = getTrimmed(formData, "term_option");
 
   const fieldErrors: ActionFieldErrors = {};
 
@@ -93,6 +126,9 @@ export async function createLoanAction(
   }
   if (!areaId) {
     fieldErrors.area_id = "Area is required.";
+  }
+  if (!collectorId) {
+    fieldErrors.collector_id = "Collector is required.";
   }
 
   const principal = parseNonNegativeNumber(principalRaw);
@@ -160,12 +196,7 @@ export async function createLoanAction(
     .then((rows) => rows[0] ?? null)
     .catch(() => null);
 
-  if (currentRole?.role_name !== "Admin") {
-    return {
-      status: "error",
-      message: "Only Admin users can create loans.",
-    };
-  }
+  const isAdmin = currentRole?.role_name === "Admin";
 
   const borrowerInfo = await db
     .select({
@@ -281,6 +312,90 @@ export async function createLoanAction(
     };
   }
 
+  const collectorUser = await db
+    .select({
+      user_id: users.user_id,
+      role_id: users.role_id,
+      username: users.username,
+    })
+    .from(users)
+    .where(eq(users.user_id, collectorId))
+    .limit(1)
+    .then((rows) => rows[0] ?? null)
+    .catch(() => null);
+
+  if (!collectorUser?.role_id) {
+    return {
+      status: "error",
+      message: "Selected collector was not found.",
+      fieldErrors: {
+        collector_id: "Collector account not found.",
+      },
+    };
+  }
+
+  const collectorRole = await db
+    .select({
+      role_name: roles.role_name,
+    })
+    .from(roles)
+    .where(eq(roles.role_id, collectorUser.role_id))
+    .limit(1)
+    .then((rows) => rows[0] ?? null)
+    .catch(() => null);
+
+  if (collectorRole?.role_name !== "Collector") {
+    return {
+      status: "error",
+      message: "Selected account is not a Collector.",
+      fieldErrors: {
+        collector_id: "Select a valid collector account.",
+      },
+    };
+  }
+
+  const activeCollectorAssignment = await db
+    .select({
+      assignment_id: employee_area_assignment.assignment_id,
+    })
+    .from(employee_area_assignment)
+    .where(
+      and(
+        eq(employee_area_assignment.employee_user_id, collectorUser.user_id),
+        eq(employee_area_assignment.area_id, borrowerArea.area_id),
+        isNull(employee_area_assignment.end_date),
+      ),
+    )
+    .limit(1)
+    .then((rows) => rows[0] ?? null)
+    .catch(() => null);
+
+  if (!activeCollectorAssignment) {
+    return {
+      status: "error",
+      message: "Selected collector is not actively assigned to the borrower's area.",
+      fieldErrors: {
+        collector_id: "Collector must be actively assigned to the selected borrower's area.",
+      },
+    };
+  }
+
+  const collectorEmployee = await db
+    .select({
+      first_name: employee_info.first_name,
+      last_name: employee_info.last_name,
+    })
+    .from(employee_info)
+    .where(eq(employee_info.user_id, collectorUser.user_id))
+    .limit(1)
+    .then((rows) => rows[0] ?? null)
+    .catch(() => null);
+
+  const collectorName =
+    [collectorEmployee?.first_name, collectorEmployee?.last_name].filter(Boolean).join(" ") ||
+    collectorUser.username ||
+    collectorUser.user_id;
+
   if (!borrowerUser?.company_id) {
     return {
       status: "error",
@@ -299,6 +414,55 @@ export async function createLoanAction(
     };
   }
 
+  const termDays = diffInDays(startDate, dueDate);
+  if (termDays === null) {
+    return {
+      status: "error",
+      message: "Invalid loan term. Due date must be after start date.",
+      fieldErrors: {
+        due_date: "Due date must be after start date.",
+      },
+    };
+  }
+
+  if (!isAdmin && termDays !== 58 && termDays !== 60) {
+    return {
+      status: "error",
+      message: "Non-admin users can only create 58-day or 60-day loans.",
+      fieldErrors: {
+        due_date: "Loan term must be 58 or 60 days.",
+      },
+    };
+  }
+
+  if (termOption === "58" || termOption === "60") {
+    const expectedDueDate = addDays(startDate, Number(termOption));
+    if (!expectedDueDate || dueDate !== expectedDueDate) {
+      return {
+        status: "error",
+        message: "Due date does not match the selected fixed term.",
+        fieldErrors: {
+          due_date: "Due date must match start date plus selected term days.",
+        },
+      };
+    }
+  } else if (termOption === "custom") {
+    if (!isAdmin) {
+      return {
+        status: "error",
+        message: "Only Admin can use custom loan terms.",
+      };
+    }
+  } else {
+    return {
+      status: "error",
+      message: "Invalid loan term option.",
+      fieldErrors: {
+        term_option: "Please select a valid loan term.",
+      },
+    };
+  }
+
   const insertedLoan = await db
     .insert(loan_records)
     .values({
@@ -306,8 +470,10 @@ export async function createLoanAction(
       borrower_id: borrowerInfo.user_id,
       principal: String(principal!),
       interest: String(interest!),
+      collector_id: collectorUser.user_id,
       start_date: startDate,
       due_date: dueDate,
+      term_days: termDays,
       branch_id: branchRow.branch_id,
       status: NEW_LOAN_STATUS,
     })
@@ -330,10 +496,12 @@ export async function createLoanAction(
       loanCode: insertedLoan.loan_code,
       borrowerName,
       branchName: branchRow.branch_name,
+      collectorName,
       principal: principal!,
       interest: interest!,
       startDate,
       dueDate,
+      termDays,
       status: NEW_LOAN_STATUS,
     },
   };

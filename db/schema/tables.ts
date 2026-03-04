@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  bigint,
   check,
   date,
   foreignKey,
@@ -229,12 +230,22 @@ export const loan_records = pgTable(
     borrower_id: uuid().notNull(),
     principal: numeric({ precision: 10, scale: 2 }).notNull(),
     interest: numeric({ precision: 10, scale: 2 }).notNull(),
+    collector_id: uuid(),
+
     start_date: date().notNull(),
     due_date: date().notNull(),
+
+    term_days: integer(),
+
     branch_id: integer().notNull(),
     status: varchar({ length: 50 }).notNull(),
   },
   (table) => [
+    foreignKey({
+      columns: [table.collector_id],
+      foreignColumns: [users.user_id],
+      name: "loan_records_collector_id_fkey",
+    }),
     foreignKey({
       columns: [table.borrower_id],
       foreignColumns: [borrower_info.user_id],
@@ -248,6 +259,11 @@ export const loan_records = pgTable(
     unique("loan_records_loan_code_key").on(table.loan_code),
     check("chk_loan_records_interest_nonnegative", sql`interest >= (0)::numeric`),
     check("chk_loan_records_principal_nonnegative", sql`principal >= (0)::numeric`),
+
+    check(
+      "chk_loan_records_term_days_positive",
+      sql`${table.term_days} IS NULL OR ${table.term_days} > 0`
+    ),
   ],
 );
 
@@ -267,15 +283,9 @@ export const collections = pgTable(
     amount: numeric({ precision: 10, scale: 2 }).notNull(),
     note: text(),
     encoded_by: uuid().notNull(),
-    collector_id: uuid().notNull(),
     collection_date: date().notNull(),
   },
   (table) => [
-    foreignKey({
-      columns: [table.collector_id],
-      foreignColumns: [users.user_id],
-      name: "collections_collector_id_fkey",
-    }),
     foreignKey({
       columns: [table.encoded_by],
       foreignColumns: [users.user_id],
@@ -352,20 +362,147 @@ export const incentive_rules = pgTable(
     role_id: integer().notNull(),
     percent_value: numeric({ precision: 5, scale: 2 }).notNull(),
     flat_amount: numeric({ precision: 10, scale: 2 }).notNull(),
+    effective_start: date().notNull(),
+    effective_end: date(),
+    created_by: uuid(),
+    created_at: timestamp({ mode: "string" }).notNull().defaultNow(),
   },
   (table) => [
     foreignKey({
       columns: [table.branch_id],
       foreignColumns: [branch.branch_id],
-      name: "incentive_rules_branch_id_fkey",
+      name: "fk_incentive_rules_branch",
     }),
     foreignKey({
       columns: [table.role_id],
       foreignColumns: [roles.role_id],
-      name: "incentive_rules_role_id_fkey",
+      name: "fk_incentive_rules_role",
     }),
-    check("chk_incentive_rules_flat_amount_nonnegative", sql`flat_amount >= (0)::numeric`),
-    check("chk_incentive_rules_percent_nonnegative", sql`percent_value >= (0)::numeric`),
+    foreignKey({
+      columns: [table.created_by],
+      foreignColumns: [users.user_id],
+      name: "fk_incentive_rules_created_by",
+    }),
+    unique("uq_incentive_rules_branch_role_effective_start").on(
+      table.branch_id,
+      table.role_id,
+      table.effective_start,
+    ),
+    check(
+      "chk_incentive_rules_flat_amount_nonnegative",
+      sql`${table.flat_amount} >= 0`,
+    ),
+    check(
+      "chk_incentive_rules_percent_nonnegative",
+      sql`${table.percent_value} >= 0`,
+    ),
+    check(
+      "chk_incentive_rules_not_both_zero",
+      sql`${table.percent_value} > 0 OR ${table.flat_amount} > 0`,
+    ),
+    check(
+      "chk_incentive_rules_effective_dates",
+      sql`${table.effective_end} IS NULL OR ${table.effective_end} >= ${table.effective_start}`,
+    ),
+  ],
+);
+
+export const incentive_payout_batches = pgTable(
+  "incentive_payout_batches",
+  {
+    batch_id: bigint({ mode: "number" }).primaryKey().generatedAlwaysAsIdentity({
+      name: "incentive_payout_batches_batch_id_seq",
+      startWith: 1,
+      increment: 1,
+      minValue: 1,
+      maxValue: 9223372036854775807,
+      cache: 1,
+    }),
+    branch_id: integer().notNull(),
+    period_label: varchar({ length: 50 }).notNull(),
+    period_start: date().notNull(),
+    period_end: date().notNull(),
+    finalized_by: uuid().notNull(),
+    finalized_at: timestamp({ mode: "string" }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.branch_id],
+      foreignColumns: [branch.branch_id],
+      name: "fk_incentive_payout_batches_branch",
+    }),
+    foreignKey({
+      columns: [table.finalized_by],
+      foreignColumns: [users.user_id],
+      name: "fk_incentive_payout_batches_finalized_by",
+    }),
+    unique("uq_incentive_payout_batches_branch_period").on(
+      table.branch_id,
+      table.period_start,
+      table.period_end,
+    ),
+    check(
+      "chk_incentive_payout_batches_dates",
+      sql`${table.period_end} >= ${table.period_start}`,
+    ),
+  ],
+);
+
+export const incentive_payout_history = pgTable(
+  "incentive_payout_history",
+  {
+    payout_id: bigint({ mode: "number" }).primaryKey().generatedAlwaysAsIdentity({
+      name: "incentive_payout_history_payout_id_seq",
+      startWith: 1,
+      increment: 1,
+      minValue: 1,
+      maxValue: 9223372036854775807,
+      cache: 1,
+    }),
+    batch_id: bigint({ mode: "number" }).notNull(),
+    employee_user_id: uuid().notNull(),
+    role_id: integer().notNull(),
+    base_amount: numeric({ precision: 12, scale: 2 }).notNull(),
+    percent_value: numeric({ precision: 5, scale: 2 }).notNull(),
+    flat_amount: numeric({ precision: 12, scale: 2 }).notNull(),
+    computed_incentive: numeric({ precision: 12, scale: 2 }).notNull(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.batch_id],
+      foreignColumns: [incentive_payout_batches.batch_id],
+      name: "fk_incentive_payout_history_batch",
+    }),
+    foreignKey({
+      columns: [table.employee_user_id],
+      foreignColumns: [users.user_id],
+      name: "fk_incentive_payout_history_employee",
+    }),
+    foreignKey({
+      columns: [table.role_id],
+      foreignColumns: [roles.role_id],
+      name: "fk_incentive_payout_history_role",
+    }),
+    unique("uq_incentive_payout_history_batch_employee").on(
+      table.batch_id,
+      table.employee_user_id,
+    ),
+    check(
+      "chk_incentive_payout_history_base_nonnegative",
+      sql`${table.base_amount} >= 0`,
+    ),
+    check(
+      "chk_incentive_payout_history_percent_nonnegative",
+      sql`${table.percent_value} >= 0`,
+    ),
+    check(
+      "chk_incentive_payout_history_flat_nonnegative",
+      sql`${table.flat_amount} >= 0`,
+    ),
+    check(
+      "chk_incentive_payout_history_incentive_nonnegative",
+      sql`${table.computed_incentive} >= 0`,
+    ),
   ],
 );
 

@@ -1,21 +1,23 @@
 import Link from "next/link";
-import { and, asc, eq, gte, inArray, isNull, lte, sql } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { db } from "@/db";
-import {
-  areas,
-  branch,
-  collections,
-  employee_area_assignment,
-  employee_branch_assignment,
-  employee_info,
-  incentive_rules,
-  loan_records,
-  roles,
-  users,
-} from "@/db/schema";
+import { branch, roles, users } from "@/db/schema";
 import { createClient } from "@/lib/supabase/server";
+import { ExportPrintTools, type ExportIncentiveRow } from "@/app/dashboard/incentives/export-print-tools";
+import { FinalizePayoutForm } from "@/app/dashboard/incentives/finalize-payout-form";
+import {
+  computeLiveIncentivesForPeriod,
+  getCurrentMonthValue,
+  getFinalizedBatchForPeriod,
+  isFinalizationWindowOpen,
+  loadHistoricalIncentives,
+  mapBatchMeta,
+  resolveActiveBranchForBranchManager,
+  resolvePayPeriod,
+  type IncentiveRow,
+} from "@/app/dashboard/incentives/lib";
 
 type PageProps = {
   searchParams?: Promise<{
@@ -23,66 +25,6 @@ type PageProps = {
     month?: string;
   }>;
 };
-
-type RoleName = "Collector" | "Secretary" | "Branch Manager";
-
-type EmployeeRow = {
-  user_id: string;
-  company_id: string;
-  first_name: string;
-  middle_name: string | null;
-  last_name: string;
-};
-
-type IncentiveRule = {
-  percentValue: number;
-  flatAmount: number;
-} | null;
-
-type ComputedRow = {
-  userId: string;
-  employeeName: string;
-  companyId: string;
-  roleName: RoleName;
-  branchName: string;
-  baseAmount: number;
-  percentValue: number | null;
-  flatAmount: number | null;
-  computedIncentive: number | null;
-  missingRule: boolean;
-};
-
-const INCENTIVE_ROLE_NAMES: RoleName[] = ["Collector", "Secretary", "Branch Manager"];
-
-function getCurrentMonthValue() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  return `${year}-${month}`;
-}
-
-function resolveMonthRange(month: string) {
-  if (!/^\d{4}-\d{2}$/.test(month)) {
-    return null;
-  }
-
-  const [yearRaw, monthRaw] = month.split("-");
-  const year = Number(yearRaw);
-  const monthIndex = Number(monthRaw) - 1;
-  const startDate = new Date(Date.UTC(year, monthIndex, 1));
-
-  if (Number.isNaN(startDate.getTime())) {
-    return null;
-  }
-
-  const nextMonthDate = new Date(Date.UTC(year, monthIndex + 1, 1));
-  const endDate = new Date(nextMonthDate.getTime() - 86400000);
-
-  return {
-    start: startDate.toISOString().slice(0, 10),
-    end: endDate.toISOString().slice(0, 10),
-  };
-}
 
 function formatMoney(value: number) {
   return `\u20B1${value.toLocaleString("en-PH", {
@@ -98,52 +40,81 @@ function formatPercent(value: number) {
   })}%`;
 }
 
-function fullName(employee: Pick<EmployeeRow, "first_name" | "middle_name" | "last_name">) {
-  return [employee.first_name, employee.middle_name, employee.last_name].filter(Boolean).join(" ");
-}
-
-function computeIncentive(baseAmount: number, rule: IncentiveRule) {
-  if (!rule) {
-    return null;
-  }
-
-  return (baseAmount * rule.percentValue) / 100 + rule.flatAmount;
-}
-
-function buildComputedRows(
-  employees: EmployeeRow[],
-  roleName: RoleName,
-  branchName: string,
-  baseAmountByUserId: Map<string, number>,
-  fallbackBaseAmount: number,
-  rule: IncentiveRule,
-) {
-  return employees.map<ComputedRow>((employee) => {
-    const baseAmount = baseAmountByUserId.get(employee.user_id) ?? fallbackBaseAmount;
-    return {
-      userId: employee.user_id,
-      employeeName: fullName(employee),
-      companyId: employee.company_id,
-      roleName,
-      branchName,
-      baseAmount,
-      percentValue: rule?.percentValue ?? null,
-      flatAmount: rule?.flatAmount ?? null,
-      computedIncentive: computeIncentive(baseAmount, rule),
-      missingRule: rule === null,
-    };
-  });
-}
-
-function sectionTotal(rows: ComputedRow[]) {
+function sectionTotal(rows: IncentiveRow[]) {
   return rows.reduce((sum, row) => sum + (row.computedIncentive ?? 0), 0);
+}
+
+function renderSection(
+  title: string,
+  description: string,
+  rows: IncentiveRow[],
+  ruleMissing: boolean,
+) {
+  return (
+    <Card className="mb-6">
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+        <CardDescription>{description}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {ruleMissing ? (
+          <p className="mb-3 text-sm text-amber-700 dark:text-amber-400">
+            No incentive rule configured for this role in the selected branch.
+          </p>
+        ) : null}
+
+        {rows.length === 0 ? (
+          <p className="text-muted-foreground text-sm">No eligible employees found.</p>
+        ) : (
+          <div className="overflow-auto">
+            <table className="w-full min-w-260 text-sm">
+              <thead>
+                <tr className="border-b text-left">
+                  <th className="px-2 py-2 font-medium">Employee</th>
+                  <th className="px-2 py-2 font-medium">Company ID</th>
+                  <th className="px-2 py-2 font-medium">Role</th>
+                  <th className="px-2 py-2 font-medium">Branch</th>
+                  <th className="px-2 py-2 font-medium">Base Amount</th>
+                  <th className="px-2 py-2 font-medium">Percent</th>
+                  <th className="px-2 py-2 font-medium">Flat Amount</th>
+                  <th className="px-2 py-2 font-medium">Computed Incentive</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr className="border-b" key={`${row.roleName}-${row.userId}`}>
+                    <td className="px-2 py-2">{row.employeeName}</td>
+                    <td className="px-2 py-2">{row.companyId}</td>
+                    <td className="px-2 py-2">{row.roleName}</td>
+                    <td className="px-2 py-2">{row.branchName}</td>
+                    <td className="px-2 py-2">{formatMoney(row.baseAmount)}</td>
+                    <td className="px-2 py-2">
+                      {row.percentValue === null ? "No incentive rule configured" : formatPercent(row.percentValue)}
+                    </td>
+                    <td className="px-2 py-2">
+                      {row.flatAmount === null ? "No incentive rule configured" : formatMoney(row.flatAmount)}
+                    </td>
+                    <td className="px-2 py-2">
+                      {row.computedIncentive === null
+                        ? "No incentive rule configured"
+                        : formatMoney(row.computedIncentive)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
 export default async function IncentivesPage({ searchParams }: PageProps) {
   const params = (await searchParams) ?? {};
   const selectedMonthRaw = String(params.month ?? getCurrentMonthValue());
   const selectedBranchRaw = String(params.branch ?? "all");
-  const monthRange = resolveMonthRange(selectedMonthRaw);
+  const payPeriod = resolvePayPeriod(selectedMonthRaw);
 
   const supabase = await createClient();
   const {
@@ -198,7 +169,7 @@ export default async function IncentivesPage({ searchParams }: PageProps) {
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              You are logged in, but only Admin and Branch Manager users can view incentive computation.
+              You are logged in, but only Admin and Branch Manager users can access payout computation and history.
             </p>
             <Link className="text-sm underline" href="/dashboard">
               Back to dashboard
@@ -220,99 +191,35 @@ export default async function IncentivesPage({ searchParams }: PageProps) {
 
   let fixedBranchId: number | null = null;
   let fixedBranchName: string | null = null;
+  let fixedBranchError: string | null = null;
 
   if (isBranchManager) {
-    const activeAssignments = await db
-      .select({
-        branch_id: employee_branch_assignment.branch_id,
-      })
-      .from(employee_branch_assignment)
-      .where(
-        and(
-          eq(employee_branch_assignment.employee_user_id, user.id),
-          isNull(employee_branch_assignment.end_date),
-        ),
-      )
-      .catch(() => []);
-
-    if (activeAssignments.length === 0) {
-      return (
-        <main className="mx-auto min-h-screen w-full max-w-6xl p-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Incentive Computation</CardTitle>
-              <CardDescription>Monthly incentives by branch and role</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-sm text-amber-700 dark:text-amber-400">
-                No active branch assignment found. You cannot view incentives until an active assignment is set.
-              </p>
-              <Link className="text-sm underline" href="/dashboard">
-                Back to dashboard
-              </Link>
-            </CardContent>
-          </Card>
-        </main>
-      );
+    const branchResolution = await resolveActiveBranchForBranchManager(user.id);
+    if (!branchResolution.ok) {
+      fixedBranchError = branchResolution.message;
+    } else {
+      fixedBranchId = branchResolution.branchId;
+      fixedBranchName = branchResolution.branchName;
     }
+  }
 
-    const uniqueBranchIds = Array.from(new Set(activeAssignments.map((item) => item.branch_id)));
-
-    if (uniqueBranchIds.length !== 1) {
-      return (
-        <main className="mx-auto min-h-screen w-full max-w-6xl p-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Incentive Computation</CardTitle>
-              <CardDescription>Monthly incentives by branch and role</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-sm text-amber-700 dark:text-amber-400">
-                Multiple active branch assignments detected. Please contact Admin to resolve assignments.
-              </p>
-              <Link className="text-sm underline" href="/dashboard">
-                Back to dashboard
-              </Link>
-            </CardContent>
-          </Card>
-        </main>
-      );
-    }
-
-    const fixedBranch = await db
-      .select({
-        branch_id: branch.branch_id,
-        branch_name: branch.branch_name,
-      })
-      .from(branch)
-      .where(eq(branch.branch_id, uniqueBranchIds[0]))
-      .limit(1)
-      .then((rows) => rows[0] ?? null)
-      .catch(() => null);
-
-    if (!fixedBranch) {
-      return (
-        <main className="mx-auto min-h-screen w-full max-w-6xl p-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Incentive Computation</CardTitle>
-              <CardDescription>Monthly incentives by branch and role</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-sm text-amber-700 dark:text-amber-400">
-                Active branch assignment points to an invalid branch.
-              </p>
-              <Link className="text-sm underline" href="/dashboard">
-                Back to dashboard
-              </Link>
-            </CardContent>
-          </Card>
-        </main>
-      );
-    }
-
-    fixedBranchId = fixedBranch.branch_id;
-    fixedBranchName = fixedBranch.branch_name;
+  if (isBranchManager && fixedBranchError) {
+    return (
+      <main className="mx-auto min-h-screen w-full max-w-6xl p-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Incentive Payouts</CardTitle>
+            <CardDescription>Payout finalization and history</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-amber-700 dark:text-amber-400">{fixedBranchError}</p>
+            <Link className="text-sm underline" href="/dashboard">
+              Back to dashboard
+            </Link>
+          </CardContent>
+        </Card>
+      </main>
+    );
   }
 
   const selectedBranchId = isAdmin && /^\d+$/.test(selectedBranchRaw) ? Number(selectedBranchRaw) : null;
@@ -321,222 +228,115 @@ export default async function IncentivesPage({ searchParams }: PageProps) {
     ? fixedBranchName
     : branches.find((item) => item.branch_id === selectedBranchId)?.branch_name ?? null;
 
-  const incentiveRoles = await db
-    .select({
-      role_id: roles.role_id,
-      role_name: roles.role_name,
-    })
-    .from(roles)
-    .where(inArray(roles.role_name, [...INCENTIVE_ROLE_NAMES]))
-    .catch(() => []);
-
-  const roleIdByName = new Map(incentiveRoles.map((role) => [role.role_name, role.role_id]));
-
-  const collectorRoleId = roleIdByName.get("Collector") ?? null;
-  const secretaryRoleId = roleIdByName.get("Secretary") ?? null;
-  const branchManagerRoleId = roleIdByName.get("Branch Manager") ?? null;
-
-  let collectorRows: ComputedRow[] = [];
-  let secretaryRows: ComputedRow[] = [];
-  let branchManagerRows: ComputedRow[] = [];
-
+  let collectorRows: IncentiveRow[] = [];
+  let secretaryRows: IncentiveRow[] = [];
+  let branchManagerRows: IncentiveRow[] = [];
+  let branchCollectorAverage = 0;
   let collectorRuleMissing = false;
   let secretaryRuleMissing = false;
   let branchManagerRuleMissing = false;
-  let branchCollectorAverage = 0;
+  let batchMeta = null as ReturnType<typeof mapBatchMeta> | null;
 
-  if (resolvedBranchId !== null && monthRange) {
-    const collectorEmployees: EmployeeRow[] = collectorRoleId === null
-      ? []
-      : await db
-          .select({
-            user_id: users.user_id,
-            company_id: users.company_id,
-            first_name: employee_info.first_name,
-            middle_name: employee_info.middle_name,
-            last_name: employee_info.last_name,
-          })
-          .from(employee_area_assignment)
-          .innerJoin(areas, eq(areas.area_id, employee_area_assignment.area_id))
-          .innerJoin(users, eq(users.user_id, employee_area_assignment.employee_user_id))
-          .innerJoin(employee_info, eq(employee_info.user_id, users.user_id))
-          .where(
-            and(
-              eq(areas.branch_id, resolvedBranchId),
-              eq(users.role_id, collectorRoleId),
-              isNull(employee_area_assignment.end_date),
-            ),
-          )
-          .orderBy(asc(employee_info.last_name), asc(employee_info.first_name))
-          .catch(() => []);
-
-    const secretaryEmployees: EmployeeRow[] = secretaryRoleId === null
-      ? []
-      : await db
-          .select({
-            user_id: users.user_id,
-            company_id: users.company_id,
-            first_name: employee_info.first_name,
-            middle_name: employee_info.middle_name,
-            last_name: employee_info.last_name,
-          })
-          .from(employee_branch_assignment)
-          .innerJoin(users, eq(users.user_id, employee_branch_assignment.employee_user_id))
-          .innerJoin(employee_info, eq(employee_info.user_id, users.user_id))
-          .where(
-            and(
-              eq(employee_branch_assignment.branch_id, resolvedBranchId),
-              eq(users.role_id, secretaryRoleId),
-              isNull(employee_branch_assignment.end_date),
-            ),
-          )
-          .orderBy(asc(employee_info.last_name), asc(employee_info.first_name))
-          .catch(() => []);
-
-    const branchManagerEmployees: EmployeeRow[] = branchManagerRoleId === null
-      ? []
-      : await db
-          .select({
-            user_id: users.user_id,
-            company_id: users.company_id,
-            first_name: employee_info.first_name,
-            middle_name: employee_info.middle_name,
-            last_name: employee_info.last_name,
-          })
-          .from(employee_branch_assignment)
-          .innerJoin(users, eq(users.user_id, employee_branch_assignment.employee_user_id))
-          .innerJoin(employee_info, eq(employee_info.user_id, users.user_id))
-          .where(
-            and(
-              eq(employee_branch_assignment.branch_id, resolvedBranchId),
-              eq(users.role_id, branchManagerRoleId),
-              isNull(employee_branch_assignment.end_date),
-            ),
-          )
-          .orderBy(asc(employee_info.last_name), asc(employee_info.first_name))
-          .catch(() => []);
-
-    const collectorIds = collectorEmployees.map((item) => item.user_id);
-
-    const collectorTotalsRows = collectorIds.length === 0
-      ? []
-      : await db
-          .select({
-            collector_id: collections.collector_id,
-            total_amount: sql<string>`coalesce(sum(${collections.amount}), 0)`,
-          })
-          .from(collections)
-          .innerJoin(loan_records, eq(loan_records.loan_id, collections.loan_id))
-          .where(
-            and(
-              inArray(collections.collector_id, collectorIds),
-              eq(loan_records.branch_id, resolvedBranchId),
-              gte(collections.collection_date, monthRange.start),
-              lte(collections.collection_date, monthRange.end),
-            ),
-          )
-          .groupBy(collections.collector_id)
-          .catch(() => []);
-
-    const collectorBaseAmountByUserId = new Map<string, number>(
-      collectorTotalsRows.map((row) => [row.collector_id, Number(row.total_amount) || 0]),
+  if (payPeriod && resolvedBranchId !== null && resolvedBranchName) {
+    const batchRow = await getFinalizedBatchForPeriod(
+      resolvedBranchId,
+      payPeriod.periodStart,
+      payPeriod.periodEnd,
     );
+    batchMeta = mapBatchMeta(batchRow);
 
-    const collectorTotalAcrossBranch = collectorEmployees.reduce(
-      (sum, item) => sum + (collectorBaseAmountByUserId.get(item.user_id) ?? 0),
-      0,
-    );
-
-    branchCollectorAverage = collectorEmployees.length > 0
-      ? collectorTotalAcrossBranch / collectorEmployees.length
-      : 0;
-
-    const roleIdsToLoad = [collectorRoleId, secretaryRoleId, branchManagerRoleId].filter(
-      (value): value is number => value !== null,
-    );
-
-    const ruleRows = roleIdsToLoad.length === 0
-      ? []
-      : await db
-          .select({
-            role_id: incentive_rules.role_id,
-            percent_value: incentive_rules.percent_value,
-            flat_amount: incentive_rules.flat_amount,
-          })
-          .from(incentive_rules)
-          .where(
-            and(
-              eq(incentive_rules.branch_id, resolvedBranchId),
-              inArray(incentive_rules.role_id, roleIdsToLoad),
-            ),
-          )
-          .catch(() => []);
-
-    const ruleByRoleId = new Map<number, IncentiveRule>(
-      ruleRows.map((row) => [
-        row.role_id,
-        {
-          percentValue: Number(row.percent_value) || 0,
-          flatAmount: Number(row.flat_amount) || 0,
-        },
-      ]),
-    );
-
-    const collectorRule = collectorRoleId ? ruleByRoleId.get(collectorRoleId) ?? null : null;
-    const secretaryRule = secretaryRoleId ? ruleByRoleId.get(secretaryRoleId) ?? null : null;
-    const branchManagerRule = branchManagerRoleId ? ruleByRoleId.get(branchManagerRoleId) ?? null : null;
-
-    collectorRows = buildComputedRows(
-      collectorEmployees,
-      "Collector",
-      resolvedBranchName ?? "N/A",
-      collectorBaseAmountByUserId,
-      0,
-      collectorRule,
-    );
-
-    secretaryRows = buildComputedRows(
-      secretaryEmployees,
-      "Secretary",
-      resolvedBranchName ?? "N/A",
-      new Map(),
-      branchCollectorAverage,
-      secretaryRule,
-    );
-
-    branchManagerRows = buildComputedRows(
-      branchManagerEmployees,
-      "Branch Manager",
-      resolvedBranchName ?? "N/A",
-      new Map(),
-      branchCollectorAverage,
-      branchManagerRule,
-    );
-
-    collectorRuleMissing = collectorRows.length > 0 && collectorRule === null;
-    secretaryRuleMissing = secretaryRows.length > 0 && secretaryRule === null;
-    branchManagerRuleMissing = branchManagerRows.length > 0 && branchManagerRule === null;
+    if (batchMeta) {
+      const historicalData = await loadHistoricalIncentives(batchMeta);
+      collectorRows = historicalData.collectorRows;
+      secretaryRows = historicalData.secretaryRows;
+      branchManagerRows = historicalData.branchManagerRows;
+      branchCollectorAverage = collectorRows.length > 0
+        ? collectorRows.reduce((sum, row) => sum + row.baseAmount, 0) / collectorRows.length
+        : 0;
+    } else {
+      const liveData = await computeLiveIncentivesForPeriod(
+        resolvedBranchId,
+        resolvedBranchName,
+        payPeriod.periodStart,
+        payPeriod.periodEnd,
+      );
+      collectorRows = liveData.collectorRows;
+      secretaryRows = liveData.secretaryRows;
+      branchManagerRows = liveData.branchManagerRows;
+      branchCollectorAverage = liveData.branchCollectorAverage;
+      collectorRuleMissing = liveData.collectorRuleMissing;
+      secretaryRuleMissing = liveData.secretaryRuleMissing;
+      branchManagerRuleMissing = liveData.branchManagerRuleMissing;
+    }
   }
 
-  const totalEmployees = collectorRows.length + secretaryRows.length + branchManagerRows.length;
-  const totalComputedIncentive =
-    sectionTotal(collectorRows) + sectionTotal(secretaryRows) + sectionTotal(branchManagerRows);
+  const allRows = [...collectorRows, ...secretaryRows, ...branchManagerRows];
+  const totalEmployees = allRows.length;
+  const totalComputedIncentive = sectionTotal(allRows);
+
+  const exportRows: ExportIncentiveRow[] = allRows.map((row) => ({
+    employeeName: row.employeeName,
+    companyId: row.companyId,
+    roleName: row.roleName,
+    branchName: row.branchName,
+    baseAmount: formatMoney(row.baseAmount),
+    percentValue: row.percentValue === null ? "No incentive rule configured" : formatPercent(row.percentValue),
+    flatAmount: row.flatAmount === null ? "No incentive rule configured" : formatMoney(row.flatAmount),
+    computedIncentive: row.computedIncentive === null
+      ? "No incentive rule configured"
+      : formatMoney(row.computedIncentive),
+  }));
+
+  const periodLabel = batchMeta?.periodLabel ?? payPeriod?.label ?? "N/A";
+  const periodStart = batchMeta?.periodStart ?? payPeriod?.periodStart ?? "N/A";
+  const periodEnd = batchMeta?.periodEnd ?? payPeriod?.periodEnd ?? "N/A";
+
+  const isFinalized = Boolean(batchMeta);
+  const finalizationWindowOpen = payPeriod ? isFinalizationWindowOpen(payPeriod.periodEnd) : false;
+  const canFinalize = Boolean(!isFinalized && payPeriod && resolvedBranchId !== null && finalizationWindowOpen);
+
+  let finalizeLockReason = "";
+  if (isFinalized) {
+    finalizeLockReason = "This month has already been finalized.";
+  } else if (!payPeriod) {
+    finalizeLockReason = "Invalid month filter.";
+  } else if (resolvedBranchId === null) {
+    finalizeLockReason = "Select a branch first.";
+  } else if (!finalizationWindowOpen) {
+    finalizeLockReason = `Finalization is allowed starting ${payPeriod.periodEnd} at 5:00 PM (Asia/Manila).`;
+  }
+
+  const finalizedByText = batchMeta
+    ? [
+        batchMeta.finalizedByName,
+        batchMeta.finalizedByCompanyId ?? batchMeta.finalizedByUsername ?? batchMeta.finalizedByUserId,
+      ]
+        .filter(Boolean)
+        .join(" - ")
+    : null;
+
+  const safeBranch = (resolvedBranchName ?? "branch").replace(/[^a-zA-Z0-9_-]/g, "_");
+  const exportFileName = `incentives_${safeBranch}_${selectedMonthRaw}.csv`;
+  const modeLabel = isFinalized ? "Historical View" : "Live Computation";
 
   return (
     <main className="mx-auto min-h-screen w-full max-w-7xl p-6">
       <Card className="mb-6">
         <CardHeader>
-          <CardTitle>Incentive Computation</CardTitle>
+          <CardTitle>Incentive Payouts</CardTitle>
           <CardDescription>
-            {isAdmin
-              ? "Compute monthly incentives by branch."
-              : "Compute monthly incentives for your assigned branch."}
+            Monthly payout computation, finalization, and history viewing.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex flex-wrap gap-2">
           <Link href="/dashboard">
             <Button type="button" variant="outline">
               Back to dashboard
+            </Button>
+          </Link>
+          <Link href="/dashboard/incentives/rules">
+            <Button type="button" variant="secondary">
+              Manage Rules
             </Button>
           </Link>
         </CardContent>
@@ -594,7 +394,7 @@ export default async function IncentivesPage({ searchParams }: PageProps) {
               />
             </div>
 
-            <div className="flex items-end gap-2 md:col-span-2">
+            <div className="flex items-end gap-2 md:col-span-4">
               <Button type="submit">Apply Filters</Button>
               <Link href="/dashboard/incentives">
                 <Button type="button" variant="outline">
@@ -606,7 +406,7 @@ export default async function IncentivesPage({ searchParams }: PageProps) {
         </CardContent>
       </Card>
 
-      {!monthRange ? (
+      {!payPeriod ? (
         <Card>
           <CardContent className="py-6">
             <p className="text-sm text-amber-700 dark:text-amber-400">
@@ -617,23 +417,56 @@ export default async function IncentivesPage({ searchParams }: PageProps) {
       ) : resolvedBranchId === null ? (
         <Card>
           <CardContent className="py-6">
-            <p className="text-sm text-muted-foreground">
-              Select a branch to compute incentives.
-            </p>
+            <p className="text-sm text-muted-foreground">Select a branch to view incentive payouts.</p>
           </CardContent>
         </Card>
       ) : (
         <>
-          <div className="mb-6 grid gap-4 md:grid-cols-3">
-            <Card>
-              <CardHeader>
-                <CardTitle>Selected Branch</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm">{resolvedBranchName ?? "N/A"}</p>
-              </CardContent>
-            </Card>
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle>{isFinalized ? "Historical View" : "Live Computation"}</CardTitle>
+              <CardDescription>
+                {isFinalized
+                  ? "This month has already been finalized. The values shown here are locked payout records."
+                  : "This view is based on current records and may still change until the month is finalized."}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <p>
+                <span className="font-medium">Branch:</span> {resolvedBranchName ?? "N/A"}
+              </p>
+              <p>
+                <span className="font-medium">Period:</span> {periodLabel}
+              </p>
+              <p>
+                <span className="font-medium">Period Start:</span> {periodStart}
+              </p>
+              <p>
+                <span className="font-medium">Period End:</span> {periodEnd}
+              </p>
+              {batchMeta ? (
+                <>
+                  <p>
+                    <span className="font-medium">Finalized By:</span> {finalizedByText ?? "N/A"}
+                  </p>
+                  <p>
+                    <span className="font-medium">Finalized At:</span> {batchMeta.finalizedAt}
+                  </p>
+                </>
+              ) : (
+                <FinalizePayoutForm
+                  branchId={resolvedBranchId}
+                  canFinalize={canFinalize}
+                  lockReason={finalizeLockReason}
+                  month={selectedMonthRaw}
+                />
+              )}
 
+              <ExportPrintTools fileName={exportFileName} modeLabel={modeLabel} rows={exportRows} />
+            </CardContent>
+          </Card>
+
+          <div className="mb-6 grid gap-4 md:grid-cols-3">
             <Card>
               <CardHeader>
                 <CardTitle>Eligible Employees</CardTitle>
@@ -651,193 +484,42 @@ export default async function IncentivesPage({ searchParams }: PageProps) {
                 <p className="text-2xl font-semibold">{formatMoney(totalComputedIncentive)}</p>
               </CardContent>
             </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Collector Average Basis</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-2xl font-semibold">{formatMoney(branchCollectorAverage)}</p>
+                {isFinalized ? (
+                  <p className="text-muted-foreground mt-2 text-xs">
+                    Historical records are shown from finalized payout history.
+                  </p>
+                ) : null}
+              </CardContent>
+            </Card>
           </div>
 
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle>Computation Basis</CardTitle>
-              <CardDescription>
-                Branch collector average for the selected month: {formatMoney(branchCollectorAverage)}
-              </CardDescription>
-            </CardHeader>
-          </Card>
+          {renderSection(
+            "Collectors",
+            "Collector incentive = (collector month total * percent / 100) + flat amount",
+            collectorRows,
+            !isFinalized && collectorRuleMissing,
+          )}
 
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle>Collectors</CardTitle>
-              <CardDescription>
-                Collector incentive = (collector monthly total * percent / 100) + flat amount
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {collectorRuleMissing ? (
-                <p className="mb-3 text-sm text-amber-700 dark:text-amber-400">
-                  No incentive rule configured for Collector in this branch.
-                </p>
-              ) : null}
+          {renderSection(
+            "Secretaries",
+            "Secretary incentive = (branch collector average * percent / 100) + flat amount",
+            secretaryRows,
+            !isFinalized && secretaryRuleMissing,
+          )}
 
-              {collectorRows.length === 0 ? (
-                <p className="text-muted-foreground text-sm">No eligible collectors found.</p>
-              ) : (
-                <div className="overflow-auto">
-                  <table className="w-full min-w-260 text-sm">
-                    <thead>
-                      <tr className="border-b text-left">
-                        <th className="px-2 py-2 font-medium">Employee</th>
-                        <th className="px-2 py-2 font-medium">Company ID</th>
-                        <th className="px-2 py-2 font-medium">Role</th>
-                        <th className="px-2 py-2 font-medium">Branch</th>
-                        <th className="px-2 py-2 font-medium">Base Amount</th>
-                        <th className="px-2 py-2 font-medium">Percent</th>
-                        <th className="px-2 py-2 font-medium">Flat Amount</th>
-                        <th className="px-2 py-2 font-medium">Computed Incentive</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {collectorRows.map((row) => (
-                        <tr className="border-b" key={row.userId}>
-                          <td className="px-2 py-2">{row.employeeName}</td>
-                          <td className="px-2 py-2">{row.companyId}</td>
-                          <td className="px-2 py-2">{row.roleName}</td>
-                          <td className="px-2 py-2">{row.branchName}</td>
-                          <td className="px-2 py-2">{formatMoney(row.baseAmount)}</td>
-                          <td className="px-2 py-2">
-                            {row.percentValue === null ? "No incentive rule configured" : formatPercent(row.percentValue)}
-                          </td>
-                          <td className="px-2 py-2">
-                            {row.flatAmount === null ? "No incentive rule configured" : formatMoney(row.flatAmount)}
-                          </td>
-                          <td className="px-2 py-2">
-                            {row.computedIncentive === null
-                              ? "No incentive rule configured"
-                              : formatMoney(row.computedIncentive)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card className="mb-6">
-            <CardHeader>
-              <CardTitle>Secretaries</CardTitle>
-              <CardDescription>
-                Secretary incentive = (branch collector average * percent / 100) + flat amount
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {secretaryRuleMissing ? (
-                <p className="mb-3 text-sm text-amber-700 dark:text-amber-400">
-                  No incentive rule configured for Secretary in this branch.
-                </p>
-              ) : null}
-
-              {secretaryRows.length === 0 ? (
-                <p className="text-muted-foreground text-sm">No eligible secretaries found.</p>
-              ) : (
-                <div className="overflow-auto">
-                  <table className="w-full min-w-260 text-sm">
-                    <thead>
-                      <tr className="border-b text-left">
-                        <th className="px-2 py-2 font-medium">Employee</th>
-                        <th className="px-2 py-2 font-medium">Company ID</th>
-                        <th className="px-2 py-2 font-medium">Role</th>
-                        <th className="px-2 py-2 font-medium">Branch</th>
-                        <th className="px-2 py-2 font-medium">Base Amount</th>
-                        <th className="px-2 py-2 font-medium">Percent</th>
-                        <th className="px-2 py-2 font-medium">Flat Amount</th>
-                        <th className="px-2 py-2 font-medium">Computed Incentive</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {secretaryRows.map((row) => (
-                        <tr className="border-b" key={row.userId}>
-                          <td className="px-2 py-2">{row.employeeName}</td>
-                          <td className="px-2 py-2">{row.companyId}</td>
-                          <td className="px-2 py-2">{row.roleName}</td>
-                          <td className="px-2 py-2">{row.branchName}</td>
-                          <td className="px-2 py-2">{formatMoney(row.baseAmount)}</td>
-                          <td className="px-2 py-2">
-                            {row.percentValue === null ? "No incentive rule configured" : formatPercent(row.percentValue)}
-                          </td>
-                          <td className="px-2 py-2">
-                            {row.flatAmount === null ? "No incentive rule configured" : formatMoney(row.flatAmount)}
-                          </td>
-                          <td className="px-2 py-2">
-                            {row.computedIncentive === null
-                              ? "No incentive rule configured"
-                              : formatMoney(row.computedIncentive)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Branch Managers</CardTitle>
-              <CardDescription>
-                Branch Manager incentive = (branch collector average * percent / 100) + flat amount
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {branchManagerRuleMissing ? (
-                <p className="mb-3 text-sm text-amber-700 dark:text-amber-400">
-                  No incentive rule configured for Branch Manager in this branch.
-                </p>
-              ) : null}
-
-              {branchManagerRows.length === 0 ? (
-                <p className="text-muted-foreground text-sm">No eligible branch managers found.</p>
-              ) : (
-                <div className="overflow-auto">
-                  <table className="w-full min-w-260 text-sm">
-                    <thead>
-                      <tr className="border-b text-left">
-                        <th className="px-2 py-2 font-medium">Employee</th>
-                        <th className="px-2 py-2 font-medium">Company ID</th>
-                        <th className="px-2 py-2 font-medium">Role</th>
-                        <th className="px-2 py-2 font-medium">Branch</th>
-                        <th className="px-2 py-2 font-medium">Base Amount</th>
-                        <th className="px-2 py-2 font-medium">Percent</th>
-                        <th className="px-2 py-2 font-medium">Flat Amount</th>
-                        <th className="px-2 py-2 font-medium">Computed Incentive</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {branchManagerRows.map((row) => (
-                        <tr className="border-b" key={row.userId}>
-                          <td className="px-2 py-2">{row.employeeName}</td>
-                          <td className="px-2 py-2">{row.companyId}</td>
-                          <td className="px-2 py-2">{row.roleName}</td>
-                          <td className="px-2 py-2">{row.branchName}</td>
-                          <td className="px-2 py-2">{formatMoney(row.baseAmount)}</td>
-                          <td className="px-2 py-2">
-                            {row.percentValue === null ? "No incentive rule configured" : formatPercent(row.percentValue)}
-                          </td>
-                          <td className="px-2 py-2">
-                            {row.flatAmount === null ? "No incentive rule configured" : formatMoney(row.flatAmount)}
-                          </td>
-                          <td className="px-2 py-2">
-                            {row.computedIncentive === null
-                              ? "No incentive rule configured"
-                              : formatMoney(row.computedIncentive)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          {renderSection(
+            "Branch Managers",
+            "Branch Manager incentive = (branch collector average * percent / 100) + flat amount",
+            branchManagerRows,
+            !isFinalized && branchManagerRuleMissing,
+          )}
         </>
       )}
     </main>

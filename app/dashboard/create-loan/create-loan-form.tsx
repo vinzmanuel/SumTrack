@@ -47,18 +47,24 @@ type AreaOption = {
   area_code: string;
 };
 
+type CollectorOption = {
+  user_id: string;
+  area_id: string | number;
+  label: string;
+};
+
 type CreateLoanFormProps = {
   borrowers: BorrowerOption[];
   branches: BranchOption[];
   areas: AreaOption[];
+  collectors: CollectorOption[];
+  isAdmin: boolean;
 };
 
-const TERM_OPTIONS = [
-  { label: "1 month", value: 1 },
-  { label: "2 months", value: 2 },
-  { label: "3 months", value: 3 },
-  { label: "4 months", value: 4 },
-  { label: "6 months", value: 6 },
+const DEFAULT_TERM_DAYS = 58;
+const STAFF_TERM_OPTIONS = [
+  { label: "58 days", value: "58" },
+  { label: "60 days", value: "60" },
 ];
 
 function SubmitButton() {
@@ -110,7 +116,7 @@ function formatDateInput(date: Date) {
   return `${year}-${month}-${day}`;
 }
 
-function addMonthsToDate(dateString: string, months: number) {
+function addDaysToDate(dateString: string, days: number) {
   if (!dateString) {
     return "";
   }
@@ -121,7 +127,7 @@ function addMonthsToDate(dateString: string, months: number) {
   }
 
   const date = new Date(Date.UTC(year, month - 1, day));
-  date.setUTCMonth(date.getUTCMonth() + months);
+  date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
 }
 
@@ -141,14 +147,14 @@ function getDateDiffDays(startDate: string, dueDate: string) {
   return diff > 0 ? diff : null;
 }
 
-export function CreateLoanForm({ borrowers, branches, areas }: CreateLoanFormProps) {
+export function CreateLoanForm({ borrowers, branches, areas, collectors, isAdmin }: CreateLoanFormProps) {
   const [state, formAction] = useActionState(createLoanAction, initialCreateLoanState);
   const formRef = useRef<HTMLFormElement>(null);
 
   const defaultStartDate = useMemo(() => formatDateInput(new Date()), []);
-  const defaultTermMonths = "1";
+  const defaultTermOption = "58";
   const defaultDueDate = useMemo(
-    () => addMonthsToDate(defaultStartDate, Number(defaultTermMonths)),
+    () => addDaysToDate(defaultStartDate, DEFAULT_TERM_DAYS),
     [defaultStartDate],
   );
 
@@ -156,7 +162,8 @@ export function CreateLoanForm({ borrowers, branches, areas }: CreateLoanFormPro
   const [borrowerSearch, setBorrowerSearch] = useState("");
   const [selectedBranchId, setSelectedBranchId] = useState("");
   const [selectedAreaId, setSelectedAreaId] = useState("");
-  const [termMonths, setTermMonths] = useState(defaultTermMonths);
+  const [collectorId, setCollectorId] = useState("");
+  const [termOption, setTermOption] = useState(defaultTermOption);
   const [principalRaw, setPrincipalRaw] = useState("");
   const [interest, setInterest] = useState("");
   const [startDate, setStartDate] = useState(defaultStartDate);
@@ -182,6 +189,16 @@ export function CreateLoanForm({ borrowers, branches, areas }: CreateLoanFormPro
   const selectedArea = useMemo(
     () => areaOptions.find((area) => String(area.area_id) === selectedAreaId) ?? null,
     [areaOptions, selectedAreaId],
+  );
+
+  const collectorOptions = useMemo(
+    () => collectors.filter((collector) => String(collector.area_id) === selectedAreaId),
+    [collectors, selectedAreaId],
+  );
+
+  const selectedCollector = useMemo(
+    () => collectorOptions.find((collector) => collector.user_id === collectorId) ?? null,
+    [collectorId, collectorOptions],
   );
 
   const filteredBorrowers = useMemo(() => {
@@ -236,6 +253,7 @@ export function CreateLoanForm({ borrowers, branches, areas }: CreateLoanFormPro
   const parsedPrincipal = Number(principalRaw);
   const parsedInterest = Number(interest);
   const durationDays = getDateDiffDays(startDate, dueDate);
+  const isCustomTerm = isAdmin && termOption === "custom";
   const totalPayable =
     Number.isFinite(parsedPrincipal) && parsedPrincipal >= 0 && Number.isFinite(parsedInterest)
       ? parsedPrincipal + (parsedPrincipal * parsedInterest) / 100
@@ -273,25 +291,35 @@ export function CreateLoanForm({ borrowers, branches, areas }: CreateLoanFormPro
     setSelectedBranchId(nextBranchId);
     setSelectedAreaId("");
     setBorrowerId("");
+    setCollectorId("");
     setBorrowerSearch("");
   }
 
   function handleAreaChange(nextAreaId: string) {
     setSelectedAreaId(nextAreaId);
     setBorrowerId("");
+    setCollectorId("");
     setBorrowerSearch("");
   }
 
   function handleTermChange(value: string) {
-    setTermMonths(value);
-
-    const months = Number(value);
-    if (!startDate || !Number.isFinite(months) || months <= 0) {
+    if (!isAdmin && value === "custom") {
       return;
     }
 
-    const nextDueDate = addMonthsToDate(startDate, months);
-    if (nextDueDate) {
+    setTermOption(value);
+
+    if (value === "custom") {
+      return;
+    }
+
+    const termDays = Number(value);
+    if (!startDate || !Number.isFinite(termDays) || termDays <= 0) {
+      return;
+    }
+
+    const nextDueDate = addDaysToDate(startDate, termDays);
+    if (nextDueDate !== "") {
       setDueDate(nextDueDate);
     }
   }
@@ -299,13 +327,17 @@ export function CreateLoanForm({ borrowers, branches, areas }: CreateLoanFormPro
   function handleStartDateChange(value: string) {
     setStartDate(value);
 
-    const months = Number(termMonths);
-    if (!value || !Number.isFinite(months) || months <= 0) {
+    if (isCustomTerm) {
       return;
     }
 
-    const nextDueDate = addMonthsToDate(value, months);
-    if (nextDueDate) {
+    const termDays = Number(termOption);
+    if (!value || !Number.isFinite(termDays) || termDays <= 0) {
+      return;
+    }
+
+    const nextDueDate = addDaysToDate(value, termDays);
+    if (nextDueDate !== "") {
       setDueDate(nextDueDate);
     }
   }
@@ -326,8 +358,10 @@ export function CreateLoanForm({ borrowers, branches, areas }: CreateLoanFormPro
             <input name="borrower_id" type="hidden" value={borrowerId} />
             <input name="branch_id" type="hidden" value={selectedBranchId} />
             <input name="area_id" type="hidden" value={selectedAreaId} />
+            <input name="collector_id" type="hidden" value={collectorId} />
             <input name="principal" type="hidden" value={principalRaw} />
             <input name="interest" type="hidden" value={interest} />
+            <input name="term_option" type="hidden" value={termOption} />
 
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
@@ -420,19 +454,49 @@ export function CreateLoanForm({ borrowers, branches, areas }: CreateLoanFormPro
             </p>
 
             <div className="space-y-2">
-              <Label>Loan Term</Label>
-              <Select onValueChange={handleTermChange} value={termMonths}>
+              <Label>Collector</Label>
+              <Select disabled={!selectedAreaId} onValueChange={setCollectorId} value={collectorId}>
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select loan term" />
+                  <SelectValue placeholder={selectedAreaId ? "Select collector" : "Select area first"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {TERM_OPTIONS.map((term) => (
-                    <SelectItem key={term.value} value={String(term.value)}>
-                      {term.label}
+                  {collectorOptions.map((collector) => (
+                    <SelectItem key={collector.user_id} value={collector.user_id}>
+                      {collector.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {!selectedAreaId ? (
+                <p className="text-muted-foreground text-sm">Select area first to load assigned collectors.</p>
+              ) : collectorOptions.length === 0 ? (
+                <p className="text-sm text-amber-700 dark:text-amber-400">
+                  No active collectors are assigned to this area.
+                </p>
+              ) : null}
+              {state.fieldErrors?.collector_id ? (
+                <p className="text-sm text-destructive">{state.fieldErrors.collector_id}</p>
+              ) : null}
+            </div>
+
+            <div className="space-y-2">
+              <Label>Loan Term</Label>
+              <Select onValueChange={handleTermChange} value={termOption}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select loan term" />
+                </SelectTrigger>
+                <SelectContent>
+                  {STAFF_TERM_OPTIONS.map((term) => (
+                    <SelectItem key={term.value} value={term.value}>
+                      {term.label}
+                    </SelectItem>
+                  ))}
+                  {isAdmin ? <SelectItem value="custom">Custom</SelectItem> : null}
+                </SelectContent>
+              </Select>
+              {state.fieldErrors?.term_option ? (
+                <p className="text-sm text-destructive">{state.fieldErrors.term_option}</p>
+              ) : null}
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
@@ -499,6 +563,7 @@ export function CreateLoanForm({ borrowers, branches, areas }: CreateLoanFormPro
               <div className="space-y-2">
                 <Label htmlFor="due_date">Due Date</Label>
                 <Input
+                  disabled={!isCustomTerm}
                   id="due_date"
                   name="due_date"
                   onChange={(event) => setDueDate(event.target.value)}
@@ -510,6 +575,12 @@ export function CreateLoanForm({ borrowers, branches, areas }: CreateLoanFormPro
                 ) : null}
               </div>
             </div>
+
+            {durationDays ? (
+              <p className="text-muted-foreground text-sm">
+                <span className="font-medium">Loan Term:</span> {durationDays} days
+              </p>
+            ) : null}
 
             {estimatedDailyPayment !== null && totalPayable !== null && durationDays ? (
               <div className="space-y-2 rounded-md border p-3">
@@ -554,6 +625,9 @@ export function CreateLoanForm({ borrowers, branches, areas }: CreateLoanFormPro
                   <span className="font-medium">Area:</span> {selectedArea?.area_code || "N/A"}
                 </p>
                 <p>
+                  <span className="font-medium">Collector:</span> {selectedCollector?.label || "N/A"}
+                </p>
+                <p>
                   <span className="font-medium">Principal:</span> {principalDisplay || "N/A"}
                 </p>
                 <p>
@@ -564,6 +638,9 @@ export function CreateLoanForm({ borrowers, branches, areas }: CreateLoanFormPro
                 </p>
                 <p>
                   <span className="font-medium">Due Date:</span> {dueDate || "N/A"}
+                </p>
+                <p>
+                  <span className="font-medium">Loan Term:</span> {durationDays ? `${durationDays} days` : "N/A"}
                 </p>
                 <p>
                   <span className="font-medium">Status:</span> Active
@@ -602,6 +679,9 @@ export function CreateLoanForm({ borrowers, branches, areas }: CreateLoanFormPro
               <span className="font-medium">Branch:</span> {state.result.branchName}
             </p>
             <p>
+              <span className="font-medium">Collector:</span> {state.result.collectorName}
+            </p>
+            <p>
               <span className="font-medium">Principal:</span> {state.result.principal}
             </p>
             <p>
@@ -612,6 +692,9 @@ export function CreateLoanForm({ borrowers, branches, areas }: CreateLoanFormPro
             </p>
             <p>
               <span className="font-medium">Due Date:</span> {state.result.dueDate}
+            </p>
+            <p>
+              <span className="font-medium">Loan Term:</span> {state.result.termDays} days
             </p>
             <p>
               <span className="font-medium">Status:</span> {state.result.status}

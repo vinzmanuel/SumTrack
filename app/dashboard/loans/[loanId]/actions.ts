@@ -1,12 +1,9 @@
 "use server";
 
-import { and, eq, isNull } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import {
-  areas,
-  borrower_info,
   collections,
-  employee_area_assignment,
   employee_info,
   loan_records,
   roles,
@@ -17,7 +14,6 @@ import type { CollectionHistoryRow, LoanDetailState } from "@/app/dashboard/loan
 
 type FormFields = {
   loan_id: string;
-  collector_id: string;
   amount: string;
   note: string;
   collection_date: string;
@@ -76,7 +72,6 @@ export async function createCollectionAction(
   formData: FormData,
 ): Promise<LoanDetailState> {
   const loanId = getTrimmed(formData, "loan_id");
-  const collectorId = getTrimmed(formData, "collector_id");
   const amountRaw = getTrimmed(formData, "amount");
   const note = getTrimmed(formData, "note");
   const collectionDate = getTrimmed(formData, "collection_date");
@@ -86,10 +81,6 @@ export async function createCollectionAction(
 
   if (!loanId) {
     fieldErrors.loan_id = "Loan is required.";
-  }
-
-  if (!collectorId) {
-    fieldErrors.collector_id = "Collector is required.";
   }
 
   if (!collectionDate) {
@@ -173,7 +164,7 @@ export async function createCollectionAction(
           .select({
             loan_id: loan_records.loan_id,
             loan_code: loan_records.loan_code,
-            borrower_id: loan_records.borrower_id,
+            collector_id: loan_records.collector_id,
           })
           .from(loan_records)
           .where(eq(loan_records.loan_id, loanIdDb))
@@ -190,39 +181,10 @@ export async function createCollectionAction(
     };
   }
 
-  const borrower = await db
-    .select({
-      user_id: borrower_info.user_id,
-      area_id: borrower_info.area_id,
-    })
-    .from(borrower_info)
-    .where(eq(borrower_info.user_id, loan.borrower_id))
-    .limit(1)
-    .then((rows) => rows[0] ?? null)
-    .catch(() => null);
-
-  if (!borrower) {
+  if (!loan.collector_id) {
     return {
       status: "error",
-      message: "Borrower not found for the selected loan.",
-      appendedRows: prevState.appendedRows ?? [],
-    };
-  }
-
-  const borrowerArea = await db
-    .select({
-      area_id: areas.area_id,
-    })
-    .from(areas)
-    .where(eq(areas.area_id, borrower.area_id))
-    .limit(1)
-    .then((rows) => rows[0] ?? null)
-    .catch(() => null);
-
-  if (!borrowerArea) {
-    return {
-      status: "error",
-      message: "Borrower area not found for the selected loan.",
+      message: "No collector is assigned to this loan.",
       appendedRows: prevState.appendedRows ?? [],
     };
   }
@@ -234,7 +196,7 @@ export async function createCollectionAction(
       username: users.username,
     })
     .from(users)
-    .where(eq(users.user_id, collectorId))
+    .where(eq(users.user_id, loan.collector_id))
     .limit(1)
     .then((rows) => rows[0] ?? null)
     .catch(() => null);
@@ -242,7 +204,7 @@ export async function createCollectionAction(
   if (!collectorUser?.role_id) {
     return {
       status: "error",
-      message: "Collector account not found.",
+      message: "Assigned collector account not found.",
       appendedRows: prevState.appendedRows ?? [],
     };
   }
@@ -260,31 +222,7 @@ export async function createCollectionAction(
   if (collectorRole?.role_name !== "Collector") {
     return {
       status: "error",
-      message: "Selected account is not a Collector.",
-      appendedRows: prevState.appendedRows ?? [],
-    };
-  }
-
-  const activeCollectorAssignment = await db
-    .select({
-      assignment_id: employee_area_assignment.assignment_id,
-    })
-    .from(employee_area_assignment)
-    .where(
-      and(
-        eq(employee_area_assignment.employee_user_id, collectorUser.user_id),
-        eq(employee_area_assignment.area_id, borrowerArea.area_id),
-        isNull(employee_area_assignment.end_date),
-      ),
-    )
-    .limit(1)
-    .then((rows) => rows[0] ?? null)
-    .catch(() => null);
-
-  if (!activeCollectorAssignment) {
-    return {
-      status: "error",
-      message: "Selected collector is not actively assigned to the borrower's area.",
+      message: "Assigned account is not a Collector.",
       appendedRows: prevState.appendedRows ?? [],
     };
   }
@@ -336,7 +274,6 @@ export async function createCollectionAction(
         amount: String(missedPayment ? 0 : amount),
         note: note || null,
         encoded_by: currentAuthUser.id,
-        collector_id: collectorUser.user_id,
         collection_date: collectionDate,
       })
       .returning({

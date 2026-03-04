@@ -9,6 +9,10 @@ export type IncentiveRuleFormState = {
   };
   result?: {
     mode: "created" | "updated";
+    appliesTo: "current_period" | "next_period";
+    effectiveStart: string;
+    effectiveEnd: string | null;
+    periodLabel: string;
     branchName: string;
     roleName: string;
     percentValue: number;

@@ -40,6 +40,9 @@ type ExistingRule = {
   role_name: string;
   percent_value: string;
   flat_amount: string;
+  effective_start: string;
+  effective_end: string | null;
+  status_label: "Active Now" | "Scheduled Next";
 };
 
 type IncentiveRulesFormProps = {
@@ -262,7 +265,7 @@ export function IncentiveRulesForm({
               <DialogHeader>
                 <DialogTitle>Confirm Incentive Rule</DialogTitle>
                 <DialogDescription>
-                  Saving with the same branch and role updates an existing rule.
+                  Changes saved during the current month apply to the next month.
                 </DialogDescription>
               </DialogHeader>
 
@@ -303,6 +306,19 @@ export function IncentiveRulesForm({
           <CardContent className="space-y-2 text-sm">
             <p>
               <span className="font-medium">Action:</span> {state.result.mode === "created" ? "Created" : "Updated"}
+            </p>
+            <p>
+              <span className="font-medium">Applies To:</span>{" "}
+              {state.result.appliesTo === "current_period" ? "Current month" : "Next month"}
+            </p>
+            <p>
+              <span className="font-medium">Period:</span> {state.result.periodLabel}
+            </p>
+            <p>
+              <span className="font-medium">Effective Start:</span> {state.result.effectiveStart}
+            </p>
+            <p>
+              <span className="font-medium">Effective End:</span> {state.result.effectiveEnd ?? "Open-ended"}
             </p>
             <p>
               <span className="font-medium">Branch:</span> {state.result.branchName}
@@ -372,8 +388,11 @@ export function IncentiveRulesForm({
                   <tr className="border-b text-left">
                     <th className="px-2 py-2 font-medium">Branch</th>
                     <th className="px-2 py-2 font-medium">Role</th>
+                    <th className="px-2 py-2 font-medium">Status</th>
                     <th className="px-2 py-2 font-medium">Percent Value</th>
                     <th className="px-2 py-2 font-medium">Flat Amount</th>
+                    <th className="px-2 py-2 font-medium">Effective Start</th>
+                    <th className="px-2 py-2 font-medium">Effective End</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -381,8 +400,19 @@ export function IncentiveRulesForm({
                     <tr className="border-b" key={rule.rule_id}>
                       <td className="px-2 py-2">{rule.branch_name}</td>
                       <td className="px-2 py-2">{rule.role_name}</td>
+                      <td className="px-2 py-2">
+                        <span
+                          className={rule.status_label === "Active Now"
+                            ? "rounded bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-800"
+                            : "rounded bg-amber-100 px-2 py-1 text-xs font-medium text-amber-800"}
+                        >
+                          {rule.status_label}
+                        </span>
+                      </td>
                       <td className="px-2 py-2">{(Number(rule.percent_value) || 0).toLocaleString("en-PH")}%</td>
                       <td className="px-2 py-2">{formatMoney(Number(rule.flat_amount) || 0)}</td>
+                      <td className="px-2 py-2">{rule.effective_start}</td>
+                      <td className="px-2 py-2">{rule.effective_end ?? "Open-ended"}</td>
                     </tr>
                   ))}
                 </tbody>

@@ -2,9 +2,14 @@ import Link from "next/link";
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { db } from "@/db";
-import { branch, employee_branch_assignment, incentive_rules, roles, users } from "@/db/schema";
+import { branch, employee_branch_assignment, roles, users } from "@/db/schema";
 import { createClient } from "@/lib/supabase/server";
 import { IncentiveRulesForm } from "@/app/dashboard/incentives/rules/incentive-rules-form";
+import {
+  getCurrentPayPeriod,
+  getNextPayPeriod,
+  loadApplicableRuleVersionsForPeriod,
+} from "@/app/dashboard/incentives/lib";
 
 const ADMIN_MANAGEABLE_ROLES = ["Branch Manager", "Secretary", "Collector"] as const;
 const BRANCH_MANAGER_MANAGEABLE_ROLES = ["Secretary", "Collector"] as const;
@@ -188,40 +193,89 @@ export default async function IncentiveRulesPage() {
     .orderBy(asc(roles.role_name))
     .catch(() => []);
 
-  const existingRules = isBranchManager && fixedBranch
-    ? await db
-        .select({
-          rule_id: incentive_rules.rule_id,
-          branch_name: branch.branch_name,
-          role_name: roles.role_name,
-          percent_value: incentive_rules.percent_value,
-          flat_amount: incentive_rules.flat_amount,
-        })
-        .from(incentive_rules)
-        .innerJoin(branch, eq(branch.branch_id, incentive_rules.branch_id))
-        .innerJoin(roles, eq(roles.role_id, incentive_rules.role_id))
-        .where(
-          and(
-            eq(incentive_rules.branch_id, fixedBranch.branch_id),
-            inArray(roles.role_name, [...manageableRoleNames]),
-          ),
-        )
-        .orderBy(asc(branch.branch_name), asc(roles.role_name))
-        .catch(() => [])
-    : await db
-        .select({
-          rule_id: incentive_rules.rule_id,
-          branch_name: branch.branch_name,
-          role_name: roles.role_name,
-          percent_value: incentive_rules.percent_value,
-          flat_amount: incentive_rules.flat_amount,
-        })
-        .from(incentive_rules)
-        .innerJoin(branch, eq(branch.branch_id, incentive_rules.branch_id))
-        .innerJoin(roles, eq(roles.role_id, incentive_rules.role_id))
-        .where(inArray(roles.role_name, [...manageableRoleNames]))
-        .orderBy(asc(branch.branch_name), asc(roles.role_name))
-        .catch(() => []);
+  const scopeBranches = isBranchManager && fixedBranch ? [fixedBranch] : branches;
+  const branchIdScope = scopeBranches.map((item) => item.branch_id);
+  const roleIdScope = manageableRoles.map((item) => item.role_id);
+
+  const currentPayPeriod = getCurrentPayPeriod();
+  const nextPayPeriod = currentPayPeriod ? getNextPayPeriod(currentPayPeriod) : null;
+
+  const existingRules = [] as Array<{
+    rule_id: number;
+    branch_name: string;
+    role_name: string;
+    percent_value: string;
+    flat_amount: string;
+    effective_start: string;
+    effective_end: string | null;
+    status_label: "Active Now" | "Scheduled Next";
+  }>;
+
+  if (currentPayPeriod && nextPayPeriod && branchIdScope.length > 0 && roleIdScope.length > 0) {
+    const currentMap = await loadApplicableRuleVersionsForPeriod(
+      branchIdScope,
+      roleIdScope,
+      currentPayPeriod.periodStart,
+      currentPayPeriod.periodEnd,
+    );
+    const nextMap = await loadApplicableRuleVersionsForPeriod(
+      branchIdScope,
+      roleIdScope,
+      nextPayPeriod.periodStart,
+      nextPayPeriod.periodEnd,
+    );
+
+    scopeBranches.forEach((branchOption) => {
+      manageableRoles.forEach((roleOption) => {
+        const key = `${branchOption.branch_id}:${roleOption.role_id}`;
+        const activeRule = currentMap.get(key) ?? null;
+        const scheduledRule = nextMap.get(key) ?? null;
+
+        if (activeRule) {
+          existingRules.push({
+            rule_id: activeRule.ruleId,
+            branch_name: branchOption.branch_name,
+            role_name: roleOption.role_name,
+            percent_value: String(activeRule.percentValue),
+            flat_amount: String(activeRule.flatAmount),
+            effective_start: activeRule.effectiveStart,
+            effective_end: activeRule.effectiveEnd,
+            status_label: "Active Now",
+          });
+        }
+
+        if (scheduledRule && (!activeRule || scheduledRule.ruleId !== activeRule.ruleId)) {
+          existingRules.push({
+            rule_id: scheduledRule.ruleId,
+            branch_name: branchOption.branch_name,
+            role_name: roleOption.role_name,
+            percent_value: String(scheduledRule.percentValue),
+            flat_amount: String(scheduledRule.flatAmount),
+            effective_start: scheduledRule.effectiveStart,
+            effective_end: scheduledRule.effectiveEnd,
+            status_label: "Scheduled Next",
+          });
+        }
+      });
+    });
+  }
+
+  existingRules.sort((a, b) => {
+    const branchCompare = a.branch_name.localeCompare(b.branch_name);
+    if (branchCompare !== 0) {
+      return branchCompare;
+    }
+
+    const roleCompare = a.role_name.localeCompare(b.role_name);
+    if (roleCompare !== 0) {
+      return roleCompare;
+    }
+
+    if (a.status_label === b.status_label) {
+      return 0;
+    }
+    return a.status_label === "Active Now" ? -1 : 1;
+  });
 
   return (
     <main className="mx-auto min-h-screen w-full max-w-6xl p-6">
@@ -235,6 +289,9 @@ export default async function IncentiveRulesPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
+          <p className="text-sm text-muted-foreground">
+            Rule changes made during the current month take effect on the next month.
+          </p>
           <Link className="text-sm underline" href="/dashboard">
             Back to dashboard
           </Link>

@@ -114,6 +114,11 @@ export default async function DashboardPage() {
                 Incentive rules
               </Button>
             </Link>
+            <Link href="/dashboard/incentives">
+              <Button type="button" variant="secondary">
+                Incentives
+              </Button>
+            </Link>
             <form action="/auth/signout" method="post">
               <Button type="submit" variant="outline">
                 Sign out
