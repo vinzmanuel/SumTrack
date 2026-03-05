@@ -91,6 +91,11 @@ export default async function DashboardPage() {
                 View loans
               </Button>
             </Link>
+            <Link href="/dashboard/borrowers">
+              <Button type="button" variant="secondary">
+                Borrowers
+              </Button>
+            </Link>
             <Link href="/dashboard/create-account">
               <Button type="button">Create account</Button>
             </Link>

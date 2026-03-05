@@ -520,6 +520,10 @@ export const loan_docs = pgTable(
     loan_id: integer().notNull(),
     document_type: varchar({ length: 100 }).notNull(),
     file_path: text().notNull(),
+    uploaded_by: uuid(),
+    original_filename: text().notNull(),
+    mime_type: text().notNull(),
+    file_size: bigint({ mode: "number" }).notNull(),
     uploaded_at: timestamp({ mode: "string" }).defaultNow(),
   },
   (table) => [
@@ -527,6 +531,11 @@ export const loan_docs = pgTable(
       columns: [table.loan_id],
       foreignColumns: [loan_records.loan_id],
       name: "loan_docs_loan_id_fkey",
+    }),
+    foreignKey({
+      columns: [table.uploaded_by],
+      foreignColumns: [users.user_id],
+      name: "loan_docs_uploaded_by_fkey",
     }),
   ],
 );
@@ -545,6 +554,10 @@ export const borrower_docs = pgTable(
     borrower_id: uuid().notNull(),
     document_type: varchar({ length: 100 }).notNull(),
     file_path: text().notNull(),
+    uploaded_by: uuid(),
+    original_filename: text().notNull(),
+    mime_type: text().notNull(),
+    file_size: bigint({ mode: "number" }).notNull(),
     uploaded_at: timestamp({ mode: "string" }).defaultNow(),
   },
   (table) => [
@@ -552,6 +565,11 @@ export const borrower_docs = pgTable(
       columns: [table.borrower_id],
       foreignColumns: [borrower_info.user_id],
       name: "borrower_docs_borrower_id_fkey",
+    }),
+    foreignKey({
+      columns: [table.uploaded_by],
+      foreignColumns: [users.user_id],
+      name: "borrower_docs_uploaded_by_fkey",
     }),
   ],
 );

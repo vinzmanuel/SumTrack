@@ -71,7 +71,16 @@ type BorrowerOption = {
   username: string | null;
 };
 
-export default async function CreateLoanPage() {
+type PageProps = {
+  searchParams?: Promise<{
+    borrowerId?: string;
+  }>;
+};
+
+export default async function CreateLoanPage({ searchParams }: PageProps) {
+  const params = (await searchParams) ?? {};
+  const requestedBorrowerId = String(params.borrowerId ?? "").trim();
+
   const supabase = await createClient();
   const {
     data: { user },
@@ -110,6 +119,25 @@ export default async function CreateLoanPage() {
     : { data: null };
 
   const isAdmin = currentRole?.role_name === "Admin";
+  if (!isAdmin) {
+    return (
+      <main className="mx-auto flex min-h-screen w-full max-w-4xl items-center justify-center p-6">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle>Create Loan</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              You are logged in, but only Admin users can create loans.
+            </p>
+            <Link className="text-sm underline" href="/dashboard">
+              Back to dashboard
+            </Link>
+          </CardContent>
+        </Card>
+      </main>
+    );
+  }
 
   const { data: borrowersData } = await supabase
     .from("borrower_info")
@@ -165,6 +193,8 @@ export default async function CreateLoanPage() {
     .select("area_id, branch_id, area_no, area_code")
     .order("area_code");
   const areas = (areasData ?? []) as AreaRow[];
+  const borrowerById = new Map(borrowers.map((item) => [item.user_id, item]));
+  const areaById = new Map(areas.map((item) => [String(item.area_id), item]));
 
   const { data: collectorRole } = await supabase
     .from("roles")
@@ -214,6 +244,29 @@ export default async function CreateLoanPage() {
     };
   });
 
+  const prefilledBorrower = (() => {
+    if (!requestedBorrowerId) {
+      return null;
+    }
+
+    const borrower = borrowerById.get(requestedBorrowerId);
+    if (!borrower) {
+      return null;
+    }
+
+    const borrowerArea = areaById.get(String(borrower.area_id));
+    if (!borrowerArea) {
+      return null;
+    }
+
+    return {
+      borrowerId: borrower.user_id,
+      branchId: String(borrowerArea.branch_id),
+      areaId: String(borrowerArea.area_id),
+      label: borrower.label,
+    };
+  })();
+
   return (
     <main className="mx-auto min-h-screen w-full max-w-5xl p-6">
       <Card className="mb-6">
@@ -239,6 +292,7 @@ export default async function CreateLoanPage() {
         borrowers={borrowers}
         collectors={collectors}
         isAdmin={isAdmin}
+        prefilledBorrower={prefilledBorrower}
       />
     </main>
   );

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { asc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, isNull } from "drizzle-orm";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { db } from "@/db";
 import {
@@ -7,16 +7,22 @@ import {
   borrower_info,
   branch,
   collections,
+  employee_branch_assignment,
   employee_info,
+  loan_docs,
   loan_records,
   users,
 } from "@/db/schema";
+import { LoanDocumentsSection } from "@/app/dashboard/loans/[loanId]/documents/loan-documents-section";
 import { createClient } from "@/lib/supabase/server";
 import { LoanDetailForm } from "@/app/dashboard/loans/[loanId]/loan-detail-form";
 import type { CollectionHistoryRow } from "@/app/dashboard/loans/[loanId]/state";
 
 type PageProps = {
   params: Promise<{ loanId: string }>;
+  searchParams: Promise<{
+    docsPage?: string;
+  }>;
 };
 
 type AppUserRow = {
@@ -51,8 +57,13 @@ function formatMoney(value: number) {
   })}`;
 }
 
-export default async function LoanDetailPage({ params }: PageProps) {
+const DOCS_PAGE_SIZE = 10;
+
+export default async function LoanDetailPage({ params, searchParams }: PageProps) {
   const { loanId } = await params;
+  const { docsPage: docsPageParam } = await searchParams;
+  const docsPage = Math.max(1, Number.parseInt(docsPageParam ?? "1", 10) || 1);
+  const docsOffset = (docsPage - 1) * DOCS_PAGE_SIZE;
   const supabase = await createClient();
   const {
     data: { user },
@@ -90,7 +101,15 @@ export default async function LoanDetailPage({ params }: PageProps) {
         .maybeSingle<RoleRow>()
     : { data: null };
 
-  if (currentRole?.role_name !== "Admin") {
+  const isAdmin = currentRole?.role_name === "Admin";
+  const isBranchManager = currentRole?.role_name === "Branch Manager";
+  const isSecretary = currentRole?.role_name === "Secretary";
+  const isAuditor = currentRole?.role_name === "Auditor";
+  const isCollector = currentRole?.role_name === "Collector";
+  const canManageDocs = isAdmin || isBranchManager || isSecretary;
+  const canViewDocs = isAdmin || isBranchManager || isSecretary || isAuditor;
+
+  if (isCollector) {
     return (
       <main className="mx-auto flex min-h-screen w-full max-w-5xl items-center justify-center p-6">
         <Card className="w-full max-w-md">
@@ -99,7 +118,7 @@ export default async function LoanDetailPage({ params }: PageProps) {
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              You are logged in, but only Admin users can view this page.
+              Collectors cannot access loan document pages.
             </p>
             <Link className="text-sm underline" href="/dashboard">
               Back to dashboard
@@ -108,6 +127,64 @@ export default async function LoanDetailPage({ params }: PageProps) {
         </Card>
       </main>
     );
+  }
+
+  if (!isAdmin && !isBranchManager && !isSecretary && !isAuditor) {
+    return (
+      <main className="mx-auto flex min-h-screen w-full max-w-5xl items-center justify-center p-6">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle>Loan Details</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              You are logged in, but only Admin, Branch Manager, Secretary, and Auditor can view this page.
+            </p>
+            <Link className="text-sm underline" href="/dashboard">
+              Back to dashboard
+            </Link>
+          </CardContent>
+        </Card>
+      </main>
+    );
+  }
+
+  let allowedBranchId: number | null = null;
+  if (!isAdmin) {
+    const activeAssignments = await db
+      .select({
+        branch_id: employee_branch_assignment.branch_id,
+      })
+      .from(employee_branch_assignment)
+      .where(
+        and(
+          eq(employee_branch_assignment.employee_user_id, user.id),
+          isNull(employee_branch_assignment.end_date),
+        ),
+      )
+      .catch(() => []);
+
+    const uniqueBranchIds = Array.from(new Set(activeAssignments.map((item) => item.branch_id)));
+    if (uniqueBranchIds.length !== 1) {
+      return (
+        <main className="mx-auto min-h-screen w-full max-w-5xl p-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Loan Details</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-amber-700 dark:text-amber-400">
+                Unable to resolve your active branch assignment.
+              </p>
+              <Link className="text-sm underline" href="/dashboard">
+                Back to dashboard
+              </Link>
+            </CardContent>
+          </Card>
+        </main>
+      );
+    }
+    allowedBranchId = uniqueBranchIds[0];
   }
 
   const loanIdDb = toDbId(loanId);
@@ -144,6 +221,26 @@ export default async function LoanDetailPage({ params }: PageProps) {
             <p className="text-sm text-muted-foreground">Loan not found.</p>
             <Link className="text-sm underline" href="/dashboard">
               Back to dashboard
+            </Link>
+          </CardContent>
+        </Card>
+      </main>
+    );
+  }
+
+  if (!isAdmin && loan.branch_id !== allowedBranchId) {
+    return (
+      <main className="mx-auto min-h-screen w-full max-w-5xl p-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Loan Details</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-destructive">
+              You are not authorized to access this loan.
+            </p>
+            <Link className="text-sm underline" href="/dashboard/loans">
+              Back to loans
             </Link>
           </CardContent>
         </Card>
@@ -202,6 +299,46 @@ export default async function LoanDetailPage({ params }: PageProps) {
     .where(eq(collections.loan_id, loan.loan_id))
     .orderBy(asc(collections.collection_date), asc(collections.collection_id))
     .catch(() => []);
+
+  const loanDocRows = await db
+    .select({
+      loan_doc_id: loan_docs.loan_doc_id,
+      loan_id: loan_docs.loan_id,
+      document_type: loan_docs.document_type,
+      file_path: loan_docs.file_path,
+      uploaded_by: loan_docs.uploaded_by,
+      original_filename: loan_docs.original_filename,
+      mime_type: loan_docs.mime_type,
+      file_size: loan_docs.file_size,
+      uploaded_at: loan_docs.uploaded_at,
+      uploader_company_id: users.company_id,
+      uploader_username: users.username,
+      uploader_first_name: employee_info.first_name,
+      uploader_last_name: employee_info.last_name,
+    })
+    .from(loan_docs)
+    .leftJoin(users, eq(users.user_id, loan_docs.uploaded_by))
+    .leftJoin(employee_info, eq(employee_info.user_id, loan_docs.uploaded_by))
+    .where(eq(loan_docs.loan_id, loan.loan_id))
+    .orderBy(desc(loan_docs.uploaded_at), desc(loan_docs.loan_doc_id))
+    .limit(DOCS_PAGE_SIZE + 1)
+    .offset(docsOffset)
+    .catch(() => []);
+
+  const hasMoreDocs = loanDocRows.length > DOCS_PAGE_SIZE;
+  const pagedDocs = loanDocRows.slice(0, DOCS_PAGE_SIZE).map((doc) => {
+    const uploaderName =
+      [doc.uploader_first_name, doc.uploader_last_name].filter(Boolean).join(" ") ||
+      doc.uploader_company_id ||
+      doc.uploader_username ||
+      "Unknown";
+
+    return {
+      ...doc,
+      file_size: Number(doc.file_size ?? 0),
+      uploaded_by_name: uploaderName,
+    };
+  });
 
   const assignedCollector = loan.collector_id
     ? await db
@@ -325,11 +462,21 @@ export default async function LoanDetailPage({ params }: PageProps) {
       </Card>
 
       <LoanDetailForm
+        canRecordCollections={isAdmin}
         assignedCollectorLabel={assignedCollectorLabel}
         estimatedDailyPayment={estimatedDailyPayment}
         initialCollections={initialCollectionRows}
         loanId={String(loan.loan_id)}
         totalPayable={totalPayable}
+      />
+
+      <LoanDocumentsSection
+        canManage={canManageDocs}
+        canView={canViewDocs}
+        currentPage={docsPage}
+        docs={pagedDocs}
+        hasMore={hasMoreDocs}
+        loanId={loan.loan_id}
       />
     </main>
   );

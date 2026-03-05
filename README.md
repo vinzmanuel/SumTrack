@@ -65,11 +65,11 @@ The project currently follows this structure:
 - [x] Add company ID generation
 - [x] Add loan code generation
 - [x] Add collection code generation
-- [ ] Expenses module
-- [ ] Incentives module
+- [x] Expenses module
+- [x] Incentives module
 - [ ] Reports and analytics
-- [ ] Branch-level restricted workflows
-- [ ] File/document handling improvements
+- [x] Branch-level restricted workflows
+- [x] File/document handling improvements
 - [ ] UI polish and production hardening
 
 ---

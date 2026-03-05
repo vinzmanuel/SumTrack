@@ -59,6 +59,12 @@ type CreateLoanFormProps = {
   areas: AreaOption[];
   collectors: CollectorOption[];
   isAdmin: boolean;
+  prefilledBorrower?: {
+    borrowerId: string;
+    branchId: string;
+    areaId: string;
+    label: string;
+  } | null;
 };
 
 const DEFAULT_TERM_DAYS = 58;
@@ -147,7 +153,14 @@ function getDateDiffDays(startDate: string, dueDate: string) {
   return diff > 0 ? diff : null;
 }
 
-export function CreateLoanForm({ borrowers, branches, areas, collectors, isAdmin }: CreateLoanFormProps) {
+export function CreateLoanForm({
+  borrowers,
+  branches,
+  areas,
+  collectors,
+  isAdmin,
+  prefilledBorrower = null,
+}: CreateLoanFormProps) {
   const [state, formAction] = useActionState(createLoanAction, initialCreateLoanState);
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -158,10 +171,10 @@ export function CreateLoanForm({ borrowers, branches, areas, collectors, isAdmin
     [defaultStartDate],
   );
 
-  const [borrowerId, setBorrowerId] = useState("");
-  const [borrowerSearch, setBorrowerSearch] = useState("");
-  const [selectedBranchId, setSelectedBranchId] = useState("");
-  const [selectedAreaId, setSelectedAreaId] = useState("");
+  const [borrowerId, setBorrowerId] = useState(prefilledBorrower?.borrowerId ?? "");
+  const [borrowerSearch, setBorrowerSearch] = useState(prefilledBorrower?.label ?? "");
+  const [selectedBranchId, setSelectedBranchId] = useState(prefilledBorrower?.branchId ?? "");
+  const [selectedAreaId, setSelectedAreaId] = useState(prefilledBorrower?.areaId ?? "");
   const [collectorId, setCollectorId] = useState("");
   const [termOption, setTermOption] = useState(defaultTermOption);
   const [principalRaw, setPrincipalRaw] = useState("");
@@ -170,6 +183,7 @@ export function CreateLoanForm({ borrowers, branches, areas, collectors, isAdmin
   const [dueDate, setDueDate] = useState(defaultDueDate);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isConfirmedSubmit, setIsConfirmedSubmit] = useState(false);
+  const [isBorrowerLocked, setIsBorrowerLocked] = useState(Boolean(prefilledBorrower));
 
   const selectedBorrower = useMemo(
     () => borrowers.find((borrower) => borrower.user_id === borrowerId) ?? null,
@@ -263,7 +277,7 @@ export function CreateLoanForm({ borrowers, branches, areas, collectors, isAdmin
   const principalDisplay = formatMoneyDisplay(principalRaw);
   const interestSuffixLeft = `calc(0.75rem + ${Math.max(interest.length, 1)}ch)`;
   const shouldShowBorrowerSuggestions =
-    Boolean(selectedAreaId) && borrowerSearch.trim().length > 0 && borrowerId === "";
+    !isBorrowerLocked && Boolean(selectedAreaId) && borrowerSearch.trim().length > 0 && borrowerId === "";
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     if (isConfirmedSubmit) {
@@ -293,6 +307,7 @@ export function CreateLoanForm({ borrowers, branches, areas, collectors, isAdmin
     setBorrowerId("");
     setCollectorId("");
     setBorrowerSearch("");
+    setIsBorrowerLocked(false);
   }
 
   function handleAreaChange(nextAreaId: string) {
@@ -300,6 +315,14 @@ export function CreateLoanForm({ borrowers, branches, areas, collectors, isAdmin
     setBorrowerId("");
     setCollectorId("");
     setBorrowerSearch("");
+    setIsBorrowerLocked(false);
+  }
+
+  function clearBorrowerPrefill() {
+    setIsBorrowerLocked(false);
+    setBorrowerId("");
+    setBorrowerSearch("");
+    setCollectorId("");
   }
 
   function handleTermChange(value: string) {
@@ -366,7 +389,7 @@ export function CreateLoanForm({ borrowers, branches, areas, collectors, isAdmin
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label>Branch</Label>
-                <Select onValueChange={handleBranchChange} value={selectedBranchId}>
+                <Select disabled={isBorrowerLocked} onValueChange={handleBranchChange} value={selectedBranchId}>
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select branch" />
                   </SelectTrigger>
@@ -386,7 +409,7 @@ export function CreateLoanForm({ borrowers, branches, areas, collectors, isAdmin
               <div className="space-y-2">
                 <Label>Area</Label>
                 <Select
-                  disabled={!selectedBranchId}
+                  disabled={!selectedBranchId || isBorrowerLocked}
                   onValueChange={handleAreaChange}
                   value={selectedAreaId}
                 >
@@ -412,7 +435,7 @@ export function CreateLoanForm({ borrowers, branches, areas, collectors, isAdmin
             <div className="space-y-2">
               <Label htmlFor="borrower_search">Borrower Search</Label>
               <Input
-                disabled={!selectedAreaId}
+                disabled={!selectedAreaId || isBorrowerLocked}
                 id="borrower_search"
                 onChange={(event) => {
                   setBorrowerSearch(event.target.value);
@@ -421,6 +444,11 @@ export function CreateLoanForm({ borrowers, branches, areas, collectors, isAdmin
                 placeholder={selectedAreaId ? "Type borrower name or company ID" : "Select area first"}
                 value={borrowerSearch}
               />
+              {isBorrowerLocked ? (
+                <Button onClick={clearBorrowerPrefill} size="sm" type="button" variant="outline">
+                  Change borrower
+                </Button>
+              ) : null}
               {shouldShowBorrowerSuggestions ? (
                 <div className="max-h-52 overflow-auto rounded-md border p-1">
                   {filteredBorrowers.length > 0 ? (

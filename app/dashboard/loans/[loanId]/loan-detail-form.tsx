@@ -26,6 +26,7 @@ type LoanDetailFormProps = {
   initialCollections: CollectionHistoryRow[];
   totalPayable: number;
   estimatedDailyPayment: number | null;
+  canRecordCollections: boolean;
 };
 
 function SubmitButton() {
@@ -97,6 +98,7 @@ export function LoanDetailForm({
   initialCollections,
   totalPayable,
   estimatedDailyPayment,
+  canRecordCollections,
 }: LoanDetailFormProps) {
   const [state, formAction] = useActionState(createCollectionAction, initialLoanDetailState);
   const formRef = useRef<HTMLFormElement>(null);
@@ -280,7 +282,11 @@ export function LoanDetailForm({
             <DialogTitle>Add Payment Collection</DialogTitle>
             <DialogDescription>Record a payment or missed payment for this loan.</DialogDescription>
           </DialogHeader>
-          {collectionForm}
+          {canRecordCollections ? (
+            collectionForm
+          ) : (
+            <p className="text-muted-foreground text-sm">Only Admin can record collections.</p>
+          )}
         </DialogContent>
       </Dialog>
 
@@ -357,6 +363,7 @@ export function LoanDetailForm({
           <CardTitle>Collection History</CardTitle>
           <CardAction>
             <Button
+              disabled={!canRecordCollections}
               onClick={() => setIsFormOpen(true)}
               size="sm"
               type="button"
