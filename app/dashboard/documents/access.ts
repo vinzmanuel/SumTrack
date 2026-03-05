@@ -1,16 +1,13 @@
 "use server";
 
-import { and, eq, isNull } from "drizzle-orm";
+import { eq } from "drizzle-orm";
+import { getDashboardAuthContext } from "@/app/dashboard/auth";
 import { db } from "@/db";
 import {
   areas,
   borrower_info,
-  employee_branch_assignment,
   loan_records,
-  roles,
-  users,
 } from "@/db/schema";
-import { createClient } from "@/lib/supabase/server";
 
 export type AppRoleName =
   | "Admin"
@@ -32,65 +29,18 @@ export type AccessResult =
       message: string;
     };
 
-async function resolveRoleName(userId: string) {
-  const appUser = await db
-    .select({ role_id: users.role_id })
-    .from(users)
-    .where(eq(users.user_id, userId))
-    .limit(1)
-    .then((rows) => rows[0] ?? null)
-    .catch(() => null);
-
-  if (!appUser?.role_id) {
-    return null;
-  }
-
-  const role = await db
-    .select({ role_name: roles.role_name })
-    .from(roles)
-    .where(eq(roles.role_id, appUser.role_id))
-    .limit(1)
-    .then((rows) => rows[0]?.role_name ?? null)
-    .catch(() => null);
-
-  return role as AppRoleName | null;
-}
-
-export async function resolveSingleActiveBranch(userId: string) {
-  const assignments = await db
-    .select({ branch_id: employee_branch_assignment.branch_id })
-    .from(employee_branch_assignment)
-    .where(
-      and(
-        eq(employee_branch_assignment.employee_user_id, userId),
-        isNull(employee_branch_assignment.end_date),
-      ),
-    )
-    .catch(() => []);
-
-  const uniqueBranchIds = Array.from(new Set(assignments.map((item) => item.branch_id)));
-  return uniqueBranchIds.length === 1 ? uniqueBranchIds[0] : null;
-}
-
 export async function resolveAuthContext() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
+  const auth = await getDashboardAuthContext();
+  if (!auth.ok) {
     return { ok: false, message: "Not logged in." } as const;
-  }
-
-  const roleName = await resolveRoleName(user.id);
-  if (!roleName) {
-    return { ok: false, message: "Unable to verify your app role." } as const;
   }
 
   return {
     ok: true,
-    userId: user.id,
-    roleName,
+    userId: auth.userId,
+    roleName: auth.roleName,
+    assignedBranchIds: auth.assignedBranchIds,
+    activeBranchId: auth.activeBranchId,
   } as const;
 }
 
@@ -155,16 +105,21 @@ export async function checkBorrowerDocAccess(
     return { ok: true, userId, roleName };
   }
 
-  if (roleName === "Branch Manager" || roleName === "Secretary" || roleName === "Auditor") {
-    const allowedBranchId = await resolveSingleActiveBranch(userId);
-    if (!allowedBranchId || allowedBranchId !== borrowerBranchId) {
+  if (roleName === "Auditor") {
+    if (!auth.assignedBranchIds.includes(borrowerBranchId)) {
       return { ok: false, message: "You are not allowed to access this borrower branch." };
     }
 
-    if (opts.requireManage && roleName === "Auditor") {
+    if (opts.requireManage) {
       return { ok: false, message: "Auditor access is view-only for documents." };
     }
 
+    return { ok: true, userId, roleName };
+  }
+  if (roleName === "Branch Manager" || roleName === "Secretary") {
+    if (!auth.activeBranchId || auth.activeBranchId !== borrowerBranchId) {
+      return { ok: false, message: "You are not allowed to access this borrower branch." };
+    }
     return { ok: true, userId, roleName };
   }
 
@@ -204,16 +159,21 @@ export async function checkLoanDocAccess(
     return { ok: true, userId, roleName };
   }
 
-  if (roleName === "Branch Manager" || roleName === "Secretary" || roleName === "Auditor") {
-    const allowedBranchId = await resolveSingleActiveBranch(userId);
-    if (!allowedBranchId || allowedBranchId !== loan.branch_id) {
+  if (roleName === "Auditor") {
+    if (!auth.assignedBranchIds.includes(loan.branch_id)) {
       return { ok: false, message: "You are not allowed to access this loan branch." };
     }
 
-    if (opts.requireManage && roleName === "Auditor") {
+    if (opts.requireManage) {
       return { ok: false, message: "Auditor access is view-only for documents." };
     }
 
+    return { ok: true, userId, roleName };
+  }
+  if (roleName === "Branch Manager" || roleName === "Secretary") {
+    if (!auth.activeBranchId || auth.activeBranchId !== loan.branch_id) {
+      return { ok: false, message: "You are not allowed to access this loan branch." };
+    }
     return { ok: true, userId, roleName };
   }
 

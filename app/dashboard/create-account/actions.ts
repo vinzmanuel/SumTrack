@@ -1,7 +1,7 @@
 "use server";
 
 import { randomInt, randomUUID } from "node:crypto";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import {
   areas,
@@ -236,10 +236,22 @@ export async function createAccountAction(
     .then((rows) => rows[0] ?? null)
     .catch(() => null);
 
-  if (currentRole?.role_name !== "Admin") {
+  const roleName = currentRole?.role_name ?? null;
+  const isAdmin = roleName === "Admin";
+  const isBranchManager = roleName === "Branch Manager";
+  const isSecretaryCreator = roleName === "Secretary";
+
+  if (!isAdmin && !isBranchManager && !isSecretaryCreator) {
     return {
       status: "error",
-      message: "Only Admin users can create accounts.",
+      message: "Only Admin, Branch Manager, and Secretary users can create accounts.",
+    };
+  }
+
+  if (isSecretaryCreator && accountCategory !== "Borrower") {
+    return {
+      status: "error",
+      message: "Secretary can only create borrower accounts.",
     };
   }
 
@@ -280,9 +292,43 @@ export async function createAccountAction(
     };
   }
 
+  if (isBranchManager && accountCategory === "Employee") {
+    const allowedBranchManagerEmployeeRoles = ["Secretary", "Collector"];
+    if (!allowedBranchManagerEmployeeRoles.includes(selectedRole.role_name)) {
+      return {
+        status: "error",
+        message: "Branch Manager can only create Secretary and Collector employee accounts.",
+      };
+    }
+  }
+
   const isAuditorRole = selectedRole.role_name === AUDITOR_ROLE_NAME;
   const isCollectorRole = selectedRole.role_name === COLLECTOR_ROLE_NAME;
   const branchRequired = BRANCH_REQUIRED_ROLE_NAMES.includes(selectedRole.role_name);
+
+  let allowedSingleBranchId: number | null = null;
+  if (!isAdmin) {
+    const assignments = await db
+      .select({ branch_id: employee_branch_assignment.branch_id })
+      .from(employee_branch_assignment)
+      .where(
+        and(
+          eq(employee_branch_assignment.employee_user_id, currentAuthUser.id),
+          isNull(employee_branch_assignment.end_date),
+        ),
+      )
+      .catch(() => []);
+
+    const uniqueBranchIds = Array.from(new Set(assignments.map((item) => item.branch_id)));
+    if (uniqueBranchIds.length !== 1) {
+      return {
+        status: "error",
+        message: "A single active branch assignment is required before creating accounts.",
+      };
+    }
+
+    allowedSingleBranchId = uniqueBranchIds[0];
+  }
 
   let selectedSingleBranch: { branch_id: number; branch_name: string } | null = null;
   let selectedBranches: { branch_id: number; branch_name: string }[] = [];
@@ -319,6 +365,13 @@ export async function createAccountAction(
       return {
         status: "error",
         message: "Selected branch was not found.",
+      };
+    }
+
+    if (!isAdmin && allowedSingleBranchId !== null && branchRow.branch_id !== allowedSingleBranchId) {
+      return {
+        status: "error",
+        message: "You can only create accounts within your assigned branch.",
       };
     }
 
@@ -359,6 +412,13 @@ export async function createAccountAction(
   }
 
   if (accountCategory === "Employee" && isAuditorRole) {
+    if (!isAdmin) {
+      return {
+        status: "error",
+        message: "Only Admin can create Auditor accounts.",
+      };
+    }
+
     if (branchIds.length === 0) {
       return {
         status: "error",
@@ -410,6 +470,13 @@ export async function createAccountAction(
       return {
         status: "error",
         message: "Selected branch was not found.",
+      };
+    }
+
+    if (!isAdmin && allowedSingleBranchId !== null && branchRow.branch_id !== allowedSingleBranchId) {
+      return {
+        status: "error",
+        message: "You can only create accounts within your assigned branch.",
       };
     }
 

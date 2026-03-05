@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq, isNull } from "drizzle-orm";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { db } from "@/db";
-import { branch, roles, users } from "@/db/schema";
+import { branch, employee_branch_assignment, roles, users } from "@/db/schema";
 import { createClient } from "@/lib/supabase/server";
+import { IncentivesFilters } from "@/app/dashboard/incentives/incentives-filters";
 import { ExportPrintTools, type ExportIncentiveRow } from "@/app/dashboard/incentives/export-print-tools";
 import { FinalizePayoutForm } from "@/app/dashboard/incentives/finalize-payout-form";
 import {
@@ -159,8 +160,9 @@ export default async function IncentivesPage({ searchParams }: PageProps) {
 
   const isAdmin = currentRole?.role_name === "Admin";
   const isBranchManager = currentRole?.role_name === "Branch Manager";
+  const isAuditor = currentRole?.role_name === "Auditor";
 
-  if (!isAdmin && !isBranchManager) {
+  if (!isAdmin && !isBranchManager && !isAuditor) {
     return (
       <main className="mx-auto flex min-h-screen w-full max-w-5xl items-center justify-center p-6">
         <Card className="w-full max-w-md">
@@ -169,7 +171,7 @@ export default async function IncentivesPage({ searchParams }: PageProps) {
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              You are logged in, but only Admin and Branch Manager users can access payout computation and history.
+              You are logged in, but only Admin, Branch Manager, and Auditor users can access payout computation and history.
             </p>
             <Link className="text-sm underline" href="/dashboard">
               Back to dashboard
@@ -192,6 +194,7 @@ export default async function IncentivesPage({ searchParams }: PageProps) {
   let fixedBranchId: number | null = null;
   let fixedBranchName: string | null = null;
   let fixedBranchError: string | null = null;
+  let auditorBranchIds: number[] = [];
 
   if (isBranchManager) {
     const branchResolution = await resolveActiveBranchForBranchManager(user.id);
@@ -201,6 +204,20 @@ export default async function IncentivesPage({ searchParams }: PageProps) {
       fixedBranchId = branchResolution.branchId;
       fixedBranchName = branchResolution.branchName;
     }
+  }
+
+  if (isAuditor) {
+    const assignments = await db
+      .select({ branch_id: employee_branch_assignment.branch_id })
+      .from(employee_branch_assignment)
+      .where(
+        and(
+          eq(employee_branch_assignment.employee_user_id, user.id),
+          isNull(employee_branch_assignment.end_date),
+        ),
+      )
+      .catch(() => []);
+    auditorBranchIds = Array.from(new Set(assignments.map((item) => item.branch_id)));
   }
 
   if (isBranchManager && fixedBranchError) {
@@ -222,11 +239,15 @@ export default async function IncentivesPage({ searchParams }: PageProps) {
     );
   }
 
-  const selectedBranchId = isAdmin && /^\d+$/.test(selectedBranchRaw) ? Number(selectedBranchRaw) : null;
-  const resolvedBranchId = isBranchManager ? fixedBranchId : selectedBranchId;
+  const selectedBranchId = (isAdmin || isAuditor) && /^\d+$/.test(selectedBranchRaw) ? Number(selectedBranchRaw) : null;
+  const resolvedBranchId = isBranchManager
+    ? fixedBranchId
+    : isAuditor
+      ? (selectedBranchId && auditorBranchIds.includes(selectedBranchId) ? selectedBranchId : null)
+      : selectedBranchId;
   const resolvedBranchName = isBranchManager
     ? fixedBranchName
-    : branches.find((item) => item.branch_id === selectedBranchId)?.branch_name ?? null;
+    : branches.find((item) => item.branch_id === resolvedBranchId)?.branch_name ?? null;
 
   let collectorRows: IncentiveRow[] = [];
   let secretaryRows: IncentiveRow[] = [];
@@ -268,6 +289,42 @@ export default async function IncentivesPage({ searchParams }: PageProps) {
       secretaryRuleMissing = liveData.secretaryRuleMissing;
       branchManagerRuleMissing = liveData.branchManagerRuleMissing;
     }
+  } else if (payPeriod && isAuditor && selectedBranchRaw === "all" && auditorBranchIds.length > 0) {
+    for (const branchId of auditorBranchIds) {
+      const branchName = branches.find((item) => item.branch_id === branchId)?.branch_name;
+      if (!branchName) {
+        continue;
+      }
+
+      const batchRow = await getFinalizedBatchForPeriod(
+        branchId,
+        payPeriod.periodStart,
+        payPeriod.periodEnd,
+      );
+      const mappedBatch = mapBatchMeta(batchRow);
+
+      if (mappedBatch) {
+        const historicalData = await loadHistoricalIncentives(mappedBatch);
+        collectorRows = [...collectorRows, ...historicalData.collectorRows];
+        secretaryRows = [...secretaryRows, ...historicalData.secretaryRows];
+        branchManagerRows = [...branchManagerRows, ...historicalData.branchManagerRows];
+      } else {
+        const liveData = await computeLiveIncentivesForPeriod(
+          branchId,
+          branchName,
+          payPeriod.periodStart,
+          payPeriod.periodEnd,
+        );
+        collectorRows = [...collectorRows, ...liveData.collectorRows];
+        secretaryRows = [...secretaryRows, ...liveData.secretaryRows];
+        branchManagerRows = [...branchManagerRows, ...liveData.branchManagerRows];
+      }
+    }
+
+    batchMeta = null;
+    branchCollectorAverage = collectorRows.length > 0
+      ? collectorRows.reduce((sum, row) => sum + row.baseAmount, 0) / collectorRows.length
+      : 0;
   }
 
   const allRows = [...collectorRows, ...secretaryRows, ...branchManagerRows];
@@ -293,7 +350,13 @@ export default async function IncentivesPage({ searchParams }: PageProps) {
 
   const isFinalized = Boolean(batchMeta);
   const finalizationWindowOpen = payPeriod ? isFinalizationWindowOpen(payPeriod.periodEnd) : false;
-  const canFinalize = Boolean(!isFinalized && payPeriod && resolvedBranchId !== null && finalizationWindowOpen);
+  const canFinalize = Boolean(
+    !isAuditor &&
+      !isFinalized &&
+      payPeriod &&
+      resolvedBranchId !== null &&
+      finalizationWindowOpen,
+  );
 
   let finalizeLockReason = "";
   if (isFinalized) {
@@ -317,7 +380,7 @@ export default async function IncentivesPage({ searchParams }: PageProps) {
 
   const safeBranch = (resolvedBranchName ?? "branch").replace(/[^a-zA-Z0-9_-]/g, "_");
   const exportFileName = `incentives_${safeBranch}_${selectedMonthRaw}.csv`;
-  const modeLabel = isFinalized ? "Historical View" : "Live Computation";
+  const modeLabel = isFinalized ? "Historical View" : (isAuditor && selectedBranchRaw === "all" ? "All Assigned Branches" : "Live Computation");
 
   return (
     <main className="mx-auto min-h-screen w-full max-w-7xl p-6">
@@ -334,11 +397,13 @@ export default async function IncentivesPage({ searchParams }: PageProps) {
               Back to dashboard
             </Button>
           </Link>
-          <Link href="/dashboard/incentives/rules">
-            <Button type="button" variant="secondary">
-              Manage Rules
-            </Button>
-          </Link>
+          {!isAuditor ? (
+            <Link href="/dashboard/incentives/rules">
+              <Button type="button" variant="secondary">
+                Manage Rules
+              </Button>
+            </Link>
+          ) : null}
         </CardContent>
       </Card>
 
@@ -347,27 +412,20 @@ export default async function IncentivesPage({ searchParams }: PageProps) {
           <CardTitle>Filters</CardTitle>
         </CardHeader>
         <CardContent>
-          <form className="grid gap-4 md:grid-cols-4" method="get">
-            {isAdmin ? (
-              <div className="space-y-2">
-                <label className="text-sm font-medium" htmlFor="branch">
-                  Branch
-                </label>
-                <select
-                  className="border-input focus-visible:border-ring focus-visible:ring-ring/50 w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
-                  defaultValue={selectedBranchRaw}
-                  id="branch"
-                  name="branch"
-                >
-                  <option value="all">Select branch</option>
-                  {branches.map((item) => (
-                    <option key={item.branch_id} value={String(item.branch_id)}>
-                      {item.branch_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            ) : (
+          {isAdmin || isAuditor ? (
+            <IncentivesFilters
+              allBranchLabel={isAuditor ? "Select assigned branch" : "Select branch"}
+              branches={(isAuditor
+                ? branches.filter((item) => auditorBranchIds.includes(item.branch_id))
+                : branches
+              ).map((item) => ({ branch_id: item.branch_id, branch_name: item.branch_name }))}
+              canChooseBranch
+              clearHref="/dashboard/incentives"
+              selectedBranchRaw={selectedBranchRaw}
+              selectedMonthRaw={selectedMonthRaw}
+            />
+          ) : (
+            <div className="space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium" htmlFor="fixed_branch">
                   Branch
@@ -379,30 +437,16 @@ export default async function IncentivesPage({ searchParams }: PageProps) {
                   value={fixedBranchName ?? "N/A"}
                 />
               </div>
-            )}
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium" htmlFor="month">
-                Month
-              </label>
-              <input
-                className="border-input focus-visible:border-ring focus-visible:ring-ring/50 w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
-                defaultValue={selectedMonthRaw}
-                id="month"
-                name="month"
-                type="month"
+              <IncentivesFilters
+                allBranchLabel="Select branch"
+                branches={[]}
+                canChooseBranch={false}
+                clearHref="/dashboard/incentives"
+                selectedBranchRaw={selectedBranchRaw}
+                selectedMonthRaw={selectedMonthRaw}
               />
             </div>
-
-            <div className="flex items-end gap-2 md:col-span-4">
-              <Button type="submit">Apply Filters</Button>
-              <Link href="/dashboard/incentives">
-                <Button type="button" variant="outline">
-                  Clear
-                </Button>
-              </Link>
-            </div>
-          </form>
+          )}
         </CardContent>
       </Card>
 
@@ -414,7 +458,7 @@ export default async function IncentivesPage({ searchParams }: PageProps) {
             </p>
           </CardContent>
         </Card>
-      ) : resolvedBranchId === null ? (
+      ) : (resolvedBranchId === null && !(isAuditor && selectedBranchRaw === "all" && auditorBranchIds.length > 0)) ? (
         <Card>
           <CardContent className="py-6">
             <p className="text-sm text-muted-foreground">Select a branch to view incentive payouts.</p>
@@ -433,7 +477,10 @@ export default async function IncentivesPage({ searchParams }: PageProps) {
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
               <p>
-                <span className="font-medium">Branch:</span> {resolvedBranchName ?? "N/A"}
+                <span className="font-medium">Branch:</span>{" "}
+                {isAuditor && selectedBranchRaw === "all"
+                  ? "All assigned branches"
+                  : resolvedBranchName ?? "N/A"}
               </p>
               <p>
                 <span className="font-medium">Period:</span> {periodLabel}
@@ -444,18 +491,24 @@ export default async function IncentivesPage({ searchParams }: PageProps) {
               <p>
                 <span className="font-medium">Period End:</span> {periodEnd}
               </p>
-              {batchMeta ? (
+              {batchMeta || isAuditor ? (
                 <>
-                  <p>
-                    <span className="font-medium">Finalized By:</span> {finalizedByText ?? "N/A"}
-                  </p>
-                  <p>
-                    <span className="font-medium">Finalized At:</span> {batchMeta.finalizedAt}
-                  </p>
+                  {batchMeta ? (
+                    <>
+                      <p>
+                        <span className="font-medium">Finalized By:</span> {finalizedByText ?? "N/A"}
+                      </p>
+                      <p>
+                        <span className="font-medium">Finalized At:</span> {batchMeta.finalizedAt}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-muted-foreground text-sm">Auditor access is read-only.</p>
+                  )}
                 </>
               ) : (
                 <FinalizePayoutForm
-                  branchId={resolvedBranchId}
+                  branchId={resolvedBranchId ?? 0}
                   canFinalize={canFinalize}
                   lockReason={finalizeLockReason}
                   month={selectedMonthRaw}

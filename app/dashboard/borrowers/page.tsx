@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { and, asc, eq, isNull } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { BorrowersFilters } from "@/app/dashboard/borrowers/borrowers-filters";
 import { db } from "@/db";
 import { areas, borrower_info, branch, employee_branch_assignment, roles, users } from "@/db/schema";
 import { createClient } from "@/lib/supabase/server";
@@ -79,8 +80,9 @@ export default async function BorrowersPage({ searchParams }: PageProps) {
   const isAdmin = currentRole?.role_name === "Admin";
   const isBranchManager = currentRole?.role_name === "Branch Manager";
   const isSecretary = currentRole?.role_name === "Secretary";
+  const isAuditor = currentRole?.role_name === "Auditor";
 
-  if (!isAdmin && !isBranchManager && !isSecretary) {
+  if (!isAdmin && !isBranchManager && !isSecretary && !isAuditor) {
     return (
       <main className="mx-auto flex min-h-screen w-full max-w-6xl items-center justify-center p-6">
         <Card className="w-full max-w-md">
@@ -89,7 +91,7 @@ export default async function BorrowersPage({ searchParams }: PageProps) {
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              You are logged in, but only Admin, Branch Manager, and Secretary can access borrowers.
+              You are logged in, but only Admin, Branch Manager, Secretary, and Auditor can access borrowers.
             </p>
             <Link className="text-sm underline" href="/dashboard">
               Back to dashboard
@@ -101,6 +103,7 @@ export default async function BorrowersPage({ searchParams }: PageProps) {
   }
 
   let allowedBranchId: number | null = null;
+  let allowedBranchIds: number[] = [];
   let scopeMessage = "";
 
   if (!isAdmin) {
@@ -138,7 +141,29 @@ export default async function BorrowersPage({ searchParams }: PageProps) {
     }
 
     const uniqueBranchIds = Array.from(new Set(activeAssignments.map((item) => item.branch_id)));
-    if (uniqueBranchIds.length !== 1) {
+    if (isAuditor) {
+      if (uniqueBranchIds.length === 0) {
+        return (
+          <main className="mx-auto min-h-screen w-full max-w-6xl p-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Borrowers</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <p className="text-sm text-amber-700 dark:text-amber-400">
+                  No active branch assignment found for your account.
+                </p>
+                <Link className="text-sm underline" href="/dashboard">
+                  Back to dashboard
+                </Link>
+              </CardContent>
+            </Card>
+          </main>
+        );
+      }
+      allowedBranchIds = uniqueBranchIds;
+      scopeMessage = "Read-only view is limited to your assigned branches.";
+    } else if (uniqueBranchIds.length !== 1) {
       return (
         <main className="mx-auto min-h-screen w-full max-w-6xl p-6">
           <Card>
@@ -156,10 +181,11 @@ export default async function BorrowersPage({ searchParams }: PageProps) {
           </Card>
         </main>
       );
+    } else {
+      allowedBranchId = uniqueBranchIds[0];
+      allowedBranchIds = [uniqueBranchIds[0]];
+      scopeMessage = "Branch scope is enforced from your active assignment.";
     }
-
-    allowedBranchId = uniqueBranchIds[0];
-    scopeMessage = "Branch scope is enforced from your active assignment.";
   }
 
   const allBranches = await db
@@ -174,11 +200,15 @@ export default async function BorrowersPage({ searchParams }: PageProps) {
 
   const selectableBranches = isAdmin
     ? allBranches
-    : allBranches.filter((item) => item.branch_id === allowedBranchId);
+    : allBranches.filter((item) => allowedBranchIds.includes(item.branch_id));
 
   const selectedBranchId = isAdmin
     ? toPositiveInt(requestedBranchId)
-    : allowedBranchId;
+    : isAuditor
+      ? (toPositiveInt(requestedBranchId) && allowedBranchIds.includes(toPositiveInt(requestedBranchId) as number)
+          ? toPositiveInt(requestedBranchId)
+          : null)
+      : allowedBranchId;
 
   const branchScopedAreas = await db
     .select({
@@ -199,6 +229,8 @@ export default async function BorrowersPage({ searchParams }: PageProps) {
   const whereParts = [] as Array<ReturnType<typeof eq>>;
   if (selectedBranchId) {
     whereParts.push(eq(areas.branch_id, selectedBranchId));
+  } else if (!isAdmin && isAuditor && allowedBranchIds.length > 0) {
+    whereParts.push(inArray(areas.branch_id, allowedBranchIds));
   }
   if (selectedAreaId) {
     whereParts.push(eq(areas.area_id, selectedAreaId));
@@ -246,56 +278,17 @@ export default async function BorrowersPage({ searchParams }: PageProps) {
           {scopeMessage ? <CardDescription>{scopeMessage}</CardDescription> : null}
         </CardHeader>
         <CardContent>
-          <form className="grid gap-4 md:grid-cols-3" method="get">
-            {isAdmin ? (
-              <div className="space-y-2">
-                <label className="text-sm font-medium" htmlFor="branchId">
-                  Branch
-                </label>
-                <select
-                  className="border-input focus-visible:border-ring focus-visible:ring-ring/50 w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
-                  defaultValue={selectedBranchId ? String(selectedBranchId) : ""}
-                  id="branchId"
-                  name="branchId"
-                >
-                  <option value="">All branches</option>
-                  {selectableBranches.map((item) => (
-                    <option key={item.branch_id} value={String(item.branch_id)}>
-                      {item.branch_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            ) : null}
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium" htmlFor="areaId">
-                Area
-              </label>
-              <select
-                className="border-input focus-visible:border-ring focus-visible:ring-ring/50 w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
-                defaultValue={selectedAreaId ? String(selectedAreaId) : ""}
-                id="areaId"
-                name="areaId"
-              >
-                <option value="">All areas</option>
-                {branchScopedAreas.map((item) => (
-                  <option key={item.area_id} value={String(item.area_id)}>
-                    {item.area_code}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex items-end gap-2 md:col-span-3">
-              <Button type="submit">Apply Filters</Button>
-              <Link href="/dashboard/borrowers">
-                <Button type="button" variant="outline">
-                  Clear
-                </Button>
-              </Link>
-            </div>
-          </form>
+          <BorrowersFilters
+            allBranchLabel={isAuditor ? "All assigned branches" : "All branches"}
+            areas={branchScopedAreas.map((item) => ({ area_id: item.area_id, area_code: item.area_code }))}
+            branches={selectableBranches.map((item) => ({
+              branch_id: item.branch_id,
+              branch_name: item.branch_name,
+            }))}
+            canChooseBranch={isAdmin || isAuditor}
+            selectedAreaId={selectedAreaId}
+            selectedBranchId={selectedBranchId}
+          />
         </CardContent>
       </Card>
 

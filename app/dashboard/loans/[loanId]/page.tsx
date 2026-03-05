@@ -1,20 +1,19 @@
 import Link from "next/link";
-import { and, asc, desc, eq, isNull } from "drizzle-orm";
+import { asc, desc, eq } from "drizzle-orm";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { requireDashboardAuth } from "@/app/dashboard/auth";
 import { db } from "@/db";
 import {
   areas,
   borrower_info,
   branch,
   collections,
-  employee_branch_assignment,
   employee_info,
   loan_docs,
   loan_records,
   users,
 } from "@/db/schema";
 import { LoanDocumentsSection } from "@/app/dashboard/loans/[loanId]/documents/loan-documents-section";
-import { createClient } from "@/lib/supabase/server";
 import { LoanDetailForm } from "@/app/dashboard/loans/[loanId]/loan-detail-form";
 import type { CollectionHistoryRow } from "@/app/dashboard/loans/[loanId]/state";
 
@@ -25,27 +24,12 @@ type PageProps = {
   }>;
 };
 
-type AppUserRow = {
-  role_id: string | null;
-};
-
-type RoleRow = {
-  role_id: string;
-  role_name: string;
-};
-
-function toDbId(value: string) {
-  return /^\d+$/.test(value) ? Number(value) : value;
-}
-
 function calculateDays(startDate: string, dueDate: string) {
   const start = new Date(`${startDate}T00:00:00Z`);
   const due = new Date(`${dueDate}T00:00:00Z`);
-
   if (Number.isNaN(start.getTime()) || Number.isNaN(due.getTime())) {
     return null;
   }
-
   const diff = Math.ceil((due.getTime() - start.getTime()) / 86400000);
   return diff > 0 ? diff : null;
 }
@@ -60,193 +44,97 @@ function formatMoney(value: number) {
 const DOCS_PAGE_SIZE = 10;
 
 export default async function LoanDetailPage({ params, searchParams }: PageProps) {
+  const auth = await requireDashboardAuth();
+  if (!auth.ok) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Loan Details</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">{auth.message}</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
   const { loanId } = await params;
   const { docsPage: docsPageParam } = await searchParams;
   const docsPage = Math.max(1, Number.parseInt(docsPageParam ?? "1", 10) || 1);
   const docsOffset = (docsPage - 1) * DOCS_PAGE_SIZE;
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const loanIdDb = /^\d+$/.test(loanId) ? Number(loanId) : null;
 
-  if (!user) {
-    return (
-      <main className="mx-auto flex min-h-screen w-full max-w-5xl items-center justify-center p-6">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle>Loan Details</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">Not logged in</p>
-            <Link className="mt-3 inline-block text-sm underline" href="/login">
-              Go to login
-            </Link>
-          </CardContent>
-        </Card>
-      </main>
-    );
-  }
-
-  const { data: currentAppUser } = await supabase
-    .from("users")
-    .select("role_id")
-    .eq("user_id", user.id)
-    .maybeSingle<AppUserRow>();
-
-  const { data: currentRole } = currentAppUser?.role_id
-    ? await supabase
-        .from("roles")
-        .select("role_id, role_name")
-        .eq("role_id", currentAppUser.role_id)
-        .maybeSingle<RoleRow>()
-    : { data: null };
-
-  const isAdmin = currentRole?.role_name === "Admin";
-  const isBranchManager = currentRole?.role_name === "Branch Manager";
-  const isSecretary = currentRole?.role_name === "Secretary";
-  const isAuditor = currentRole?.role_name === "Auditor";
-  const isCollector = currentRole?.role_name === "Collector";
-  const canManageDocs = isAdmin || isBranchManager || isSecretary;
-  const canViewDocs = isAdmin || isBranchManager || isSecretary || isAuditor;
-
-  if (isCollector) {
-    return (
-      <main className="mx-auto flex min-h-screen w-full max-w-5xl items-center justify-center p-6">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle>Loan Details</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Collectors cannot access loan document pages.
-            </p>
-            <Link className="text-sm underline" href="/dashboard">
-              Back to dashboard
-            </Link>
-          </CardContent>
-        </Card>
-      </main>
-    );
-  }
-
-  if (!isAdmin && !isBranchManager && !isSecretary && !isAuditor) {
-    return (
-      <main className="mx-auto flex min-h-screen w-full max-w-5xl items-center justify-center p-6">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle>Loan Details</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              You are logged in, but only Admin, Branch Manager, Secretary, and Auditor can view this page.
-            </p>
-            <Link className="text-sm underline" href="/dashboard">
-              Back to dashboard
-            </Link>
-          </CardContent>
-        </Card>
-      </main>
-    );
-  }
-
-  let allowedBranchId: number | null = null;
-  if (!isAdmin) {
-    const activeAssignments = await db
-      .select({
-        branch_id: employee_branch_assignment.branch_id,
-      })
-      .from(employee_branch_assignment)
-      .where(
-        and(
-          eq(employee_branch_assignment.employee_user_id, user.id),
-          isNull(employee_branch_assignment.end_date),
-        ),
-      )
-      .catch(() => []);
-
-    const uniqueBranchIds = Array.from(new Set(activeAssignments.map((item) => item.branch_id)));
-    if (uniqueBranchIds.length !== 1) {
-      return (
-        <main className="mx-auto min-h-screen w-full max-w-5xl p-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Loan Details</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-sm text-amber-700 dark:text-amber-400">
-                Unable to resolve your active branch assignment.
-              </p>
-              <Link className="text-sm underline" href="/dashboard">
-                Back to dashboard
-              </Link>
-            </CardContent>
-          </Card>
-        </main>
-      );
-    }
-    allowedBranchId = uniqueBranchIds[0];
-  }
-
-  const loanIdDb = toDbId(loanId);
-  const loan =
-    typeof loanIdDb === "number"
-      ? await db
-          .select({
-            loan_id: loan_records.loan_id,
-            loan_code: loan_records.loan_code,
-            borrower_id: loan_records.borrower_id,
-            principal: loan_records.principal,
-            interest: loan_records.interest,
-            start_date: loan_records.start_date,
-            due_date: loan_records.due_date,
-            collector_id: loan_records.collector_id,
-            branch_id: loan_records.branch_id,
-            status: loan_records.status,
-          })
-          .from(loan_records)
-          .where(eq(loan_records.loan_id, loanIdDb))
-          .limit(1)
-          .then((rows) => rows[0] ?? null)
-          .catch(() => null)
-      : null;
+  const loan = loanIdDb
+    ? await db
+        .select({
+          loan_id: loan_records.loan_id,
+          loan_code: loan_records.loan_code,
+          borrower_id: loan_records.borrower_id,
+          principal: loan_records.principal,
+          interest: loan_records.interest,
+          start_date: loan_records.start_date,
+          due_date: loan_records.due_date,
+          collector_id: loan_records.collector_id,
+          branch_id: loan_records.branch_id,
+          status: loan_records.status,
+        })
+        .from(loan_records)
+        .where(eq(loan_records.loan_id, loanIdDb))
+        .limit(1)
+        .then((rows) => rows[0] ?? null)
+        .catch(() => null)
+    : null;
 
   if (!loan) {
     return (
-      <main className="mx-auto flex min-h-screen w-full max-w-5xl items-center justify-center p-6">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle>Loan Details</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-sm text-muted-foreground">Loan not found.</p>
-            <Link className="text-sm underline" href="/dashboard">
-              Back to dashboard
-            </Link>
-          </CardContent>
-        </Card>
-      </main>
+      <Card>
+        <CardHeader>
+          <CardTitle>Loan Details</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">Loan not found.</p>
+        </CardContent>
+      </Card>
     );
   }
 
-  if (!isAdmin && loan.branch_id !== allowedBranchId) {
+  const role = auth.roleName;
+  const isAdmin = role === "Admin";
+  const isBranchManager = role === "Branch Manager";
+  const isSecretary = role === "Secretary";
+  const isAuditor = role === "Auditor";
+  const isCollector = role === "Collector";
+  const isBorrower = role === "Borrower";
+
+  let canAccess = false;
+  if (isAdmin) {
+    canAccess = true;
+  } else if (isBranchManager || isSecretary) {
+    canAccess = auth.activeBranchId !== null && auth.activeBranchId === loan.branch_id;
+  } else if (isAuditor) {
+    canAccess = auth.assignedBranchIds.includes(loan.branch_id);
+  } else if (isCollector) {
+    canAccess = loan.collector_id === auth.userId;
+  } else if (isBorrower) {
+    canAccess = loan.borrower_id === auth.userId;
+  }
+
+  if (!canAccess) {
     return (
-      <main className="mx-auto min-h-screen w-full max-w-5xl p-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Loan Details</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-sm text-destructive">
-              You are not authorized to access this loan.
-            </p>
-            <Link className="text-sm underline" href="/dashboard/loans">
-              Back to loans
-            </Link>
-          </CardContent>
-        </Card>
-      </main>
+      <Card>
+        <CardHeader>
+          <CardTitle>Loan Details</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-destructive">You are not authorized to access this loan.</p>
+        </CardContent>
+      </Card>
     );
   }
+
+  const canManageDocs = isAdmin || isBranchManager || isSecretary;
+  const canViewDocs = canManageDocs || isAuditor || isBorrower;
+  const canRecordCollections = isAdmin || isBranchManager || isSecretary;
 
   const borrowerInfo = await db
     .select({
@@ -332,12 +220,7 @@ export default async function LoanDetailPage({ params, searchParams }: PageProps
       doc.uploader_company_id ||
       doc.uploader_username ||
       "Unknown";
-
-    return {
-      ...doc,
-      file_size: Number(doc.file_size ?? 0),
-      uploaded_by_name: uploaderName,
-    };
+    return { ...doc, file_size: Number(doc.file_size ?? 0), uploaded_by_name: uploaderName };
   });
 
   const assignedCollector = loan.collector_id
@@ -386,9 +269,7 @@ export default async function LoanDetailPage({ params, searchParams }: PageProps
   const borrowerArea =
     borrowerInfo?.area_id !== undefined
       ? await db
-          .select({
-            area_code: areas.area_code,
-          })
+          .select({ area_code: areas.area_code })
           .from(areas)
           .where(eq(areas.area_id, borrowerInfo.area_id))
           .limit(1)
@@ -396,64 +277,44 @@ export default async function LoanDetailPage({ params, searchParams }: PageProps
           .catch(() => null)
       : null;
 
+  const summaryDescription = isBorrower
+    ? "View your loan details, passbook history, and documents."
+    : isCollector
+      ? "Read-only loan details for your assigned accounts."
+      : "Record collection entries and review loan history.";
+
   return (
-    <main className="mx-auto min-h-screen w-full max-w-6xl p-6">
-      <Card className="mb-6">
+    <div className="space-y-6">
+      <Card>
         <CardHeader>
           <CardTitle>Loan Details</CardTitle>
-          <CardDescription>Record collection entries and review loan history.</CardDescription>
+          <CardDescription>{summaryDescription}</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent>
           <Link className="text-sm underline" href="/dashboard">
             Back to dashboard
           </Link>
         </CardContent>
       </Card>
 
-      <Card className="mb-6">
+      <Card>
         <CardHeader>
           <CardTitle>Loan Summary</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-3 text-sm md:grid-cols-2">
-          <p>
-            <span className="font-medium">Customer Name:</span> {customerName}
-          </p>
-          <p>
-            <span className="font-medium">Address:</span> {borrowerAddress}
-          </p>
-          <p>
-            <span className="font-medium">Borrower Company ID:</span> {borrowerCompanyId}
-          </p>
-          <p>
-            <span className="font-medium">Loan Code:</span> {loan.loan_code}
-          </p>
-          <p>
-            <span className="font-medium">Branch:</span> {branchRow?.branch_name || "N/A"}
-          </p>
-          <p>
-            <span className="font-medium">Area:</span> {borrowerArea?.area_code || "N/A"}
-          </p>
-          <p>
-            <span className="font-medium">Principal:</span> {formatMoney(principal)}
-          </p>
-          <p>
-            <span className="font-medium">Interest:</span> {interest}%
-          </p>
-          <p>
-            <span className="font-medium">Start Date of Loan:</span> {loan.start_date}
-          </p>
-          <p>
-            <span className="font-medium">Due Date:</span> {loan.due_date}
-          </p>
-          <p>
-            <span className="font-medium">Status:</span> {loan.status}
-          </p>
-          <p>
-            <span className="font-medium">Collector:</span> {assignedCollectorLabel}
-          </p>
-          <p>
-            <span className="font-medium">Total Payable:</span> {formatMoney(totalPayable)}
-          </p>
+          <p><span className="font-medium">Customer Name:</span> {customerName}</p>
+          <p><span className="font-medium">Address:</span> {borrowerAddress}</p>
+          <p><span className="font-medium">Borrower Company ID:</span> {borrowerCompanyId}</p>
+          <p><span className="font-medium">Loan Code:</span> {loan.loan_code}</p>
+          <p><span className="font-medium">Branch:</span> {branchRow?.branch_name || "N/A"}</p>
+          <p><span className="font-medium">Area:</span> {borrowerArea?.area_code || "N/A"}</p>
+          <p><span className="font-medium">Principal:</span> {formatMoney(principal)}</p>
+          <p><span className="font-medium">Interest:</span> {interest}%</p>
+          <p><span className="font-medium">Start Date of Loan:</span> {loan.start_date}</p>
+          <p><span className="font-medium">Due Date:</span> {loan.due_date}</p>
+          <p><span className="font-medium">Status:</span> {loan.status}</p>
+          <p><span className="font-medium">Collector:</span> {assignedCollectorLabel}</p>
+          <p><span className="font-medium">Total Payable:</span> {formatMoney(totalPayable)}</p>
           <p>
             <span className="font-medium">Estimated Daily Payment:</span>{" "}
             {estimatedDailyPayment !== null ? formatMoney(estimatedDailyPayment) : "N/A"}
@@ -462,8 +323,8 @@ export default async function LoanDetailPage({ params, searchParams }: PageProps
       </Card>
 
       <LoanDetailForm
-        canRecordCollections={isAdmin}
         assignedCollectorLabel={assignedCollectorLabel}
+        canRecordCollections={canRecordCollections}
         estimatedDailyPayment={estimatedDailyPayment}
         initialCollections={initialCollectionRows}
         loanId={String(loan.loan_id)}
@@ -478,7 +339,6 @@ export default async function LoanDetailPage({ params, searchParams }: PageProps
         hasMore={hasMoreDocs}
         loanId={loan.loan_id}
       />
-    </main>
+    </div>
   );
 }
-

@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { and, desc, eq, gte, isNull, lte, type SQL } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lte, type SQL } from "drizzle-orm";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { requireDashboardAuth } from "@/app/dashboard/auth";
+import { ExpensesFilters } from "@/app/dashboard/expenses/expenses-filters";
 import { db } from "@/db";
-import { branch, employee_branch_assignment, expenses, roles, users } from "@/db/schema";
-import { createClient } from "@/lib/supabase/server";
+import { branch, expenses, users } from "@/db/schema";
 
 type PageProps = {
   searchParams?: Promise<{
@@ -60,51 +61,25 @@ export default async function ExpensesPage({ searchParams }: PageProps) {
   const selectedMonthRaw = String(params.month ?? "");
   const selectedCategoryRaw = String(params.category ?? "all");
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
+  const auth = await requireDashboardAuth();
+  if (!auth.ok) {
     return (
-      <main className="mx-auto flex min-h-screen w-full max-w-5xl items-center justify-center p-6">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle>Expenses</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">Not logged in</p>
-            <Link className="mt-3 inline-block text-sm underline" href="/login">
-              Go to login
-            </Link>
-          </CardContent>
-        </Card>
-      </main>
+      <Card>
+        <CardHeader>
+          <CardTitle>Expenses</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">{auth.message}</p>
+        </CardContent>
+      </Card>
     );
   }
 
-  const currentAppUser = await db
-    .select({ role_id: users.role_id })
-    .from(users)
-    .where(eq(users.user_id, user.id))
-    .limit(1)
-    .then((rows) => rows[0] ?? null)
-    .catch(() => null);
+  const isAdmin = auth.roleName === "Admin";
+  const isBranchManager = auth.roleName === "Branch Manager";
+  const isAuditor = auth.roleName === "Auditor";
 
-  const currentRole = currentAppUser?.role_id
-    ? await db
-        .select({ role_name: roles.role_name })
-        .from(roles)
-        .where(eq(roles.role_id, currentAppUser.role_id))
-        .limit(1)
-        .then((rows) => rows[0] ?? null)
-        .catch(() => null)
-    : null;
-
-  const isAdmin = currentRole?.role_name === "Admin";
-  const isBranchManager = currentRole?.role_name === "Branch Manager";
-
-  if (!isAdmin && !isBranchManager) {
+  if (!isAdmin && !isBranchManager && !isAuditor) {
     return (
       <main className="mx-auto flex min-h-screen w-full max-w-5xl items-center justify-center p-6">
         <Card className="w-full max-w-md">
@@ -113,7 +88,7 @@ export default async function ExpensesPage({ searchParams }: PageProps) {
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              You are logged in, but only Admin and Branch Manager users can view expenses.
+              You are logged in, but only Admin, Branch Manager, and Auditor users can view expenses.
             </p>
             <Link className="text-sm underline" href="/dashboard">
               Back to dashboard
@@ -135,102 +110,26 @@ export default async function ExpensesPage({ searchParams }: PageProps) {
 
   let fixedBranchId: number | null = null;
   let fixedBranchName: string | null = null;
-
   if (isBranchManager) {
-    const activeAssignments = await db
-      .select({
-        branch_id: employee_branch_assignment.branch_id,
-      })
-      .from(employee_branch_assignment)
-      .where(
-        and(
-          eq(employee_branch_assignment.employee_user_id, user.id),
-          isNull(employee_branch_assignment.end_date),
-        ),
-      )
-      .catch(() => []);
-
-    if (activeAssignments.length === 0) {
+    if (!auth.activeBranchId) {
       return (
-        <main className="mx-auto min-h-screen w-full max-w-5xl p-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Expenses</CardTitle>
-              <CardDescription>Branch expense viewing</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-sm text-amber-700 dark:text-amber-400">
-                No active branch assignment found. You cannot view branch expenses until an active assignment is set.
-              </p>
-              <Link className="text-sm underline" href="/dashboard">
-                Back to dashboard
-              </Link>
-            </CardContent>
-          </Card>
-        </main>
+        <Card>
+          <CardHeader>
+            <CardTitle>Expenses</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm text-amber-700 dark:text-amber-400">
+              No active branch assignment found.
+            </p>
+          </CardContent>
+        </Card>
       );
     }
-
-    const uniqueBranchIds = Array.from(new Set(activeAssignments.map((item) => item.branch_id)));
-
-    if (uniqueBranchIds.length !== 1) {
-      return (
-        <main className="mx-auto min-h-screen w-full max-w-5xl p-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Expenses</CardTitle>
-              <CardDescription>Branch expense viewing</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-sm text-amber-700 dark:text-amber-400">
-                Multiple active branch assignments detected. Please contact Admin to resolve assignments.
-              </p>
-              <Link className="text-sm underline" href="/dashboard">
-                Back to dashboard
-              </Link>
-            </CardContent>
-          </Card>
-        </main>
-      );
-    }
-
-    const branchRow = await db
-      .select({
-        branch_id: branch.branch_id,
-        branch_name: branch.branch_name,
-      })
-      .from(branch)
-      .where(eq(branch.branch_id, uniqueBranchIds[0]))
-      .limit(1)
-      .then((rows) => rows[0] ?? null)
-      .catch(() => null);
-
-    if (!branchRow) {
-      return (
-        <main className="mx-auto min-h-screen w-full max-w-5xl p-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Expenses</CardTitle>
-              <CardDescription>Branch expense viewing</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-sm text-amber-700 dark:text-amber-400">
-                Active branch assignment points to an invalid branch.
-              </p>
-              <Link className="text-sm underline" href="/dashboard">
-                Back to dashboard
-              </Link>
-            </CardContent>
-          </Card>
-        </main>
-      );
-    }
-
-    fixedBranchId = branchRow.branch_id;
-    fixedBranchName = branchRow.branch_name;
+    fixedBranchId = auth.activeBranchId;
+    fixedBranchName = auth.activeBranchName;
   }
 
-  const selectedBranchId = isAdmin && /^\d+$/.test(selectedBranchRaw) ? Number(selectedBranchRaw) : null;
+  const selectedBranchId = (isAdmin || isAuditor) && /^\d+$/.test(selectedBranchRaw) ? Number(selectedBranchRaw) : null;
   const monthRange = selectedMonthRaw ? resolveMonthRange(selectedMonthRaw) : null;
   const selectedCategory = EXPENSE_CATEGORIES.includes(
     selectedCategoryRaw as (typeof EXPENSE_CATEGORIES)[number],
@@ -242,8 +141,14 @@ export default async function ExpensesPage({ searchParams }: PageProps) {
 
   if (isBranchManager && fixedBranchId !== null) {
     filters.push(eq(expenses.branch_id, fixedBranchId));
-  } else if (isAdmin && selectedBranchId !== null) {
+  } else if ((isAdmin || isAuditor) && selectedBranchId !== null) {
     filters.push(eq(expenses.branch_id, selectedBranchId));
+  } else if (isAuditor) {
+    if (auth.assignedBranchIds.length === 0) {
+      filters.push(eq(expenses.expense_id, -1));
+    } else {
+      filters.push(inArray(expenses.branch_id, auth.assignedBranchIds));
+    }
   }
 
   if (monthRange) {
@@ -276,6 +181,9 @@ export default async function ExpensesPage({ searchParams }: PageProps) {
 
   const totalExpenses = expenseRows.length;
   const totalAmount = expenseRows.reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
+  const selectableBranches = isAuditor
+    ? branches.filter((item) => auth.assignedBranchIds.includes(item.branch_id))
+    : branches;
 
   return (
     <main className="mx-auto min-h-screen w-full max-w-7xl p-6">
@@ -285,7 +193,9 @@ export default async function ExpensesPage({ searchParams }: PageProps) {
           <CardDescription>
             {isAdmin
               ? "Admin expense monitoring by branch, month, and category."
-              : "Branch expense monitoring by month and category."}
+              : isAuditor
+                ? "Auditor read-only expense monitoring across assigned branches."
+                : "Branch expense monitoring by month and category."}
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2">
@@ -294,11 +204,13 @@ export default async function ExpensesPage({ searchParams }: PageProps) {
               Back to dashboard
             </Button>
           </Link>
-          <Link href="/dashboard/expenses/create">
-            <Button type="button" variant="secondary">
-              Create expense
-            </Button>
-          </Link>
+          {isAdmin || isBranchManager ? (
+            <Link href="/dashboard/expenses/create">
+              <Button type="button" variant="secondary">
+                Create expense
+              </Button>
+            </Link>
+          ) : null}
         </CardContent>
       </Card>
 
@@ -307,27 +219,21 @@ export default async function ExpensesPage({ searchParams }: PageProps) {
           <CardTitle>Filters</CardTitle>
         </CardHeader>
         <CardContent>
-          <form className="grid gap-4 md:grid-cols-4" method="get">
-            {isAdmin ? (
-              <div className="space-y-2">
-                <label className="text-sm font-medium" htmlFor="branch">
-                  Branch
-                </label>
-                <select
-                  className="border-input focus-visible:border-ring focus-visible:ring-ring/50 w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
-                  defaultValue={selectedBranchRaw}
-                  id="branch"
-                  name="branch"
-                >
-                  <option value="all">All branches</option>
-                  {branches.map((item) => (
-                    <option key={item.branch_id} value={String(item.branch_id)}>
-                      {item.branch_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            ) : (
+          {isAdmin || isAuditor ? (
+            <ExpensesFilters
+              branches={selectableBranches.map((item) => ({
+                branch_id: item.branch_id,
+                branch_name: item.branch_name,
+              }))}
+              canChooseBranch
+              categories={EXPENSE_CATEGORIES}
+              clearHref="/dashboard/expenses"
+              selectedBranchRaw={selectedBranchRaw}
+              selectedCategory={selectedCategory}
+              selectedMonthRaw={selectedMonthRaw}
+            />
+          ) : (
+            <div className="space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium" htmlFor="fixed_branch">
                   Branch
@@ -339,49 +245,17 @@ export default async function ExpensesPage({ searchParams }: PageProps) {
                   value={fixedBranchName ?? "N/A"}
                 />
               </div>
-            )}
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium" htmlFor="month">
-                Month
-              </label>
-              <input
-                className="border-input focus-visible:border-ring focus-visible:ring-ring/50 w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
-                defaultValue={selectedMonthRaw}
-                id="month"
-                name="month"
-                type="month"
+              <ExpensesFilters
+                branches={[]}
+                canChooseBranch={false}
+                categories={EXPENSE_CATEGORIES}
+                clearHref="/dashboard/expenses"
+                selectedBranchRaw={selectedBranchRaw}
+                selectedCategory={selectedCategory}
+                selectedMonthRaw={selectedMonthRaw}
               />
             </div>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium" htmlFor="category">
-                Category
-              </label>
-              <select
-                className="border-input focus-visible:border-ring focus-visible:ring-ring/50 w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
-                defaultValue={selectedCategory}
-                id="category"
-                name="category"
-              >
-                <option value="all">All categories</option>
-                {EXPENSE_CATEGORIES.map((category) => (
-                  <option key={category} value={category}>
-                    {category}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex items-end gap-2">
-              <Button type="submit">Apply Filters</Button>
-              <Link href="/dashboard/expenses">
-                <Button type="button" variant="outline">
-                  Clear
-                </Button>
-              </Link>
-            </div>
-          </form>
+          )}
         </CardContent>
       </Card>
 

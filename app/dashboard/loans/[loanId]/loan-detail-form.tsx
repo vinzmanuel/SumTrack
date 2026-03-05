@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useMemo, useRef, useState, type FormEvent } from "react";
+import { Loader2 } from "lucide-react";
 import { useFormStatus } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,7 +34,8 @@ function SubmitButton() {
   const { pending } = useFormStatus();
 
   return (
-    <Button disabled={pending} type="submit">
+    <Button className="active:scale-[0.98]" disabled={pending} type="submit">
+      {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
       {pending ? "Saving..." : "Record Collection"}
     </Button>
   );
@@ -276,19 +278,17 @@ export function LoanDetailForm({
 
   return (
     <div className="space-y-6">
-      <Dialog onOpenChange={setIsFormOpen} open={isFormOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add Payment Collection</DialogTitle>
-            <DialogDescription>Record a payment or missed payment for this loan.</DialogDescription>
-          </DialogHeader>
-          {canRecordCollections ? (
-            collectionForm
-          ) : (
-            <p className="text-muted-foreground text-sm">Only Admin can record collections.</p>
-          )}
-        </DialogContent>
-      </Dialog>
+      {canRecordCollections ? (
+        <Dialog onOpenChange={setIsFormOpen} open={isFormOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Add Payment Collection</DialogTitle>
+              <DialogDescription>Record a payment or missed payment for this loan.</DialogDescription>
+            </DialogHeader>
+            {collectionForm}
+          </DialogContent>
+        </Dialog>
+      ) : null}
 
       <Dialog onOpenChange={setIsConfirmOpen} open={isConfirmOpen}>
         <DialogContent>
@@ -321,7 +321,7 @@ export function LoanDetailForm({
             <Button onClick={() => setIsConfirmOpen(false)} type="button" variant="outline">
               Cancel
             </Button>
-            <Button onClick={handleConfirmSubmit} type="button">
+            <Button className="active:scale-[0.98]" onClick={handleConfirmSubmit} type="button">
               Confirm Save
             </Button>
           </DialogFooter>
@@ -362,14 +362,16 @@ export function LoanDetailForm({
         <CardHeader>
           <CardTitle>Collection History</CardTitle>
           <CardAction>
-            <Button
-              disabled={!canRecordCollections}
-              onClick={() => setIsFormOpen(true)}
-              size="sm"
-              type="button"
-            >
-              + Add Payment Collection
-            </Button>
+            {canRecordCollections ? (
+              <Button
+                className="active:scale-[0.98]"
+                onClick={() => setIsFormOpen(true)}
+                size="sm"
+                type="button"
+              >
+                + Add Payment Collection
+              </Button>
+            ) : null}
           </CardAction>
         </CardHeader>
         <CardContent>

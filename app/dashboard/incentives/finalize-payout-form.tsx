@@ -1,7 +1,9 @@
 "use client";
 
 import { useActionState, useEffect } from "react";
+import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useFormStatus } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { finalizeIncentivePayoutAction } from "@/app/dashboard/incentives/actions";
 import { initialFinalizeIncentiveState } from "@/app/dashboard/incentives/state";
@@ -37,14 +39,22 @@ export function FinalizePayoutForm({
     return null;
   }
 
+  function SubmitButton() {
+    const { pending } = useFormStatus();
+    return (
+      <Button className="active:scale-[0.98]" disabled={!canFinalize || pending} type="submit">
+        {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+        {pending ? "Finalizing..." : "Finalize & Export"}
+      </Button>
+    );
+  }
+
   return (
     <form action={formAction} className="space-y-2">
       <input name="branch_id" type="hidden" value={String(branchId)} />
       <input name="month" type="hidden" value={month} />
 
-      <Button disabled={!canFinalize} type="submit">
-        Finalize &amp; Export
-      </Button>
+      <SubmitButton />
 
       {!canFinalize && lockReason ? (
         <p className="text-sm text-amber-700 dark:text-amber-400">{lockReason}</p>

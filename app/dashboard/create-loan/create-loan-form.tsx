@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useMemo, useRef, useState, type FormEvent } from "react";
+import { Loader2 } from "lucide-react";
 import { useFormStatus } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -77,7 +78,8 @@ function SubmitButton() {
   const { pending } = useFormStatus();
 
   return (
-    <Button disabled={pending} type="submit">
+    <Button className="active:scale-[0.98]" disabled={pending} type="submit">
+      {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
       {pending ? "Creating..." : "Create Loan"}
     </Button>
   );
@@ -679,7 +681,7 @@ export function CreateLoanForm({
                 <Button onClick={() => setIsConfirmOpen(false)} type="button" variant="outline">
                   Cancel
                 </Button>
-                <Button onClick={handleConfirmCreate} type="button">
+                <Button className="active:scale-[0.98]" onClick={handleConfirmCreate} type="button">
                   Confirm Create Loan
                 </Button>
               </DialogFooter>

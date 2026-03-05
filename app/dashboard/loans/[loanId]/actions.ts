@@ -1,9 +1,10 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import {
   collections,
+  employee_branch_assignment,
   employee_info,
   loan_records,
   roles,
@@ -149,12 +150,42 @@ export async function createCollectionAction(
     .then((rows) => rows[0] ?? null)
     .catch(() => null);
 
-  if (currentRole?.role_name !== "Admin") {
+  const roleName = currentRole?.role_name ?? null;
+  const isAdmin = roleName === "Admin";
+  const isBranchManager = roleName === "Branch Manager";
+  const isSecretary = roleName === "Secretary";
+
+  if (!isAdmin && !isBranchManager && !isSecretary) {
     return {
       status: "error",
-      message: "Only Admin users can record collections.",
+      message: "Only Admin, Branch Manager, and Secretary users can record collections.",
       appendedRows: prevState.appendedRows ?? [],
     };
+  }
+
+  let allowedBranchId: number | null = null;
+  if (!isAdmin) {
+    const assignments = await db
+      .select({ branch_id: employee_branch_assignment.branch_id })
+      .from(employee_branch_assignment)
+      .where(
+        and(
+          eq(employee_branch_assignment.employee_user_id, currentAuthUser.id),
+          isNull(employee_branch_assignment.end_date),
+        ),
+      )
+      .catch(() => []);
+
+    const uniqueBranchIds = Array.from(new Set(assignments.map((item) => item.branch_id)));
+    if (uniqueBranchIds.length !== 1) {
+      return {
+        status: "error",
+        message: "A single active branch assignment is required before recording collections.",
+        appendedRows: prevState.appendedRows ?? [],
+      };
+    }
+
+    allowedBranchId = uniqueBranchIds[0];
   }
 
   const loanIdDb = toDbId(loanId);
@@ -165,6 +196,7 @@ export async function createCollectionAction(
             loan_id: loan_records.loan_id,
             loan_code: loan_records.loan_code,
             collector_id: loan_records.collector_id,
+            branch_id: loan_records.branch_id,
           })
           .from(loan_records)
           .where(eq(loan_records.loan_id, loanIdDb))
@@ -177,6 +209,14 @@ export async function createCollectionAction(
     return {
       status: "error",
       message: "Loan not found.",
+      appendedRows: prevState.appendedRows ?? [],
+    };
+  }
+
+  if (!isAdmin && allowedBranchId !== null && loan.branch_id !== allowedBranchId) {
+    return {
+      status: "error",
+      message: "You can only record collections for loans in your assigned branch.",
       appendedRows: prevState.appendedRows ?? [],
     };
   }

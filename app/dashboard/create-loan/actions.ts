@@ -7,6 +7,7 @@ import {
   borrower_info,
   branch,
   employee_area_assignment,
+  employee_branch_assignment,
   employee_info,
   loan_records,
   roles,
@@ -196,7 +197,41 @@ export async function createLoanAction(
     .then((rows) => rows[0] ?? null)
     .catch(() => null);
 
-  const isAdmin = currentRole?.role_name === "Admin";
+  const roleName = currentRole?.role_name ?? null;
+  const isAdmin = roleName === "Admin";
+  const isBranchManager = roleName === "Branch Manager";
+  const isSecretary = roleName === "Secretary";
+
+  if (!isAdmin && !isBranchManager && !isSecretary) {
+    return {
+      status: "error",
+      message: "Only Admin, Branch Manager, and Secretary users can create loans.",
+    };
+  }
+
+  let allowedBranchId: number | null = null;
+  if (!isAdmin) {
+    const assignments = await db
+      .select({ branch_id: employee_branch_assignment.branch_id })
+      .from(employee_branch_assignment)
+      .where(
+        and(
+          eq(employee_branch_assignment.employee_user_id, currentAuthUser.id),
+          isNull(employee_branch_assignment.end_date),
+        ),
+      )
+      .catch(() => []);
+
+    const uniqueBranchIds = Array.from(new Set(assignments.map((item) => item.branch_id)));
+    if (uniqueBranchIds.length !== 1) {
+      return {
+        status: "error",
+        message: "A single active branch assignment is required before creating loans.",
+      };
+    }
+
+    allowedBranchId = uniqueBranchIds[0];
+  }
 
   const borrowerInfo = await db
     .select({
@@ -308,6 +343,16 @@ export async function createLoanAction(
       message: "Selected branch does not match the borrower's assigned branch.",
       fieldErrors: {
         branch_id: `Borrower belongs to ${branchRow.branch_name}.`,
+      },
+    };
+  }
+
+  if (!isAdmin && allowedBranchId !== null && branchRow.branch_id !== allowedBranchId) {
+    return {
+      status: "error",
+      message: "You can only create loans within your assigned branch.",
+      fieldErrors: {
+        branch_id: "Selected borrower is outside your assigned branch.",
       },
     };
   }

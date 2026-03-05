@@ -1,5 +1,8 @@
 import Link from "next/link";
+import { and, eq, isNull } from "drizzle-orm";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { db } from "@/db";
+import { employee_branch_assignment } from "@/db/schema";
 import { createClient } from "@/lib/supabase/server";
 import { CreateLoanForm } from "@/app/dashboard/create-loan/create-loan-form";
 
@@ -119,7 +122,10 @@ export default async function CreateLoanPage({ searchParams }: PageProps) {
     : { data: null };
 
   const isAdmin = currentRole?.role_name === "Admin";
-  if (!isAdmin) {
+  const isBranchManager = currentRole?.role_name === "Branch Manager";
+  const isSecretary = currentRole?.role_name === "Secretary";
+
+  if (!isAdmin && !isBranchManager && !isSecretary) {
     return (
       <main className="mx-auto flex min-h-screen w-full max-w-4xl items-center justify-center p-6">
         <Card className="w-full max-w-md">
@@ -128,7 +134,7 @@ export default async function CreateLoanPage({ searchParams }: PageProps) {
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              You are logged in, but only Admin users can create loans.
+              You are logged in, but only Admin, Branch Manager, and Secretary can create loans.
             </p>
             <Link className="text-sm underline" href="/dashboard">
               Back to dashboard
@@ -137,6 +143,43 @@ export default async function CreateLoanPage({ searchParams }: PageProps) {
         </Card>
       </main>
     );
+  }
+
+  let fixedBranchId: number | null = null;
+  if (!isAdmin) {
+    const assignments = await db
+      .select({ branch_id: employee_branch_assignment.branch_id })
+      .from(employee_branch_assignment)
+      .where(
+        and(
+          eq(employee_branch_assignment.employee_user_id, user.id),
+          isNull(employee_branch_assignment.end_date),
+        ),
+      )
+      .catch(() => []);
+
+    const uniqueBranchIds = Array.from(new Set(assignments.map((item) => item.branch_id)));
+    if (uniqueBranchIds.length !== 1) {
+      return (
+        <main className="mx-auto flex min-h-screen w-full max-w-4xl items-center justify-center p-6">
+          <Card className="w-full max-w-md">
+            <CardHeader>
+              <CardTitle>Create Loan</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-amber-700 dark:text-amber-400">
+                A single active branch assignment is required before creating loans.
+              </p>
+              <Link className="text-sm underline" href="/dashboard">
+                Back to dashboard
+              </Link>
+            </CardContent>
+          </Card>
+        </main>
+      );
+    }
+
+    fixedBranchId = uniqueBranchIds[0];
   }
 
   const { data: borrowersData } = await supabase
@@ -193,8 +236,15 @@ export default async function CreateLoanPage({ searchParams }: PageProps) {
     .select("area_id, branch_id, area_no, area_code")
     .order("area_code");
   const areas = (areasData ?? []) as AreaRow[];
-  const borrowerById = new Map(borrowers.map((item) => [item.user_id, item]));
   const areaById = new Map(areas.map((item) => [String(item.area_id), item]));
+
+  const scopedAreaIds = fixedBranchId
+    ? new Set(areas.filter((item) => Number(item.branch_id) === fixedBranchId).map((item) => String(item.area_id)))
+    : null;
+
+  const scopedBorrowers = scopedAreaIds
+    ? borrowers.filter((item) => scopedAreaIds.has(String(item.area_id)))
+    : borrowers;
 
   const { data: collectorRole } = await supabase
     .from("roles")
@@ -244,12 +294,16 @@ export default async function CreateLoanPage({ searchParams }: PageProps) {
     };
   });
 
+  const scopedCollectors = scopedAreaIds
+    ? collectors.filter((item) => scopedAreaIds.has(String(item.area_id)))
+    : collectors;
+
   const prefilledBorrower = (() => {
     if (!requestedBorrowerId) {
       return null;
     }
 
-    const borrower = borrowerById.get(requestedBorrowerId);
+    const borrower = scopedBorrowers.find((item) => item.user_id === requestedBorrowerId);
     if (!borrower) {
       return null;
     }
@@ -278,7 +332,7 @@ export default async function CreateLoanPage({ searchParams }: PageProps) {
           <Link className="text-sm underline" href="/dashboard">
             Back to dashboard
           </Link>
-          {borrowers.length === 0 ? (
+          {scopedBorrowers.length === 0 ? (
             <p className="text-sm text-amber-700 dark:text-amber-400">
               No borrowers found. Create a borrower account first.
             </p>
@@ -288,9 +342,9 @@ export default async function CreateLoanPage({ searchParams }: PageProps) {
 
       <CreateLoanForm
         areas={areas}
-        branches={branches}
-        borrowers={borrowers}
-        collectors={collectors}
+        branches={fixedBranchId ? branches.filter((item) => Number(item.branch_id) === fixedBranchId) : branches}
+        borrowers={scopedBorrowers}
+        collectors={scopedCollectors}
         isAdmin={isAdmin}
         prefilledBorrower={prefilledBorrower}
       />

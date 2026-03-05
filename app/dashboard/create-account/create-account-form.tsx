@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useMemo, useRef, useState, type FormEvent } from "react";
+import { Loader2 } from "lucide-react";
 import { useFormStatus } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -41,6 +42,8 @@ type CreateAccountFormProps = {
   roles: RoleOption[];
   branches: BranchOption[];
   areas: AreaOption[];
+  borrowerOnly?: boolean;
+  fixedBranchId?: string | null;
 };
 
 const EMPLOYEE_ROLE_NAMES = ["Admin", "Auditor", "Branch Manager", "Secretary", "Collector"];
@@ -49,7 +52,12 @@ const BRANCH_ONLY_ROLE_NAMES = ["Branch Manager", "Secretary"];
 function SubmitButton() {
   const { pending } = useFormStatus();
 
-  return <Button type="submit" disabled={pending}>{pending ? "Creating..." : "Create account"}</Button>;
+  return (
+    <Button className="active:scale-[0.98]" disabled={pending} type="submit">
+      {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+      {pending ? "Creating..." : "Create account"}
+    </Button>
+  );
 }
 
 type FieldLabelProps = {
@@ -108,18 +116,24 @@ function escapeHtml(value: string) {
     .replaceAll("'", "&#39;");
 }
 
-export function CreateAccountForm({ roles, branches, areas }: CreateAccountFormProps) {
+export function CreateAccountForm({
+  roles,
+  branches,
+  areas,
+  borrowerOnly = false,
+  fixedBranchId = null,
+}: CreateAccountFormProps) {
   const [state, formAction] = useActionState(createAccountAction, initialCreateAccountState);
   const formRef = useRef<HTMLFormElement>(null);
 
-  const [accountCategory, setAccountCategory] = useState<AccountCategory>("Employee");
+  const [accountCategory, setAccountCategory] = useState<AccountCategory>(borrowerOnly ? "Borrower" : "Employee");
   const [roleId, setRoleId] = useState("");
   const [firstName, setFirstName] = useState("");
   const [middleName, setMiddleName] = useState("");
   const [lastName, setLastName] = useState("");
   const [contactNumber, setContactNumber] = useState("");
   const [address, setAddress] = useState("");
-  const [singleBranchId, setSingleBranchId] = useState("");
+  const [singleBranchId, setSingleBranchId] = useState(fixedBranchId ?? "");
   const [areaId, setAreaId] = useState("");
   const [auditorBranchIds, setAuditorBranchIds] = useState<string[]>([]);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
@@ -151,7 +165,7 @@ export function CreateAccountForm({ roles, branches, areas }: CreateAccountFormP
     employeeRoles.find((role) => String(role.role_id) === effectiveRoleId) ?? null;
   const selectedRoleName = selectedRole?.role_name ?? "";
 
-  const showRoleSelector = accountCategory === "Employee";
+  const showRoleSelector = !borrowerOnly && accountCategory === "Employee";
   const showBorrowerFields = accountCategory === "Borrower";
   const showAuditorBranchSelector = showRoleSelector && selectedRoleName === "Auditor";
   const showAreaFlow =
@@ -173,10 +187,15 @@ export function CreateAccountForm({ roles, branches, areas }: CreateAccountFormP
     .map((item) => item.branch_name);
 
   function handleCategoryChange(value: AccountCategory) {
+    if (borrowerOnly) {
+      setAccountCategory("Borrower");
+      return;
+    }
+
     setAccountCategory(value);
     setCopyStatus("");
     setAreaId("");
-    setSingleBranchId("");
+    setSingleBranchId(fixedBranchId ?? "");
     setAuditorBranchIds([]);
 
     if (value === "Employee" && !hasSelectedEmployeeRole) {
@@ -185,14 +204,23 @@ export function CreateAccountForm({ roles, branches, areas }: CreateAccountFormP
   }
 
   function handleRoleChange(value: string) {
+    if (borrowerOnly) {
+      return;
+    }
+
     setRoleId(value);
     setCopyStatus("");
     setAreaId("");
-    setSingleBranchId("");
+    setSingleBranchId(fixedBranchId ?? "");
     setAuditorBranchIds([]);
   }
 
   function handleBranchChange(value: string) {
+    if (borrowerOnly && fixedBranchId) {
+      setSingleBranchId(fixedBranchId);
+      return;
+    }
+
     setSingleBranchId(value);
     setAreaId("");
   }
@@ -277,21 +305,23 @@ export function CreateAccountForm({ roles, branches, areas }: CreateAccountFormP
             <input name="branch_id" type="hidden" value={singleBranchId} />
             <input name="area_id" type="hidden" value={areaId} />
 
-            <div className="space-y-2">
-              <FieldLabel required>Account Category</FieldLabel>
-              <Select onValueChange={handleCategoryChange} value={accountCategory}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select account category" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Employee">Employee</SelectItem>
-                  <SelectItem value="Borrower">Borrower</SelectItem>
-                </SelectContent>
-              </Select>
-              {state.fieldErrors?.account_category ? (
-                <p className="text-sm text-destructive">{state.fieldErrors.account_category}</p>
-              ) : null}
-            </div>
+            {!borrowerOnly ? (
+              <div className="space-y-2">
+                <FieldLabel required>Account Category</FieldLabel>
+                <Select onValueChange={handleCategoryChange} value={accountCategory}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select account category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Employee">Employee</SelectItem>
+                    <SelectItem value="Borrower">Borrower</SelectItem>
+                  </SelectContent>
+                </Select>
+                {state.fieldErrors?.account_category ? (
+                  <p className="text-sm text-destructive">{state.fieldErrors.account_category}</p>
+                ) : null}
+              </div>
+            ) : null}
 
             {showRoleSelector ? (
               <div className="space-y-2">
@@ -368,7 +398,11 @@ export function CreateAccountForm({ roles, branches, areas }: CreateAccountFormP
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <FieldLabel required>Branch</FieldLabel>
-                  <Select onValueChange={handleBranchChange} value={singleBranchId}>
+                  <Select
+                    disabled={Boolean(fixedBranchId)}
+                    onValueChange={handleBranchChange}
+                    value={singleBranchId}
+                  >
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="Select branch" />
                     </SelectTrigger>
@@ -451,7 +485,11 @@ export function CreateAccountForm({ roles, branches, areas }: CreateAccountFormP
             {showBranchOnlySelector ? (
               <div className="space-y-2">
                 <FieldLabel required>Branch</FieldLabel>
-                <Select onValueChange={handleBranchChange} value={singleBranchId}>
+                <Select
+                  disabled={Boolean(fixedBranchId)}
+                  onValueChange={handleBranchChange}
+                  value={singleBranchId}
+                >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select branch" />
                   </SelectTrigger>
@@ -559,7 +597,7 @@ export function CreateAccountForm({ roles, branches, areas }: CreateAccountFormP
                 <Button onClick={() => setIsConfirmOpen(false)} type="button" variant="outline">
                   Cancel
                 </Button>
-                <Button onClick={handleConfirmCreate} type="button">
+                <Button className="active:scale-[0.98]" onClick={handleConfirmCreate} type="button">
                   Confirm Create Account
                 </Button>
               </DialogFooter>

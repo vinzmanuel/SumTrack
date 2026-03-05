@@ -138,7 +138,7 @@ export default async function BorrowerProfilePage({ params, searchParams }: Page
     );
   }
 
-  let allowedBranchId: number | null = null;
+  let allowedBranchIds: number[] = [];
   if (!isAdmin) {
     const activeAssignments = await db
       .select({
@@ -154,7 +154,28 @@ export default async function BorrowerProfilePage({ params, searchParams }: Page
       .catch(() => []);
 
     const uniqueBranchIds = Array.from(new Set(activeAssignments.map((item) => item.branch_id)));
-    if (uniqueBranchIds.length !== 1) {
+    if (isAuditor) {
+      if (uniqueBranchIds.length === 0) {
+        return (
+          <main className="mx-auto min-h-screen w-full max-w-6xl p-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Borrower Profile</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <p className="text-sm text-amber-700 dark:text-amber-400">
+                  Unable to resolve your assigned branches.
+                </p>
+                <Link className="text-sm underline" href="/dashboard/borrowers">
+                  Back to borrowers
+                </Link>
+              </CardContent>
+            </Card>
+          </main>
+        );
+      }
+      allowedBranchIds = uniqueBranchIds;
+    } else if (uniqueBranchIds.length !== 1) {
       return (
         <main className="mx-auto min-h-screen w-full max-w-6xl p-6">
           <Card>
@@ -172,9 +193,9 @@ export default async function BorrowerProfilePage({ params, searchParams }: Page
           </Card>
         </main>
       );
+    } else {
+      allowedBranchIds = [uniqueBranchIds[0]];
     }
-
-    allowedBranchId = uniqueBranchIds[0];
   }
 
   const borrower = await db
@@ -219,7 +240,7 @@ export default async function BorrowerProfilePage({ params, searchParams }: Page
     );
   }
 
-  if (!isAdmin && borrower.branch_id !== allowedBranchId) {
+  if (!isAdmin && !allowedBranchIds.includes(borrower.branch_id)) {
     return (
       <main className="mx-auto min-h-screen w-full max-w-6xl p-6">
         <Card>
@@ -307,9 +328,11 @@ export default async function BorrowerProfilePage({ params, searchParams }: Page
               Back to borrowers
             </Button>
           </Link>
-          <Link href={`/dashboard/create-loan?borrowerId=${borrower.user_id}`}>
-            <Button type="button">Create Loan</Button>
-          </Link>
+          {isAdmin || isBranchManager || isSecretary ? (
+            <Link href={`/dashboard/create-loan?borrowerId=${borrower.user_id}`}>
+              <Button type="button">Create Loan</Button>
+            </Link>
+          ) : null}
         </CardContent>
       </Card>
 
