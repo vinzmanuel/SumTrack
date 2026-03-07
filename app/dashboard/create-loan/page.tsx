@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { db } from "@/db";
-import { employee_branch_assignment } from "@/db/schema";
+import { employee_branch_assignment, loan_records } from "@/db/schema";
 import { createClient } from "@/lib/supabase/server";
 import { CreateLoanForm } from "@/app/dashboard/create-loan/create-loan-form";
+import { ACTIVE_LOAN_STATUSES } from "@/app/dashboard/loans/active-statuses";
 
 type RoleRow = {
   role_id: string;
@@ -246,6 +247,27 @@ export default async function CreateLoanPage({ searchParams }: PageProps) {
     ? borrowers.filter((item) => scopedAreaIds.has(String(item.area_id)))
     : borrowers;
 
+  const activeLoanBorrowerRows = scopedBorrowers.length
+    ? await db
+        .select({
+          borrower_id: loan_records.borrower_id,
+          active_count: sql<number>`count(*)`,
+        })
+        .from(loan_records)
+        .where(
+          and(
+            inArray(
+              loan_records.borrower_id,
+              scopedBorrowers.map((item) => item.user_id),
+            ),
+            inArray(loan_records.status, [...ACTIVE_LOAN_STATUSES]),
+          ),
+        )
+        .groupBy(loan_records.borrower_id)
+        .catch(() => [])
+    : [];
+  const activeLoanBorrowerIds = activeLoanBorrowerRows.map((item) => item.borrower_id);
+
   const { data: collectorRole } = await supabase
     .from("roles")
     .select("role_id, role_name")
@@ -341,6 +363,7 @@ export default async function CreateLoanPage({ searchParams }: PageProps) {
       </Card>
 
       <CreateLoanForm
+        activeLoanBorrowerIds={activeLoanBorrowerIds}
         areas={areas}
         branches={fixedBranchId ? branches.filter((item) => Number(item.branch_id) === fixedBranchId) : branches}
         borrowers={scopedBorrowers}

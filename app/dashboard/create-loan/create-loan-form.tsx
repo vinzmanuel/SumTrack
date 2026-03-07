@@ -56,6 +56,7 @@ type CollectorOption = {
 
 type CreateLoanFormProps = {
   borrowers: BorrowerOption[];
+  activeLoanBorrowerIds: string[];
   branches: BranchOption[];
   areas: AreaOption[];
   collectors: CollectorOption[];
@@ -74,11 +75,11 @@ const STAFF_TERM_OPTIONS = [
   { label: "60 days", value: "60" },
 ];
 
-function SubmitButton() {
+function SubmitButton({ blocked }: { blocked: boolean }) {
   const { pending } = useFormStatus();
 
   return (
-    <Button className="active:scale-[0.98]" disabled={pending} type="submit">
+    <Button className="active:scale-[0.98]" disabled={pending || blocked} type="submit">
       {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
       {pending ? "Creating..." : "Create Loan"}
     </Button>
@@ -157,6 +158,7 @@ function getDateDiffDays(startDate: string, dueDate: string) {
 
 export function CreateLoanForm({
   borrowers,
+  activeLoanBorrowerIds,
   branches,
   areas,
   collectors,
@@ -190,6 +192,10 @@ export function CreateLoanForm({
   const selectedBorrower = useMemo(
     () => borrowers.find((borrower) => borrower.user_id === borrowerId) ?? null,
     [borrowerId, borrowers],
+  );
+  const hasExistingActiveLoan = useMemo(
+    () => Boolean(borrowerId && activeLoanBorrowerIds.includes(borrowerId)),
+    [activeLoanBorrowerIds, borrowerId],
   );
 
   const selectedBranch = useMemo(
@@ -282,6 +288,11 @@ export function CreateLoanForm({
     !isBorrowerLocked && Boolean(selectedAreaId) && borrowerSearch.trim().length > 0 && borrowerId === "";
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    if (hasExistingActiveLoan) {
+      event.preventDefault();
+      return;
+    }
+
     if (isConfirmedSubmit) {
       setIsConfirmedSubmit(false);
       return;
@@ -477,6 +488,11 @@ export function CreateLoanForm({
               {state.fieldErrors?.borrower_id ? (
                 <p className="text-sm text-destructive">{state.fieldErrors.borrower_id}</p>
               ) : null}
+              {hasExistingActiveLoan ? (
+                <p className="text-sm text-destructive">
+                  This borrower already has an active loan. Only one active loan is allowed.
+                </p>
+              ) : null}
             </div>
 
             <p className="text-muted-foreground text-sm">
@@ -631,7 +647,7 @@ export function CreateLoanForm({
               <p className="text-sm text-destructive">{state.message}</p>
             ) : null}
 
-            <SubmitButton />
+            <SubmitButton blocked={hasExistingActiveLoan} />
           </form>
 
           <Dialog onOpenChange={setIsConfirmOpen} open={isConfirmOpen}>
@@ -681,7 +697,12 @@ export function CreateLoanForm({
                 <Button onClick={() => setIsConfirmOpen(false)} type="button" variant="outline">
                   Cancel
                 </Button>
-                <Button className="active:scale-[0.98]" onClick={handleConfirmCreate} type="button">
+                <Button
+                  className="active:scale-[0.98]"
+                  disabled={hasExistingActiveLoan}
+                  onClick={handleConfirmCreate}
+                  type="button"
+                >
                   Confirm Create Loan
                 </Button>
               </DialogFooter>

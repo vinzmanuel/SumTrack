@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { db } from "@/db";
 import {
   areas,
@@ -14,6 +14,7 @@ import {
   users,
 } from "@/db/schema";
 import { createClient } from "@/lib/supabase/server";
+import { ACTIVE_LOAN_STATUSES } from "@/app/dashboard/loans/active-statuses";
 import type { CreateLoanState } from "@/app/dashboard/create-loan/state";
 
 type FormFields = {
@@ -445,6 +446,29 @@ export async function createLoanAction(
     return {
       status: "error",
       message: "Borrower company ID is missing.",
+    };
+  }
+
+  const activeLoanCount = await db
+    .select({ value: loan_records.loan_id })
+    .from(loan_records)
+    .where(
+      and(
+        eq(loan_records.borrower_id, borrowerInfo.user_id),
+        inArray(loan_records.status, [...ACTIVE_LOAN_STATUSES]),
+      ),
+    )
+    .limit(1)
+    .then((rows) => rows.length)
+    .catch(() => 0);
+
+  if (activeLoanCount > 0) {
+    return {
+      status: "error",
+      message: "This borrower already has an active loan. Only one active loan is allowed.",
+      fieldErrors: {
+        borrower_id: "Borrower already has an active loan.",
+      },
     };
   }
 

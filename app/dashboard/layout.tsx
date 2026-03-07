@@ -5,69 +5,90 @@ import { requireDashboardAuth } from "@/app/dashboard/auth";
 type NavItem = {
   href: string;
   label: string;
+  section: "main" | "finance" | "system";
+  icon:
+    | "layout-dashboard"
+    | "hand-coins"
+    | "users"
+    | "receipt-text"
+    | "wallet"
+    | "file-text"
+    | "user-plus"
+    | "settings";
 };
 
 function navItemsForRole(roleName: string): NavItem[] {
   if (roleName === "Admin") {
     return [
-      { href: "/dashboard", label: "Dashboard Home" },
-      { href: "/dashboard/create-account", label: "Create Account" },
-      { href: "/dashboard/borrowers", label: "Borrowers" },
-      { href: "/dashboard/loans", label: "Loans" },
-      { href: "/dashboard/expenses", label: "Expenses" },
-      { href: "/dashboard/incentives", label: "Incentives" },
+      { href: "/dashboard", label: "Overview", section: "main", icon: "layout-dashboard" },
+      { href: "/dashboard/loans", label: "Loans", section: "main", icon: "hand-coins" },
+      { href: "/dashboard/borrowers", label: "Borrowers", section: "main", icon: "users" },
+      { href: "/dashboard/loans", label: "Collections", section: "main", icon: "receipt-text" },
+      { href: "/dashboard/incentives", label: "Incentives", section: "finance", icon: "wallet" },
+      { href: "/dashboard/expenses", label: "Expenses", section: "finance", icon: "receipt-text" },
+      { href: "/dashboard/my-documents", label: "Documents", section: "system", icon: "file-text" },
+      { href: "/dashboard/create-account", label: "Create Account", section: "system", icon: "user-plus" },
+      { href: "/dashboard", label: "Settings", section: "system", icon: "settings" },
     ];
   }
 
   if (roleName === "Branch Manager") {
     return [
-      { href: "/dashboard", label: "Dashboard Home" },
-      { href: "/dashboard/create-account", label: "Create Account" },
-      { href: "/dashboard/create-loan", label: "Create Loan" },
-      { href: "/dashboard/borrowers", label: "Borrowers" },
-      { href: "/dashboard/loans", label: "Loans" },
-      { href: "/dashboard/expenses", label: "Expenses" },
-      { href: "/dashboard/incentives", label: "Incentives" },
+      { href: "/dashboard", label: "Overview", section: "main", icon: "layout-dashboard" },
+      { href: "/dashboard/loans", label: "Loans", section: "main", icon: "hand-coins" },
+      { href: "/dashboard/borrowers", label: "Borrowers", section: "main", icon: "users" },
+      { href: "/dashboard/loans", label: "Collections", section: "main", icon: "receipt-text" },
+      { href: "/dashboard/incentives", label: "Incentives", section: "finance", icon: "wallet" },
+      { href: "/dashboard/expenses", label: "Expenses", section: "finance", icon: "receipt-text" },
+      { href: "/dashboard/my-documents", label: "Documents", section: "system", icon: "file-text" },
+      { href: "/dashboard/create-account", label: "Create Account", section: "system", icon: "user-plus" },
+      { href: "/dashboard", label: "Settings", section: "system", icon: "settings" },
     ];
   }
 
   if (roleName === "Secretary") {
     return [
-      { href: "/dashboard", label: "Dashboard Home" },
-      { href: "/dashboard/create-account", label: "Create Borrower" },
-      { href: "/dashboard/create-loan", label: "Create Loan" },
-      { href: "/dashboard/borrowers", label: "Borrowers" },
-      { href: "/dashboard/loans", label: "Loans" },
+      { href: "/dashboard", label: "Overview", section: "main", icon: "layout-dashboard" },
+      { href: "/dashboard/loans", label: "Loans", section: "main", icon: "hand-coins" },
+      { href: "/dashboard/borrowers", label: "Borrowers", section: "main", icon: "users" },
+      { href: "/dashboard/loans", label: "Collections", section: "main", icon: "receipt-text" },
+      { href: "/dashboard/my-documents", label: "Documents", section: "system", icon: "file-text" },
+      { href: "/dashboard/create-account", label: "Create Account", section: "system", icon: "user-plus" },
+      { href: "/dashboard", label: "Settings", section: "system", icon: "settings" },
     ];
   }
 
   if (roleName === "Auditor") {
     return [
-      { href: "/dashboard", label: "Dashboard Home" },
-      { href: "/dashboard/borrowers", label: "Borrowers" },
-      { href: "/dashboard/loans", label: "Loans" },
-      { href: "/dashboard/expenses", label: "Expenses" },
-      { href: "/dashboard/incentives", label: "Incentives" },
+      { href: "/dashboard", label: "Overview", section: "main", icon: "layout-dashboard" },
+      { href: "/dashboard/loans", label: "Loans", section: "main", icon: "hand-coins" },
+      { href: "/dashboard/borrowers", label: "Borrowers", section: "main", icon: "users" },
+      { href: "/dashboard/incentives", label: "Incentives", section: "finance", icon: "wallet" },
+      { href: "/dashboard/expenses", label: "Expenses", section: "finance", icon: "receipt-text" },
+      { href: "/dashboard/my-documents", label: "Documents", section: "system", icon: "file-text" },
+      { href: "/dashboard", label: "Settings", section: "system", icon: "settings" },
     ];
   }
 
   if (roleName === "Collector") {
     return [
-      { href: "/dashboard", label: "My Performance" },
-      { href: "/dashboard/assigned-loans", label: "Assigned Loans" },
-      { href: "/dashboard/my-collections", label: "My Collections" },
+      { href: "/dashboard", label: "Overview", section: "main", icon: "layout-dashboard" },
+      { href: "/dashboard/assigned-loans", label: "Loans", section: "main", icon: "hand-coins" },
+      { href: "/dashboard/my-collections", label: "Collections", section: "main", icon: "receipt-text" },
+      { href: "/dashboard", label: "Settings", section: "system", icon: "settings" },
     ];
   }
 
   if (roleName === "Borrower") {
     return [
-      { href: "/dashboard", label: "Dashboard Home" },
-      { href: "/dashboard/my-loans", label: "My Loans" },
-      { href: "/dashboard/my-documents", label: "My Documents" },
+      { href: "/dashboard", label: "Overview", section: "main", icon: "layout-dashboard" },
+      { href: "/dashboard/my-loans", label: "Loans", section: "main", icon: "hand-coins" },
+      { href: "/dashboard/my-documents", label: "Documents", section: "system", icon: "file-text" },
+      { href: "/dashboard", label: "Settings", section: "system", icon: "settings" },
     ];
   }
 
-  return [{ href: "/dashboard", label: "Dashboard Home" }];
+  return [{ href: "/dashboard", label: "Overview", section: "main", icon: "layout-dashboard" }];
 }
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
