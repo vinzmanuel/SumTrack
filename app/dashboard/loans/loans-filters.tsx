@@ -4,15 +4,11 @@ import { Loader2 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
-
-type BranchOption = {
-  branch_id: number;
-  branch_name: string;
-};
+import type { LoanBranchOption } from "@/app/dashboard/loans/types";
 
 type LoansFiltersProps = {
   selectedBranchId: number | null;
-  branches: BranchOption[];
+  branches: LoanBranchOption[];
 };
 
 export function LoansFilters({ selectedBranchId, branches }: LoansFiltersProps) {

@@ -2,8 +2,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function LoadingIncentivesPage() {
   return (
-    <main className="mx-auto min-h-screen w-full max-w-7xl p-6">
-      <Card className="mb-6">
+    <div className="space-y-6">
+      <Card>
         <CardHeader>
           <CardTitle>Incentive Payouts</CardTitle>
         </CardHeader>
@@ -21,6 +21,6 @@ export default function LoadingIncentivesPage() {
           <div className="h-10 animate-pulse rounded bg-muted" />
         </CardContent>
       </Card>
-    </main>
+    </div>
   );
 }

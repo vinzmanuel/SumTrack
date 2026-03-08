@@ -5,23 +5,14 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
-
-type BranchOption = {
-  branch_id: number;
-  branch_name: string;
-};
-
-type AreaOption = {
-  area_id: number;
-  area_code: string;
-};
+import type { BorrowerAreaOption, BorrowerBranchOption } from "@/app/dashboard/borrowers/types";
 
 type BorrowersFiltersProps = {
   canChooseBranch: boolean;
   selectedBranchId: number | null;
   selectedAreaId: number | null;
-  branches: BranchOption[];
-  areas: AreaOption[];
+  branches: BorrowerBranchOption[];
+  areas: BorrowerAreaOption[];
   allBranchLabel?: string;
 };
 

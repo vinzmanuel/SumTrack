@@ -7,13 +7,12 @@ import {
   borrower_info,
   branch,
   employee_area_assignment,
-  employee_branch_assignment,
   employee_info,
   loan_records,
   roles,
   users,
 } from "@/db/schema";
-import { createClient } from "@/lib/supabase/server";
+import { resolveCreateLoanAccess } from "@/app/dashboard/create-loan/access";
 import { ACTIVE_LOAN_STATUSES } from "@/app/dashboard/loans/active-statuses";
 import type { CreateLoanState } from "@/app/dashboard/create-loan/state";
 
@@ -163,76 +162,16 @@ export async function createLoanAction(
     };
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user: currentAuthUser },
-  } = await supabase.auth.getUser();
-
-  if (!currentAuthUser) {
+  const access = await resolveCreateLoanAccess();
+  if (!access.ok) {
     return {
       status: "error",
-      message: "You must be logged in.",
+      message: access.message,
     };
   }
 
-  const currentAppUser = await db
-    .select({ role_id: users.role_id })
-    .from(users)
-    .where(eq(users.user_id, currentAuthUser.id))
-    .limit(1)
-    .then((rows) => rows[0] ?? null)
-    .catch(() => null);
-
-  if (!currentAppUser?.role_id) {
-    return {
-      status: "error",
-      message: "Unable to verify your app account.",
-    };
-  }
-
-  const currentRole = await db
-    .select({ role_name: roles.role_name })
-    .from(roles)
-    .where(eq(roles.role_id, currentAppUser.role_id))
-    .limit(1)
-    .then((rows) => rows[0] ?? null)
-    .catch(() => null);
-
-  const roleName = currentRole?.role_name ?? null;
-  const isAdmin = roleName === "Admin";
-  const isBranchManager = roleName === "Branch Manager";
-  const isSecretary = roleName === "Secretary";
-
-  if (!isAdmin && !isBranchManager && !isSecretary) {
-    return {
-      status: "error",
-      message: "Only Admin, Branch Manager, and Secretary users can create loans.",
-    };
-  }
-
-  let allowedBranchId: number | null = null;
-  if (!isAdmin) {
-    const assignments = await db
-      .select({ branch_id: employee_branch_assignment.branch_id })
-      .from(employee_branch_assignment)
-      .where(
-        and(
-          eq(employee_branch_assignment.employee_user_id, currentAuthUser.id),
-          isNull(employee_branch_assignment.end_date),
-        ),
-      )
-      .catch(() => []);
-
-    const uniqueBranchIds = Array.from(new Set(assignments.map((item) => item.branch_id)));
-    if (uniqueBranchIds.length !== 1) {
-      return {
-        status: "error",
-        message: "A single active branch assignment is required before creating loans.",
-      };
-    }
-
-    allowedBranchId = uniqueBranchIds[0];
-  }
+  const isAdmin = access.isAdmin;
+  const allowedBranchId = access.fixedBranchId;
 
   const borrowerInfo = await db
     .select({
@@ -240,8 +179,16 @@ export async function createLoanAction(
       area_id: borrower_info.area_id,
       first_name: borrower_info.first_name,
       last_name: borrower_info.last_name,
+      company_id: users.company_id,
+      username: users.username,
+      borrower_branch_id: areas.branch_id,
+      borrower_area_id: areas.area_id,
+      branch_name: branch.branch_name,
     })
     .from(borrower_info)
+    .innerJoin(users, eq(users.user_id, borrower_info.user_id))
+    .innerJoin(areas, eq(areas.area_id, borrower_info.area_id))
+    .innerJoin(branch, eq(branch.branch_id, areas.branch_id))
     .where(eq(borrower_info.user_id, String(toDbId(borrowerId))))
     .limit(1)
     .then((rows) => rows[0] ?? null)
@@ -254,59 +201,13 @@ export async function createLoanAction(
     };
   }
 
-  const borrowerUser = await db
-    .select({
-      company_id: users.company_id,
-      username: users.username,
-    })
-    .from(users)
-    .where(eq(users.user_id, borrowerInfo.user_id))
-    .limit(1)
-    .then((rows) => rows[0] ?? null)
-    .catch(() => null);
-
   const borrowerName =
     [borrowerInfo.first_name, borrowerInfo.last_name].filter(Boolean).join(" ") ||
-    borrowerUser?.username ||
+    borrowerInfo.username ||
     borrowerInfo.user_id;
 
   const branchIdDb = toDbId(branchId);
   const areaIdDb = toDbId(areaId);
-  const borrowerArea = await db
-    .select({
-      area_id: areas.area_id,
-      branch_id: areas.branch_id,
-    })
-    .from(areas)
-    .where(eq(areas.area_id, borrowerInfo.area_id))
-    .limit(1)
-    .then((rows) => rows[0] ?? null)
-    .catch(() => null);
-
-  if (!borrowerArea) {
-    return {
-      status: "error",
-      message: "Selected borrower area was not found.",
-    };
-  }
-
-  const branchRow = await db
-    .select({
-      branch_id: branch.branch_id,
-      branch_name: branch.branch_name,
-    })
-    .from(branch)
-    .where(eq(branch.branch_id, borrowerArea.branch_id))
-    .limit(1)
-    .then((rows) => rows[0] ?? null)
-    .catch(() => null);
-
-  if (!branchRow) {
-    return {
-      status: "error",
-      message: "Borrower branch was not found.",
-    };
-  }
 
   if (typeof branchIdDb !== "number") {
     return {
@@ -328,7 +229,7 @@ export async function createLoanAction(
     };
   }
 
-  if (borrowerArea.area_id !== areaIdDb) {
+  if (borrowerInfo.borrower_area_id !== areaIdDb) {
     return {
       status: "error",
       message: "Selected area does not match the borrower's assigned area.",
@@ -338,17 +239,17 @@ export async function createLoanAction(
     };
   }
 
-  if (branchRow.branch_id !== branchIdDb) {
+  if (borrowerInfo.borrower_branch_id !== branchIdDb) {
     return {
       status: "error",
       message: "Selected branch does not match the borrower's assigned branch.",
       fieldErrors: {
-        branch_id: `Borrower belongs to ${branchRow.branch_name}.`,
+        branch_id: `Borrower belongs to ${borrowerInfo.branch_name}.`,
       },
     };
   }
 
-  if (!isAdmin && allowedBranchId !== null && branchRow.branch_id !== allowedBranchId) {
+  if (!isAdmin && allowedBranchId !== null && borrowerInfo.borrower_branch_id !== allowedBranchId) {
     return {
       status: "error",
       message: "You can only create loans within your assigned branch.",
@@ -361,16 +262,20 @@ export async function createLoanAction(
   const collectorUser = await db
     .select({
       user_id: users.user_id,
-      role_id: users.role_id,
       username: users.username,
+      role_name: roles.role_name,
+      first_name: employee_info.first_name,
+      last_name: employee_info.last_name,
     })
     .from(users)
+    .innerJoin(roles, eq(roles.role_id, users.role_id))
+    .leftJoin(employee_info, eq(employee_info.user_id, users.user_id))
     .where(eq(users.user_id, collectorId))
     .limit(1)
     .then((rows) => rows[0] ?? null)
     .catch(() => null);
 
-  if (!collectorUser?.role_id) {
+  if (!collectorUser?.user_id) {
     return {
       status: "error",
       message: "Selected collector was not found.",
@@ -380,17 +285,7 @@ export async function createLoanAction(
     };
   }
 
-  const collectorRole = await db
-    .select({
-      role_name: roles.role_name,
-    })
-    .from(roles)
-    .where(eq(roles.role_id, collectorUser.role_id))
-    .limit(1)
-    .then((rows) => rows[0] ?? null)
-    .catch(() => null);
-
-  if (collectorRole?.role_name !== "Collector") {
+  if (collectorUser.role_name !== "Collector") {
     return {
       status: "error",
       message: "Selected account is not a Collector.",
@@ -408,7 +303,7 @@ export async function createLoanAction(
     .where(
       and(
         eq(employee_area_assignment.employee_user_id, collectorUser.user_id),
-        eq(employee_area_assignment.area_id, borrowerArea.area_id),
+        eq(employee_area_assignment.area_id, borrowerInfo.borrower_area_id),
         isNull(employee_area_assignment.end_date),
       ),
     )
@@ -426,23 +321,12 @@ export async function createLoanAction(
     };
   }
 
-  const collectorEmployee = await db
-    .select({
-      first_name: employee_info.first_name,
-      last_name: employee_info.last_name,
-    })
-    .from(employee_info)
-    .where(eq(employee_info.user_id, collectorUser.user_id))
-    .limit(1)
-    .then((rows) => rows[0] ?? null)
-    .catch(() => null);
-
   const collectorName =
-    [collectorEmployee?.first_name, collectorEmployee?.last_name].filter(Boolean).join(" ") ||
+    [collectorUser.first_name, collectorUser.last_name].filter(Boolean).join(" ") ||
     collectorUser.username ||
     collectorUser.user_id;
 
-  if (!borrowerUser?.company_id) {
+  if (!borrowerInfo.company_id) {
     return {
       status: "error",
       message: "Borrower company ID is missing.",
@@ -472,7 +356,7 @@ export async function createLoanAction(
     };
   }
 
-  const nextLoanCode = await generateNextLoanCode(borrowerInfo.user_id, borrowerUser.company_id).catch(
+  const nextLoanCode = await generateNextLoanCode(borrowerInfo.user_id, borrowerInfo.company_id).catch(
     () => null,
   );
 
@@ -543,7 +427,7 @@ export async function createLoanAction(
       start_date: startDate,
       due_date: dueDate,
       term_days: termDays,
-      branch_id: branchRow.branch_id,
+      branch_id: borrowerInfo.borrower_branch_id,
       status: NEW_LOAN_STATUS,
     })
     .returning({ loan_id: loan_records.loan_id, loan_code: loan_records.loan_code })
@@ -564,7 +448,7 @@ export async function createLoanAction(
       loanId: String(insertedLoan.loan_id),
       loanCode: insertedLoan.loan_code,
       borrowerName,
-      branchName: branchRow.branch_name,
+      branchName: borrowerInfo.branch_name,
       collectorName,
       principal: principal!,
       interest: interest!,

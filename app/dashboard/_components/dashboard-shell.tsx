@@ -126,8 +126,8 @@ function NavContent({
                         isCollapsed ? "justify-center px-0" : "justify-start"
                       } ${
                         active
-                          ? "bg-zinc-800 text-white hover:bg-zinc-700"
-                          : "text-zinc-300 hover:bg-zinc-800/70 hover:text-white"
+                          ? "bg-[oklch(0.29_0.02_25)] text-[oklch(0.99_0_0)] hover:bg-[oklch(0.29_0.02_25)] hover:text-[oklch(0.99_0_0)]"
+                          : "text-[oklch(0.92_0_0)] hover:bg-[oklch(0.25_0.02_25)] hover:text-[oklch(0.95_0_0)]"
                       }`}
                       key={key}
                       onClick={closeDrawer}
@@ -155,7 +155,7 @@ function NavContent({
       <div className="border-t border-zinc-800 px-2 py-3">
         <form action="/auth/signout" method="post">
           <Button
-            className={`w-full justify-start bg-zinc-900 text-zinc-200 hover:bg-zinc-800 hover:text-white active:scale-[0.98] focus-visible:ring-zinc-400 ${
+            className={`w-full justify-center bg-red-950 text-zinc-200 hover:bg-red-900 hover:text-white active:scale-[0.98] focus-visible:ring-zinc-400 ${
               isCollapsed ? "px-0" : ""
             }`}
             title="Sign out"

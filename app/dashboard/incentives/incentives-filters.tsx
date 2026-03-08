@@ -5,17 +5,13 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
-
-type BranchOption = {
-  branch_id: number;
-  branch_name: string;
-};
+import type { IncentivesBranchOption } from "@/app/dashboard/incentives/types";
 
 type IncentivesFiltersProps = {
   canChooseBranch: boolean;
   selectedBranchRaw: string;
   selectedMonthRaw: string;
-  branches: BranchOption[];
+  branches: IncentivesBranchOption[];
   clearHref: string;
   allBranchLabel: string;
 };

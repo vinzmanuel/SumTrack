@@ -2,8 +2,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function LoadingBorrowerProfilePage() {
   return (
-    <main className="mx-auto min-h-screen w-full max-w-7xl p-6">
-      <Card className="mb-6">
+    <div className="space-y-6">
+      <Card>
         <CardHeader>
           <CardTitle>Borrower Profile</CardTitle>
         </CardHeader>
@@ -11,7 +11,7 @@ export default function LoadingBorrowerProfilePage() {
           <div className="h-4 w-60 animate-pulse rounded bg-muted" />
         </CardContent>
       </Card>
-      <Card className="mb-6">
+      <Card>
         <CardHeader>
           <div className="h-5 w-44 animate-pulse rounded bg-muted" />
         </CardHeader>
@@ -31,6 +31,6 @@ export default function LoadingBorrowerProfilePage() {
           <div className="h-8 animate-pulse rounded bg-muted" />
         </CardContent>
       </Card>
-    </main>
+    </div>
   );
 }

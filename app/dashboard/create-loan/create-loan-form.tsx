@@ -24,35 +24,13 @@ import {
 } from "@/components/ui/select";
 import { createLoanAction } from "@/app/dashboard/create-loan/actions";
 import { initialCreateLoanState } from "@/app/dashboard/create-loan/state";
-
-type BorrowerOption = {
-  user_id: string;
-  area_id: string | number;
-  company_id: string | null;
-  label: string;
-  full_name: string;
-  first_name: string | null;
-  last_name: string | null;
-  username: string | null;
-};
-
-type BranchOption = {
-  branch_id: string | number;
-  branch_name: string;
-};
-
-type AreaOption = {
-  area_id: string | number;
-  branch_id: string | number;
-  area_no: string;
-  area_code: string;
-};
-
-type CollectorOption = {
-  user_id: string;
-  area_id: string | number;
-  label: string;
-};
+import type {
+  AreaOption,
+  BorrowerOption,
+  BranchOption,
+  CollectorOption,
+  PrefilledBorrower,
+} from "@/app/dashboard/create-loan/types";
 
 type CreateLoanFormProps = {
   borrowers: BorrowerOption[];
@@ -61,12 +39,7 @@ type CreateLoanFormProps = {
   areas: AreaOption[];
   collectors: CollectorOption[];
   isAdmin: boolean;
-  prefilledBorrower?: {
-    borrowerId: string;
-    branchId: string;
-    areaId: string;
-    label: string;
-  } | null;
+  prefilledBorrower?: PrefilledBorrower | null;
 };
 
 const DEFAULT_TERM_DAYS = 58;

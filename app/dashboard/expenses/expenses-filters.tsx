@@ -5,18 +5,14 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
-
-type BranchOption = {
-  branch_id: number;
-  branch_name: string;
-};
+import type { ExpenseBranchOption } from "@/app/dashboard/expenses/types";
 
 type ExpensesFiltersProps = {
   canChooseBranch: boolean;
   selectedBranchRaw: string;
   selectedMonthRaw: string;
   selectedCategory: string;
-  branches: BranchOption[];
+  branches: ExpenseBranchOption[];
   categories: readonly string[];
   clearHref: string;
 };

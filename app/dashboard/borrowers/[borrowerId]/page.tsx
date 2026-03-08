@@ -316,8 +316,8 @@ export default async function BorrowerProfilePage({ params, searchParams }: Page
   });
 
   return (
-    <main className="mx-auto min-h-screen w-full max-w-7xl p-6">
-      <Card className="mb-6">
+    <div className="space-y-6">
+      <Card>
         <CardHeader>
           <CardTitle>Borrower Profile</CardTitle>
           <CardDescription>Borrower details and loan history</CardDescription>
@@ -336,7 +336,7 @@ export default async function BorrowerProfilePage({ params, searchParams }: Page
         </CardContent>
       </Card>
 
-      <Card className="mb-6">
+      <Card>
         <CardHeader>
           <CardTitle>Borrower Summary</CardTitle>
         </CardHeader>
@@ -366,9 +366,9 @@ export default async function BorrowerProfilePage({ params, searchParams }: Page
         </CardContent>
       </Card>
 
-      <BorrowerDocumentsSection
-        borrowerId={borrower.user_id}
-        canManage={canManageDocs}
+        <BorrowerDocumentsSection
+          borrowerId={borrower.user_id}
+          canManage={canManageDocs}
         canView={canViewDocs}
         currentPage={docsPage}
         docs={pagedDocs}
@@ -420,6 +420,6 @@ export default async function BorrowerProfilePage({ params, searchParams }: Page
           )}
         </CardContent>
       </Card>
-    </main>
+    </div>
   );
 }

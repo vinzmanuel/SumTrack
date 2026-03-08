@@ -1,65 +1,15 @@
 import Link from "next/link";
-import { and, desc, eq, gte, inArray, lte, type SQL } from "drizzle-orm";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireDashboardAuth } from "@/app/dashboard/auth";
 import { ExpensesFilters } from "@/app/dashboard/expenses/expenses-filters";
-import { db } from "@/db";
-import { branch, expenses, users } from "@/db/schema";
-
-type PageProps = {
-  searchParams?: Promise<{
-    branch?: string;
-    month?: string;
-    category?: string;
-  }>;
-};
-
-const EXPENSE_CATEGORIES = [
-  "Rent",
-  "Electricity",
-  "Water",
-  "Transportation",
-  "Lunch",
-  "Salary",
-  "Miscellaneous",
-] as const;
-
-function formatMoney(value: number) {
-  return `\u20B1${value.toLocaleString("en-PH", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
-}
-
-function resolveMonthRange(month: string) {
-  if (!/^\d{4}-\d{2}$/.test(month)) {
-    return null;
-  }
-
-  const [yearRaw, monthRaw] = month.split("-");
-  const year = Number(yearRaw);
-  const monthIndex = Number(monthRaw) - 1;
-  const startDate = new Date(Date.UTC(year, monthIndex, 1));
-
-  if (Number.isNaN(startDate.getTime())) {
-    return null;
-  }
-
-  const nextMonthDate = new Date(Date.UTC(year, monthIndex + 1, 1));
-  const endDate = new Date(nextMonthDate.getTime() - 86400000);
-
-  return {
-    start: startDate.toISOString().slice(0, 10),
-    end: endDate.toISOString().slice(0, 10),
-  };
-}
-
-export default async function ExpensesPage({ searchParams }: PageProps) {
-  const params = (await searchParams) ?? {};
-  const selectedBranchRaw = String(params.branch ?? "all");
-  const selectedMonthRaw = String(params.month ?? "");
-  const selectedCategoryRaw = String(params.category ?? "all");
+import { parseExpensesFilters, EXPENSE_CATEGORIES, resolveExpensesPageAccess } from "@/app/dashboard/expenses/filters";
+import { loadExpensesPageData } from "@/app/dashboard/expenses/queries";
+import { ExpensesSummary } from "@/app/dashboard/expenses/expenses-summary";
+import { ExpensesTable } from "@/app/dashboard/expenses/expenses-table";
+import type { ExpensesPageProps } from "@/app/dashboard/expenses/types";
+export default async function ExpensesPage({ searchParams }: ExpensesPageProps) {
+  const params = parseExpensesFilters((await searchParams) ?? {});
 
   const auth = await requireDashboardAuth();
   if (!auth.ok) {
@@ -75,11 +25,9 @@ export default async function ExpensesPage({ searchParams }: PageProps) {
     );
   }
 
-  const isAdmin = auth.roleName === "Admin";
-  const isBranchManager = auth.roleName === "Branch Manager";
-  const isAuditor = auth.roleName === "Auditor";
+  const access = resolveExpensesPageAccess(auth, params);
 
-  if (!isAdmin && !isBranchManager && !isAuditor) {
+  if (access.view === "forbidden") {
     return (
       <main className="mx-auto flex min-h-screen w-full max-w-5xl items-center justify-center p-6">
         <Card className="w-full max-w-md">
@@ -87,9 +35,7 @@ export default async function ExpensesPage({ searchParams }: PageProps) {
             <CardTitle>Expenses</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              You are logged in, but only Admin, Branch Manager, and Auditor users can view expenses.
-            </p>
+            <p className="text-sm text-muted-foreground">{access.message}</p>
             <Link className="text-sm underline" href="/dashboard">
               Back to dashboard
             </Link>
@@ -99,101 +45,30 @@ export default async function ExpensesPage({ searchParams }: PageProps) {
     );
   }
 
-  const branches = await db
-    .select({
-      branch_id: branch.branch_id,
-      branch_name: branch.branch_name,
-    })
-    .from(branch)
-    .orderBy(branch.branch_name)
-    .catch(() => []);
-
-  let fixedBranchId: number | null = null;
-  let fixedBranchName: string | null = null;
-  if (isBranchManager) {
-    if (!auth.activeBranchId) {
-      return (
-        <Card>
-          <CardHeader>
-            <CardTitle>Expenses</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-amber-700 dark:text-amber-400">
-              No active branch assignment found.
-            </p>
-          </CardContent>
-        </Card>
-      );
-    }
-    fixedBranchId = auth.activeBranchId;
-    fixedBranchName = auth.activeBranchName;
+  if (access.view === "branch_error") {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Expenses</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-amber-700 dark:text-amber-400">{access.message}</p>
+        </CardContent>
+      </Card>
+    );
   }
 
-  const selectedBranchId = (isAdmin || isAuditor) && /^\d+$/.test(selectedBranchRaw) ? Number(selectedBranchRaw) : null;
-  const monthRange = selectedMonthRaw ? resolveMonthRange(selectedMonthRaw) : null;
-  const selectedCategory = EXPENSE_CATEGORIES.includes(
-    selectedCategoryRaw as (typeof EXPENSE_CATEGORIES)[number],
-  )
-    ? selectedCategoryRaw
-    : "all";
-
-  const filters: SQL[] = [];
-
-  if (isBranchManager && fixedBranchId !== null) {
-    filters.push(eq(expenses.branch_id, fixedBranchId));
-  } else if ((isAdmin || isAuditor) && selectedBranchId !== null) {
-    filters.push(eq(expenses.branch_id, selectedBranchId));
-  } else if (isAuditor) {
-    if (auth.assignedBranchIds.length === 0) {
-      filters.push(eq(expenses.expense_id, -1));
-    } else {
-      filters.push(inArray(expenses.branch_id, auth.assignedBranchIds));
-    }
-  }
-
-  if (monthRange) {
-    filters.push(gte(expenses.expense_date, monthRange.start));
-    filters.push(lte(expenses.expense_date, monthRange.end));
-  }
-
-  if (selectedCategory !== "all") {
-    filters.push(eq(expenses.expense_category, selectedCategory));
-  }
-
-  const expenseRows = await db
-    .select({
-      expense_id: expenses.expense_id,
-      branch_name: branch.branch_name,
-      expense_category: expenses.expense_category,
-      description: expenses.description,
-      amount: expenses.amount,
-      expense_date: expenses.expense_date,
-      recorded_by_username: users.username,
-      recorded_by_company_id: users.company_id,
-      recorded_at: expenses.recorded_at,
-    })
-    .from(expenses)
-    .innerJoin(branch, eq(branch.branch_id, expenses.branch_id))
-    .leftJoin(users, eq(users.user_id, expenses.recorded_by))
-    .where(filters.length === 0 ? undefined : filters.length === 1 ? filters[0] : and(...filters))
-    .orderBy(desc(expenses.expense_date), desc(expenses.expense_id))
-    .catch(() => []);
-
-  const totalExpenses = expenseRows.length;
-  const totalAmount = expenseRows.reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
-  const selectableBranches = isAuditor
-    ? branches.filter((item) => auth.assignedBranchIds.includes(item.branch_id))
-    : branches;
+  const pageData = await loadExpensesPageData(access);
 
   return (
-    <main className="mx-auto min-h-screen w-full max-w-7xl p-6">
-      <Card className="mb-6">
+    <div className="space-y-6">
+      <Card>
         <CardHeader>
           <CardTitle>Expenses</CardTitle>
           <CardDescription>
-            {isAdmin
+            {access.isAdmin
               ? "Admin expense monitoring by branch, month, and category."
-              : isAuditor
+              : access.isAuditor
                 ? "Auditor read-only expense monitoring across assigned branches."
                 : "Branch expense monitoring by month and category."}
           </CardDescription>
@@ -204,7 +79,7 @@ export default async function ExpensesPage({ searchParams }: PageProps) {
               Back to dashboard
             </Button>
           </Link>
-          {isAdmin || isBranchManager ? (
+          {access.canCreateExpense ? (
             <Link href="/dashboard/expenses/create">
               <Button type="button" variant="secondary">
                 Create expense
@@ -214,23 +89,20 @@ export default async function ExpensesPage({ searchParams }: PageProps) {
         </CardContent>
       </Card>
 
-      <Card className="mb-6">
+      <Card>
         <CardHeader>
           <CardTitle>Filters</CardTitle>
         </CardHeader>
         <CardContent>
-          {isAdmin || isAuditor ? (
+          {access.canChooseBranch ? (
             <ExpensesFilters
-              branches={selectableBranches.map((item) => ({
-                branch_id: item.branch_id,
-                branch_name: item.branch_name,
-              }))}
+              branches={pageData.branches}
               canChooseBranch
               categories={EXPENSE_CATEGORIES}
               clearHref="/dashboard/expenses"
-              selectedBranchRaw={selectedBranchRaw}
-              selectedCategory={selectedCategory}
-              selectedMonthRaw={selectedMonthRaw}
+              selectedBranchRaw={access.selectedBranchRaw}
+              selectedCategory={access.selectedCategory}
+              selectedMonthRaw={access.selectedMonthRaw}
             />
           ) : (
             <div className="space-y-4">
@@ -242,7 +114,7 @@ export default async function ExpensesPage({ searchParams }: PageProps) {
                   className="border-input focus-visible:border-ring focus-visible:ring-ring/50 w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
                   id="fixed_branch"
                   readOnly
-                  value={fixedBranchName ?? "N/A"}
+                  value={access.fixedBranchName ?? "N/A"}
                 />
               </div>
               <ExpensesFilters
@@ -250,78 +122,25 @@ export default async function ExpensesPage({ searchParams }: PageProps) {
                 canChooseBranch={false}
                 categories={EXPENSE_CATEGORIES}
                 clearHref="/dashboard/expenses"
-                selectedBranchRaw={selectedBranchRaw}
-                selectedCategory={selectedCategory}
-                selectedMonthRaw={selectedMonthRaw}
+                selectedBranchRaw={access.selectedBranchRaw}
+                selectedCategory={access.selectedCategory}
+                selectedMonthRaw={access.selectedMonthRaw}
               />
             </div>
           )}
         </CardContent>
       </Card>
 
-      <div className="mb-6 grid gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Total Matching Expenses</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-semibold">{totalExpenses}</p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Total Matching Amount</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-2xl font-semibold">{formatMoney(totalAmount)}</p>
-          </CardContent>
-        </Card>
-      </div>
+      <ExpensesSummary totalAmount={pageData.totalAmount} totalExpenses={pageData.totalExpenses} />
 
       <Card>
         <CardHeader>
           <CardTitle>Expense Records</CardTitle>
         </CardHeader>
         <CardContent>
-          {expenseRows.length === 0 ? (
-            <p className="text-muted-foreground text-sm">No expenses found for the selected filters.</p>
-          ) : (
-            <div className="overflow-auto">
-              <table className="w-full min-w-300 text-sm">
-                <thead>
-                  <tr className="border-b text-left">
-                    <th className="px-2 py-2 font-medium">Expense ID</th>
-                    <th className="px-2 py-2 font-medium">Branch</th>
-                    <th className="px-2 py-2 font-medium">Category</th>
-                    <th className="px-2 py-2 font-medium">Description</th>
-                    <th className="px-2 py-2 font-medium">Amount</th>
-                    <th className="px-2 py-2 font-medium">Expense Date</th>
-                    <th className="px-2 py-2 font-medium">Recorded By</th>
-                    <th className="px-2 py-2 font-medium">Recorded At</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {expenseRows.map((row) => (
-                    <tr className="border-b" key={row.expense_id}>
-                      <td className="px-2 py-2">{row.expense_id}</td>
-                      <td className="px-2 py-2">{row.branch_name}</td>
-                      <td className="px-2 py-2">{row.expense_category}</td>
-                      <td className="px-2 py-2">{row.description || "-"}</td>
-                      <td className="px-2 py-2">{formatMoney(Number(row.amount) || 0)}</td>
-                      <td className="px-2 py-2">{row.expense_date}</td>
-                      <td className="px-2 py-2">
-                        {row.recorded_by_company_id || row.recorded_by_username || "N/A"}
-                      </td>
-                      <td className="px-2 py-2">{row.recorded_at || "N/A"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          <ExpensesTable expenses={pageData.expenses} />
         </CardContent>
       </Card>
-    </main>
+    </div>
   );
 }

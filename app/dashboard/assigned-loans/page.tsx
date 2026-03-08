@@ -50,7 +50,7 @@ export default async function AssignedLoansPage() {
             <p className="text-muted-foreground text-sm">No assigned loans.</p>
           ) : (
             <div className="overflow-auto">
-              <table className="w-full min-w-[720px] text-sm">
+              <table className="w-full min-w-180 text-sm">
                 <thead>
                   <tr className="border-b text-left">
                     <th className="px-2 py-2 font-medium">Loan Code</th>

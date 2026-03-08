@@ -2,10 +2,7 @@
 
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { db } from "@/db";
-import { branch, incentive_payout_batches, incentive_payout_history, roles, users } from "@/db/schema";
-import { createClient } from "@/lib/supabase/server";
-import type { FinalizeIncentiveState } from "@/app/dashboard/incentives/state";
+import { getDashboardAuthContext } from "@/app/dashboard/auth";
 import {
   computeLiveIncentivesForPeriod,
   getFinalizedBatchForPeriod,
@@ -13,6 +10,9 @@ import {
   resolveActiveBranchForBranchManager,
   resolvePayPeriod,
 } from "@/app/dashboard/incentives/lib";
+import type { FinalizeIncentiveState } from "@/app/dashboard/incentives/state";
+import { db } from "@/db";
+import { branch, incentive_payout_batches, incentive_payout_history } from "@/db/schema";
 
 function readTrimmed(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
@@ -37,38 +37,16 @@ export async function finalizeIncentivePayoutAction(
     };
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
+  const auth = await getDashboardAuthContext();
+  if (!auth.ok) {
     return {
       status: "error",
-      message: "Not logged in.",
+      message: auth.reason === "unauthenticated" ? "Not logged in." : auth.message,
     };
   }
 
-  const currentAppUser = await db
-    .select({ role_id: users.role_id })
-    .from(users)
-    .where(eq(users.user_id, user.id))
-    .limit(1)
-    .then((rows) => rows[0] ?? null)
-    .catch(() => null);
-
-  const currentRole = currentAppUser?.role_id
-    ? await db
-        .select({ role_name: roles.role_name })
-        .from(roles)
-        .where(eq(roles.role_id, currentAppUser.role_id))
-        .limit(1)
-        .then((rows) => rows[0] ?? null)
-        .catch(() => null)
-    : null;
-
-  const isAdmin = currentRole?.role_name === "Admin";
-  const isBranchManager = currentRole?.role_name === "Branch Manager";
+  const isAdmin = auth.roleName === "Admin";
+  const isBranchManager = auth.roleName === "Branch Manager";
 
   if (!isAdmin && !isBranchManager) {
     return {
@@ -81,7 +59,7 @@ export async function finalizeIncentivePayoutAction(
   let branchName: string | null = null;
 
   if (isBranchManager) {
-    const branchResolution = await resolveActiveBranchForBranchManager(user.id);
+    const branchResolution = await resolveActiveBranchForBranchManager(auth.userId);
     if (!branchResolution.ok) {
       return {
         status: "error",
@@ -91,7 +69,7 @@ export async function finalizeIncentivePayoutAction(
 
     branchId = branchResolution.branchId;
     branchName = branchResolution.branchName;
-  } else if (isAdmin) {
+  } else {
     const parsedBranchId = parseBranchId(requestedBranchRaw);
     if (parsedBranchId === null) {
       return {
@@ -177,7 +155,7 @@ export async function finalizeIncentivePayoutAction(
           period_label: payPeriod.label,
           period_start: payPeriod.periodStart,
           period_end: payPeriod.periodEnd,
-          finalized_by: user.id,
+          finalized_by: auth.userId,
         })
         .returning({ batch_id: incentive_payout_batches.batch_id })
         .then((rows) => rows[0] ?? null);
