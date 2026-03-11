@@ -1,13 +1,9 @@
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ListPagination } from "@/app/dashboard/_components/list-pagination";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireDashboardAuth } from "@/app/dashboard/auth";
-import { ExpensesFilters } from "@/app/dashboard/expenses/expenses-filters";
-import { parseExpensesFilters, EXPENSE_CATEGORIES, resolveExpensesPageAccess } from "@/app/dashboard/expenses/filters";
-import { loadExpensesPageData } from "@/app/dashboard/expenses/queries";
-import { ExpensesSummary } from "@/app/dashboard/expenses/expenses-summary";
-import { ExpensesTable } from "@/app/dashboard/expenses/expenses-table";
+import { ExpensesClientPage } from "@/app/dashboard/expenses/expenses-client-page";
+import { parseExpensesFilters, resolveExpensesPageAccess } from "@/app/dashboard/expenses/filters";
+import { loadExpensesBranchOptions, loadExpensesResultsData } from "@/app/dashboard/expenses/queries";
 import type { ExpensesPageProps } from "@/app/dashboard/expenses/types";
 export default async function ExpensesPage({ searchParams }: ExpensesPageProps) {
   const params = parseExpensesFilters((await searchParams) ?? {});
@@ -59,100 +55,30 @@ export default async function ExpensesPage({ searchParams }: ExpensesPageProps) 
     );
   }
 
-  const pageData = await loadExpensesPageData(access);
+  const description = access.isAdmin
+    ? "Admin expense monitoring by branch, month, and category."
+    : access.isAuditor
+      ? "Auditor read-only expense monitoring across assigned branches."
+      : "Branch expense monitoring by month and category.";
+  const [branchOptions, initialResults] = await Promise.all([
+    loadExpensesBranchOptions(access),
+    loadExpensesResultsData(access),
+  ]);
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Expenses</CardTitle>
-          <CardDescription>
-            {access.isAdmin
-              ? "Admin expense monitoring by branch, month, and category."
-              : access.isAuditor
-                ? "Auditor read-only expense monitoring across assigned branches."
-                : "Branch expense monitoring by month and category."}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-2">
-          <Link href="/dashboard">
-            <Button type="button" variant="outline">
-              Back to dashboard
-            </Button>
-          </Link>
-          {access.canCreateExpense ? (
-            <Link href="/dashboard/expenses/create">
-              <Button type="button" variant="secondary">
-                Create expense
-              </Button>
-            </Link>
-          ) : null}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Filters</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {access.canChooseBranch ? (
-            <ExpensesFilters
-              branches={pageData.branches}
-              canChooseBranch
-              categories={EXPENSE_CATEGORIES}
-              clearHref="/dashboard/expenses"
-              selectedBranchRaw={access.selectedBranchRaw}
-              selectedCategory={access.selectedCategory}
-              selectedMonthRaw={access.selectedMonthRaw}
-            />
-          ) : (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium" htmlFor="fixed_branch">
-                  Branch
-                </label>
-                <input
-                  className="border-input focus-visible:border-ring focus-visible:ring-ring/50 w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
-                  id="fixed_branch"
-                  readOnly
-                  value={access.fixedBranchName ?? "N/A"}
-                />
-              </div>
-              <ExpensesFilters
-                branches={[]}
-                canChooseBranch={false}
-                categories={EXPENSE_CATEGORIES}
-                clearHref="/dashboard/expenses"
-                selectedBranchRaw={access.selectedBranchRaw}
-                selectedCategory={access.selectedCategory}
-                selectedMonthRaw={access.selectedMonthRaw}
-              />
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <ExpensesSummary totalAmount={pageData.totalAmount} totalExpenses={pageData.totalExpenses} />
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Expense Records</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <ExpensesTable expenses={pageData.expenses} />
-          <ListPagination
-            currentPage={pageData.page}
-            pageSize={pageData.pageSize}
-            pathname="/dashboard/expenses"
-            query={{
-              branch: access.canChooseBranch && access.selectedBranchRaw !== "all" ? access.selectedBranchRaw : undefined,
-              month: access.selectedMonthRaw || undefined,
-              category: access.selectedCategory !== "all" ? access.selectedCategory : undefined,
-            }}
-            totalCount={pageData.totalExpenses}
-          />
-        </CardContent>
-      </Card>
-    </div>
+    <ExpensesClientPage
+      branchOptions={branchOptions}
+      canChooseBranch={access.canChooseBranch}
+      canCreateExpense={access.canCreateExpense}
+      description={description}
+      fixedBranchName={access.fixedBranchName}
+      initialFilters={{
+        branch: access.canChooseBranch && access.resolvedBranchId ? String(access.resolvedBranchId) : "all",
+        month: access.selectedMonthRaw,
+        category: access.selectedCategory,
+        page: access.page,
+      }}
+      initialResults={initialResults}
+    />
   );
 }

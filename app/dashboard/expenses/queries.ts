@@ -3,8 +3,14 @@ import "server-only";
 import { and, desc, eq, gte, inArray, lte, sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import { branch, expenses, users } from "@/db/schema";
-import type { ExpenseListRow, ExpensesPageAccessState, ExpensesPageData } from "@/app/dashboard/expenses/types";
+import type {
+  ExpenseBranchOption,
+  ExpenseListRow,
+  ExpensesPageAccessState,
+  ExpensesResultsData,
+} from "@/app/dashboard/expenses/types";
 const EXPENSES_PAGE_SIZE = 20;
+type ReadyExpensesAccess = Extract<ExpensesPageAccessState, { view: "ready" }>;
 
 function whereFrom(filters: SQL[]) {
   if (filters.length === 0) {
@@ -19,7 +25,7 @@ function whereFrom(filters: SQL[]) {
 }
 
 function buildExpenseFilters(
-  access: Extract<ExpensesPageAccessState, { view: "ready" }>,
+  access: ReadyExpensesAccess,
 ): SQL[] {
   const filters: SQL[] = [];
 
@@ -47,7 +53,7 @@ function buildExpenseFilters(
   return filters;
 }
 
-function buildBranchOptionsWhere(access: Extract<ExpensesPageAccessState, { view: "ready" }>) {
+function buildBranchOptionsWhere(access: ReadyExpensesAccess) {
   if (access.isAdmin) {
     return undefined;
   }
@@ -83,35 +89,38 @@ function toExpenseListRow(row: {
   };
 }
 
-export async function loadExpensesPageData(
-  access: Extract<ExpensesPageAccessState, { view: "ready" }>,
-): Promise<ExpensesPageData> {
+export async function loadExpensesBranchOptions(access: ReadyExpensesAccess): Promise<ExpenseBranchOption[]> {
+  if (!access.canChooseBranch) {
+    return [];
+  }
+
+  return db
+    .select({
+      branch_id: branch.branch_id,
+      branch_name: branch.branch_name,
+    })
+    .from(branch)
+    .where(buildBranchOptionsWhere(access))
+    .orderBy(branch.branch_name)
+    .catch(() => []);
+}
+
+export async function loadExpensesResultsData(
+  access: ReadyExpensesAccess,
+): Promise<ExpensesResultsData> {
   const expenseFilters = buildExpenseFilters(access);
   const whereCondition = whereFrom(expenseFilters);
   const requestedPage = Math.max(access.page, 1);
 
-  const [branches, totalsRow] = await Promise.all([
-    access.canChooseBranch
-      ? db
-          .select({
-            branch_id: branch.branch_id,
-            branch_name: branch.branch_name,
-          })
-          .from(branch)
-          .where(buildBranchOptionsWhere(access))
-          .orderBy(branch.branch_name)
-          .catch(() => [])
-      : Promise.resolve([]),
-    db
-      .select({
-        total_expenses: sql<number>`count(*)`,
-        total_amount: sql<number>`coalesce(sum(${expenses.amount}), 0)`,
-      })
-      .from(expenses)
-      .where(whereCondition)
-      .then((rows) => rows[0] ?? { total_expenses: 0, total_amount: 0 })
-      .catch(() => ({ total_expenses: 0, total_amount: 0 })),
-  ]);
+  const totalsRow = await db
+    .select({
+      total_expenses: sql<number>`count(*)`,
+      total_amount: sql<number>`coalesce(sum(${expenses.amount}), 0)`,
+    })
+    .from(expenses)
+    .where(whereCondition)
+    .then((rows) => rows[0] ?? { total_expenses: 0, total_amount: 0 })
+    .catch(() => ({ total_expenses: 0, total_amount: 0 }));
 
   const totalExpenses = Number(totalsRow.total_expenses) || 0;
   const totalPages = Math.max(Math.ceil(totalExpenses / EXPENSES_PAGE_SIZE), 1);
@@ -140,7 +149,6 @@ export async function loadExpensesPageData(
     .catch(() => []);
 
   return {
-    branches,
     expenses: expenseRows.map(toExpenseListRow),
     totalExpenses,
     totalAmount: Number(totalsRow.total_amount) || 0,

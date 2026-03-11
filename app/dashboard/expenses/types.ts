@@ -35,6 +35,13 @@ export type ExpensesFiltersState = {
   } | null;
 };
 
+export type ExpensesFilterInput = {
+  branch: string;
+  month: string;
+  category: string;
+  page: number;
+};
+
 export type ExpensesPageAccessState =
   | {
       view: "forbidden";
@@ -64,8 +71,7 @@ export type ExpensesPageAccessState =
       assignedBranchIds: number[];
     };
 
-export type ExpensesPageData = {
-  branches: ExpenseBranchOption[];
+export type ExpensesResultsData = {
   expenses: ExpenseListRow[];
   totalExpenses: number;
   totalAmount: number;

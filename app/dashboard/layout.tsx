@@ -9,6 +9,7 @@ type NavItem = {
   icon:
     | "layout-dashboard"
     | "hand-coins"
+    | "bar-chart-3"
     | "users"
     | "receipt-text"
     | "wallet"
@@ -23,7 +24,8 @@ function navItemsForRole(roleName: string): NavItem[] {
       { href: "/dashboard", label: "Overview", section: "main", icon: "layout-dashboard" },
       { href: "/dashboard/loans", label: "Loans", section: "main", icon: "hand-coins" },
       { href: "/dashboard/borrowers", label: "Borrowers", section: "main", icon: "users" },
-      { href: "/dashboard/loans", label: "Collections", section: "main", icon: "receipt-text" },
+      { href: "/dashboard/collectors", label: "Collectors", section: "main", icon: "bar-chart-3" },
+      { href: "/dashboard/collections", label: "Collections", section: "finance", icon: "receipt-text" },
       { href: "/dashboard/incentives", label: "Incentives", section: "finance", icon: "wallet" },
       { href: "/dashboard/expenses", label: "Expenses", section: "finance", icon: "receipt-text" },
       { href: "/dashboard/my-documents", label: "Documents", section: "system", icon: "file-text" },
@@ -37,7 +39,8 @@ function navItemsForRole(roleName: string): NavItem[] {
       { href: "/dashboard", label: "Overview", section: "main", icon: "layout-dashboard" },
       { href: "/dashboard/loans", label: "Loans", section: "main", icon: "hand-coins" },
       { href: "/dashboard/borrowers", label: "Borrowers", section: "main", icon: "users" },
-      { href: "/dashboard/loans", label: "Collections", section: "main", icon: "receipt-text" },
+      { href: "/dashboard/collectors", label: "Collectors", section: "main", icon: "bar-chart-3" },
+      { href: "/dashboard/collections", label: "Collections", section: "finance", icon: "receipt-text" },
       { href: "/dashboard/incentives", label: "Incentives", section: "finance", icon: "wallet" },
       { href: "/dashboard/expenses", label: "Expenses", section: "finance", icon: "receipt-text" },
       { href: "/dashboard/my-documents", label: "Documents", section: "system", icon: "file-text" },
@@ -63,6 +66,8 @@ function navItemsForRole(roleName: string): NavItem[] {
       { href: "/dashboard", label: "Overview", section: "main", icon: "layout-dashboard" },
       { href: "/dashboard/loans", label: "Loans", section: "main", icon: "hand-coins" },
       { href: "/dashboard/borrowers", label: "Borrowers", section: "main", icon: "users" },
+      { href: "/dashboard/collectors", label: "Collectors", section: "main", icon: "bar-chart-3" },
+      { href: "/dashboard/collections", label: "Collections", section: "finance", icon: "receipt-text" },
       { href: "/dashboard/incentives", label: "Incentives", section: "finance", icon: "wallet" },
       { href: "/dashboard/expenses", label: "Expenses", section: "finance", icon: "receipt-text" },
       { href: "/dashboard/my-documents", label: "Documents", section: "system", icon: "file-text" },

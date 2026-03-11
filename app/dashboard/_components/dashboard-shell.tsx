@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import {
+  BarChart3,
   ChevronLeft,
   FileText,
   HandCoins,
@@ -32,6 +33,7 @@ type NavItem = {
   icon:
     | "layout-dashboard"
     | "hand-coins"
+    | "bar-chart-3"
     | "users"
     | "receipt-text"
     | "wallet"
@@ -79,6 +81,7 @@ function NavContent({
   const Icon = ({ icon }: { icon: NavItem["icon"] }) => {
     if (icon === "layout-dashboard") return <LayoutDashboard className="h-4 w-4 shrink-0" />;
     if (icon === "hand-coins") return <HandCoins className="h-4 w-4 shrink-0" />;
+    if (icon === "bar-chart-3") return <BarChart3 className="h-4 w-4 shrink-0" />;
     if (icon === "users") return <Users className="h-4 w-4 shrink-0" />;
     if (icon === "receipt-text") return <ReceiptText className="h-4 w-4 shrink-0" />;
     if (icon === "wallet") return <Wallet className="h-4 w-4 shrink-0" />;

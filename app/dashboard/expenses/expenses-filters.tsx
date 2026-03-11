@@ -1,51 +1,35 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
-import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import type { ExpenseBranchOption } from "@/app/dashboard/expenses/types";
 
 type ExpensesFiltersProps = {
   canChooseBranch: boolean;
+  isPending: boolean;
   selectedBranchRaw: string;
   selectedMonthRaw: string;
   selectedCategory: string;
   branches: ExpenseBranchOption[];
   categories: readonly string[];
-  clearHref: string;
+  onBranchChange: (value: string) => void;
+  onCategoryChange: (value: string) => void;
+  onClear: () => void;
+  onMonthChange: (value: string) => void;
 };
 
 export function ExpensesFilters({
   canChooseBranch,
+  isPending,
   selectedBranchRaw,
   selectedMonthRaw,
   selectedCategory,
   branches,
   categories,
-  clearHref,
+  onBranchChange,
+  onCategoryChange,
+  onClear,
+  onMonthChange,
 }: ExpensesFiltersProps) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const [isPending, startTransition] = useTransition();
-  const [branch, setBranch] = useState(selectedBranchRaw);
-  const [month, setMonth] = useState(selectedMonthRaw);
-  const [category, setCategory] = useState(selectedCategory);
-
-  function applyFilters() {
-    const params = new URLSearchParams();
-    if (canChooseBranch && branch && branch !== "all") params.set("branch", branch);
-    if (month) params.set("month", month);
-    if (category && category !== "all") params.set("category", category);
-    params.set("page", "1");
-    const query = params.toString();
-    const nextUrl = query ? `${pathname}?${query}` : pathname;
-    startTransition(() => {
-      router.replace(nextUrl);
-    });
-  }
-
   return (
     <div className="space-y-3">
       <div className="grid gap-4 md:grid-cols-4">
@@ -56,10 +40,9 @@ export function ExpensesFilters({
             </label>
             <select
               className="border-input focus-visible:border-ring focus-visible:ring-ring/50 w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
-              disabled={isPending}
               id="branch"
-              onChange={(event) => setBranch(event.target.value)}
-              value={branch}
+              onChange={(event) => onBranchChange(event.target.value)}
+              value={selectedBranchRaw}
             >
               <option value="all">All branches</option>
               {branches.map((item) => (
@@ -77,11 +60,10 @@ export function ExpensesFilters({
           </label>
           <input
             className="border-input focus-visible:border-ring focus-visible:ring-ring/50 w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
-            disabled={isPending}
             id="month"
-            onChange={(event) => setMonth(event.target.value)}
+            onChange={(event) => onMonthChange(event.target.value)}
             type="month"
-            value={month}
+            value={selectedMonthRaw}
           />
         </div>
 
@@ -91,10 +73,9 @@ export function ExpensesFilters({
           </label>
           <select
             className="border-input focus-visible:border-ring focus-visible:ring-ring/50 w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
-            disabled={isPending}
             id="category"
-            onChange={(event) => setCategory(event.target.value)}
-            value={category}
+            onChange={(event) => onCategoryChange(event.target.value)}
+            value={selectedCategory}
           >
             <option value="all">All categories</option>
             {categories.map((entry) => (
@@ -106,15 +87,9 @@ export function ExpensesFilters({
         </div>
 
         <div className="flex items-end gap-2">
-          <Button className="active:scale-[0.98]" disabled={isPending} onClick={applyFilters} type="button">
-            {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            {isPending ? "Applying..." : "Apply Filters"}
+          <Button className="active:scale-[0.98]" onClick={onClear} type="button" variant="outline">
+            Clear
           </Button>
-          <Link href={clearHref}>
-            <Button className="active:scale-[0.98]" disabled={isPending} type="button" variant="outline">
-              Clear
-            </Button>
-          </Link>
         </div>
       </div>
       {isPending ? <p className="text-muted-foreground text-sm">Updating expense records...</p> : null}

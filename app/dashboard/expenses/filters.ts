@@ -35,7 +35,7 @@ function resolveMonthRange(month: string) {
 }
 
 export function parseExpensesFilters(
-  params: Awaited<ExpensesPageProps["searchParams"]>,
+  params: Awaited<ExpensesPageProps["searchParams"]> | Record<string, string | undefined>,
 ): ExpensesFiltersState {
   const selectedBranchRaw = String(params?.branch ?? "all");
   const selectedMonthRaw = String(params?.month ?? "");
