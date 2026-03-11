@@ -49,6 +49,7 @@ export function parseExpensesFilters(
     )
       ? selectedCategoryRaw
       : "all",
+    page: Math.max(/^\d+$/.test(String(params?.page ?? "")) ? Number(params?.page) : 1, 1),
     monthRange: selectedMonthRaw ? resolveMonthRange(selectedMonthRaw) : null,
   };
 }
@@ -90,6 +91,7 @@ export function resolveExpensesPageAccess(
     selectedBranchRaw: filters.selectedBranchRaw,
     selectedMonthRaw: filters.selectedMonthRaw,
     selectedCategory: filters.selectedCategory,
+    page: filters.page,
     monthRange: filters.monthRange,
     fixedBranchName: isBranchManager ? auth.activeBranchName : null,
     resolvedBranchId: isBranchManager

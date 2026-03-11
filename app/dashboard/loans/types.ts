@@ -3,12 +3,20 @@ import type { DashboardAuthContext } from "@/app/dashboard/auth";
 export type LoansPageProps = {
   searchParams?: Promise<{
     branchId?: string;
+    status?: string;
+    query?: string;
+    page?: string;
   }>;
 };
 
 export type LoansListFilters = {
   requestedBranchId: number | null;
+  status: LoanStatusFilter;
+  searchQuery: string;
+  page: number;
 };
+
+export type LoanStatusFilter = "all" | "Active" | "Overdue" | "Completed" | "Archived";
 
 export type LoanBranchOption = {
   branch_id: number;
@@ -38,6 +46,9 @@ export type StaffLoansScope = {
   allowedBranchIds: number[];
   canChooseBranchFilter: boolean;
   canCreateLoan: boolean;
+  status: LoanStatusFilter;
+  searchQuery: string;
+  page: number;
 };
 
 export type LoansPageAccessState =
@@ -56,4 +67,7 @@ export type LoansPageAccessState =
 export type StaffLoansPageData = {
   branchOptions: LoanBranchOption[];
   loans: LoanListRow[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
 };

@@ -1,9 +1,7 @@
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getDashboardAuthContext } from "@/app/dashboard/auth";
-import { BorrowersFilters } from "@/app/dashboard/borrowers/borrowers-filters";
-import { BorrowersTable } from "@/app/dashboard/borrowers/borrowers-table";
+import { BorrowersClientPage } from "@/app/dashboard/borrowers/borrowers-client-page";
 import { parseBorrowersListFilters, resolveBorrowersPageAccess } from "@/app/dashboard/borrowers/filters";
 import { loadBorrowersPageData } from "@/app/dashboard/borrowers/queries";
 import type { BorrowersPageProps } from "@/app/dashboard/borrowers/types";
@@ -71,47 +69,5 @@ export default async function BorrowersPage({ searchParams }: BorrowersPageProps
 
   const pageData = await loadBorrowersPageData(accessState);
 
-  return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Borrowers</CardTitle>
-          <CardDescription>Browse borrower accounts and view profiles</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-2">
-          <Link href="/dashboard">
-            <Button type="button" variant="outline">
-              Back to dashboard
-            </Button>
-          </Link>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Filters</CardTitle>
-          {accessState.scopeMessage ? <CardDescription>{accessState.scopeMessage}</CardDescription> : null}
-        </CardHeader>
-        <CardContent>
-          <BorrowersFilters
-            allBranchLabel={accessState.allBranchLabel}
-            areas={pageData.areas}
-            branches={pageData.branches}
-            canChooseBranch={accessState.canChooseBranch}
-            selectedAreaId={pageData.selectedAreaId}
-            selectedBranchId={accessState.selectedBranchId}
-          />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Borrower Accounts</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <BorrowersTable borrowers={pageData.borrowers} />
-        </CardContent>
-      </Card>
-    </div>
-  );
+  return <BorrowersClientPage initialData={pageData} initialScope={accessState} />;
 }

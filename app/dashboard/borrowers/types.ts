@@ -4,12 +4,16 @@ export type BorrowersPageProps = {
   searchParams?: Promise<{
     branchId?: string;
     areaId?: string;
+    query?: string;
+    page?: string;
   }>;
 };
 
 export type BorrowersListFilters = {
   requestedBranchId: number | null;
   requestedAreaId: number | null;
+  searchQuery: string;
+  page: number;
 };
 
 export type BorrowerBranchOption = {
@@ -43,6 +47,8 @@ export type BorrowersStaffScope = {
   canChooseBranch: boolean;
   allBranchLabel: string;
   scopeMessage: string;
+  searchQuery: string;
+  page: number;
 };
 
 export type BorrowersAccessState =
@@ -65,4 +71,7 @@ export type BorrowersPageData = {
   areas: BorrowerAreaOption[];
   borrowers: BorrowerListRow[];
   selectedAreaId: number | null;
+  page: number;
+  pageSize: number;
+  totalCount: number;
 };

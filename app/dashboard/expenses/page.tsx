@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ListPagination } from "@/app/dashboard/_components/list-pagination";
 import { requireDashboardAuth } from "@/app/dashboard/auth";
 import { ExpensesFilters } from "@/app/dashboard/expenses/expenses-filters";
 import { parseExpensesFilters, EXPENSE_CATEGORIES, resolveExpensesPageAccess } from "@/app/dashboard/expenses/filters";
@@ -137,8 +138,19 @@ export default async function ExpensesPage({ searchParams }: ExpensesPageProps) 
         <CardHeader>
           <CardTitle>Expense Records</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           <ExpensesTable expenses={pageData.expenses} />
+          <ListPagination
+            currentPage={pageData.page}
+            pageSize={pageData.pageSize}
+            pathname="/dashboard/expenses"
+            query={{
+              branch: access.canChooseBranch && access.selectedBranchRaw !== "all" ? access.selectedBranchRaw : undefined,
+              month: access.selectedMonthRaw || undefined,
+              category: access.selectedCategory !== "all" ? access.selectedCategory : undefined,
+            }}
+            totalCount={pageData.totalExpenses}
+          />
         </CardContent>
       </Card>
     </div>

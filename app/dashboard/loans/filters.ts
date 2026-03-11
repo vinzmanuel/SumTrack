@@ -1,19 +1,35 @@
 import type { DashboardAuthContext } from "@/app/dashboard/auth";
-import type { LoansListFilters, LoansPageAccessState } from "@/app/dashboard/loans/types";
+import type { LoanStatusFilter, LoansListFilters, LoansPageAccessState } from "@/app/dashboard/loans/types";
 
 function toPositiveInt(value: string | undefined) {
   return /^\d+$/.test(String(value ?? "")) ? Number(value) : null;
 }
 
+function normalizeSearchQuery(value: string | undefined) {
+  return String(value ?? "").trim().slice(0, 100);
+}
+
+function normalizeStatus(value: string | undefined): LoanStatusFilter {
+  return ["Active", "Overdue", "Completed", "Archived"].includes(String(value))
+    ? (value as LoanStatusFilter)
+    : "all";
+}
+
 export function parseLoansListFilters(params: Awaited<LoansPageProps["searchParams"]>): LoansListFilters {
   return {
     requestedBranchId: toPositiveInt(params?.branchId),
+    status: normalizeStatus(params?.status),
+    searchQuery: normalizeSearchQuery(params?.query),
+    page: Math.max(toPositiveInt(params?.page) ?? 1, 1),
   };
 }
 
 type LoansPageProps = {
   searchParams?: Promise<{
     branchId?: string;
+    status?: string;
+    query?: string;
+    page?: string;
   }>;
 };
 
@@ -64,5 +80,8 @@ export function resolveLoansPageAccess(
     allowedBranchIds,
     canChooseBranchFilter: isAdmin || isAuditor,
     canCreateLoan: isAdmin || role === "Branch Manager" || role === "Secretary",
+    status: filters.status,
+    searchQuery: filters.searchQuery,
+    page: filters.page,
   };
 }

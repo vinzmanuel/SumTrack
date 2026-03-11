@@ -1,6 +1,6 @@
 import "server-only";
 
-import { asc, desc, eq, inArray, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, or, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { borrower_info, branch, employee_info, loan_records, users } from "@/db/schema";
@@ -8,21 +8,40 @@ import type { LoanListRow, StaffLoansPageData, StaffLoansScope } from "@/app/das
 
 const borrowerUsers = alias(users, "borrower_users");
 const collectorUsers = alias(users, "collector_users");
+const STAFF_LOANS_PAGE_SIZE = 20;
 
-function buildLoansWhere(scope: StaffLoansScope): SQL | undefined {
+function buildLoansFilters(scope: StaffLoansScope): SQL[] {
+  const filters: SQL[] = [];
+
   if (scope.roleName === "Admin") {
-    return scope.selectedBranchId ? eq(loan_records.branch_id, scope.selectedBranchId) : undefined;
+    if (scope.selectedBranchId) {
+      filters.push(eq(loan_records.branch_id, scope.selectedBranchId));
+    }
+  } else if (scope.selectedBranchId) {
+    filters.push(eq(loan_records.branch_id, scope.selectedBranchId));
+  } else if (scope.allowedBranchIds.length > 0) {
+    filters.push(inArray(loan_records.branch_id, scope.allowedBranchIds));
+  } else {
+    filters.push(eq(loan_records.loan_id, -1));
   }
 
-  if (scope.selectedBranchId) {
-    return eq(loan_records.branch_id, scope.selectedBranchId);
+  if (scope.status !== "all") {
+    filters.push(eq(loan_records.status, scope.status));
   }
 
-  if (scope.allowedBranchIds.length > 0) {
-    return inArray(loan_records.branch_id, scope.allowedBranchIds);
+  if (scope.searchQuery) {
+    const pattern = `%${scope.searchQuery}%`;
+    filters.push(
+      or(
+        ilike(loan_records.loan_code, pattern),
+        ilike(sql<string>`concat_ws(' ', ${borrower_info.first_name}, ${borrower_info.last_name})`, pattern),
+        ilike(borrower_info.first_name, pattern),
+        ilike(borrower_info.last_name, pattern),
+      )!,
+    );
   }
 
-  return eq(loan_records.loan_id, -1);
+  return filters;
 }
 
 function buildBranchOptionsWhere(scope: StaffLoansScope) {
@@ -35,6 +54,18 @@ function buildBranchOptionsWhere(scope: StaffLoansScope) {
   }
 
   return inArray(branch.branch_id, scope.allowedBranchIds);
+}
+
+function whereFrom(filters: SQL[]) {
+  if (filters.length === 0) {
+    return undefined;
+  }
+
+  if (filters.length === 1) {
+    return filters[0];
+  }
+
+  return and(...filters);
 }
 
 function toLoanListRow(row: {
@@ -86,40 +117,11 @@ function toLoanListRow(row: {
 }
 
 export async function loadStaffLoansPageData(scope: StaffLoansScope): Promise<StaffLoansPageData> {
-  const whereCondition = buildLoansWhere(scope);
+  const whereCondition = whereFrom(buildLoansFilters(scope));
   const branchOptionsWhere = buildBranchOptionsWhere(scope);
+  const requestedPage = Math.max(scope.page, 1);
 
-  const [loansRows, branchOptions] = await Promise.all([
-    db
-      .select({
-        loan_id: loan_records.loan_id,
-        loan_code: loan_records.loan_code,
-        borrower_id: loan_records.borrower_id,
-        branch_id: loan_records.branch_id,
-        collector_id: loan_records.collector_id,
-        principal: loan_records.principal,
-        interest: loan_records.interest,
-        start_date: loan_records.start_date,
-        due_date: loan_records.due_date,
-        status: loan_records.status,
-        borrower_first_name: borrower_info.first_name,
-        borrower_last_name: borrower_info.last_name,
-        borrower_company_id: borrowerUsers.company_id,
-        borrower_username: borrowerUsers.username,
-        branch_name: branch.branch_name,
-        collector_first_name: employee_info.first_name,
-        collector_last_name: employee_info.last_name,
-        collector_username: collectorUsers.username,
-      })
-      .from(loan_records)
-      .innerJoin(branch, eq(branch.branch_id, loan_records.branch_id))
-      .innerJoin(borrowerUsers, eq(borrowerUsers.user_id, loan_records.borrower_id))
-      .leftJoin(borrower_info, eq(borrower_info.user_id, loan_records.borrower_id))
-      .leftJoin(collectorUsers, eq(collectorUsers.user_id, loan_records.collector_id))
-      .leftJoin(employee_info, eq(employee_info.user_id, collectorUsers.user_id))
-      .where(whereCondition)
-      .orderBy(desc(loan_records.loan_id))
-      .catch(() => []),
+  const [branchOptions, totalCount] = await Promise.all([
     scope.canChooseBranchFilter
       ? db
           .select({
@@ -131,10 +133,61 @@ export async function loadStaffLoansPageData(scope: StaffLoansScope): Promise<St
           .orderBy(asc(branch.branch_name))
           .catch(() => [])
       : Promise.resolve([]),
+    db
+      .select({ value: sql<number>`count(*)` })
+      .from(loan_records)
+      .innerJoin(branch, eq(branch.branch_id, loan_records.branch_id))
+      .innerJoin(borrowerUsers, eq(borrowerUsers.user_id, loan_records.borrower_id))
+      .leftJoin(borrower_info, eq(borrower_info.user_id, loan_records.borrower_id))
+      .leftJoin(collectorUsers, eq(collectorUsers.user_id, loan_records.collector_id))
+      .leftJoin(employee_info, eq(employee_info.user_id, collectorUsers.user_id))
+      .where(whereCondition)
+      .then((rows) => Number(rows[0]?.value) || 0)
+      .catch(() => 0),
   ]);
+
+  const totalPages = Math.max(Math.ceil(totalCount / STAFF_LOANS_PAGE_SIZE), 1);
+  const page = Math.min(requestedPage, totalPages);
+  const offset = (page - 1) * STAFF_LOANS_PAGE_SIZE;
+
+  const loansRows = await db
+    .select({
+      loan_id: loan_records.loan_id,
+      loan_code: loan_records.loan_code,
+      borrower_id: loan_records.borrower_id,
+      branch_id: loan_records.branch_id,
+      collector_id: loan_records.collector_id,
+      principal: loan_records.principal,
+      interest: loan_records.interest,
+      start_date: loan_records.start_date,
+      due_date: loan_records.due_date,
+      status: loan_records.status,
+      borrower_first_name: borrower_info.first_name,
+      borrower_last_name: borrower_info.last_name,
+      borrower_company_id: borrowerUsers.company_id,
+      borrower_username: borrowerUsers.username,
+      branch_name: branch.branch_name,
+      collector_first_name: employee_info.first_name,
+      collector_last_name: employee_info.last_name,
+      collector_username: collectorUsers.username,
+    })
+    .from(loan_records)
+    .innerJoin(branch, eq(branch.branch_id, loan_records.branch_id))
+    .innerJoin(borrowerUsers, eq(borrowerUsers.user_id, loan_records.borrower_id))
+    .leftJoin(borrower_info, eq(borrower_info.user_id, loan_records.borrower_id))
+    .leftJoin(collectorUsers, eq(collectorUsers.user_id, loan_records.collector_id))
+    .leftJoin(employee_info, eq(employee_info.user_id, collectorUsers.user_id))
+    .where(whereCondition)
+    .orderBy(desc(loan_records.loan_id))
+    .limit(STAFF_LOANS_PAGE_SIZE)
+    .offset(offset)
+    .catch(() => []);
 
   return {
     branchOptions,
     loans: loansRows.map(toLoanListRow),
+    page,
+    pageSize: STAFF_LOANS_PAGE_SIZE,
+    totalCount,
   };
 }

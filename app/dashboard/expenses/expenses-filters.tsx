@@ -38,6 +38,7 @@ export function ExpensesFilters({
     if (canChooseBranch && branch && branch !== "all") params.set("branch", branch);
     if (month) params.set("month", month);
     if (category && category !== "all") params.set("category", category);
+    params.set("page", "1");
     const query = params.toString();
     const nextUrl = query ? `${pathname}?${query}` : pathname;
     startTransition(() => {

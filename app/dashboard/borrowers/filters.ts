@@ -5,12 +5,18 @@ function toPositiveInt(value: string | undefined) {
   return /^\d+$/.test(String(value ?? "")) ? Number(value) : null;
 }
 
+function normalizeSearchQuery(value: string | undefined) {
+  return String(value ?? "").trim().slice(0, 100);
+}
+
 export function parseBorrowersListFilters(
   params: Awaited<BorrowersPageProps["searchParams"]>,
 ): BorrowersListFilters {
   return {
     requestedBranchId: toPositiveInt(params?.branchId),
     requestedAreaId: toPositiveInt(params?.areaId),
+    searchQuery: normalizeSearchQuery(params?.query),
+    page: Math.max(toPositiveInt(params?.page) ?? 1, 1),
   };
 }
 
@@ -55,6 +61,8 @@ export function resolveBorrowersPageAccess(
       canChooseBranch: true,
       allBranchLabel: "All branches",
       scopeMessage: "",
+      searchQuery: filters.searchQuery,
+      page: filters.page,
     };
   }
 
@@ -78,6 +86,8 @@ export function resolveBorrowersPageAccess(
       canChooseBranch: true,
       allBranchLabel: "All assigned branches",
       scopeMessage: "Read-only view is limited to your assigned branches.",
+      searchQuery: filters.searchQuery,
+      page: filters.page,
     };
   }
 
@@ -97,5 +107,7 @@ export function resolveBorrowersPageAccess(
     canChooseBranch: false,
     allBranchLabel: "All branches",
     scopeMessage: "Branch scope is enforced from your active assignment.",
+    searchQuery: filters.searchQuery,
+    page: filters.page,
   };
 }

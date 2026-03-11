@@ -3,6 +3,7 @@ export type ExpensesPageProps = {
     branch?: string;
     month?: string;
     category?: string;
+    page?: string;
   }>;
 };
 
@@ -27,6 +28,7 @@ export type ExpensesFiltersState = {
   selectedBranchRaw: string;
   selectedMonthRaw: string;
   selectedCategory: string;
+  page: number;
   monthRange: {
     start: string;
     end: string;
@@ -52,6 +54,7 @@ export type ExpensesPageAccessState =
       selectedBranchRaw: string;
       selectedMonthRaw: string;
       selectedCategory: string;
+      page: number;
       monthRange: {
         start: string;
         end: string;
@@ -66,4 +69,6 @@ export type ExpensesPageData = {
   expenses: ExpenseListRow[];
   totalExpenses: number;
   totalAmount: number;
+  page: number;
+  pageSize: number;
 };

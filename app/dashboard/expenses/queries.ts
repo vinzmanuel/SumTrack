@@ -4,6 +4,7 @@ import { and, desc, eq, gte, inArray, lte, sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import { branch, expenses, users } from "@/db/schema";
 import type { ExpenseListRow, ExpensesPageAccessState, ExpensesPageData } from "@/app/dashboard/expenses/types";
+const EXPENSES_PAGE_SIZE = 20;
 
 function whereFrom(filters: SQL[]) {
   if (filters.length === 0) {
@@ -87,8 +88,9 @@ export async function loadExpensesPageData(
 ): Promise<ExpensesPageData> {
   const expenseFilters = buildExpenseFilters(access);
   const whereCondition = whereFrom(expenseFilters);
+  const requestedPage = Math.max(access.page, 1);
 
-  const [branches, expenseRows, totalsRow] = await Promise.all([
+  const [branches, totalsRow] = await Promise.all([
     access.canChooseBranch
       ? db
           .select({
@@ -102,24 +104,6 @@ export async function loadExpensesPageData(
       : Promise.resolve([]),
     db
       .select({
-        expense_id: expenses.expense_id,
-        branch_name: branch.branch_name,
-        expense_category: expenses.expense_category,
-        description: expenses.description,
-        amount: expenses.amount,
-        expense_date: expenses.expense_date,
-        recorded_by_username: users.username,
-        recorded_by_company_id: users.company_id,
-        recorded_at: expenses.recorded_at,
-      })
-      .from(expenses)
-      .innerJoin(branch, eq(branch.branch_id, expenses.branch_id))
-      .leftJoin(users, eq(users.user_id, expenses.recorded_by))
-      .where(whereCondition)
-      .orderBy(desc(expenses.expense_date), desc(expenses.expense_id))
-      .catch(() => []),
-    db
-      .select({
         total_expenses: sql<number>`count(*)`,
         total_amount: sql<number>`coalesce(sum(${expenses.amount}), 0)`,
       })
@@ -129,10 +113,38 @@ export async function loadExpensesPageData(
       .catch(() => ({ total_expenses: 0, total_amount: 0 })),
   ]);
 
+  const totalExpenses = Number(totalsRow.total_expenses) || 0;
+  const totalPages = Math.max(Math.ceil(totalExpenses / EXPENSES_PAGE_SIZE), 1);
+  const page = Math.min(requestedPage, totalPages);
+  const offset = (page - 1) * EXPENSES_PAGE_SIZE;
+
+  const expenseRows = await db
+    .select({
+      expense_id: expenses.expense_id,
+      branch_name: branch.branch_name,
+      expense_category: expenses.expense_category,
+      description: expenses.description,
+      amount: expenses.amount,
+      expense_date: expenses.expense_date,
+      recorded_by_username: users.username,
+      recorded_by_company_id: users.company_id,
+      recorded_at: expenses.recorded_at,
+    })
+    .from(expenses)
+    .innerJoin(branch, eq(branch.branch_id, expenses.branch_id))
+    .leftJoin(users, eq(users.user_id, expenses.recorded_by))
+    .where(whereCondition)
+    .orderBy(desc(expenses.expense_date), desc(expenses.expense_id))
+    .limit(EXPENSES_PAGE_SIZE)
+    .offset(offset)
+    .catch(() => []);
+
   return {
     branches,
     expenses: expenseRows.map(toExpenseListRow),
-    totalExpenses: Number(totalsRow.total_expenses) || 0,
+    totalExpenses,
     totalAmount: Number(totalsRow.total_amount) || 0,
+    page,
+    pageSize: EXPENSES_PAGE_SIZE,
   };
 }

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq, inArray, type SQL } from "drizzle-orm";
+import { and, asc, eq, ilike, inArray, or, sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import { areas, borrower_info, branch, users } from "@/db/schema";
 import type {
@@ -10,6 +10,7 @@ import type {
   BorrowersPageData,
   BorrowersStaffScope,
 } from "@/app/dashboard/borrowers/types";
+const BORROWERS_PAGE_SIZE = 20;
 
 function buildAreasWhere(scope: BorrowersStaffScope): SQL | undefined {
   if (scope.roleName === "Admin") {
@@ -44,6 +45,22 @@ function buildBorrowersWhere(scope: BorrowersStaffScope, selectedAreaId: number 
 
   if (selectedAreaId) {
     conditions.push(eq(areas.area_id, selectedAreaId));
+  }
+
+  if (scope.searchQuery) {
+    const pattern = `%${scope.searchQuery}%`;
+    conditions.push(
+      or(
+        ilike(users.company_id, pattern),
+        ilike(borrower_info.first_name, pattern),
+        ilike(borrower_info.last_name, pattern),
+        ilike(borrower_info.middle_name, pattern),
+        ilike(
+          sql<string>`concat_ws(' ', ${borrower_info.first_name}, ${borrower_info.middle_name}, ${borrower_info.last_name})`,
+          pattern,
+        ),
+      )!,
+    );
   }
 
   return conditions.length > 0 ? and(...conditions) : undefined;
@@ -102,6 +119,7 @@ function toAreaOption(row: { area_id: number; area_code: string }): BorrowerArea
 export async function loadBorrowersPageData(scope: BorrowersStaffScope): Promise<BorrowersPageData> {
   const areasWhere = buildAreasWhere(scope);
   const branchesWhere = buildBranchesWhere(scope);
+  const requestedPage = Math.max(scope.page, 1);
 
   const [branches, areasRows] = await Promise.all([
     scope.canChooseBranch
@@ -131,6 +149,22 @@ export async function loadBorrowersPageData(scope: BorrowersStaffScope): Promise
       ? scope.requestedAreaId
       : null;
 
+  const whereCondition = buildBorrowersWhere(scope, selectedAreaId);
+
+  const totalCount = await db
+    .select({ value: sql<number>`count(*)` })
+    .from(borrower_info)
+    .innerJoin(users, eq(users.user_id, borrower_info.user_id))
+    .innerJoin(areas, eq(areas.area_id, borrower_info.area_id))
+    .innerJoin(branch, eq(branch.branch_id, areas.branch_id))
+    .where(whereCondition)
+    .then((rows) => Number(rows[0]?.value) || 0)
+    .catch(() => 0);
+
+  const totalPages = Math.max(Math.ceil(totalCount / BORROWERS_PAGE_SIZE), 1);
+  const page = Math.min(requestedPage, totalPages);
+  const offset = (page - 1) * BORROWERS_PAGE_SIZE;
+
   const borrowers = await db
     .select({
       user_id: borrower_info.user_id,
@@ -147,8 +181,10 @@ export async function loadBorrowersPageData(scope: BorrowersStaffScope): Promise
     .innerJoin(users, eq(users.user_id, borrower_info.user_id))
     .innerJoin(areas, eq(areas.area_id, borrower_info.area_id))
     .innerJoin(branch, eq(branch.branch_id, areas.branch_id))
-    .where(buildBorrowersWhere(scope, selectedAreaId))
+    .where(whereCondition)
     .orderBy(asc(users.company_id))
+    .limit(BORROWERS_PAGE_SIZE)
+    .offset(offset)
     .catch(() => []);
 
   return {
@@ -156,5 +192,8 @@ export async function loadBorrowersPageData(scope: BorrowersStaffScope): Promise
     areas: areasRows.map(toAreaOption),
     borrowers: borrowers.map(toBorrowerListRow),
     selectedAreaId,
+    page,
+    pageSize: BORROWERS_PAGE_SIZE,
+    totalCount,
   };
 }

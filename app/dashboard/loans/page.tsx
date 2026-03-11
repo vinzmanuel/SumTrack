@@ -2,10 +2,9 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireDashboardAuth } from "@/app/dashboard/auth";
+import { LoansClientPage } from "@/app/dashboard/loans/loans-client-page";
 import { parseLoansListFilters, resolveLoansPageAccess } from "@/app/dashboard/loans/filters";
-import { LoansFilters } from "@/app/dashboard/loans/loans-filters";
 import { loadStaffLoansPageData } from "@/app/dashboard/loans/queries";
-import { LoansTable } from "@/app/dashboard/loans/loans-table";
 import type { LoansPageProps } from "@/app/dashboard/loans/types";
 
 function renderRoleRedirectCard(props: {
@@ -79,38 +78,5 @@ export default async function LoansPage({ searchParams }: LoansPageProps) {
 
   const pageData = await loadStaffLoansPageData(accessState);
 
-  return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Loans</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {accessState.canChooseBranchFilter ? (
-            <LoansFilters
-              branches={pageData.branchOptions}
-              selectedBranchId={accessState.selectedBranchId}
-            />
-          ) : null}
-
-          {accessState.canCreateLoan ? (
-            <Link href="/dashboard/create-loan">
-              <Button size="sm" type="button" variant="secondary">
-                Create loan
-              </Button>
-            </Link>
-          ) : null}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Loan Records</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <LoansTable loans={pageData.loans} />
-        </CardContent>
-      </Card>
-    </div>
-  );
+  return <LoansClientPage branchOptions={pageData.branchOptions} initialData={pageData} initialScope={accessState} />;
 }
