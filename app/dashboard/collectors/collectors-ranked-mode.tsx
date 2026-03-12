@@ -48,7 +48,7 @@ export function CollectorsRankedMode({
                 Ranked Collector Performance
               </h3>
               <TremorDescription className="text-[13px]">
-                Collectors open ranked by total collected for {data.dateRangeLabel}, with workload-relative recovery, normalized output, and period change visible in the same leaderboard.
+                Collectors are ranked by average monthly collections for {data.dateRangeLabel}, with total collected, workload-relative recovery, and period change visible in the same leaderboard.
               </TremorDescription>
             </div>
 

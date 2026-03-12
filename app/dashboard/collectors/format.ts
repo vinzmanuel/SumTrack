@@ -30,6 +30,14 @@ export function formatCollectorsPercent(value: number) {
   })}%`;
 }
 
+export function formatCollectorsNullablePercent(value: number | null, fallback = "N/A") {
+  if (value === null) {
+    return fallback;
+  }
+
+  return formatCollectorsPercent(value);
+}
+
 export function formatCollectorsAxisPercent(value: number) {
   return `${Math.round(value)}%`;
 }

@@ -1,8 +1,9 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireDashboardAuth } from "@/app/dashboard/auth";
 import { resolveCollectorsPageAccess } from "@/app/dashboard/collectors/access";
-import { CollectorProfilePanel } from "@/app/dashboard/collectors/collector-profile-panel";
 import { parseCollectorsFilters } from "@/app/dashboard/collectors/filters";
+import { CollectorProfileClientPage } from "@/app/dashboard/collectors/collector-profile-client-page";
+import { parseCollectorProfilePeriod } from "@/app/dashboard/collectors/profile-filters";
 import { loadCollectorProfileData } from "@/app/dashboard/collectors/queries";
 
 export default async function CollectorProfilePage({
@@ -11,6 +12,7 @@ export default async function CollectorProfilePage({
 }: {
   params: Promise<{ collectorId: string }>;
   searchParams?: Promise<{
+    period?: string;
     branch?: string;
     range?: string;
     from?: string;
@@ -33,8 +35,10 @@ export default async function CollectorProfilePage({
   }
 
   const routeParams = await params;
-  const filters = parseCollectorsFilters((await searchParams) ?? {});
-  const access = resolveCollectorsPageAccess(auth, filters);
+  const currentSearchParams = (await searchParams) ?? {};
+  const filters = parseCollectorsFilters(currentSearchParams);
+  const period = parseCollectorProfilePeriod(currentSearchParams.period);
+  const access = resolveCollectorsPageAccess(auth, { requestedBranchId: null });
 
   if (access.view !== "analytics") {
     return (
@@ -49,7 +53,7 @@ export default async function CollectorProfilePage({
     );
   }
 
-  const profile = await loadCollectorProfileData(access, filters, routeParams.collectorId);
+  const profile = await loadCollectorProfileData(access, routeParams.collectorId, period);
   if (!profile) {
     return (
       <Card>
@@ -66,8 +70,8 @@ export default async function CollectorProfilePage({
   }
 
   const backParams = new URLSearchParams();
-  if (access.canChooseBranch && access.selectedBranchId) {
-    backParams.set("branch", String(access.selectedBranchId));
+  if (filters.requestedBranchId) {
+    backParams.set("branch", String(filters.requestedBranchId));
   }
   if (filters.selectedRange !== "this-month") {
     backParams.set("range", filters.selectedRange);
@@ -85,11 +89,15 @@ export default async function CollectorProfilePage({
   }
   const backQuery = backParams.toString();
 
+  const backHref = backQuery ? `/dashboard/collectors?${backQuery}` : "/dashboard/collectors";
+
   return (
-    <CollectorProfilePanel
-      data={profile}
-      profileHref={backQuery ? `/dashboard/collectors?${backQuery}` : "/dashboard/collectors"}
-      showProfileButton={false}
-    />
+    <div className="space-y-6">
+      <CollectorProfileClientPage
+        backHref={backHref}
+        collectorId={routeParams.collectorId}
+        initialData={profile}
+      />
+    </div>
   );
 }

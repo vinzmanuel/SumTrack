@@ -45,8 +45,8 @@ export function CollectorsSummaryCards({
       />
       <SummaryCard
         accentClassName="bg-amber-500"
-        kicker="Current leader"
-        subtitle={summary.topCollectorAmount > 0 ? formatCollectorsCurrency(summary.topCollectorAmount) : "No collected amount yet"}
+        kicker="Monthly pace leader"
+        subtitle={summary.topCollectorAmount > 0 ? `${formatCollectorsCurrency(summary.topCollectorAmount)} total collected` : "No collected amount yet"}
         title="Top Collector"
         trendValues={trends.topCollector}
         value={summary.topCollectorName}

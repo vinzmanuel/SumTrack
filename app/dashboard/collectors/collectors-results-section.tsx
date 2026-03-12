@@ -1,13 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { CollectorModal } from "@/app/dashboard/collectors/collector-modal";
+import { useRouter } from "next/navigation";
 import { CollectorsIndividualMode } from "@/app/dashboard/collectors/collectors-individual-mode";
 import { CollectorsRankedMode } from "@/app/dashboard/collectors/collectors-ranked-mode";
 import { CollectorsResultsSkeleton } from "@/app/dashboard/collectors/collectors-results-skeleton";
 import type {
   CollectorPerformanceRow,
-  CollectorProfileData,
   CollectorsAnalyticsData,
   CollectorsFilterInput,
 } from "@/app/dashboard/collectors/types";
@@ -39,36 +37,6 @@ function buildProfileHref(filters: CollectorsFilterInput, collectorId: string) {
     : `/dashboard/collectors/${collectorId}`;
 }
 
-function toProfileData(row: CollectorPerformanceRow): CollectorProfileData {
-  return {
-    collectorId: row.collectorId,
-    fullName: row.fullName,
-    companyId: row.companyId,
-    branchName: row.branchName,
-    areaLabel: row.areaLabel,
-    status: row.status,
-    rank: row.rank,
-    activePrincipalLoad: row.activePrincipalLoad,
-    totalCollected: row.totalCollected,
-    averageCollectionAmount: row.averageCollectionAmount,
-    averageMonthlyCollections: row.averageMonthlyCollections,
-    assignedActiveLoans: row.assignedActiveLoans,
-    completedLoans: row.completedLoans,
-    missedPaymentCount: row.missedPaymentCount,
-    missedPaymentRate: row.missedPaymentRate,
-    collectionEntries: row.collectionEntries,
-    collectionDays: row.collectionDays,
-    activeWeeks: row.activeWeeks,
-    completionRate: row.completionRate,
-    consistencyScore: row.consistencyScore,
-    delinquencyControl: row.delinquencyControl,
-    portfolioRecoveryRate: row.portfolioRecoveryRate,
-    previousTotalCollected: row.previousTotalCollected,
-    periodChangePercent: row.periodChangePercent,
-    radarMetrics: row.radarMetrics,
-  };
-}
-
 export function CollectorsResultsSection({
   data,
   errorMessage,
@@ -82,13 +50,12 @@ export function CollectorsResultsSection({
   isPending: boolean;
   onPageChange: (page: number) => void;
 }) {
-  const [selectedCollector, setSelectedCollector] = useState<CollectorProfileData | null>(null);
+  const router = useRouter();
   const isIndividualMode = data?.totalCount === 1;
-  const profileHref = useMemo(
-    () =>
-      selectedCollector ? buildProfileHref(filters, selectedCollector.collectorId) : "/dashboard/collectors",
-    [filters, selectedCollector],
-  );
+
+  function handleViewCollector(collector: CollectorPerformanceRow) {
+    router.push(buildProfileHref(filters, collector.collectorId));
+  }
 
   if (!data) {
     return <CollectorsResultsSkeleton />;
@@ -101,7 +68,6 @@ export function CollectorsResultsSection({
           collector={data.rows[0]}
           dateRangeLabel={data.dateRangeLabel}
           errorMessage={errorMessage}
-          onOpenCollector={(collector) => setSelectedCollector(toProfileData(collector))}
           profileHref={buildProfileHref(filters, data.rows[0].collectorId)}
         />
       ) : (
@@ -110,20 +76,9 @@ export function CollectorsResultsSection({
           errorMessage={errorMessage}
           isPending={isPending}
           onPageChange={onPageChange}
-          onViewCollector={(collector) => setSelectedCollector(toProfileData(collector))}
+          onViewCollector={handleViewCollector}
         />
       )}
-
-      <CollectorModal
-        collector={selectedCollector}
-        onOpenChange={(open) => {
-          if (!open) {
-            setSelectedCollector(null);
-          }
-        }}
-        open={Boolean(selectedCollector)}
-        profileHref={profileHref}
-      />
 
       {isPending ? (
         <div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-background/55 backdrop-blur-[1px]">
