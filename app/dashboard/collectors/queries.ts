@@ -60,6 +60,7 @@ type BaseCollectorRow = {
 type LoanStatsRow = {
   collectorId: string | null;
   assignedActiveLoans: number;
+  activePrincipalLoad: number;
   completedLoans: number;
   totalLoans: number;
 };
@@ -71,6 +72,7 @@ type CollectionStatsRow = {
   collectionEntries: number;
   missedPaymentCount: number;
   collectionDays: number;
+  activeWeeks: number;
 };
 
 function toNumber(value: unknown) {
@@ -196,6 +198,7 @@ async function loadLoanStats(access: AnalyticsAccess, collectorIds: string[]): P
     .select({
       collectorId: loan_records.collector_id,
       assignedActiveLoans: sql<number>`sum(case when ${loan_records.status} in ('Active', 'Overdue') then 1 else 0 end)`,
+      activePrincipalLoad: sql<number>`coalesce(sum(case when ${loan_records.status} in ('Active', 'Overdue') then ${loan_records.principal} else 0 end), 0)`,
       completedLoans: sql<number>`sum(case when ${loan_records.status} = 'Completed' then 1 else 0 end)`,
       totalLoans: sql<number>`count(*)`,
     })
@@ -214,6 +217,7 @@ async function loadLoanStats(access: AnalyticsAccess, collectorIds: string[]): P
     result.set(row.collectorId, {
       collectorId: row.collectorId,
       assignedActiveLoans: toNumber(row.assignedActiveLoans),
+      activePrincipalLoad: toNumber(row.activePrincipalLoad),
       completedLoans: toNumber(row.completedLoans),
       totalLoans: toNumber(row.totalLoans),
     });
@@ -239,6 +243,7 @@ async function loadCollectionStats(
       collectionEntries: sql<number>`count(*)`,
       missedPaymentCount: sql<number>`sum(case when ${collections.amount} = 0 then 1 else 0 end)`,
       collectionDays: sql<number>`count(distinct ${collections.collection_date})`,
+      activeWeeks: sql<number>`count(distinct date_trunc('week', ${collections.collection_date}))`,
     })
     .from(collections)
     .innerJoin(loan_records, eq(loan_records.loan_id, collections.loan_id))
@@ -260,6 +265,7 @@ async function loadCollectionStats(
       collectionEntries: toNumber(row.collectionEntries),
       missedPaymentCount: toNumber(row.missedPaymentCount),
       collectionDays: toNumber(row.collectionDays),
+      activeWeeks: toNumber(row.activeWeeks),
     });
   }
 
@@ -277,31 +283,63 @@ function daysInRange(range: CollectorsDateRange) {
   );
 }
 
+function addDays(value: string, amount: number) {
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  date.setUTCDate(date.getUTCDate() + amount);
+  return date.toISOString().slice(0, 10);
+}
+
+function previousEquivalentRange(range: CollectorsDateRange): CollectorsDateRange {
+  const totalDays = daysInRange(range);
+  return {
+    start: addDays(range.start, -totalDays),
+    end: addDays(range.start, -1),
+    label: "previous equivalent period",
+  };
+}
+
+function percentChange(current: number, previous: number) {
+  if (previous <= 0) {
+    return current > 0 ? null : 0;
+  }
+
+  return ((current - previous) / previous) * 100;
+}
+
 function buildCollectorRows(
   baseRows: BaseCollectorRow[],
   loanStatsMap: Map<string, LoanStatsRow>,
   collectionStatsMap: Map<string, CollectionStatsRow>,
+  previousCollectionStatsMap: Map<string, CollectionStatsRow>,
   range: CollectorsDateRange,
 ): CollectorPerformanceRow[] {
   const visibleDays = daysInRange(range);
+  const visibleWeeks = Math.max(Math.ceil(visibleDays / 7), 1);
   const visibleMonths = Math.max(visibleDays / 30.4375, 0.25);
 
   const combined = baseRows.map((row) => {
     const loanStats = loanStatsMap.get(row.collectorId);
     const collectionStats = collectionStatsMap.get(row.collectorId);
+    const previousCollectionStats = previousCollectionStatsMap.get(row.collectorId);
     const assignedActiveLoans = loanStats?.assignedActiveLoans ?? 0;
+    const activePrincipalLoad = loanStats?.activePrincipalLoad ?? 0;
     const completedLoans = loanStats?.completedLoans ?? 0;
     const totalLoans = loanStats?.totalLoans ?? 0;
     const totalCollected = collectionStats?.totalCollected ?? 0;
+    const previousTotalCollected = previousCollectionStats?.totalCollected ?? 0;
     const averageCollectionAmount = collectionStats?.averageCollectionAmount ?? 0;
     const averageMonthlyCollections = totalCollected > 0 ? totalCollected / visibleMonths : 0;
     const collectionEntries = collectionStats?.collectionEntries ?? 0;
     const missedPaymentCount = collectionStats?.missedPaymentCount ?? 0;
+    const missedPaymentRate = collectionEntries > 0 ? (missedPaymentCount / collectionEntries) * 100 : 0;
     const collectionDays = collectionStats?.collectionDays ?? 0;
+    const activeWeeks = collectionStats?.activeWeeks ?? 0;
     const completionRate = totalLoans > 0 ? (completedLoans / totalLoans) * 100 : 0;
-    const consistencyScore = Math.min((collectionDays / visibleDays) * 100, 100);
-    const missedRate = collectionEntries > 0 ? (missedPaymentCount / collectionEntries) * 100 : 100;
-    const delinquencyControl = Math.max(0, 100 - missedRate);
+    const consistencyScore = Math.min((activeWeeks / visibleWeeks) * 100, 100);
+    const delinquencyControl = Math.max(0, 100 - missedPaymentRate);
+    const portfolioRecoveryRate = activePrincipalLoad > 0 ? (totalCollected / activePrincipalLoad) * 100 : 0;
+    const periodChangePercent = percentChange(totalCollected, previousTotalCollected);
 
     return {
       collectorId: row.collectorId,
@@ -313,16 +351,22 @@ function buildCollectorRows(
       areaLabel: `Area ${row.areaNo} (${row.areaCode})`,
       status: "Active",
       assignedActiveLoans,
+      activePrincipalLoad,
       totalCollected,
       averageCollectionAmount,
       averageMonthlyCollections,
       completedLoans,
       missedPaymentCount,
+      missedPaymentRate,
       collectionEntries,
       collectionDays,
+      activeWeeks,
       completionRate,
       consistencyScore,
       delinquencyControl,
+      portfolioRecoveryRate,
+      previousTotalCollected,
+      periodChangePercent,
       rank: 0,
       radarMetrics: [],
     };
@@ -346,8 +390,8 @@ function buildCollectorRows(
     completionRate: Math.max(...sorted.map((row) => row.completionRate), 0),
     consistencyScore: Math.max(...sorted.map((row) => row.consistencyScore), 0),
     assignedActiveLoans: Math.max(...sorted.map((row) => row.assignedActiveLoans), 0),
-    averageCollectionAmount: Math.max(...sorted.map((row) => row.averageCollectionAmount), 0),
     averageMonthlyCollections: Math.max(...sorted.map((row) => row.averageMonthlyCollections), 0),
+    portfolioRecoveryRate: Math.max(...sorted.map((row) => row.portfolioRecoveryRate), 0),
     delinquencyControl: Math.max(...sorted.map((row) => row.delinquencyControl), 0),
   };
 
@@ -360,8 +404,8 @@ function buildCollectorRows(
         value: maxima.totalCollected > 0 ? (row.totalCollected / maxima.totalCollected) * 100 : 0,
       },
       {
-        label: "Completion Rate",
-        value: maxima.completionRate > 0 ? (row.completionRate / maxima.completionRate) * 100 : 0,
+        label: "Recovery Rate",
+        value: maxima.portfolioRecoveryRate > 0 ? (row.portfolioRecoveryRate / maxima.portfolioRecoveryRate) * 100 : 0,
       },
       {
         label: "Consistency",
@@ -372,11 +416,8 @@ function buildCollectorRows(
         value: maxima.assignedActiveLoans > 0 ? (row.assignedActiveLoans / maxima.assignedActiveLoans) * 100 : 0,
       },
       {
-        label: "Average Collection Size",
-        value:
-          maxima.averageCollectionAmount > 0
-            ? (row.averageCollectionAmount / maxima.averageCollectionAmount) * 100
-            : 0,
+        label: "Completion Rate",
+        value: maxima.completionRate > 0 ? (row.completionRate / maxima.completionRate) * 100 : 0,
       },
       {
         label: "Delinquency Control",
@@ -396,7 +437,6 @@ function buildOutputChart(rows: CollectorPerformanceRow[]): AnalyticsChartModel 
     bucket: `#${row.rank}`,
     values: {
       totalCollected: row.totalCollected,
-      averageCollectionAmount: row.averageCollectionAmount,
       averageMonthlyCollections: row.averageMonthlyCollections,
     },
   }));
@@ -405,7 +445,6 @@ function buildOutputChart(rows: CollectorPerformanceRow[]): AnalyticsChartModel 
     rows: chartRows,
     series: [
       { key: "totalCollected", label: "Total Collected", color: "#16a34a" },
-      { key: "averageCollectionAmount", label: "Average Collection", color: "#0f766e" },
       { key: "averageMonthlyCollections", label: "Avg Monthly", color: "#0ea5e9" },
     ],
     noData: chartRows.length === 0,
@@ -462,7 +501,9 @@ function buildComparisonRows(rows: CollectorPerformanceRow[]): CollectorsCompari
       areaLabel: row.areaLabel,
       rank: row.rank,
       assignedActiveLoans: row.assignedActiveLoans,
+      activePrincipalLoad: row.activePrincipalLoad,
       totalCollected: row.totalCollected,
+      portfolioRecoveryRate: row.portfolioRecoveryRate,
     }));
 }
 
@@ -486,6 +527,9 @@ function buildExecutionRows(rows: CollectorPerformanceRow[]): CollectorsExecutio
       completionRate: row.completionRate,
       consistencyScore: row.consistencyScore,
       delinquencyControl: row.delinquencyControl,
+      missedPaymentRate: row.missedPaymentRate,
+      periodChangePercent: row.periodChangePercent,
+      collectionDays: row.collectionDays,
     }));
 }
 
@@ -495,16 +539,19 @@ async function loadAllCollectorRows(
   collectorId?: string,
 ) {
   const range = resolveCollectorsDateRange(filters);
+  const previousRange = previousEquivalentRange(range);
   const baseRows = await loadCollectorBaseRows(access, filters, collectorId);
   const collectorIds = baseRows.map((row) => row.collectorId);
-  const [loanStatsMap, collectionStatsMap] = await Promise.all([
+  const [loanStatsMap, collectionStatsMap, previousCollectionStatsMap] = await Promise.all([
     loadLoanStats(access, collectorIds),
     loadCollectionStats(access, collectorIds, range),
+    loadCollectionStats(access, collectorIds, previousRange),
   ]);
 
   return {
     range,
-    rows: buildCollectorRows(baseRows, loanStatsMap, collectionStatsMap, range),
+    previousRange,
+    rows: buildCollectorRows(baseRows, loanStatsMap, collectionStatsMap, previousCollectionStatsMap, range),
   };
 }
 
@@ -543,9 +590,11 @@ export async function loadCollectorsAnalyticsData(
   const page = Math.min(Math.max(filters.page, 1), totalPages);
   const pageRows = rows.slice((page - 1) * pageSize, page * pageSize);
   const totalCollectionsAttributed = rows.reduce((sum, row) => sum + row.totalCollected, 0);
+  const previousTotalCollectionsAttributed = rows.reduce((sum, row) => sum + row.previousTotalCollected, 0);
   const activeCollectors = rows.length;
-  const averageCollectionsPerCollector =
-    activeCollectors > 0 ? totalCollectionsAttributed / activeCollectors : 0;
+  const averagePortfolioRecoveryRate =
+    activeCollectors > 0 ? rows.reduce((sum, row) => sum + row.portfolioRecoveryRate, 0) / activeCollectors : 0;
+  const totalCollectionsChangePercent = percentChange(totalCollectionsAttributed, previousTotalCollectionsAttributed);
   const topCollector = rows[0];
   const highestPortfolio = [...rows].sort((left, right) => {
     if (right.assignedActiveLoans !== left.assignedActiveLoans) {
@@ -553,9 +602,9 @@ export async function loadCollectorsAnalyticsData(
     }
     return right.totalCollected - left.totalCollected;
   })[0];
-  const bestAverage = [...rows]
-    .filter((row) => row.collectionEntries > 0)
-    .sort((left, right) => right.averageCollectionAmount - left.averageCollectionAmount)[0];
+  const bestRecovery = [...rows]
+    .filter((row) => row.activePrincipalLoad > 0)
+    .sort((left, right) => right.portfolioRecoveryRate - left.portfolioRecoveryRate)[0];
 
   return {
     filters: {
@@ -566,14 +615,15 @@ export async function loadCollectorsAnalyticsData(
     summary: {
       activeCollectors,
       totalCollectionsAttributed,
-      averageCollectionsPerCollector,
+      totalCollectionsChangePercent,
+      averagePortfolioRecoveryRate,
       topCollectorName: topCollector?.fullName ?? "No collector data",
       topCollectorAmount: topCollector?.totalCollected ?? 0,
     },
     summaryTrends: {
       activeCollectors: takeTrendValues(rows, (row) => row.assignedActiveLoans),
       totalCollectionsAttributed: takeTrendValues(rows, (row) => row.totalCollected),
-      averageCollectionsPerCollector: takeTrendValues(rows, (row) => row.averageCollectionAmount),
+      averagePortfolioRecoveryRate: takeTrendValues(rows, (row) => row.portfolioRecoveryRate),
       topCollector: takeTrendValues(rows, (row) => row.totalCollected),
     },
     rows: pageRows,
@@ -589,7 +639,7 @@ export async function loadCollectorsAnalyticsData(
           description: `${topCollector.fullName} leads ${range.label.toLowerCase()} with \u20B1${topCollector.totalCollected.toLocaleString("en-PH", {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2,
-          })}. ${highestPortfolio ? `${highestPortfolio.fullName} is carrying the heaviest live portfolio at ${highestPortfolio.assignedActiveLoans.toLocaleString("en-PH")} active loans.` : ""}${bestAverage ? ` ${bestAverage.fullName} is posting the strongest average collection size.` : ""}`,
+          })}${topCollector.periodChangePercent !== null ? ` (${topCollector.periodChangePercent >= 0 ? "+" : ""}${topCollector.periodChangePercent.toLocaleString("en-PH", { maximumFractionDigits: 0 })}% vs previous period)` : " with new activity vs the previous period"}. ${highestPortfolio ? `${highestPortfolio.fullName} is carrying the heaviest live portfolio at \u20B1${highestPortfolio.activePrincipalLoad.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}.` : ""}${bestRecovery ? ` ${bestRecovery.fullName} is posting the strongest portfolio recovery rate at ${bestRecovery.portfolioRecoveryRate.toLocaleString("en-PH", { maximumFractionDigits: 1 })}%.` : ""}`,
         }
       : {
           eyebrow: "No collector activity",
@@ -622,17 +672,23 @@ export async function loadCollectorProfileData(
     areaLabel: row.areaLabel,
     status: row.status,
     rank: row.rank,
+    activePrincipalLoad: row.activePrincipalLoad,
     totalCollected: row.totalCollected,
     averageCollectionAmount: row.averageCollectionAmount,
     averageMonthlyCollections: row.averageMonthlyCollections,
     assignedActiveLoans: row.assignedActiveLoans,
     completedLoans: row.completedLoans,
     missedPaymentCount: row.missedPaymentCount,
+    missedPaymentRate: row.missedPaymentRate,
     collectionEntries: row.collectionEntries,
     collectionDays: row.collectionDays,
+    activeWeeks: row.activeWeeks,
     completionRate: row.completionRate,
     consistencyScore: row.consistencyScore,
     delinquencyControl: row.delinquencyControl,
+    portfolioRecoveryRate: row.portfolioRecoveryRate,
+    previousTotalCollected: row.previousTotalCollected,
+    periodChangePercent: row.periodChangePercent,
     radarMetrics: row.radarMetrics,
   };
 }

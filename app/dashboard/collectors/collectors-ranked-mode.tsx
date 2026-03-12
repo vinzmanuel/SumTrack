@@ -48,7 +48,7 @@ export function CollectorsRankedMode({
                 Ranked Collector Performance
               </h3>
               <TremorDescription className="text-[13px]">
-                Collectors open ranked by total collected for {data.dateRangeLabel}, so the main list acts as the live leaderboard for the current scope.
+                Collectors open ranked by total collected for {data.dateRangeLabel}, with workload-relative recovery, normalized output, and period change visible in the same leaderboard.
               </TremorDescription>
             </div>
 
@@ -118,7 +118,7 @@ export function CollectorsRankedMode({
               valueFormatter={formatCollectorsCurrency}
             />
           }
-          description="Compare total collected, average collection size, and average monthly output across the current ranking."
+          description="Compare total collected and average monthly output across the current ranking."
           title="Collection Output by Rank"
         />
         <CollectorsChartCard
@@ -130,7 +130,7 @@ export function CollectorsRankedMode({
               valueFormatter={formatCollectorsPercent}
             />
           }
-          description="Completion, consistency, and delinquency control profiles across the current ranking."
+          description="Completion, weekly consistency coverage, and delinquency control profiles across the current ranking."
           title="Execution Quality Signals"
         />
       </div>

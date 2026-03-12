@@ -66,16 +66,22 @@ export type CollectorPerformanceRow = {
   areaLabel: string;
   status: string;
   assignedActiveLoans: number;
+  activePrincipalLoad: number;
   totalCollected: number;
   averageCollectionAmount: number;
   averageMonthlyCollections: number;
   completedLoans: number;
   missedPaymentCount: number;
+  missedPaymentRate: number;
   collectionEntries: number;
   collectionDays: number;
+  activeWeeks: number;
   completionRate: number;
   consistencyScore: number;
   delinquencyControl: number;
+  portfolioRecoveryRate: number;
+  previousTotalCollected: number;
+  periodChangePercent: number | null;
   rank: number;
   radarMetrics: CollectorRadarMetric[];
 };
@@ -83,7 +89,8 @@ export type CollectorPerformanceRow = {
 export type CollectorsSummaryStats = {
   activeCollectors: number;
   totalCollectionsAttributed: number;
-  averageCollectionsPerCollector: number;
+  totalCollectionsChangePercent: number | null;
+  averagePortfolioRecoveryRate: number;
   topCollectorName: string;
   topCollectorAmount: number;
 };
@@ -91,7 +98,7 @@ export type CollectorsSummaryStats = {
 export type CollectorsSummaryTrends = {
   activeCollectors: number[];
   totalCollectionsAttributed: number[];
-  averageCollectionsPerCollector: number[];
+  averagePortfolioRecoveryRate: number[];
   topCollector: number[];
 };
 
@@ -113,7 +120,9 @@ export type CollectorsComparisonItem = {
   areaLabel: string;
   rank: number;
   assignedActiveLoans: number;
+  activePrincipalLoad: number;
   totalCollected: number;
+  portfolioRecoveryRate: number;
 };
 
 export type CollectorsExecutionItem = {
@@ -123,6 +132,9 @@ export type CollectorsExecutionItem = {
   completionRate: number;
   consistencyScore: number;
   delinquencyControl: number;
+  missedPaymentRate: number;
+  periodChangePercent: number | null;
+  collectionDays: number;
 };
 
 export type CollectorsInsightCard = {
@@ -139,17 +151,23 @@ export type CollectorProfileData = {
   areaLabel: string;
   status: string;
   rank: number;
+  activePrincipalLoad: number;
   totalCollected: number;
   averageCollectionAmount: number;
   averageMonthlyCollections: number;
   assignedActiveLoans: number;
   completedLoans: number;
   missedPaymentCount: number;
+  missedPaymentRate: number;
   collectionEntries: number;
   collectionDays: number;
+  activeWeeks: number;
   completionRate: number;
   consistencyScore: number;
   delinquencyControl: number;
+  portfolioRecoveryRate: number;
+  previousTotalCollected: number;
+  periodChangePercent: number | null;
   radarMetrics: CollectorRadarMetric[];
 };
 

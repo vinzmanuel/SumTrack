@@ -1,5 +1,5 @@
 import { TremorCard, TremorDescription } from "@/components/tremor/raw/metric-card";
-import { formatCollectorsPercent } from "@/app/dashboard/collectors/format";
+import { collectorsTrendTone, formatCollectorsPercent, formatCollectorsSignedPercent } from "@/app/dashboard/collectors/format";
 import type { CollectorsExecutionItem } from "@/app/dashboard/collectors/types";
 
 export function CollectorsExecutionCard({
@@ -15,7 +15,7 @@ export function CollectorsExecutionCard({
             Execution Quality
           </h3>
           <TremorDescription className="text-[13px]">
-            Compare completion, consistency, and delinquency control for the strongest execution profiles.
+            Compare cadence, missed-payment rate, and trend for the strongest execution profiles.
           </TremorDescription>
         </div>
 
@@ -32,15 +32,26 @@ export function CollectorsExecutionCard({
                     </p>
                     <p className="text-xs text-muted-foreground">Execution profile</p>
                   </div>
-                  <div className="text-right text-xs text-muted-foreground">
-                    <p>{formatCollectorsPercent(item.completionRate)} completion</p>
-                    <p>{formatCollectorsPercent(item.delinquencyControl)} control</p>
+                  <div className={`text-right text-xs font-medium ${collectorsTrendTone(item.periodChangePercent)}`}>
+                    {formatCollectorsSignedPercent(item.periodChangePercent)}
                   </div>
                 </div>
 
-                <MetricBar label="Completion" value={item.completionRate} />
-                <MetricBar label="Consistency" value={item.consistencyScore} />
-                <MetricBar label="Delinquency Control" value={item.delinquencyControl} />
+                <MetricBar
+                  label="Consistency (weekly coverage)"
+                  note={`${item.collectionDays.toLocaleString("en-PH")} collection days`}
+                  value={item.consistencyScore}
+                />
+                <MetricBar
+                  label="Missed-Payment Rate"
+                  note={formatCollectorsPercent(item.missedPaymentRate)}
+                  value={100 - item.missedPaymentRate}
+                />
+                <MetricBar
+                  label="Delinquency Control"
+                  note={`${formatCollectorsPercent(item.completionRate)} completion`}
+                  value={item.delinquencyControl}
+                />
               </div>
             ))}
           </div>
@@ -52,16 +63,18 @@ export function CollectorsExecutionCard({
 
 function MetricBar({
   label,
+  note,
   value,
 }: {
   label: string;
+  note: string;
   value: number;
 }) {
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between text-xs text-muted-foreground">
         <span>{label}</span>
-        <span>{formatCollectorsPercent(value)}</span>
+        <span>{note}</span>
       </div>
       <div className="h-2 rounded-full bg-muted">
         <div className="h-2 rounded-full bg-violet-500/80" style={{ width: `${Math.max(Math.min(value, 100), 6)}%` }} />

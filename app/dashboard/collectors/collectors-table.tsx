@@ -4,9 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { collectorRankBadgeClassName } from "@/app/dashboard/collectors/collectors-rank-styles";
 import {
+  collectorsTrendTone,
   formatCollectorsCurrency,
   formatCollectorsInteger,
   formatCollectorsPercent,
+  formatCollectorsSignedPercent,
 } from "@/app/dashboard/collectors/format";
 import type { CollectorPerformanceRow } from "@/app/dashboard/collectors/types";
 
@@ -67,7 +69,9 @@ export function CollectorsTable({
                 <td className="px-3 py-4 align-top">
                   <div className="space-y-1">
                     <p className="font-semibold text-foreground">{formatCollectorsInteger(row.assignedActiveLoans)}</p>
-                    <p className="text-xs text-muted-foreground">active loans</p>
+                    <p className="text-xs text-muted-foreground">
+                      Load {formatCollectorsCurrency(row.activePrincipalLoad)}
+                    </p>
                   </div>
                 </td>
                 <td className="px-3 py-4 align-top">
@@ -78,6 +82,9 @@ export function CollectorsTable({
                         Month {formatCollectorsCurrency(row.averageMonthlyCollections)}
                       </span>
                     </div>
+                    <p className={`text-xs font-medium ${collectorsTrendTone(row.periodChangePercent)}`}>
+                      {formatCollectorsSignedPercent(row.periodChangePercent)} vs previous period
+                    </p>
                     <div className="h-2 rounded-full bg-muted">
                       <div
                         className="h-2 rounded-full bg-emerald-500/85"
@@ -89,10 +96,10 @@ export function CollectorsTable({
                 <td className="px-3 py-4 align-top">
                   <div className="space-y-1 text-xs">
                     <p className="text-muted-foreground">
-                      Completion <span className="font-medium text-foreground">{formatCollectorsPercent(row.completionRate)}</span>
+                      Recovery <span className="font-medium text-foreground">{formatCollectorsPercent(row.portfolioRecoveryRate)}</span>
                     </p>
                     <p className="text-muted-foreground">
-                      Control <span className="font-medium text-foreground">{formatCollectorsPercent(row.delinquencyControl)}</span>
+                      Missed rate <span className="font-medium text-foreground">{formatCollectorsPercent(row.missedPaymentRate)}</span>
                     </p>
                   </div>
                 </td>

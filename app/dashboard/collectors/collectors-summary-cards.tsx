@@ -1,6 +1,12 @@
 import { cn } from "@/lib/utils";
 import { TremorCard, TremorDescription, TremorMetric, TremorTitle } from "@/components/tremor/raw/metric-card";
-import { formatCollectorsCurrency, formatCollectorsInteger } from "@/app/dashboard/collectors/format";
+import {
+  collectorsTrendTone,
+  formatCollectorsCurrency,
+  formatCollectorsInteger,
+  formatCollectorsPercent,
+  formatCollectorsSignedPercent,
+} from "@/app/dashboard/collectors/format";
 import type { CollectorsSummaryStats, CollectorsSummaryTrends } from "@/app/dashboard/collectors/types";
 
 export function CollectorsSummaryCards({
@@ -22,6 +28,7 @@ export function CollectorsSummaryCards({
       />
       <SummaryCard
         accentClassName="bg-emerald-500"
+        deltaValue={summary.totalCollectionsChangePercent}
         kicker="Collection output"
         subtitle="Attributed cash-in profile across the current ranking."
         title="Total Collections Attributed"
@@ -30,11 +37,11 @@ export function CollectorsSummaryCards({
       />
       <SummaryCard
         accentClassName="bg-teal-500"
-        kicker="Per collector"
-        subtitle="Average collector output in the visible scope for this range."
-        title="Average Collections per Collector"
-        trendValues={trends.averageCollectionsPerCollector}
-        value={formatCollectorsCurrency(summary.averageCollectionsPerCollector)}
+        kicker="Load-relative recovery"
+        subtitle="Collected amount as a share of visible active principal load."
+        title="Avg Portfolio Recovery Rate"
+        trendValues={trends.averagePortfolioRecoveryRate}
+        value={formatCollectorsPercent(summary.averagePortfolioRecoveryRate)}
       />
       <SummaryCard
         accentClassName="bg-amber-500"
@@ -55,6 +62,7 @@ function SummaryCard({
   kicker,
   trendValues,
   accentClassName,
+  deltaValue,
 }: {
   title: string;
   value: string;
@@ -62,6 +70,7 @@ function SummaryCard({
   kicker: string;
   trendValues: number[];
   accentClassName: string;
+  deltaValue?: number | null;
 }) {
   return (
     <TremorCard className="overflow-hidden p-0">
@@ -74,6 +83,12 @@ function SummaryCard({
 
         <TrendBars accentClassName={accentClassName} values={trendValues} />
 
+        {typeof deltaValue !== "undefined" ? (
+          <SummaryDelta
+            className={collectorsTrendTone(deltaValue)}
+            value={deltaValue}
+          />
+        ) : null}
         <TremorDescription className="text-[13px]">{subtitle}</TremorDescription>
       </div>
     </TremorCard>
@@ -103,5 +118,19 @@ function TrendBars({
         );
       })}
     </div>
+  );
+}
+
+function SummaryDelta({
+  value,
+  className,
+}: {
+  value: number | null;
+  className: string;
+}) {
+  return (
+    <p className={cn("text-xs font-medium", className)}>
+      {formatCollectorsSignedPercent(value)} vs previous equivalent period
+    </p>
   );
 }

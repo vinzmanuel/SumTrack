@@ -33,7 +33,7 @@ export function CollectorProfilePanel({
           </div>
           <CollectorRadarChart metrics={data.radarMetrics} />
           <div className="rounded-xl bg-indigo-50 p-4 text-sm text-indigo-950">
-            This profile compares collection volume, completion output, consistency, portfolio load, collection size, and delinquency control inside the current visible scope.
+            This profile compares collection volume, recovery rate, weekly consistency, portfolio load, completion output, and delinquency control inside the current visible scope.
           </div>
         </div>
       </TremorCard>
@@ -60,22 +60,36 @@ export function CollectorProfilePanel({
                 value={formatCollectorsCurrency(data.averageCollectionAmount)}
               />
               <Stat
+                label="Average Monthly Collections"
+                value={formatCollectorsCurrency(data.averageMonthlyCollections)}
+              />
+              <Stat
+                label="Portfolio Recovery Rate"
+                value={formatCollectorsPercent(data.portfolioRecoveryRate)}
+              />
+              <Stat
                 label="Assigned Active Loans"
                 value={formatCollectorsInteger(data.assignedActiveLoans)}
+              />
+              <Stat
+                label="Active Principal Load"
+                value={formatCollectorsCurrency(data.activePrincipalLoad)}
               />
               <Stat label="Completed Loans" value={formatCollectorsInteger(data.completedLoans)} />
               <Stat
                 label="Missed-Payment Count"
                 value={formatCollectorsInteger(data.missedPaymentCount)}
               />
+              <Stat label="Missed-Payment Rate" value={formatCollectorsPercent(data.missedPaymentRate)} />
               <Stat label="Collection Entries" value={formatCollectorsInteger(data.collectionEntries)} />
               <Stat label="Completion Rate" value={formatCollectorsPercent(data.completionRate)} />
-              <Stat label="Consistency" value={formatCollectorsPercent(data.consistencyScore)} />
+              <Stat label="Consistency (weekly coverage)" value={formatCollectorsPercent(data.consistencyScore)} />
               <Stat
                 label="Delinquency Control"
                 value={formatCollectorsPercent(data.delinquencyControl)}
               />
               <Stat label="Collection Days" value={formatCollectorsInteger(data.collectionDays)} />
+              <Stat label="Active Weeks" value={formatCollectorsInteger(data.activeWeeks)} />
             </div>
           </div>
 
