@@ -20,8 +20,10 @@ import { cn } from "@/lib/utils";
 
 export function CollectorProfilePanel({
   data,
+  showRankContext = true,
 }: {
   data: CollectorProfileData;
+  showRankContext?: boolean;
 }) {
   const productivitySpark = data.collectionDays > 0
     ? Math.min((data.productivityCount / data.collectionDays) * 12, 100)
@@ -107,7 +109,7 @@ export function CollectorProfilePanel({
 
       <div className="grid gap-6 xl:grid-cols-12">
         <CollectorsChartCard
-          className="xl:col-span-8"
+          className={showRankContext ? "xl:col-span-8" : "xl:col-span-12"}
           chart={(
             <CollectionsAreaChart
               chart={data.periodTrendChart}
@@ -123,15 +125,17 @@ export function CollectorProfilePanel({
           title={isLifetimeView ? "Lifetime Collection Trend" : "Collection Trend"}
         />
 
-        <CollectorRankContextCard
-          basisLabel={`Average monthly collections in ${periodLabel}.`}
-          branchCollectorCount={data.branchCollectorCount}
-          branchName={data.branchName}
-          branchRank={data.branchRank}
-          className="xl:col-span-4"
-          nationwideRank={data.nationwideRank}
-          visibleCollectorCount={data.visibleCollectorCount}
-        />
+        {showRankContext ? (
+          <CollectorRankContextCard
+            basisLabel={`Average monthly collections in ${periodLabel}.`}
+            branchCollectorCount={data.branchCollectorCount}
+            branchName={data.branchName}
+            branchRank={data.branchRank}
+            className="xl:col-span-4"
+            nationwideRank={data.nationwideRank}
+            visibleCollectorCount={data.visibleCollectorCount}
+          />
+        ) : null}
       </div>
 
       <div className="grid gap-6 xl:grid-cols-12">

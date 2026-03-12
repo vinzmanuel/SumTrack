@@ -78,8 +78,9 @@ function navItemsForRole(roleName: string): NavItem[] {
   if (roleName === "Collector") {
     return [
       { href: "/dashboard", label: "Overview", section: "main", icon: "layout-dashboard" },
-      { href: "/dashboard/assigned-loans", label: "Loans", section: "main", icon: "hand-coins" },
-      { href: "/dashboard/my-collections", label: "Collections", section: "main", icon: "receipt-text" },
+      { href: "/dashboard/my-performance", label: "My Performance", section: "main", icon: "bar-chart-3" },
+      { href: "/dashboard/assigned-loans", label: "Assigned Loans", section: "main", icon: "hand-coins" },
+      { href: "/dashboard/my-collections", label: "My Collections", section: "main", icon: "receipt-text" },
       { href: "/dashboard", label: "Settings", section: "system", icon: "settings" },
     ];
   }

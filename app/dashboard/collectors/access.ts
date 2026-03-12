@@ -59,3 +59,17 @@ export function resolveCollectorsPageAccess(
     message: "You are not authorized to view collectors analytics.",
   };
 }
+
+export function buildCollectorSelfAnalyticsAccess(
+  auth: DashboardAuthContext,
+): Extract<CollectorsAccessState, { view: "analytics" }> {
+  return {
+    view: "analytics",
+    roleName: auth.roleName,
+    allowedBranchIds: auth.assignedBranchIds,
+    selectedBranchId: auth.activeBranchId ?? auth.assignedBranchIds[0] ?? null,
+    canChooseBranch: false,
+    branchFilterLabel: "Branch",
+    fixedBranchName: auth.activeBranchName,
+  };
+}

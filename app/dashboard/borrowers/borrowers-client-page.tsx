@@ -3,9 +3,8 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { BorrowerRecordsModule } from "@/app/dashboard/borrowers/borrower-records-module";
 import { BorrowersFilters } from "@/app/dashboard/borrowers/borrowers-filters";
-import { BorrowersResultsSection } from "@/app/dashboard/borrowers/borrowers-results-section";
 import type { BorrowersPageData, BorrowersStaffScope } from "@/app/dashboard/borrowers/types";
 
 type BorrowersClientPageProps = {
@@ -87,6 +86,7 @@ export function BorrowersClientPage({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const filtersRef = useRef<BorrowerResultFilters>(initialFilters);
+  const requestIdRef = useRef(0);
 
   useEffect(() => {
     setResults(initialData);
@@ -106,6 +106,8 @@ export function BorrowersClientPage({
   const loadResults = useCallback(async (nextFilters: BorrowerResultFilters) => {
     abortRef.current?.abort();
     const controller = new AbortController();
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
     abortRef.current = controller;
     setIsPending(true);
     setErrorMessage(null);
@@ -122,6 +124,10 @@ export function BorrowersClientPage({
       }
 
       const nextData = (await response.json()) as BorrowersPageData;
+      if (requestIdRef.current !== requestId) {
+        return;
+      }
+
       setResults(nextData);
       const nextApplied = {
         branchId: nextFilters.branchId,
@@ -130,16 +136,19 @@ export function BorrowersClientPage({
         page: nextData.page,
       };
       setAppliedFilters(nextApplied);
-      setFilters(nextApplied);
       updateHistory(nextApplied);
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") {
         return;
       }
 
+      if (requestIdRef.current !== requestId) {
+        return;
+      }
+
       setErrorMessage("Unable to refresh borrower results right now.");
     } finally {
-      if (abortRef.current === controller) {
+      if (abortRef.current === controller && requestIdRef.current === requestId) {
         setIsPending(false);
       }
     }
@@ -228,51 +237,43 @@ export function BorrowersClientPage({
     });
   }, [initialScope.canChooseBranch, initialScope.selectedBranchId]);
 
+  const canCreateBorrower =
+    initialScope.roleName === "Admin" ||
+    initialScope.roleName === "Branch Manager" ||
+    initialScope.roleName === "Secretary";
+
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Borrowers</CardTitle>
-          <CardDescription>Browse borrower accounts and view profiles</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-2">
-          <Link href="/dashboard">
-            <Button type="button" variant="outline">
-              Back to dashboard
-            </Button>
-          </Link>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Filters</CardTitle>
-          {initialScope.scopeMessage ? <CardDescription>{initialScope.scopeMessage}</CardDescription> : null}
-        </CardHeader>
-        <CardContent>
-          <BorrowersFilters
-            allBranchLabel={initialScope.allBranchLabel}
-            areas={results.areas}
-            branches={results.branches}
-            canChooseBranch={initialScope.canChooseBranch}
-            isPending={isPending}
-            onAreaChange={handleAreaChange}
-            onBranchChange={handleBranchChange}
-            onClear={handleClear}
-            onSearchChange={handleSearchChange}
-            selectedAreaId={filters.areaId}
-            selectedBranchId={filters.branchId}
-            selectedSearchQuery={filters.query}
-          />
-        </CardContent>
-      </Card>
-
-      <BorrowersResultsSection
-        data={results}
-        errorMessage={errorMessage}
-        isPending={isPending}
-        onPageChange={handlePageChange}
-      />
-    </div>
+    <BorrowerRecordsModule
+      controls={
+        <BorrowersFilters
+          action={
+            canCreateBorrower ? (
+              <Link href="/dashboard/create-account">
+                <Button className="w-full xl:w-auto" size="sm" type="button" variant="secondary">
+                  Create New Borrower
+                </Button>
+              </Link>
+            ) : null
+          }
+          allBranchLabel={initialScope.allBranchLabel}
+          areas={results.areas}
+          branches={results.branches}
+          canChooseBranch={initialScope.canChooseBranch}
+          isPending={isPending}
+          onAreaChange={handleAreaChange}
+          onBranchChange={handleBranchChange}
+          onClear={handleClear}
+          onSearchChange={handleSearchChange}
+          selectedAreaId={filters.areaId}
+          selectedBranchId={filters.branchId}
+          selectedSearchQuery={filters.query}
+        />
+      }
+      data={results}
+      errorMessage={errorMessage}
+      isPending={isPending}
+      onPageChange={handlePageChange}
+      scopeMessage={initialScope.scopeMessage}
+    />
   );
 }

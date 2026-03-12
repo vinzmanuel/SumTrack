@@ -22,27 +22,27 @@ export function BorrowersTable({ borrowers }: { borrowers: BorrowerListRow[] }) 
   }
 
   return (
-    <div className="overflow-auto">
-      <table className="w-full min-w-260 text-sm">
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[900px] text-sm">
         <thead>
           <tr className="border-b text-left">
-            <th className="px-2 py-2 font-medium">Company ID</th>
-            <th className="px-2 py-2 font-medium">Name</th>
-            <th className="px-2 py-2 font-medium">Area</th>
-            <th className="px-2 py-2 font-medium">Branch</th>
-            <th className="px-2 py-2 font-medium">Contact</th>
-            <th className="px-2 py-2 font-medium">Action</th>
+            <th className="px-2 py-2.5 font-medium">Company ID</th>
+            <th className="px-2 py-2.5 font-medium">Name</th>
+            <th className="px-2 py-2.5 font-medium">Area</th>
+            <th className="px-2 py-2.5 font-medium">Branch</th>
+            <th className="px-2 py-2.5 font-medium">Contact</th>
+            <th className="px-2 py-2.5 font-medium">Action</th>
           </tr>
         </thead>
         <tbody>
           {borrowers.map((row) => (
             <tr className="border-b" key={row.userId}>
-              <td className="px-2 py-2">{row.companyId}</td>
-              <td className="px-2 py-2">{formatNameList(row.lastName, row.firstName, row.middleName)}</td>
-              <td className="px-2 py-2">{row.areaCode}</td>
-              <td className="px-2 py-2">{row.branchCode || row.branchName}</td>
-              <td className="px-2 py-2">{row.contactNumber || "N/A"}</td>
-              <td className="px-2 py-2">
+              <td className="px-2 py-3">{row.companyId}</td>
+              <td className="px-2 py-3">{formatNameList(row.lastName, row.firstName, row.middleName)}</td>
+              <td className="px-2 py-3">{row.areaCode}</td>
+              <td className="px-2 py-3">{row.branchCode || row.branchName}</td>
+              <td className="px-2 py-3">{row.contactNumber || "N/A"}</td>
+              <td className="px-2 py-3">
                 <Link href={`/dashboard/borrowers/${row.userId}`}>
                   <Button size="sm" type="button" variant="outline">
                     View

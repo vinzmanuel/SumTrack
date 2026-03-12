@@ -3,6 +3,7 @@ import "server-only";
 import {
   and,
   asc,
+  desc,
   eq,
   ilike,
   inArray,
@@ -16,6 +17,7 @@ import {
 import { db } from "@/db";
 import {
   areas,
+  borrower_info,
   collections,
   employee_area_assignment,
   employee_info,
@@ -24,6 +26,7 @@ import {
   users,
   branch,
 } from "@/db/schema";
+import { alias } from "drizzle-orm/pg-core";
 import { resolveCollectorsDateRange } from "@/app/dashboard/collectors/filters";
 import {
   buildCollectorsFiltersForProfilePeriod,
@@ -31,6 +34,8 @@ import {
 } from "@/app/dashboard/collectors/profile-filters";
 import type {
   CollectorProfilePeriodKey,
+  CollectorAssignedLoansData,
+  CollectorAssignedLoansFilters,
   CollectorsExecutionItem,
   CollectorPerformanceRow,
   CollectorProfileData,
@@ -43,10 +48,13 @@ import type {
   CollectorsTopPerformerItem,
 } from "@/app/dashboard/collectors/types";
 import type { AnalyticsChartModel } from "@/components/analytics/types";
+import type { LoanListRow } from "@/app/dashboard/loans/types";
 
 type AnalyticsAccess = Extract<CollectorsAccessState, { view: "analytics" }>;
 
 const COLLECTORS_PAGE_SIZE = 12;
+const COLLECTOR_ASSIGNED_LOANS_PAGE_SIZE = 12;
+const borrowerUsers = alias(users, "collector_detail_borrower_users");
 
 type BaseCollectorRow = {
   collectorId: string;
@@ -123,6 +131,54 @@ function fullNameOf(row: { firstName: string | null; middleName?: string | null;
   return name || row.username || row.collectorId || "Unknown Collector";
 }
 
+function toCollectorLoanListRow(row: {
+  loan_id: number;
+  loan_code: string;
+  borrower_id: string;
+  branch_id: number;
+  collector_id: string | null;
+  principal: string;
+  interest: string;
+  start_date: string;
+  due_date: string;
+  status: string;
+  borrower_first_name: string | null;
+  borrower_last_name: string | null;
+  borrower_company_id: string | null;
+  borrower_username: string | null;
+  branch_name: string;
+  collector_first_name: string | null;
+  collector_last_name: string | null;
+  collector_username: string | null;
+}): LoanListRow {
+  const borrowerName =
+    [row.borrower_first_name, row.borrower_last_name].filter(Boolean).join(" ") ||
+    row.borrower_company_id ||
+    row.borrower_username ||
+    row.borrower_id;
+  const collectorName = row.collector_id
+    ? [row.collector_first_name, row.collector_last_name].filter(Boolean).join(" ") ||
+      row.collector_username ||
+      row.collector_id
+    : "N/A";
+
+  return {
+    loanId: row.loan_id,
+    loanCode: row.loan_code,
+    borrowerId: row.borrower_id,
+    borrowerName,
+    branchId: row.branch_id,
+    branchName: row.branch_name,
+    collectorId: row.collector_id,
+    collectorName,
+    principal: Number(row.principal) || 0,
+    interest: Number(row.interest) || 0,
+    startDate: row.start_date,
+    dueDate: row.due_date,
+    status: row.status,
+  };
+}
+
 function buildCollectorBaseFilters(
   access: AnalyticsAccess,
   filters: CollectorsFilterState,
@@ -167,6 +223,32 @@ function buildLoanScopeFilters(access: AnalyticsAccess, collectorIds: string[]) 
     conditions.push(inArray(loan_records.branch_id, access.allowedBranchIds));
   } else {
     conditions.push(eq(loan_records.loan_id, -1));
+  }
+
+  return conditions;
+}
+
+function buildCollectorAssignedLoansFilters(
+  access: AnalyticsAccess,
+  collectorId: string,
+  filters: CollectorAssignedLoansFilters,
+) {
+  const conditions = buildLoanScopeFilters(access, [collectorId]);
+
+  if (filters.status !== "all") {
+    conditions.push(eq(loan_records.status, filters.status));
+  }
+
+  if (filters.query) {
+    const pattern = `%${filters.query}%`;
+    conditions.push(
+      or(
+        ilike(loan_records.loan_code, pattern),
+        ilike(sql<string>`concat_ws(' ', ${borrower_info.first_name}, ${borrower_info.last_name})`, pattern),
+        ilike(borrower_info.first_name, pattern),
+        ilike(borrower_info.last_name, pattern),
+      )!,
+    );
   }
 
   return conditions;
@@ -1224,5 +1306,69 @@ export async function loadCollectorProfileData(
       missedPaymentRate: periodRow.missedPaymentRate,
       delinquencyControl: periodRow.delinquencyControl,
     }),
+  };
+}
+
+export async function loadCollectorAssignedLoansData(
+  access: AnalyticsAccess,
+  collectorId: string,
+  filters: CollectorAssignedLoansFilters,
+): Promise<CollectorAssignedLoansData> {
+  const whereCondition = whereFrom(buildCollectorAssignedLoansFilters(access, collectorId, filters));
+  const requestedPage = Math.max(filters.page, 1);
+
+  const totalCount = await db
+    .select({ value: sql<number>`count(*)` })
+    .from(loan_records)
+    .innerJoin(branch, eq(branch.branch_id, loan_records.branch_id))
+    .innerJoin(borrowerUsers, eq(borrowerUsers.user_id, loan_records.borrower_id))
+    .leftJoin(borrower_info, eq(borrower_info.user_id, loan_records.borrower_id))
+    .leftJoin(employee_info, eq(employee_info.user_id, loan_records.collector_id))
+    .where(whereCondition)
+    .then((rows) => Number(rows[0]?.value) || 0)
+    .catch(() => 0);
+
+  const totalPages = Math.max(Math.ceil(totalCount / COLLECTOR_ASSIGNED_LOANS_PAGE_SIZE), 1);
+  const page = Math.min(requestedPage, totalPages);
+  const offset = (page - 1) * COLLECTOR_ASSIGNED_LOANS_PAGE_SIZE;
+
+  const rows = await db
+    .select({
+      loan_id: loan_records.loan_id,
+      loan_code: loan_records.loan_code,
+      borrower_id: loan_records.borrower_id,
+      branch_id: loan_records.branch_id,
+      collector_id: loan_records.collector_id,
+      principal: loan_records.principal,
+      interest: loan_records.interest,
+      start_date: loan_records.start_date,
+      due_date: loan_records.due_date,
+      status: loan_records.status,
+      borrower_first_name: borrower_info.first_name,
+      borrower_last_name: borrower_info.last_name,
+      borrower_company_id: borrowerUsers.company_id,
+      borrower_username: borrowerUsers.username,
+      branch_name: branch.branch_name,
+      collector_first_name: employee_info.first_name,
+      collector_last_name: employee_info.last_name,
+      collector_username: users.username,
+    })
+    .from(loan_records)
+    .innerJoin(branch, eq(branch.branch_id, loan_records.branch_id))
+    .innerJoin(borrowerUsers, eq(borrowerUsers.user_id, loan_records.borrower_id))
+    .leftJoin(borrower_info, eq(borrower_info.user_id, loan_records.borrower_id))
+    .leftJoin(users, eq(users.user_id, loan_records.collector_id))
+    .leftJoin(employee_info, eq(employee_info.user_id, loan_records.collector_id))
+    .where(whereCondition)
+    .orderBy(desc(loan_records.loan_id))
+    .limit(COLLECTOR_ASSIGNED_LOANS_PAGE_SIZE)
+    .offset(offset)
+    .catch(() => []);
+
+  return {
+    loans: rows.map(toCollectorLoanListRow),
+    page,
+    pageSize: COLLECTOR_ASSIGNED_LOANS_PAGE_SIZE,
+    totalCount,
   };
 }

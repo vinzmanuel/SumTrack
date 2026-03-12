@@ -1,5 +1,6 @@
 import type { DashboardAuthContext } from "@/app/dashboard/auth";
 import type { AnalyticsChartModel, AnalyticsDateRangeKey, AnalyticsSelectOption } from "@/components/analytics/types";
+import type { LoanListRow, LoanStatusFilter } from "@/app/dashboard/loans/types";
 
 export type CollectorsPageProps = {
   searchParams?: Promise<{
@@ -17,6 +18,8 @@ export type CollectorProfilePeriodKey =
   | "last-30-days"
   | "this-year"
   | "lifetime";
+
+export type CollectorDetailTabKey = "performance" | "assigned-loans";
 
 export type CollectorsFilterState = {
   selectedBranchRaw: string;
@@ -218,6 +221,19 @@ export type CollectorProfileData = {
   lifetimeTrendChart: AnalyticsChartModel;
   outputComparisonChart: AnalyticsChartModel;
   rateComparisonChart: AnalyticsChartModel;
+};
+
+export type CollectorAssignedLoansFilters = {
+  status: LoanStatusFilter;
+  query: string;
+  page: number;
+};
+
+export type CollectorAssignedLoansData = {
+  loans: LoanListRow[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
 };
 
 export type CollectorsAnalyticsData = {

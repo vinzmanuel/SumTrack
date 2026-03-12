@@ -1,10 +1,17 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireDashboardAuth } from "@/app/dashboard/auth";
 import { resolveCollectorsPageAccess } from "@/app/dashboard/collectors/access";
+import {
+  parseCollectorAssignedLoansFilters,
+  parseCollectorDetailTab,
+} from "@/app/dashboard/collectors/detail-filters";
 import { parseCollectorsFilters } from "@/app/dashboard/collectors/filters";
 import { CollectorProfileClientPage } from "@/app/dashboard/collectors/collector-profile-client-page";
 import { parseCollectorProfilePeriod } from "@/app/dashboard/collectors/profile-filters";
-import { loadCollectorProfileData } from "@/app/dashboard/collectors/queries";
+import {
+  loadCollectorAssignedLoansData,
+  loadCollectorProfileData,
+} from "@/app/dashboard/collectors/queries";
 
 export default async function CollectorProfilePage({
   params,
@@ -12,12 +19,16 @@ export default async function CollectorProfilePage({
 }: {
   params: Promise<{ collectorId: string }>;
   searchParams?: Promise<{
+    tab?: string;
     period?: string;
     branch?: string;
     range?: string;
     from?: string;
     to?: string;
     query?: string;
+    loanStatus?: string;
+    loanQuery?: string;
+    loansPage?: string;
   }>;
 }) {
   const auth = await requireDashboardAuth();
@@ -37,7 +48,9 @@ export default async function CollectorProfilePage({
   const routeParams = await params;
   const currentSearchParams = (await searchParams) ?? {};
   const filters = parseCollectorsFilters(currentSearchParams);
+  const detailTab = parseCollectorDetailTab(currentSearchParams.tab);
   const period = parseCollectorProfilePeriod(currentSearchParams.period);
+  const assignedLoansFilters = parseCollectorAssignedLoansFilters(currentSearchParams);
   const access = resolveCollectorsPageAccess(auth, { requestedBranchId: null });
 
   if (access.view !== "analytics") {
@@ -53,7 +66,10 @@ export default async function CollectorProfilePage({
     );
   }
 
-  const profile = await loadCollectorProfileData(access, routeParams.collectorId, period);
+  const [profile, assignedLoans] = await Promise.all([
+    loadCollectorProfileData(access, routeParams.collectorId, period),
+    loadCollectorAssignedLoansData(access, routeParams.collectorId, assignedLoansFilters),
+  ]);
   if (!profile) {
     return (
       <Card>
@@ -96,7 +112,10 @@ export default async function CollectorProfilePage({
       <CollectorProfileClientPage
         backHref={backHref}
         collectorId={routeParams.collectorId}
+        initialAssignedLoansData={assignedLoans}
+        initialAssignedLoansFilters={assignedLoansFilters}
         initialData={profile}
+        initialTab={detailTab}
       />
     </div>
   );

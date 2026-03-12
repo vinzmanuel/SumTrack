@@ -3,9 +3,8 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { LoanRecordsModule } from "@/app/dashboard/loans/loan-records-module";
 import { LoansFilters } from "@/app/dashboard/loans/loans-filters";
-import { LoansResultsSection } from "@/app/dashboard/loans/loans-results-section";
 import type { LoanBranchOption, LoanStatusFilter, StaffLoansPageData, StaffLoansScope } from "@/app/dashboard/loans/types";
 
 type LoansClientPageProps = {
@@ -223,40 +222,33 @@ export function LoansClientPage({
   }, []);
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Loans</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <LoansFilters
-            branches={branchOptions}
-            canChooseBranchFilter={initialScope.canChooseBranchFilter}
-            isPending={isPending}
-            onBranchChange={handleBranchChange}
-            onSearchChange={handleSearchChange}
-            onStatusChange={handleStatusChange}
-            selectedBranchId={filters.branchId}
-            selectedSearchQuery={filters.query}
-            selectedStatus={filters.status}
-          />
-
-          {initialScope.canCreateLoan ? (
-            <Link href="/dashboard/create-loan">
-              <Button size="sm" type="button" variant="secondary">
-                Create loan
-              </Button>
-            </Link>
-          ) : null}
-        </CardContent>
-      </Card>
-
-      <LoansResultsSection
-        data={results}
-        errorMessage={errorMessage}
-        isPending={isPending}
-        onPageChange={handlePageChange}
-      />
-    </div>
+    <LoanRecordsModule
+      controls={(
+        <LoansFilters
+          branches={branchOptions}
+          action={
+            initialScope.canCreateLoan ? (
+              <Link href="/dashboard/create-loan">
+                <Button className="w-full xl:w-auto" size="sm" type="button" variant="secondary">
+                  Create loan
+                </Button>
+              </Link>
+            ) : null
+          }
+          canChooseBranchFilter={initialScope.canChooseBranchFilter}
+          isPending={isPending}
+          onBranchChange={handleBranchChange}
+          onSearchChange={handleSearchChange}
+          onStatusChange={handleStatusChange}
+          selectedBranchId={filters.branchId}
+          selectedSearchQuery={filters.query}
+          selectedStatus={filters.status}
+        />
+      )}
+      data={results}
+      errorMessage={errorMessage}
+      isPending={isPending}
+      onPageChange={handlePageChange}
+    />
   );
 }
