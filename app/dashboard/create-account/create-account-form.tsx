@@ -97,8 +97,12 @@ function buildAccountDetailsLines(result: NonNullable<CreateAccountState["result
   if (result.assignedBranches.length > 0) {
     lines.push(`Assigned Branches: ${result.assignedBranches.join(", ")}`);
   }
-  if (result.contactNumber) {
-    lines.push(`Contact Number: ${result.contactNumber}`);
+  lines.push(`Status: ${result.status}`);
+  if (result.contactNo) {
+    lines.push(`Contact Number: ${result.contactNo}`);
+  }
+  if (result.email) {
+    lines.push(`Email: ${result.email}`);
   }
   if (result.address) {
     lines.push(`Address: ${result.address}`);
@@ -131,7 +135,8 @@ export function CreateAccountForm({
   const [firstName, setFirstName] = useState("");
   const [middleName, setMiddleName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [contactNumber, setContactNumber] = useState("");
+  const [contactNo, setContactNo] = useState("");
+  const [email, setEmail] = useState("");
   const [address, setAddress] = useState("");
   const [singleBranchId, setSingleBranchId] = useState(fixedBranchId ?? "");
   const [areaId, setAreaId] = useState("");
@@ -167,6 +172,7 @@ export function CreateAccountForm({
 
   const showRoleSelector = !borrowerOnly && accountCategory === "Employee";
   const showBorrowerFields = accountCategory === "Borrower";
+  const requiresContactNo = accountCategory === "Borrower" || (showRoleSelector && selectedRoleName === "Collector");
   const showAuditorBranchSelector = showRoleSelector && selectedRoleName === "Auditor";
   const showAreaFlow =
     accountCategory === "Borrower" ||
@@ -197,6 +203,7 @@ export function CreateAccountForm({
     setAreaId("");
     setSingleBranchId(fixedBranchId ?? "");
     setAuditorBranchIds([]);
+    setContactNo("");
 
     if (value === "Employee" && !hasSelectedEmployeeRole) {
       setRoleId(employeeRoles[0] ? String(employeeRoles[0].role_id) : "");
@@ -208,11 +215,16 @@ export function CreateAccountForm({
       return;
     }
 
+    const nextRoleName =
+      employeeRoles.find((role) => String(role.role_id) === value)?.role_name ?? "";
     setRoleId(value);
     setCopyStatus("");
     setAreaId("");
     setSingleBranchId(fixedBranchId ?? "");
     setAuditorBranchIds([]);
+    if (nextRoleName !== "Collector") {
+      setContactNo("");
+    }
   }
 
   function handleBranchChange(value: string) {
@@ -390,8 +402,45 @@ export function CreateAccountForm({
             <div className="rounded-md border p-3">
               <p className="text-sm">Username will be set to the generated Company ID.</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                A temporary password will be generated automatically.
+                New accounts are created as active, and a temporary password will be generated automatically.
               </p>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <FieldLabel htmlFor="contact_no" required={requiresContactNo}>
+                  Contact Number
+                </FieldLabel>
+                <Input
+                  id="contact_no"
+                  inputMode="numeric"
+                  maxLength={11}
+                  name="contact_no"
+                  onChange={(event) =>
+                    setContactNo(event.target.value.replace(/\D/g, "").slice(0, 11))
+                  }
+                  pattern="[0-9]*"
+                  placeholder="09XXXXXXXXX"
+                  value={contactNo}
+                />
+                {state.fieldErrors?.contact_no ? (
+                  <p className="text-sm text-destructive">{state.fieldErrors.contact_no}</p>
+                ) : null}
+              </div>
+              <div className="space-y-2">
+                <FieldLabel htmlFor="email">Email</FieldLabel>
+                <Input
+                  id="email"
+                  name="email"
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="name@example.com"
+                  type="email"
+                  value={email}
+                />
+                {state.fieldErrors?.email ? (
+                  <p className="text-sm text-destructive">{state.fieldErrors.email}</p>
+                ) : null}
+              </div>
             </div>
 
             {showAreaFlow ? (
@@ -445,27 +494,7 @@ export function CreateAccountForm({
             ) : null}
 
             {showBorrowerFields ? (
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <FieldLabel htmlFor="contact_number" required>
-                    Contact Number
-                  </FieldLabel>
-                  <Input
-                    id="contact_number"
-                    inputMode="numeric"
-                    maxLength={11}
-                    name="contact_number"
-                    onChange={(event) =>
-                      setContactNumber(event.target.value.replace(/\D/g, "").slice(0, 11))
-                    }
-                    pattern="[0-9]*"
-                    value={contactNumber}
-                  />
-                  {state.fieldErrors?.contact_number ? (
-                    <p className="text-sm text-destructive">{state.fieldErrors.contact_number}</p>
-                  ) : null}
-                </div>
-                <div className="space-y-2">
+              <div className="space-y-2">
                   <FieldLabel htmlFor="address" required>
                     Address
                   </FieldLabel>
@@ -478,7 +507,6 @@ export function CreateAccountForm({
                   {state.fieldErrors?.address ? (
                     <p className="text-sm text-destructive">{state.fieldErrors.address}</p>
                   ) : null}
-                </div>
               </div>
             ) : null}
 
@@ -581,15 +609,20 @@ export function CreateAccountForm({
                     {selectedAuditorBranchNames.join(", ")}
                   </p>
                 ) : null}
+                {contactNo ? (
+                  <p>
+                    <span className="font-medium">Contact Number:</span> {contactNo}
+                  </p>
+                ) : null}
                 {accountCategory === "Borrower" ? (
-                  <>
-                    <p>
-                      <span className="font-medium">Contact Number:</span> {contactNumber || ""}
-                    </p>
-                    <p>
-                      <span className="font-medium">Address:</span> {address || ""}
-                    </p>
-                  </>
+                  <p>
+                    <span className="font-medium">Address:</span> {address || ""}
+                  </p>
+                ) : null}
+                {email ? (
+                  <p>
+                    <span className="font-medium">Email:</span> {email}
+                  </p>
                 ) : null}
               </div>
 
@@ -702,11 +735,19 @@ export function CreateAccountForm({
                 {state.result.assignedBranches.join(", ")}
               </p>
             ) : null}
-            {state.result.contactNumber ? (
+            {state.result.contactNo ? (
               <p>
-                <span className="font-medium">Contact Number:</span> {state.result.contactNumber}
+                <span className="font-medium">Contact Number:</span> {state.result.contactNo}
               </p>
             ) : null}
+            {state.result.email ? (
+              <p>
+                <span className="font-medium">Email:</span> {state.result.email}
+              </p>
+            ) : null}
+            <p>
+              <span className="font-medium">Status:</span> {state.result.status}
+            </p>
             {state.result.address ? (
               <p>
                 <span className="font-medium">Address:</span> {state.result.address}

@@ -15,6 +15,7 @@ type NavItem = {
     | "wallet"
     | "file-text"
     | "user-plus"
+    | "user-round"
     | "settings";
 };
 
@@ -29,8 +30,9 @@ function navItemsForRole(roleName: string): NavItem[] {
       { href: "/dashboard/incentives", label: "Incentives", section: "finance", icon: "wallet" },
       { href: "/dashboard/expenses", label: "Expenses", section: "finance", icon: "receipt-text" },
       { href: "/dashboard/my-documents", label: "Documents", section: "system", icon: "file-text" },
+      { href: "/dashboard/manage-user-accounts", label: "Manage User Accounts", section: "system", icon: "users" },
       { href: "/dashboard/create-account", label: "Create Account", section: "system", icon: "user-plus" },
-      { href: "/dashboard", label: "Settings", section: "system", icon: "settings" },
+      { href: "/dashboard/my-profile", label: "My Profile", section: "system", icon: "user-round" },
     ];
   }
 
@@ -44,8 +46,9 @@ function navItemsForRole(roleName: string): NavItem[] {
       { href: "/dashboard/incentives", label: "Incentives", section: "finance", icon: "wallet" },
       { href: "/dashboard/expenses", label: "Expenses", section: "finance", icon: "receipt-text" },
       { href: "/dashboard/my-documents", label: "Documents", section: "system", icon: "file-text" },
+      { href: "/dashboard/manage-user-accounts", label: "Manage User Accounts", section: "system", icon: "users" },
       { href: "/dashboard/create-account", label: "Create Account", section: "system", icon: "user-plus" },
-      { href: "/dashboard", label: "Settings", section: "system", icon: "settings" },
+      { href: "/dashboard/my-profile", label: "My Profile", section: "system", icon: "user-round" },
     ];
   }
 
@@ -57,7 +60,7 @@ function navItemsForRole(roleName: string): NavItem[] {
       { href: "/dashboard/loans", label: "Collections", section: "main", icon: "receipt-text" },
       { href: "/dashboard/my-documents", label: "Documents", section: "system", icon: "file-text" },
       { href: "/dashboard/create-account", label: "Create Account", section: "system", icon: "user-plus" },
-      { href: "/dashboard", label: "Settings", section: "system", icon: "settings" },
+      { href: "/dashboard/my-profile", label: "My Profile", section: "system", icon: "user-round" },
     ];
   }
 
@@ -71,7 +74,8 @@ function navItemsForRole(roleName: string): NavItem[] {
       { href: "/dashboard/incentives", label: "Incentives", section: "finance", icon: "wallet" },
       { href: "/dashboard/expenses", label: "Expenses", section: "finance", icon: "receipt-text" },
       { href: "/dashboard/my-documents", label: "Documents", section: "system", icon: "file-text" },
-      { href: "/dashboard", label: "Settings", section: "system", icon: "settings" },
+      { href: "/dashboard/manage-user-accounts", label: "Manage User Accounts", section: "system", icon: "users" },
+      { href: "/dashboard/my-profile", label: "My Profile", section: "system", icon: "user-round" },
     ];
   }
 
@@ -81,7 +85,7 @@ function navItemsForRole(roleName: string): NavItem[] {
       { href: "/dashboard/my-performance", label: "My Performance", section: "main", icon: "bar-chart-3" },
       { href: "/dashboard/assigned-loans", label: "Assigned Loans", section: "main", icon: "hand-coins" },
       { href: "/dashboard/my-collections", label: "My Collections", section: "main", icon: "receipt-text" },
-      { href: "/dashboard", label: "Settings", section: "system", icon: "settings" },
+      { href: "/dashboard/my-profile", label: "My Profile", section: "system", icon: "user-round" },
     ];
   }
 
@@ -90,7 +94,7 @@ function navItemsForRole(roleName: string): NavItem[] {
       { href: "/dashboard", label: "Overview", section: "main", icon: "layout-dashboard" },
       { href: "/dashboard/my-loans", label: "Loans", section: "main", icon: "hand-coins" },
       { href: "/dashboard/my-documents", label: "Documents", section: "system", icon: "file-text" },
-      { href: "/dashboard", label: "Settings", section: "system", icon: "settings" },
+      { href: "/dashboard/my-profile", label: "My Profile", section: "system", icon: "user-round" },
     ];
   }
 

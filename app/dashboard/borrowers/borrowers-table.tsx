@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import type { BorrowerListRow } from "@/app/dashboard/borrowers/types";
 
@@ -17,6 +20,11 @@ function formatNameList(lastName: string | null, firstName: string | null, middl
 }
 
 export function BorrowersTable({ borrowers }: { borrowers: BorrowerListRow[] }) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const query = searchParams.toString();
+  const returnTo = query ? `${pathname}?${query}` : pathname;
+
   if (borrowers.length === 0) {
     return <p className="text-muted-foreground text-sm">No borrowers found for the selected filter.</p>;
   }
@@ -43,7 +51,7 @@ export function BorrowersTable({ borrowers }: { borrowers: BorrowerListRow[] }) 
               <td className="px-2 py-3">{row.branchCode || row.branchName}</td>
               <td className="px-2 py-3">{row.contactNumber || "N/A"}</td>
               <td className="px-2 py-3">
-                <Link href={`/dashboard/borrowers/${row.userId}`}>
+                <Link href={`/dashboard/borrowers/${row.userId}?source=borrowers&returnTo=${encodeURIComponent(returnTo)}`}>
                   <Button size="sm" type="button" variant="outline">
                     View
                   </Button>

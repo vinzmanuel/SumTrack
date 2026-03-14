@@ -1,7 +1,13 @@
 import Link from "next/link";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { TremorCard, TremorDescription } from "@/components/tremor/raw/metric-card";
+import { BorrowerDocumentsSection } from "@/app/dashboard/borrowers/[borrowerId]/documents/borrower-documents-section";
+import { BorrowerLoanHistoryTab } from "@/app/dashboard/borrowers/borrower-loan-history-tab";
+import { parseBorrowerDetailTab } from "@/app/dashboard/borrowers/detail-filters";
+import { BorrowerProfileSummaryTab } from "@/app/dashboard/borrowers/borrower-profile-summary-tab";
+import type { BorrowerDetailTabKey } from "@/app/dashboard/borrowers/types";
 import { db } from "@/db";
 import {
   areas,
@@ -14,7 +20,6 @@ import {
   roles,
   users,
 } from "@/db/schema";
-import { BorrowerDocumentsSection } from "@/app/dashboard/borrowers/[borrowerId]/documents/borrower-documents-section";
 import { createClient } from "@/lib/supabase/server";
 
 type PageProps = {
@@ -22,6 +27,9 @@ type PageProps = {
     borrowerId: string;
   }>;
   searchParams: Promise<{
+    tab?: string;
+    source?: string;
+    returnTo?: string;
     docsPage?: string;
   }>;
 };
@@ -36,18 +44,64 @@ function formatSummaryName(firstName: string | null, middleName: string | null, 
   return [first, middleInitial, last].filter(Boolean).join(" ") || "N/A";
 }
 
-function formatMoney(value: number) {
-  return `\u20B1${value.toLocaleString("en-PH", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
+function renderMessageCard(props: {
+  href: string;
+  label: string;
+  message: string;
+}) {
+  return (
+    <main className="mx-auto min-h-screen w-full max-w-6xl p-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Borrower&apos;s Details</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">{props.message}</p>
+          <Link className="text-sm underline" href={props.href}>
+            {props.label}
+          </Link>
+        </CardContent>
+      </Card>
+    </main>
+  );
+}
+
+function buildTabHref(params: {
+  borrowerId: string;
+  tab: BorrowerDetailTabKey;
+  docsPage: number;
+  source: "borrowers" | "manage-users";
+  returnTo: string;
+}) {
+  const search = new URLSearchParams();
+
+  if (params.tab !== "profile") {
+    search.set("tab", params.tab);
+  }
+  if (params.docsPage > 1) {
+    search.set("docsPage", String(params.docsPage));
+  }
+  search.set("source", params.source);
+  search.set("returnTo", params.returnTo);
+
+  const query = search.toString();
+  return query
+    ? `/dashboard/borrowers/${params.borrowerId}?${query}`
+    : `/dashboard/borrowers/${params.borrowerId}`;
 }
 
 export default async function BorrowerProfilePage({ params, searchParams }: PageProps) {
   const { borrowerId } = await params;
-  const { docsPage: docsPageParam } = await searchParams;
+  const {
+    docsPage: docsPageParam,
+    source: sourceParam,
+    returnTo: returnToParam,
+    tab: tabParam,
+  } = await searchParams;
   const docsPage = Math.max(1, Number.parseInt(docsPageParam ?? "1", 10) || 1);
   const docsOffset = (docsPage - 1) * DOCS_PAGE_SIZE;
+  const activeTab = parseBorrowerDetailTab(tabParam);
+  const source = sourceParam === "manage-users" ? "manage-users" : "borrowers";
 
   const supabase = await createClient();
   const {
@@ -55,21 +109,11 @@ export default async function BorrowerProfilePage({ params, searchParams }: Page
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return (
-      <main className="mx-auto flex min-h-screen w-full max-w-6xl items-center justify-center p-6">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle>Borrower Profile</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">Not logged in</p>
-            <Link className="mt-3 inline-block text-sm underline" href="/login">
-              Go to login
-            </Link>
-          </CardContent>
-        </Card>
-      </main>
-    );
+    return renderMessageCard({
+      href: "/login",
+      label: "Go to login",
+      message: "Not logged in",
+    });
   }
 
   const currentAppUser = await db
@@ -97,45 +141,23 @@ export default async function BorrowerProfilePage({ params, searchParams }: Page
   const isCollector = currentRole?.role_name === "Collector";
   const canManageDocs = isAdmin || isBranchManager || isSecretary;
   const canViewDocs = isAdmin || isBranchManager || isSecretary || isAuditor;
+  const canCreateLoan = isAdmin || isBranchManager || isSecretary;
 
   if (isCollector) {
-    return (
-      <main className="mx-auto flex min-h-screen w-full max-w-6xl items-center justify-center p-6">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle>Borrower Profile</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Collectors cannot access borrower pages or borrower documents.
-            </p>
-            <Link className="text-sm underline" href="/dashboard">
-              Back to dashboard
-            </Link>
-          </CardContent>
-        </Card>
-      </main>
-    );
+    return renderMessageCard({
+      href: "/dashboard",
+      label: "Back to dashboard",
+      message: "Collectors cannot access borrower pages or borrower documents.",
+    });
   }
 
   if (!isAdmin && !isBranchManager && !isSecretary && !isAuditor) {
-    return (
-      <main className="mx-auto flex min-h-screen w-full max-w-6xl items-center justify-center p-6">
-        <Card className="w-full max-w-md">
-          <CardHeader>
-            <CardTitle>Borrower Profile</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              You are logged in, but only Admin, Branch Manager, Secretary, and Auditor can access borrower profiles.
-            </p>
-            <Link className="text-sm underline" href="/dashboard">
-              Back to dashboard
-            </Link>
-          </CardContent>
-        </Card>
-      </main>
-    );
+    return renderMessageCard({
+      href: "/dashboard",
+      label: "Back to dashboard",
+      message:
+        "You are logged in, but only Admin, Branch Manager, Secretary, and Auditor can access borrower profiles.",
+    });
   }
 
   let allowedBranchIds: number[] = [];
@@ -156,43 +178,19 @@ export default async function BorrowerProfilePage({ params, searchParams }: Page
     const uniqueBranchIds = Array.from(new Set(activeAssignments.map((item) => item.branch_id)));
     if (isAuditor) {
       if (uniqueBranchIds.length === 0) {
-        return (
-          <main className="mx-auto min-h-screen w-full max-w-6xl p-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Borrower Profile</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <p className="text-sm text-amber-700 dark:text-amber-400">
-                  Unable to resolve your assigned branches.
-                </p>
-                <Link className="text-sm underline" href="/dashboard/borrowers">
-                  Back to borrowers
-                </Link>
-              </CardContent>
-            </Card>
-          </main>
-        );
+        return renderMessageCard({
+          href: "/dashboard/borrowers",
+          label: "Back to borrowers",
+          message: "Unable to resolve your assigned branches.",
+        });
       }
       allowedBranchIds = uniqueBranchIds;
     } else if (uniqueBranchIds.length !== 1) {
-      return (
-        <main className="mx-auto min-h-screen w-full max-w-6xl p-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Borrower Profile</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <p className="text-sm text-amber-700 dark:text-amber-400">
-                Unable to resolve your active branch assignment.
-              </p>
-              <Link className="text-sm underline" href="/dashboard/borrowers">
-                Back to borrowers
-              </Link>
-            </CardContent>
-          </Card>
-        </main>
-      );
+      return renderMessageCard({
+        href: "/dashboard/borrowers",
+        label: "Back to borrowers",
+        message: "Unable to resolve your active branch assignment.",
+      });
     } else {
       allowedBranchIds = [uniqueBranchIds[0]];
     }
@@ -204,7 +202,10 @@ export default async function BorrowerProfilePage({ params, searchParams }: Page
       first_name: borrower_info.first_name,
       middle_name: borrower_info.middle_name,
       last_name: borrower_info.last_name,
-      contact_number: borrower_info.contact_number,
+      contact_number: users.contact_no,
+      email: users.email,
+      status: users.status,
+      date_created: users.date_created,
       address: borrower_info.address,
       company_id: users.company_id,
       area_id: areas.area_id,
@@ -223,41 +224,19 @@ export default async function BorrowerProfilePage({ params, searchParams }: Page
     .catch(() => null);
 
   if (!borrower) {
-    return (
-      <main className="mx-auto min-h-screen w-full max-w-6xl p-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Borrower Profile</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-sm text-muted-foreground">Borrower not found.</p>
-            <Link className="text-sm underline" href="/dashboard/borrowers">
-              Back to borrowers
-            </Link>
-          </CardContent>
-        </Card>
-      </main>
-    );
+    return renderMessageCard({
+      href: "/dashboard/borrowers",
+      label: "Back to borrowers",
+      message: "Borrower not found.",
+    });
   }
 
   if (!isAdmin && !allowedBranchIds.includes(borrower.branch_id)) {
-    return (
-      <main className="mx-auto min-h-screen w-full max-w-6xl p-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Borrower Profile</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <p className="text-sm text-destructive">
-              You are not authorized to access this borrower profile.
-            </p>
-            <Link className="text-sm underline" href="/dashboard/borrowers">
-              Back to borrowers
-            </Link>
-          </CardContent>
-        </Card>
-      </main>
-    );
+    return renderMessageCard({
+      href: "/dashboard/borrowers",
+      label: "Back to borrowers",
+      message: "You are not authorized to access this borrower profile.",
+    });
   }
 
   const loans = await db
@@ -315,111 +294,129 @@ export default async function BorrowerProfilePage({ params, searchParams }: Page
     };
   });
 
+  const fullName = formatSummaryName(
+    borrower.first_name,
+    borrower.middle_name,
+    borrower.last_name,
+  );
+  const branchLabel = borrower.branch_code || borrower.branch_name;
+  const safeBorrowersBackHref = String(returnToParam ?? "").startsWith("/dashboard/borrowers")
+    ? String(returnToParam)
+    : "/dashboard/borrowers";
+  const safeManageUsersBackHref = String(returnToParam ?? "").startsWith("/dashboard/manage-user-accounts")
+    ? String(returnToParam)
+    : "/dashboard/manage-user-accounts";
+  const backHref = source === "manage-users" ? safeManageUsersBackHref : safeBorrowersBackHref;
+  const backLabel = source === "manage-users" ? "Back to Manage Users" : "Back to Borrowers";
+
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Borrower Profile</CardTitle>
-          <CardDescription>Borrower details and loan history</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-2">
-          <Link href="/dashboard/borrowers">
-            <Button type="button" variant="outline">
-              Back to borrowers
-            </Button>
-          </Link>
-          {isAdmin || isBranchManager || isSecretary ? (
-            <Link href={`/dashboard/create-loan?borrowerId=${borrower.user_id}`}>
-              <Button type="button">Create Loan</Button>
+      <TremorCard className="overflow-hidden p-0">
+        <div className="bg-gradient-to-r from-slate-50 via-white to-emerald-50/60 p-6">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <h1 className="text-3xl font-semibold tracking-tight text-foreground">{fullName}</h1>
+                <TremorDescription>{`${branchLabel} / ${borrower.area_code}`}</TremorDescription>
+              </div>
+
+              <div className="flex flex-wrap gap-2 text-xs font-medium">
+                <span className="rounded-full border border-border/70 bg-background px-3 py-1 text-foreground">
+                  Company ID: {borrower.company_id}
+                </span>
+                <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-blue-700">
+                  Role: Borrower
+                </span>
+                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-emerald-800">
+                  Status: {borrower.status === "active" ? "Active" : "Inactive"}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              {canCreateLoan ? (
+                <Link href={`/dashboard/create-loan?borrowerId=${borrower.user_id}`}>
+                  <Button type="button">Create Loan</Button>
+                </Link>
+              ) : null}
+              <Link href={backHref}>
+                <Button type="button" variant="outline">
+                  {backLabel}
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </div>
+
+        <div className="border-t border-border/70 p-6">
+          <div className="inline-flex flex-wrap gap-2 rounded-xl border border-border/70 bg-muted/30 p-1">
+            <Link href={buildTabHref({ borrowerId, tab: "profile", docsPage, source, returnTo: backHref })}>
+              <TabButton active={activeTab === "profile"} label="Profile" />
             </Link>
-          ) : null}
-        </CardContent>
-      </Card>
+            <Link href={buildTabHref({ borrowerId, tab: "loan-history", docsPage, source, returnTo: backHref })}>
+              <TabButton active={activeTab === "loan-history"} label="Loan History" />
+            </Link>
+            <Link href={buildTabHref({ borrowerId, tab: "documents", docsPage, source, returnTo: backHref })}>
+              <TabButton active={activeTab === "documents"} label="Documents" />
+            </Link>
+          </div>
+        </div>
+      </TremorCard>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Borrower Summary</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-3 text-sm md:grid-cols-2">
-          <p>
-            <span className="font-medium">Company ID:</span> {borrower.company_id}
-          </p>
-          <p>
-            <span className="font-medium">Name:</span>{" "}
-            {formatSummaryName(borrower.first_name, borrower.middle_name, borrower.last_name)}
-          </p>
-          <p>
-            <span className="font-medium">Contact Number:</span> {borrower.contact_number || "N/A"}
-          </p>
-          <p>
-            <span className="font-medium">Address:</span> {borrower.address || "N/A"}
-          </p>
-          <p>
-            <span className="font-medium">Branch:</span> {borrower.branch_name || borrower.branch_code}
-          </p>
-          <p>
-            <span className="font-medium">Area:</span> {borrower.area_code}
-          </p>
-          <p className="text-muted-foreground md:col-span-2">
-            <span className="font-medium">Borrower UUID:</span> {borrower.user_id}
-          </p>
-        </CardContent>
-      </Card>
-
+      {activeTab === "profile" ? (
+        <BorrowerProfileSummaryTab
+          borrower={{
+            fullName,
+            companyId: borrower.company_id,
+            status: borrower.status,
+            contactNumber: borrower.contact_number,
+            email: borrower.email,
+            branchLabel,
+            areaCode: borrower.area_code,
+            address: borrower.address,
+            dateCreated: borrower.date_created,
+          }}
+        />
+      ) : activeTab === "loan-history" ? (
+        <BorrowerLoanHistoryTab
+          loans={loans.map((loan) => ({
+            loanId: loan.loan_id,
+            loanCode: loan.loan_code,
+            principal: Number(loan.principal) || 0,
+            interest: Number(loan.interest) || 0,
+            startDate: loan.start_date,
+            dueDate: loan.due_date,
+            status: loan.status,
+          }))}
+        />
+      ) : (
         <BorrowerDocumentsSection
           borrowerId={borrower.user_id}
           canManage={canManageDocs}
-        canView={canViewDocs}
-        currentPage={docsPage}
-        docs={pagedDocs}
-        hasMore={hasMoreDocs}
-      />
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Loan History</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loans.length === 0 ? (
-            <p className="text-muted-foreground text-sm">No loan records for this borrower.</p>
-          ) : (
-            <div className="overflow-auto">
-              <table className="w-full min-w-250 text-sm">
-                <thead>
-                  <tr className="border-b text-left">
-                    <th className="px-2 py-2 font-medium">Loan Code</th>
-                    <th className="px-2 py-2 font-medium">Principal</th>
-                    <th className="px-2 py-2 font-medium">Interest</th>
-                    <th className="px-2 py-2 font-medium">Start Date</th>
-                    <th className="px-2 py-2 font-medium">Due Date</th>
-                    <th className="px-2 py-2 font-medium">Status</th>
-                    <th className="px-2 py-2 font-medium">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {loans.map((loan) => (
-                    <tr className="border-b" key={String(loan.loan_id)}>
-                      <td className="px-2 py-2">{loan.loan_code}</td>
-                      <td className="px-2 py-2">{formatMoney(Number(loan.principal) || 0)}</td>
-                      <td className="px-2 py-2">{Number(loan.interest) || 0}%</td>
-                      <td className="px-2 py-2">{loan.start_date}</td>
-                      <td className="px-2 py-2">{loan.due_date}</td>
-                      <td className="px-2 py-2">{loan.status}</td>
-                      <td className="px-2 py-2">
-                        <Link href={`/dashboard/loans/${loan.loan_id}`}>
-                          <Button size="sm" type="button" variant="outline">
-                            View
-                          </Button>
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+          canView={canViewDocs}
+          currentPage={docsPage}
+          docs={pagedDocs}
+          hasMore={hasMoreDocs}
+        />
+      )}
     </div>
+  );
+}
+
+function TabButton({
+  active,
+  label,
+}: {
+  active: boolean;
+  label: string;
+}) {
+  return (
+    <span
+      className={`inline-flex rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+        active ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+      }`}
+    >
+      {label}
+    </span>
   );
 }

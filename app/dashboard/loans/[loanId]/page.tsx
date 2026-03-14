@@ -142,10 +142,11 @@ export default async function LoanDetailPage({ params, searchParams }: PageProps
       area_id: borrower_info.area_id,
       first_name: borrower_info.first_name,
       last_name: borrower_info.last_name,
-      contact_number: borrower_info.contact_number,
+      contact_number: users.contact_no,
       address: borrower_info.address,
     })
     .from(borrower_info)
+    .innerJoin(users, eq(users.user_id, borrower_info.user_id))
     .where(eq(borrower_info.user_id, loan.borrower_id))
     .limit(1)
     .then((rows) => rows[0] ?? null)

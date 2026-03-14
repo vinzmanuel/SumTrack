@@ -5,7 +5,11 @@ import type {
 } from "@/app/dashboard/collectors/types";
 
 export function parseCollectorDetailTab(value: string | undefined): CollectorDetailTabKey {
-  return value === "assigned-loans" ? "assigned-loans" : "performance";
+  if (value === "performance" || value === "assigned-loans") {
+    return value;
+  }
+
+  return "profile";
 }
 
 function normalizeStatus(value: string | undefined): LoanStatusFilter {

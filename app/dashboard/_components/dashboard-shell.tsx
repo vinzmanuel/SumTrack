@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import {
   BarChart3,
+  CircleUserRound,
   ChevronLeft,
   FileText,
   HandCoins,
@@ -39,6 +40,7 @@ type NavItem = {
     | "wallet"
     | "file-text"
     | "user-plus"
+    | "user-round"
     | "settings";
 };
 
@@ -87,6 +89,7 @@ function NavContent({
     if (icon === "wallet") return <Wallet className="h-4 w-4 shrink-0" />;
     if (icon === "file-text") return <FileText className="h-4 w-4 shrink-0" />;
     if (icon === "user-plus") return <UserPlus className="h-4 w-4 shrink-0" />;
+    if (icon === "user-round") return <CircleUserRound className="h-4 w-4 shrink-0" />;
     return <Settings className="h-4 w-4 shrink-0" />;
   };
 
@@ -178,8 +181,17 @@ export function DashboardShell({ roleName, companyId, navItems, children }: Dash
   const [isCollapsed, setIsCollapsed] = useState(false);
   const normalizedItems = useMemo(() => navItems, [navItems]);
   const pathname = usePathname();
-  const currentPageLabel =
-    normalizedItems.find((item) => isActiveNav(pathname, item.href))?.label ?? "Overview";
+  const currentPageLabel = useMemo(() => {
+    if (/^\/dashboard\/collectors\/[^/]+$/.test(pathname)) {
+      return "Collector Details";
+    }
+
+    if (/^\/dashboard\/borrowers\/[^/]+$/.test(pathname)) {
+      return "Borrower's Details";
+    }
+
+    return normalizedItems.find((item) => isActiveNav(pathname, item.href))?.label ?? "Overview";
+  }, [normalizedItems, pathname]);
 
   return (
     <div className="min-h-screen bg-background md:h-screen md:overflow-hidden">

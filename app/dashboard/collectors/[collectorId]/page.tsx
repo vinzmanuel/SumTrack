@@ -21,6 +21,8 @@ export default async function CollectorProfilePage({
   searchParams?: Promise<{
     tab?: string;
     period?: string;
+    source?: string;
+    returnTo?: string;
     branch?: string;
     range?: string;
     from?: string;
@@ -36,7 +38,7 @@ export default async function CollectorProfilePage({
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Collector Profile</CardTitle>
+          <CardTitle>Collector Details</CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">{auth.message}</p>
@@ -57,7 +59,7 @@ export default async function CollectorProfilePage({
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Collector Profile</CardTitle>
+          <CardTitle>Collector Details</CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">{access.message}</p>
@@ -74,7 +76,7 @@ export default async function CollectorProfilePage({
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Collector Profile</CardTitle>
+          <CardTitle>Collector Details</CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">
@@ -85,6 +87,7 @@ export default async function CollectorProfilePage({
     );
   }
 
+  const source = currentSearchParams.source === "manage-users" ? "manage-users" : "collectors";
   const backParams = new URLSearchParams();
   if (filters.requestedBranchId) {
     backParams.set("branch", String(filters.requestedBranchId));
@@ -105,11 +108,18 @@ export default async function CollectorProfilePage({
   }
   const backQuery = backParams.toString();
 
-  const backHref = backQuery ? `/dashboard/collectors?${backQuery}` : "/dashboard/collectors";
+  const collectorsBackHref = backQuery ? `/dashboard/collectors?${backQuery}` : "/dashboard/collectors";
+  const returnTo = String(currentSearchParams.returnTo ?? "");
+  const safeManageUsersBackHref = returnTo.startsWith("/dashboard/manage-user-accounts")
+    ? returnTo
+    : "/dashboard/manage-user-accounts";
+  const backHref = source === "manage-users" ? safeManageUsersBackHref : collectorsBackHref;
+  const backLabel = source === "manage-users" ? "Back to Manage Users" : "Back to Collectors";
 
   return (
     <div className="space-y-6">
       <CollectorProfileClientPage
+        backLabel={backLabel}
         backHref={backHref}
         collectorId={routeParams.collectorId}
         initialAssignedLoansData={assignedLoans}

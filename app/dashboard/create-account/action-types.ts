@@ -8,7 +8,8 @@ export type FormFields = {
   first_name: string;
   middle_name: string;
   last_name: string;
-  contact_number: string;
+  contact_no: string;
+  email: string;
   address: string;
   branch_id: string;
   area_id: string;
@@ -23,7 +24,8 @@ export type ParsedCreateAccountInput = {
   firstName: string;
   middleName: string;
   lastName: string;
-  contactNumber: string;
+  contactNo: string;
+  email: string;
   address: string;
   branchId: number | null;
   areaId: number | null;

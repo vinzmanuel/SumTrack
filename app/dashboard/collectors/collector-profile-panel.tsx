@@ -46,16 +46,15 @@ export function CollectorProfilePanel({
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-indigo-600">
                 Collector KPI Dashboard
               </p>
-              <h2 className="text-3xl font-semibold tracking-tight text-foreground">{data.fullName}</h2>
-              <TremorDescription>{`${data.branchName} / ${data.areaLabel}`}</TremorDescription>
+              <h2 className="text-2xl font-semibold tracking-tight text-foreground">Performance Snapshot</h2>
+              <TremorDescription>
+                Period-based analytics for this collector stay here, separate from the account profile tab.
+              </TremorDescription>
             </div>
 
             <div className="flex flex-wrap gap-2 text-xs font-medium">
-              <span className="rounded-full border border-border/70 bg-background px-3 py-1 text-foreground">
-                Company ID: {data.companyId}
-              </span>
               <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-emerald-800">
-                Status: {data.status}
+                Status: {data.status === "active" ? "Active" : "Inactive"}
               </span>
               <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-sky-800">
                 Period: {data.periodLabel}

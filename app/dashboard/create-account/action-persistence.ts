@@ -17,18 +17,26 @@ type PersistParams = {
   userId: string;
   companyId: string;
   username: string;
+  creatorUserId: string;
   input: ParsedCreateAccountInput;
   selectedRole: SelectedRoleContext;
   resolvedScope: ResolvedCreateAccountScope;
 };
 
 export async function persistCreateAccountRecords(params: PersistParams) {
+  const now = new Date().toISOString();
+
   try {
     await db.insert(users).values({
       user_id: params.userId,
       company_id: params.companyId,
       username: params.username,
       role_id: params.selectedRole.roleId,
+      contact_no: params.input.contactNo || null,
+      email: params.input.email || null,
+      status: "active",
+      created_by: params.creatorUserId,
+      updated_at: now,
     });
   } catch (error) {
     return {
@@ -92,7 +100,6 @@ export async function persistCreateAccountRecords(params: PersistParams) {
         first_name: params.input.firstName,
         middle_name: params.input.middleName || null,
         last_name: params.input.lastName,
-        contact_number: params.input.contactNumber,
         address: params.input.address,
         area_id: params.resolvedScope.selectedArea!.area_id,
       });

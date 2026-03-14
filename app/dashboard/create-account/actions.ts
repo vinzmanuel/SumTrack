@@ -11,6 +11,7 @@ import {
 import type { ParsedCreateAccountInput, ResolvedCreateAccountScope, SelectedRoleContext } from "@/app/dashboard/create-account/action-types";
 import { persistCreateAccountRecords } from "@/app/dashboard/create-account/action-persistence";
 import { createErrorState, parseCreateAccountForm, validateCreateAccountInput } from "@/app/dashboard/create-account/action-validation";
+import { isValidPhilippineMobile } from "@/app/dashboard/account-field-validation";
 
 async function resolveCompanyId(
   input: ParsedCreateAccountInput,
@@ -47,7 +48,9 @@ function buildSuccessState(params: {
         : [],
       assignedBranch: params.resolvedScope.selectedSingleBranch?.branch_name,
       assignedArea: params.resolvedScope.selectedArea?.area_code,
-      contactNumber: params.input.accountCategory === "Borrower" ? params.input.contactNumber : undefined,
+      contactNo: params.input.contactNo || undefined,
+      email: params.input.email || undefined,
+      status: "active",
       address: params.input.accountCategory === "Borrower" ? params.input.address : undefined,
     },
   };
@@ -74,6 +77,21 @@ export async function createAccountAction(
     return selectedRole.state;
   }
 
+  if (
+    (input.accountCategory === "Borrower" || selectedRole.data.isCollectorRole) &&
+    !input.contactNo
+  ) {
+    return createErrorState("Please fix the highlighted fields.", {
+      contact_no: "Contact number is required for this role.",
+    });
+  }
+
+  if (input.contactNo && !isValidPhilippineMobile(input.contactNo)) {
+    return createErrorState("Please fix the highlighted fields.", {
+      contact_no: "Enter a valid PH mobile number starting with 09.",
+    });
+  }
+
   const resolvedScope = await resolveCreateAccountScope(input, creatorAccess.data, selectedRole.data);
   if (!resolvedScope.ok) {
     return resolvedScope.state;
@@ -89,6 +107,7 @@ export async function createAccountAction(
     userId: authProvision.data.userId,
     companyId,
     username: companyId,
+    creatorUserId: creatorAccess.data.userId,
     input,
     selectedRole: selectedRole.data,
     resolvedScope: resolvedScope.data,

@@ -13,6 +13,7 @@ import {
   uniqueIndex,
   uuid,
   varchar,
+  index,
 } from "drizzle-orm/pg-core";
 
 export const roles = pgTable(
@@ -85,11 +86,21 @@ export const areas = pgTable(
 export const users = pgTable(
   "users",
   {
-    user_id: uuid().primaryKey().notNull(),
-    company_id: varchar({ length: 80 }).notNull(),
-    username: varchar({ length: 80 }).notNull(),
-    role_id: integer().notNull(),
-    date_created: timestamp({ mode: "string" }).defaultNow(),
+    user_id: uuid("user_id").primaryKey().notNull(),
+    company_id: varchar("company_id", { length: 80 }).notNull(),
+    username: varchar("username", { length: 80 }).notNull(),
+    role_id: integer("role_id").notNull(),
+    date_created: timestamp("date_created", { mode: "string" }).defaultNow(),
+    contact_no: varchar("contact_no", { length: 30 }),
+    email: varchar("email", { length: 120 }),
+
+    status: text("status")
+      .$type<"active" | "inactive">()
+      .notNull()
+      .default("active"),
+
+    created_by: uuid("created_by"),
+    updated_at: timestamp("updated_at", { mode: "string" }).defaultNow(),
   },
   (table) => [
     foreignKey({
@@ -97,9 +108,24 @@ export const users = pgTable(
       foreignColumns: [roles.role_id],
       name: "users_role_id_fkey",
     }),
+    foreignKey({
+      columns: [table.created_by],
+      foreignColumns: [table.user_id],
+      name: "users_created_by_fkey",
+    }).onDelete("set null"),
     unique("users_company_id_key").on(table.company_id),
     unique("users_username_key").on(table.username),
-  ],
+    check(
+      "users_contact_no_check",
+      sql`${table.contact_no} is null or ${table.contact_no} ~ '^09[0-9]{9}$'`
+    ),
+    check(
+      "users_status_check",
+      sql`${table.status} in ('active', 'inactive')`
+    ),
+    index("users_status_idx").on(table.status),
+    index("users_role_status_idx").on(table.role_id, table.status),
+  ]
 );
 
 export const employee_info = pgTable(
@@ -126,7 +152,6 @@ export const borrower_info = pgTable(
     first_name: varchar({ length: 100 }).notNull(),
     middle_name: varchar({ length: 100 }),
     last_name: varchar({ length: 100 }).notNull(),
-    contact_number: varchar({ length: 20 }),
     address: text(),
     area_id: integer().notNull(),
   },

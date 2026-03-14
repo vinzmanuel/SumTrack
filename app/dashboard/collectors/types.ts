@@ -19,7 +19,7 @@ export type CollectorProfilePeriodKey =
   | "this-year"
   | "lifetime";
 
-export type CollectorDetailTabKey = "performance" | "assigned-loans";
+export type CollectorDetailTabKey = "profile" | "performance" | "assigned-loans";
 
 export type CollectorsFilterState = {
   selectedBranchRaw: string;
@@ -70,11 +70,16 @@ export type CollectorPerformanceRow = {
   collectorId: string;
   fullName: string;
   companyId: string;
+  roleName: "Collector";
   branchId: number;
   branchName: string;
   areaId: number;
+  areaCode: string;
   areaLabel: string;
-  status: string;
+  status: "active" | "inactive";
+  contactNo: string | null;
+  email: string | null;
+  dateCreated: string | null;
   assignedActiveLoans: number;
   activePrincipalLoad: number;
   totalCollected: number;
@@ -168,11 +173,16 @@ export type CollectorProfileData = {
   collectorId: string;
   fullName: string;
   companyId: string;
+  roleName: "Collector";
   branchName: string;
+  areaCode: string;
   areaLabel: string;
   periodKey: CollectorProfilePeriodKey;
   periodLabel: string;
-  status: string;
+  status: "active" | "inactive";
+  contactNo: string | null;
+  email: string | null;
+  dateCreated: string | null;
   rank: number;
   periodPortfolioPrincipal: number;
   periodInterestPotential: number;

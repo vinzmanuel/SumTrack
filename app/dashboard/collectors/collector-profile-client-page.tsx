@@ -5,14 +5,15 @@ import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TremorCard, TremorDescription } from "@/components/tremor/raw/metric-card";
+import { CollectorAccountOverviewTab } from "@/app/dashboard/collectors/collector-account-overview-tab";
 import { CollectorAssignedLoansTab } from "@/app/dashboard/collectors/collector-assigned-loans-tab";
 import { CollectorProfileFilters } from "@/app/dashboard/collectors/collector-profile-filters";
 import { CollectorProfilePanel } from "@/app/dashboard/collectors/collector-profile-panel";
 import type {
   CollectorAssignedLoansData,
   CollectorAssignedLoansFilters,
-  CollectorProfileData,
   CollectorDetailTabKey,
+  CollectorProfileData,
   CollectorProfilePeriodKey,
 } from "@/app/dashboard/collectors/types";
 
@@ -40,7 +41,7 @@ function replacePageUrl(next: {
     url.searchParams.set("period", next.period);
   }
 
-  if (next.tab === "performance") {
+  if (next.tab === "profile") {
     url.searchParams.delete("tab");
   } else {
     url.searchParams.set("tab", next.tab);
@@ -52,6 +53,7 @@ function replacePageUrl(next: {
 
 export function CollectorProfileClientPage({
   backHref,
+  backLabel,
   collectorId,
   initialAssignedLoansData,
   initialAssignedLoansFilters,
@@ -59,6 +61,7 @@ export function CollectorProfileClientPage({
   initialTab,
 }: {
   backHref: string;
+  backLabel: string;
   collectorId: string;
   initialAssignedLoansData: CollectorAssignedLoansData;
   initialAssignedLoansFilters: CollectorAssignedLoansFilters;
@@ -88,7 +91,7 @@ export function CollectorProfileClientPage({
     const controller = new AbortController();
     abortRef.current = controller;
     setIsPending(true);
-      setErrorMessage(null);
+    setErrorMessage(null);
 
     try {
       const response = await fetch(buildPerformanceDataUrl(collectorId, nextPeriod), {
@@ -129,11 +132,7 @@ export function CollectorProfileClientPage({
     void loadResults(period);
   }, [appliedPeriod, loadResults, period]);
 
-  const statusText = useMemo(() => {
-    if (activeTab === "assigned-loans") {
-      return "Review the loans this collector is currently responsible for.";
-    }
-
+  const performanceStatusText = useMemo(() => {
     if (isPending) {
       return "Refreshing period analytics...";
     }
@@ -143,29 +142,54 @@ export function CollectorProfileClientPage({
     }
 
     return "Period-based cards and charts refresh below without remounting the full page.";
-  }, [activeTab, errorMessage, isPending]);
+  }, [errorMessage, isPending]);
 
   return (
     <div className="space-y-6">
-      <TremorCard className="p-6">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-          <div className="space-y-1.5">
-            <h1 className="text-xl font-semibold tracking-tight text-foreground">Collector Detail</h1>
-            <TremorDescription className="text-[13px]">{statusText}</TremorDescription>
-          </div>
+      <TremorCard className="overflow-hidden p-0">
+        <div className="bg-gradient-to-r from-slate-50 via-white to-emerald-50/60 p-6">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <h1 className="text-3xl font-semibold tracking-tight text-foreground">{data.fullName}</h1>
+                <TremorDescription>{`${data.branchName} / ${data.areaLabel}`}</TremorDescription>
+              </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+              <div className="flex flex-wrap gap-2 text-xs font-medium">
+                <span className="rounded-full border border-border/70 bg-background px-3 py-1 text-foreground">
+                  Company ID: {data.companyId}
+                </span>
+                <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-blue-700">
+                  Role: {data.roleName}
+                </span>
+                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-emerald-800">
+                  Status: {data.status === "active" ? "Active" : "Inactive"}
+                </span>
+              </div>
+            </div>
+
             <Link href={backHref}>
               <Button type="button" variant="outline">
-                Back to Collectors
+                {backLabel}
               </Button>
             </Link>
           </div>
         </div>
 
-        <div className="mt-5 border-t border-border/70 pt-5">
+        <div className="border-t border-border/70 p-6">
           <div className="space-y-5">
-            <div className="inline-flex rounded-xl border border-border/70 bg-muted/30 p-1">
+            <div className="inline-flex flex-wrap gap-2 rounded-xl border border-border/70 bg-muted/30 p-1">
+              <TabButton
+                active={activeTab === "profile"}
+                label="Profile"
+                onClick={() => {
+                  setActiveTab("profile");
+                  replacePageUrl({
+                    period,
+                    tab: "profile",
+                  });
+                }}
+              />
               <TabButton
                 active={activeTab === "performance"}
                 label="Collector Performance"
@@ -191,13 +215,18 @@ export function CollectorProfileClientPage({
             </div>
 
             {activeTab === "performance" ? (
-              <CollectorProfileFilters onPeriodChange={setPeriod} period={period} />
+              <div className="space-y-2">
+                <CollectorProfileFilters onPeriodChange={setPeriod} period={period} />
+                <TremorDescription className="text-[13px]">{performanceStatusText}</TremorDescription>
+              </div>
             ) : null}
           </div>
         </div>
       </TremorCard>
 
-      {activeTab === "performance" ? (
+      {activeTab === "profile" ? (
+        <CollectorAccountOverviewTab data={data} />
+      ) : activeTab === "performance" ? (
         <div className="relative">
           {isPending ? (
             <div className="absolute inset-0 z-10 flex items-start justify-end rounded-3xl bg-background/45 p-4 backdrop-blur-[1px]">

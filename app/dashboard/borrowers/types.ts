@@ -9,6 +9,8 @@ export type BorrowersPageProps = {
   }>;
 };
 
+export type BorrowerDetailTabKey = "profile" | "loan-history" | "documents";
+
 export type BorrowersListFilters = {
   requestedBranchId: number | null;
   requestedAreaId: number | null;

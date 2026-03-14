@@ -7,7 +7,8 @@ export type CreateAccountState = {
     first_name?: string;
     middle_name?: string;
     last_name?: string;
-    contact_number?: string;
+    contact_no?: string;
+    email?: string;
     address?: string;
     branch_id?: string;
     area_id?: string;
@@ -24,7 +25,9 @@ export type CreateAccountState = {
     assignedBranches: string[];
     assignedArea?: string;
     assignedBranch?: string;
-    contactNumber?: string;
+    contactNo?: string;
+    email?: string;
+    status: "active";
     address?: string;
   };
 };

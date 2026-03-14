@@ -12,6 +12,7 @@ import type {
 
 function buildProfileHref(filters: CollectorsFilterInput, collectorId: string) {
   const params = new URLSearchParams();
+  params.set("source", "collectors");
 
   if (filters.branch && filters.branch !== "all") {
     params.set("branch", filters.branch);

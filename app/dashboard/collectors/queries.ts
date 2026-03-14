@@ -63,6 +63,10 @@ type BaseCollectorRow = {
   firstName: string | null;
   middleName: string | null;
   lastName: string | null;
+  status: "active" | "inactive";
+  contactNo: string | null;
+  email: string | null;
+  dateCreated: string | null;
   branchId: number;
   branchName: string;
   areaId: number;
@@ -279,6 +283,10 @@ async function loadCollectorBaseRows(
       firstName: employee_info.first_name,
       middleName: employee_info.middle_name,
       lastName: employee_info.last_name,
+      status: users.status,
+      contactNo: users.contact_no,
+      email: users.email,
+      dateCreated: users.date_created,
       branchId: branch.branch_id,
       branchName: branch.branch_name,
       areaId: areas.area_id,
@@ -799,11 +807,16 @@ function buildCollectorRows(
       collectorId: row.collectorId,
       fullName: fullNameOf(row),
       companyId: row.companyId,
+      roleName: "Collector" as const,
       branchId: row.branchId,
       branchName: row.branchName,
       areaId: row.areaId,
+      areaCode: row.areaCode,
       areaLabel: `Area ${row.areaNo} (${row.areaCode})`,
-      status: "Active",
+      status: row.status,
+      contactNo: row.contactNo,
+      email: row.email,
+      dateCreated: row.dateCreated,
       assignedActiveLoans,
       activePrincipalLoad,
       totalCollected,
@@ -1229,11 +1242,16 @@ export async function loadCollectorProfileData(
     collectorId: periodRow.collectorId,
     fullName: periodRow.fullName,
     companyId: periodRow.companyId,
+    roleName: periodRow.roleName,
     branchName: periodRow.branchName,
+    areaCode: periodRow.areaCode,
     areaLabel: periodRow.areaLabel,
     periodKey,
     periodLabel,
     status: periodRow.status,
+    contactNo: periodRow.contactNo,
+    email: periodRow.email,
+    dateCreated: periodRow.dateCreated,
     rank: periodRow.rank,
     periodPortfolioPrincipal,
     periodInterestPotential,

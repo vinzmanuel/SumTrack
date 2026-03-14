@@ -175,7 +175,7 @@ export async function loadBorrowersPageData(scope: BorrowersStaffScope): Promise
       area_code: areas.area_code,
       branch_name: branch.branch_name,
       branch_code: branch.branch_code,
-      contact_number: borrower_info.contact_number,
+      contact_number: users.contact_no,
     })
     .from(borrower_info)
     .innerJoin(users, eq(users.user_id, borrower_info.user_id))
