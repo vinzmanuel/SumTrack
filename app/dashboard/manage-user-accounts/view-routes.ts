@@ -4,11 +4,11 @@ export function getManagedUserViewHref(params: {
   companyId: string;
 }, options?: {
   returnTo?: string;
-  source?: "manage-users";
+  source?: "manage-users" | "branches";
 }) {
   const collectorParams = new URLSearchParams();
-  if (options?.source === "manage-users") {
-    collectorParams.set("source", "manage-users");
+  if (options?.source) {
+    collectorParams.set("source", options.source);
   }
   if (options?.returnTo) {
     collectorParams.set("returnTo", options.returnTo);
@@ -16,8 +16,8 @@ export function getManagedUserViewHref(params: {
 
   if (params.roleName === "Borrower") {
     const borrowerParams = new URLSearchParams();
-    if (options?.source === "manage-users") {
-      borrowerParams.set("source", "manage-users");
+    if (options?.source) {
+      borrowerParams.set("source", options.source);
     }
     if (options?.returnTo) {
       borrowerParams.set("returnTo", options.returnTo);
@@ -37,19 +37,31 @@ export function getManagedUserViewHref(params: {
   }
 
   if (params.roleName === "Admin") {
-    return `/dashboard/admin/${params.companyId}`;
+    const query = collectorParams.toString();
+    return query
+      ? `/dashboard/admin/${params.companyId}?${query}`
+      : `/dashboard/admin/${params.companyId}`;
   }
 
   if (params.roleName === "Auditor") {
-    return `/dashboard/auditor/${params.companyId}`;
+    const query = collectorParams.toString();
+    return query
+      ? `/dashboard/auditor/${params.companyId}?${query}`
+      : `/dashboard/auditor/${params.companyId}`;
   }
 
   if (params.roleName === "Branch Manager") {
-    return `/dashboard/branch-manager/${params.companyId}`;
+    const query = collectorParams.toString();
+    return query
+      ? `/dashboard/branch-manager/${params.companyId}?${query}`
+      : `/dashboard/branch-manager/${params.companyId}`;
   }
 
   if (params.roleName === "Secretary") {
-    return `/dashboard/secretary/${params.companyId}`;
+    const query = collectorParams.toString();
+    return query
+      ? `/dashboard/secretary/${params.companyId}?${query}`
+      : `/dashboard/secretary/${params.companyId}`;
   }
 
   return `/dashboard/manage-user-accounts/${params.userId}`;

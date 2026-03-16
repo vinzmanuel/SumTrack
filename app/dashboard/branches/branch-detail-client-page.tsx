@@ -1,12 +1,18 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Building2, MapPin } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { BranchEmployeesTab } from "@/app/dashboard/branches/branch-employees-tab";
 import { BranchOverviewTab } from "@/app/dashboard/branches/branch-overview-tab";
-import type { BranchDetailOverviewData, BranchDetailTabKey } from "@/app/dashboard/branches/types";
+import type {
+  BranchDetailOverviewData,
+  BranchDetailTabKey,
+  BranchEmployeesTabData,
+} from "@/app/dashboard/branches/types";
 
 function replacePageUrl(next: { tab: BranchDetailTabKey }) {
   const url = new URL(window.location.href);
@@ -64,14 +70,20 @@ export function BranchDetailClientPage({
   backHref,
   backLabel,
   data,
+  employeesData,
   initialTab,
 }: {
   backHref: string;
   backLabel: string;
   data: BranchDetailOverviewData;
+  employeesData: BranchEmployeesTabData;
   initialTab: BranchDetailTabKey;
 }) {
-  const activeTab = initialTab;
+  const [activeTab, setActiveTab] = useState<BranchDetailTabKey>(initialTab);
+
+  useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
 
   return (
     <div className="space-y-4">
@@ -126,17 +138,26 @@ export function BranchDetailClientPage({
               <TabButton
                 active={activeTab === "overview"}
                 label="Overview"
-                onClick={() => replacePageUrl({ tab: "overview" })}
+                onClick={() => {
+                  setActiveTab("overview");
+                  replacePageUrl({ tab: "overview" });
+                }}
               />
               <TabButton
                 active={activeTab === "employees"}
                 label="Employees"
-                onClick={() => replacePageUrl({ tab: "employees" })}
+                onClick={() => {
+                  setActiveTab("employees");
+                  replacePageUrl({ tab: "employees" });
+                }}
               />
               <TabButton
                 active={activeTab === "areas"}
                 label="Areas"
-                onClick={() => replacePageUrl({ tab: "areas" })}
+                onClick={() => {
+                  setActiveTab("areas");
+                  replacePageUrl({ tab: "areas" });
+                }}
               />
             </div>
           </div>
@@ -146,10 +167,7 @@ export function BranchDetailClientPage({
       {activeTab === "overview" ? (
         <BranchOverviewTab data={data} />
       ) : activeTab === "employees" ? (
-        <PlaceholderTab
-          description="Employee roster, role controls, and staffing workflows will be added in a later pass."
-          title="Employees Tab Coming Soon"
-        />
+        <BranchEmployeesTab data={employeesData} />
       ) : (
         <PlaceholderTab
           description="Area assignments, area metrics, and area-level controls will be added in a later pass."

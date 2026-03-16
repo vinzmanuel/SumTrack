@@ -50,7 +50,12 @@ export default async function CollectorProfilePage({
   const routeParams = await params;
   const currentSearchParams = (await searchParams) ?? {};
   const filters = parseCollectorsFilters(currentSearchParams);
-  const source = currentSearchParams.source === "manage-users" ? "manage-users" : "collectors";
+  const source =
+    currentSearchParams.source === "manage-users"
+      ? "manage-users"
+      : currentSearchParams.source === "branches"
+        ? "branches"
+        : "collectors";
   const detailTab = currentSearchParams.tab
     ? parseCollectorDetailTab(currentSearchParams.tab)
     : source === "collectors"
@@ -117,8 +122,21 @@ export default async function CollectorProfilePage({
   const safeManageUsersBackHref = returnTo.startsWith("/dashboard/manage-user-accounts")
     ? returnTo
     : "/dashboard/manage-user-accounts";
-  const backHref = source === "manage-users" ? safeManageUsersBackHref : collectorsBackHref;
-  const backLabel = source === "manage-users" ? "Back to Manage Users" : "Back to Collectors";
+  const safeBranchesBackHref = returnTo.startsWith("/dashboard/branches")
+    ? returnTo
+    : "/dashboard/branches";
+  const backHref =
+    source === "manage-users"
+      ? safeManageUsersBackHref
+      : source === "branches"
+        ? safeBranchesBackHref
+        : collectorsBackHref;
+  const backLabel =
+    source === "manage-users"
+      ? "Back to Manage Users"
+      : source === "branches"
+        ? "Back to Branches"
+        : "Back to Collectors";
 
   return (
     <div className="space-y-6">

@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DashboardShell } from "@/app/dashboard/_components/dashboard-shell";
 import { requireDashboardAuth } from "@/app/dashboard/auth";
+import { loadBranchCodeById } from "@/app/dashboard/branches/queries";
 
 type NavItem = {
   href: string;
@@ -20,7 +21,7 @@ type NavItem = {
     | "settings";
 };
 
-function navItemsForRole(roleName: string): NavItem[] {
+function navItemsForRole(roleName: string, options?: { branchManagerBranchHref?: string | null }): NavItem[] {
   if (roleName === "Admin") {
     return [
       { href: "/dashboard", label: "Overview", section: "main", icon: "layout-dashboard" },
@@ -42,7 +43,12 @@ function navItemsForRole(roleName: string): NavItem[] {
     return [
       { href: "/dashboard", label: "Overview", section: "main", icon: "layout-dashboard" },
       { href: "/dashboard/loans", label: "Loans", section: "main", icon: "hand-coins" },
-      { href: "/dashboard/branches", label: "Branches", section: "main", icon: "building-2" },
+      {
+        href: options?.branchManagerBranchHref ?? "/dashboard/branches",
+        label: "Branches",
+        section: "main",
+        icon: "building-2",
+      },
       { href: "/dashboard/borrowers", label: "Borrowers", section: "main", icon: "users" },
       { href: "/dashboard/collectors", label: "Collectors", section: "main", icon: "bar-chart-3" },
       { href: "/dashboard/collections", label: "Collections", section: "finance", icon: "receipt-text" },
@@ -122,10 +128,18 @@ export default async function DashboardLayout({ children }: { children: React.Re
     );
   }
 
+  let branchManagerBranchHref: string | null = null;
+  if (auth.roleName === "Branch Manager" && auth.activeBranchId) {
+    const branchCode = await loadBranchCodeById(auth.activeBranchId);
+    if (branchCode) {
+      branchManagerBranchHref = `/dashboard/branches/${encodeURIComponent(branchCode)}`;
+    }
+  }
+
   return (
     <DashboardShell
       companyId={auth.companyId}
-      navItems={navItemsForRole(auth.roleName)}
+      navItems={navItemsForRole(auth.roleName, { branchManagerBranchHref })}
       roleName={auth.roleName}
     >
       {children}

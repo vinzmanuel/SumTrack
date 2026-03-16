@@ -16,6 +16,8 @@ import {
 } from "@/db/schema";
 import type {
   BranchDetailAccessState,
+  BranchEmployeesTabData,
+  BranchEmployeeListRow,
   BranchDetailOverviewData,
   BranchesAccessState,
   BranchNetworkCardData,
@@ -73,6 +75,10 @@ function lastSixMonthBuckets() {
 
 function formatFullName(firstName: string | null, middleName: string | null, lastName: string | null) {
   return [firstName, middleName, lastName].filter(Boolean).join(" ").trim() || "Unassigned";
+}
+
+function branchScopedEmployeeRoleNames() {
+  return ["Branch Manager", "Secretary", "Auditor"] as const;
 }
 
 async function loadBranchSummaryCards(
@@ -275,6 +281,16 @@ export async function loadBranchNetworkCardByCode(
 
   const branchCards = await loadBranchSummaryCards(access, [branchId]);
   return branchCards[0] ?? null;
+}
+
+export async function loadBranchCodeById(branchId: number): Promise<string | null> {
+  return db
+    .select({ branchCode: branch.branch_code })
+    .from(branch)
+    .where(eq(branch.branch_id, branchId))
+    .limit(1)
+    .then((rows) => rows[0]?.branchCode ?? null)
+    .catch(() => null);
 }
 
 function buildCollectionsTrendChart(rows: AnalyticsChartRow[]): AnalyticsChartModel {
@@ -481,5 +497,102 @@ export async function loadBranchDetailOverviewByCode(
     overdueLoanCount: Number(loanMetricRow?.overdueLoanCount) || 0,
     collectionsThisMonth: Number(collectionsThisMonthRow?.total) || 0,
     collectionsTrend: buildCollectionsTrendChart(collectionsTrendRows),
+  };
+}
+
+export async function loadBranchEmployeesTabDataByCode(
+  access: Extract<BranchDetailAccessState, { view: "detail" }>,
+  branchCode: string,
+): Promise<BranchEmployeesTabData | null> {
+  const branchCard = await loadBranchNetworkCardByCode(access, branchCode);
+  if (!branchCard) {
+    return null;
+  }
+
+  const branchId = branchCard.branchId;
+  const branchCodeLabel = branchCard.branchCode;
+  const employeeRoleNames = branchScopedEmployeeRoleNames();
+
+  const [branchAssignedRows, collectorRows] = await Promise.all([
+    db
+      .select({
+        userId: users.user_id,
+        companyId: users.company_id,
+        status: users.status,
+        contactNo: users.contact_no,
+        email: users.email,
+        roleName: roles.role_name,
+        firstName: employee_info.first_name,
+        middleName: employee_info.middle_name,
+        lastName: employee_info.last_name,
+      })
+      .from(employee_branch_assignment)
+      .innerJoin(users, eq(users.user_id, employee_branch_assignment.employee_user_id))
+      .innerJoin(employee_info, eq(employee_info.user_id, users.user_id))
+      .innerJoin(roles, eq(roles.role_id, users.role_id))
+      .where(
+        and(
+          eq(employee_branch_assignment.branch_id, branchId),
+          isNull(employee_branch_assignment.end_date),
+          inArray(roles.role_name, [...employeeRoleNames]),
+        ),
+      )
+      .orderBy(asc(roles.role_name), asc(employee_info.last_name), asc(employee_info.first_name))
+      .catch(() => []),
+    db
+      .select({
+        userId: users.user_id,
+        companyId: users.company_id,
+        status: users.status,
+        contactNo: users.contact_no,
+        email: users.email,
+        roleName: roles.role_name,
+        firstName: employee_info.first_name,
+        middleName: employee_info.middle_name,
+        lastName: employee_info.last_name,
+        areaCode: areas.area_code,
+      })
+      .from(employee_area_assignment)
+      .innerJoin(users, eq(users.user_id, employee_area_assignment.employee_user_id))
+      .innerJoin(employee_info, eq(employee_info.user_id, users.user_id))
+      .innerJoin(roles, eq(roles.role_id, users.role_id))
+      .innerJoin(areas, eq(areas.area_id, employee_area_assignment.area_id))
+      .where(
+        and(
+          eq(areas.branch_id, branchId),
+          isNull(employee_area_assignment.end_date),
+          eq(roles.role_name, "Collector"),
+        ),
+      )
+      .orderBy(asc(employee_info.last_name), asc(employee_info.first_name))
+      .catch(() => []),
+  ]);
+
+  const rows: BranchEmployeeListRow[] = [
+    ...branchAssignedRows.map((row) => ({
+      userId: row.userId,
+      fullName: formatFullName(row.firstName, row.middleName, row.lastName),
+      companyId: row.companyId,
+      roleName: row.roleName,
+      status: row.status,
+      scopeLabel: branchCodeLabel,
+      contactNo: row.contactNo,
+      email: row.email,
+    })),
+    ...collectorRows.map((row) => ({
+      userId: row.userId,
+      fullName: formatFullName(row.firstName, row.middleName, row.lastName),
+      companyId: row.companyId,
+      roleName: row.roleName,
+      status: row.status,
+      scopeLabel: row.areaCode,
+      contactNo: row.contactNo,
+      email: row.email,
+    })),
+  ];
+
+  return {
+    branchCode: branchCodeLabel,
+    employees: rows,
   };
 }

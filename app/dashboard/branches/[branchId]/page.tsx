@@ -3,7 +3,10 @@ import { notFound } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getDashboardAuthContext } from "@/app/dashboard/auth";
 import { BranchDetailClientPage } from "@/app/dashboard/branches/branch-detail-client-page";
-import { loadBranchDetailOverviewByCode } from "@/app/dashboard/branches/queries";
+import {
+  loadBranchDetailOverviewByCode,
+  loadBranchEmployeesTabDataByCode,
+} from "@/app/dashboard/branches/queries";
 import {
   parseBranchDetailTab,
   resolveBranchDetailAccess,
@@ -65,8 +68,11 @@ export default async function BranchDetailPage({ params, searchParams }: BranchD
 
   const resolvedSearchParams = (await searchParams) ?? {};
   const initialTab = parseBranchDetailTab(resolvedSearchParams.tab);
-  const branch = await loadBranchDetailOverviewByCode(access, branchCode);
-  if (!branch) {
+  const [branch, employeesData] = await Promise.all([
+    loadBranchDetailOverviewByCode(access, branchCode),
+    loadBranchEmployeesTabDataByCode(access, branchCode),
+  ]);
+  if (!branch || !employeesData) {
     notFound();
   }
 
@@ -84,6 +90,7 @@ export default async function BranchDetailPage({ params, searchParams }: BranchD
       backHref={safeReturnTo}
       backLabel={backLabel}
       data={branch}
+      employeesData={employeesData}
       initialTab={initialTab}
     />
   );

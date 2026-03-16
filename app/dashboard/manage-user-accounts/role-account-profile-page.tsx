@@ -13,6 +13,10 @@ export async function renderRoleAccountProfilePage(params: {
   expectedRoleName: string;
   companyId: string;
   title: string;
+  searchParams?: Promise<{
+    source?: string;
+    returnTo?: string;
+  }>;
 }) {
   const auth = await getDashboardAuthContext();
   const accessState = resolveManageUserAccountsAccess(auth, parseManageUserAccountsFilters({}));
@@ -31,12 +35,19 @@ export async function renderRoleAccountProfilePage(params: {
     return notFound();
   }
 
+  const resolvedSearchParams = (await params.searchParams) ?? {};
+  const rawReturnTo = String(resolvedSearchParams.returnTo ?? "");
+  const isBranchSource =
+    resolvedSearchParams.source === "branches" && rawReturnTo.startsWith("/dashboard/branches");
+  const backHref = isBranchSource ? rawReturnTo : "/dashboard/manage-user-accounts";
+  const backLabel = isBranchSource ? "Back to Branches" : "Back to User Accounts";
+
   return (
     <div className="mx-auto max-w-6xl space-y-5">
       <div className="flex justify-end">
-        <Link href="/dashboard/manage-user-accounts">
+        <Link href={backHref}>
           <Button type="button" variant="outline">
-            Back to User Accounts
+            {backLabel}
           </Button>
         </Link>
       </div>

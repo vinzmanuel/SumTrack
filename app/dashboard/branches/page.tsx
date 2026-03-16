@@ -1,8 +1,9 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getDashboardAuthContext } from "@/app/dashboard/auth";
 import { BranchesClientPage } from "@/app/dashboard/branches/branches-client-page";
-import { loadBranchNetworkPageData } from "@/app/dashboard/branches/queries";
+import { loadBranchCodeById, loadBranchNetworkPageData } from "@/app/dashboard/branches/queries";
 import { resolveBranchesPageAccess } from "@/app/dashboard/branches/types";
 
 function renderCenteredCard(props: { message: string; href: string; actionLabel: string }) {
@@ -25,6 +26,28 @@ function renderCenteredCard(props: { message: string; href: string; actionLabel:
 
 export default async function BranchesPage() {
   const auth = await getDashboardAuthContext();
+
+  if (auth.ok && auth.roleName === "Branch Manager") {
+    if (!auth.activeBranchId) {
+      return renderCenteredCard({
+        message: "A single active branch assignment is required before this page can open your branch workspace.",
+        href: "/dashboard",
+        actionLabel: "Back to dashboard",
+      });
+    }
+
+    const branchCode = await loadBranchCodeById(auth.activeBranchId);
+    if (!branchCode) {
+      return renderCenteredCard({
+        message: "We couldn't resolve your active branch right now.",
+        href: "/dashboard",
+        actionLabel: "Back to dashboard",
+      });
+    }
+
+    redirect(`/dashboard/branches/${encodeURIComponent(branchCode)}`);
+  }
+
   const access = resolveBranchesPageAccess(auth);
 
   if (access.view === "unauthenticated") {

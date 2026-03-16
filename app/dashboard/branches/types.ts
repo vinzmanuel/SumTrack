@@ -93,6 +93,22 @@ export type BranchDetailOverviewData = {
   collectionsTrend: AnalyticsChartModel;
 };
 
+export type BranchEmployeeListRow = {
+  userId: string;
+  fullName: string;
+  companyId: string;
+  roleName: string;
+  status: "active" | "inactive";
+  scopeLabel: string;
+  contactNo: string | null;
+  email: string | null;
+};
+
+export type BranchEmployeesTabData = {
+  branchCode: string;
+  employees: BranchEmployeeListRow[];
+};
+
 export function parseBranchDetailTab(value: string | undefined): BranchDetailTabKey {
   if (value === "employees" || value === "areas") {
     return value;
