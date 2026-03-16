@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import {
   BarChart3,
+  Building2,
   CircleUserRound,
   ChevronLeft,
   FileText,
@@ -35,6 +36,7 @@ type NavItem = {
     | "layout-dashboard"
     | "hand-coins"
     | "bar-chart-3"
+    | "building-2"
     | "users"
     | "receipt-text"
     | "wallet"
@@ -84,6 +86,7 @@ function NavContent({
     if (icon === "layout-dashboard") return <LayoutDashboard className="h-4 w-4 shrink-0" />;
     if (icon === "hand-coins") return <HandCoins className="h-4 w-4 shrink-0" />;
     if (icon === "bar-chart-3") return <BarChart3 className="h-4 w-4 shrink-0" />;
+    if (icon === "building-2") return <Building2 className="h-4 w-4 shrink-0" />;
     if (icon === "users") return <Users className="h-4 w-4 shrink-0" />;
     if (icon === "receipt-text") return <ReceiptText className="h-4 w-4 shrink-0" />;
     if (icon === "wallet") return <Wallet className="h-4 w-4 shrink-0" />;
@@ -188,6 +191,10 @@ export function DashboardShell({ roleName, companyId, navItems, children }: Dash
 
     if (/^\/dashboard\/borrowers\/[^/]+$/.test(pathname)) {
       return "Borrower's Details";
+    }
+
+    if (/^\/dashboard\/branches\/[^/]+$/.test(pathname)) {
+      return "Branch Details";
     }
 
     return normalizedItems.find((item) => isActiveNav(pathname, item.href))?.label ?? "Overview";

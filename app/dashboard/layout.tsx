@@ -10,6 +10,7 @@ type NavItem = {
     | "layout-dashboard"
     | "hand-coins"
     | "bar-chart-3"
+    | "building-2"
     | "users"
     | "receipt-text"
     | "wallet"
@@ -24,6 +25,7 @@ function navItemsForRole(roleName: string): NavItem[] {
     return [
       { href: "/dashboard", label: "Overview", section: "main", icon: "layout-dashboard" },
       { href: "/dashboard/loans", label: "Loans", section: "main", icon: "hand-coins" },
+      { href: "/dashboard/branches", label: "Branches", section: "main", icon: "building-2" },
       { href: "/dashboard/borrowers", label: "Borrowers", section: "main", icon: "users" },
       { href: "/dashboard/collectors", label: "Collectors", section: "main", icon: "bar-chart-3" },
       { href: "/dashboard/collections", label: "Collections", section: "finance", icon: "receipt-text" },
@@ -40,6 +42,7 @@ function navItemsForRole(roleName: string): NavItem[] {
     return [
       { href: "/dashboard", label: "Overview", section: "main", icon: "layout-dashboard" },
       { href: "/dashboard/loans", label: "Loans", section: "main", icon: "hand-coins" },
+      { href: "/dashboard/branches", label: "Branches", section: "main", icon: "building-2" },
       { href: "/dashboard/borrowers", label: "Borrowers", section: "main", icon: "users" },
       { href: "/dashboard/collectors", label: "Collectors", section: "main", icon: "bar-chart-3" },
       { href: "/dashboard/collections", label: "Collections", section: "finance", icon: "receipt-text" },
