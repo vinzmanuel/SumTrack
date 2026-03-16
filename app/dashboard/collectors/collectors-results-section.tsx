@@ -13,6 +13,7 @@ import type {
 function buildProfileHref(filters: CollectorsFilterInput, collectorId: string) {
   const params = new URLSearchParams();
   params.set("source", "collectors");
+  params.set("tab", "performance");
 
   if (filters.branch && filters.branch !== "all") {
     params.set("branch", filters.branch);

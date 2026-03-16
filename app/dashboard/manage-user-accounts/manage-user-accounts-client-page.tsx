@@ -3,14 +3,20 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  CollectorLiveLoanReassignmentDialog,
+  type CollectorReassignmentRequest,
+} from "@/app/dashboard/manage-user-accounts/collector-live-loan-reassignment-dialog";
 import { ManageUserAccountsFilters } from "@/app/dashboard/manage-user-accounts/manage-user-accounts-filters";
 import { ManagedUserAccountEditModal } from "@/app/dashboard/manage-user-accounts/managed-user-account-edit-modal";
 import { ManageUserAccountsModule } from "@/app/dashboard/manage-user-accounts/manage-user-accounts-module";
 import {
   canCreateManagedUser,
+  type ManagedCollectorReassignmentRequiredPayload,
   type ManageUserAccountStatus,
   type ManageUserAccountsPageData,
   type ManageUserAccountsScope,
+  type ManageUserAccountsSort,
 } from "@/app/dashboard/manage-user-accounts/types";
 
 type ManageUserFilters = {
@@ -18,6 +24,7 @@ type ManageUserFilters = {
   branchId: number | null;
   areaId: number | null;
   roleName: string | null;
+  sort: ManageUserAccountsSort;
   query: string;
   page: number;
 };
@@ -39,6 +46,10 @@ function buildResultsUrl(filters: ManageUserFilters) {
 
   if (filters.roleName) {
     params.set("role", filters.roleName);
+  }
+
+  if (filters.sort !== "role_asc") {
+    params.set("sort", filters.sort);
   }
 
   if (filters.query.trim()) {
@@ -72,6 +83,10 @@ function buildDataUrl(filters: ManageUserFilters) {
     params.set("role", filters.roleName);
   }
 
+  if (filters.sort !== "role_asc") {
+    params.set("sort", filters.sort);
+  }
+
   if (filters.query.trim()) {
     params.set("query", filters.query.trim());
   }
@@ -97,6 +112,7 @@ export function ManageUserAccountsClientPage({
       branchId: initialScope.selectedBranchId,
       areaId: initialData.selectedAreaId,
       roleName: initialScope.selectedRoleName,
+      sort: initialScope.selectedSort,
       query: initialScope.searchQuery,
       page: initialData.page,
     }),
@@ -106,6 +122,7 @@ export function ManageUserAccountsClientPage({
       initialScope.searchQuery,
       initialScope.selectedBranchId,
       initialScope.selectedRoleName,
+      initialScope.selectedSort,
       initialScope.selectedStatus,
     ],
   );
@@ -118,6 +135,7 @@ export function ManageUserAccountsClientPage({
   const filtersRef = useRef<ManageUserFilters>(initialFilters);
   const requestIdRef = useRef(0);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [reassignmentRequest, setReassignmentRequest] = useState<CollectorReassignmentRequest | null>(null);
 
   useEffect(() => {
     setResults(initialData);
@@ -167,6 +185,7 @@ export function ManageUserAccountsClientPage({
         branchId: nextFilters.branchId,
         areaId: nextData.selectedAreaId,
         roleName: nextFilters.roleName,
+        sort: nextFilters.sort,
         query: nextFilters.query,
         page: nextData.page,
       };
@@ -194,7 +213,8 @@ export function ManageUserAccountsClientPage({
       filters.status === appliedFilters.status &&
       filters.branchId === appliedFilters.branchId &&
       filters.areaId === appliedFilters.areaId &&
-      filters.roleName === appliedFilters.roleName
+      filters.roleName === appliedFilters.roleName &&
+      filters.sort === appliedFilters.sort
     ) {
       return;
     }
@@ -204,6 +224,7 @@ export function ManageUserAccountsClientPage({
       branchId: filters.branchId,
       areaId: filters.areaId,
       roleName: filters.roleName,
+      sort: filters.sort,
       query: filters.query,
       page: 1,
     });
@@ -212,11 +233,13 @@ export function ManageUserAccountsClientPage({
     appliedFilters.areaId,
     appliedFilters.branchId,
     appliedFilters.roleName,
+    appliedFilters.sort,
     filters.status,
     filters.areaId,
     filters.branchId,
     filters.query,
     filters.roleName,
+    filters.sort,
     loadResults,
   ]);
 
@@ -231,6 +254,7 @@ export function ManageUserAccountsClientPage({
         branchId: filtersRef.current.branchId,
         areaId: filtersRef.current.areaId,
         roleName: filtersRef.current.roleName,
+        sort: filtersRef.current.sort,
         query: filtersRef.current.query,
         page: 1,
       });
@@ -250,6 +274,7 @@ export function ManageUserAccountsClientPage({
       branchId: filtersRef.current.branchId,
       areaId: filtersRef.current.areaId,
       roleName: filtersRef.current.roleName,
+      sort: filtersRef.current.sort,
       query: filtersRef.current.query,
       page,
     });
@@ -261,10 +286,21 @@ export function ManageUserAccountsClientPage({
       branchId: filtersRef.current.branchId,
       areaId: filtersRef.current.areaId,
       roleName: filtersRef.current.roleName,
+      sort: filtersRef.current.sort,
       query: filtersRef.current.query,
       page: filtersRef.current.page,
     });
   }, [loadResults]);
+
+  const handleReassignmentRequired = useCallback(
+    (blocked: ManagedCollectorReassignmentRequiredPayload, retryAction: () => Promise<void>) => {
+      setReassignmentRequest({
+        blocked,
+        retryAction,
+      });
+    },
+    [],
+  );
 
   const showAreaFilter = Boolean(
     filters.branchId && (filters.roleName === "Collector" || filters.roleName === "Borrower"),
@@ -335,6 +371,15 @@ export function ManageUserAccountsClientPage({
         onDeleted={handleRowDeleted}
         onEdit={setEditingUserId}
         onPageChange={handlePageChange}
+        onReassignmentRequired={handleReassignmentRequired}
+        onSortChange={(sort) =>
+          setFilters((previous) => ({
+            ...previous,
+            sort,
+            page: 1,
+          }))
+        }
+        selectedSort={filters.sort}
         scopeMessage={initialScope.scopeMessage}
       />
 
@@ -345,8 +390,18 @@ export function ManageUserAccountsClientPage({
           }
         }}
         onSaved={handleRowDeleted}
+        onReassignmentRequired={handleReassignmentRequired}
         open={Boolean(editingUserId)}
         userId={editingUserId}
+      />
+
+      <CollectorLiveLoanReassignmentDialog
+        onOpenChange={(open) => {
+          if (!open) {
+            setReassignmentRequest(null);
+          }
+        }}
+        request={reassignmentRequest}
       />
     </>
   );

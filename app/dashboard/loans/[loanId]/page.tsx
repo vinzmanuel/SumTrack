@@ -183,8 +183,14 @@ export default async function LoanDetailPage({ params, searchParams }: PageProps
       amount: collections.amount,
       note: collections.note,
       collection_date: collections.collection_date,
+      collector_user_id: users.user_id,
+      collector_username: users.username,
+      collector_first_name: employee_info.first_name,
+      collector_last_name: employee_info.last_name,
     })
     .from(collections)
+    .leftJoin(users, eq(users.user_id, collections.collector_id))
+    .leftJoin(employee_info, eq(employee_info.user_id, users.user_id))
     .where(eq(collections.loan_id, loan.loan_id))
     .orderBy(asc(collections.collection_date), asc(collections.collection_id))
     .catch(() => []);
@@ -252,7 +258,11 @@ export default async function LoanDetailPage({ params, searchParams }: PageProps
     collectionDate: collection.collection_date,
     amount: Number(collection.amount) || 0,
     note: collection.note,
-    collectorName: assignedCollectorLabel,
+    collectorName:
+      [collection.collector_first_name, collection.collector_last_name].filter(Boolean).join(" ") ||
+      collection.collector_username ||
+      collection.collector_user_id ||
+      assignedCollectorLabel,
   }));
 
   const principal = Number(loan.principal) || 0;

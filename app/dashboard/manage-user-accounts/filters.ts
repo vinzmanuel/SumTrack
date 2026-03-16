@@ -3,6 +3,7 @@ import type {
   ManageUserAccountStatus,
   ManageUserAccountsAccessState,
   ManageUserAccountsFilters,
+  ManageUserAccountsSort,
   ManageUserAccountsPageProps,
 } from "@/app/dashboard/manage-user-accounts/types";
 
@@ -23,6 +24,18 @@ function normalizeStatus(value: string | undefined): ManageUserAccountStatus {
   return value === "inactive" ? "inactive" : "active";
 }
 
+function normalizeSort(value: string | undefined): ManageUserAccountsSort {
+  if (
+    value === "date_created_asc" ||
+    value === "date_created_desc" ||
+    value === "role_desc"
+  ) {
+    return value;
+  }
+
+  return value === "role_asc" ? value : "role_asc";
+}
+
 export function parseManageUserAccountsFilters(
   params: Awaited<ManageUserAccountsPageProps["searchParams"]>,
 ): ManageUserAccountsFilters {
@@ -31,6 +44,7 @@ export function parseManageUserAccountsFilters(
     requestedAreaId: toPositiveInt(params?.areaId),
     requestedRoleName: normalizeRoleName(params?.role),
     requestedStatus: normalizeStatus(params?.status),
+    requestedSort: normalizeSort(params?.sort),
     searchQuery: normalizeSearchQuery(params?.query),
     page: Math.max(toPositiveInt(params?.page) ?? 1, 1),
   };
@@ -75,6 +89,7 @@ export function resolveManageUserAccountsAccess(
       selectedAreaId: filters.requestedAreaId,
       selectedRoleName: filters.requestedRoleName,
       selectedStatus: filters.requestedStatus,
+      selectedSort: filters.requestedSort,
       allowedBranchIds: [],
       canChooseBranch: true,
       allBranchLabel: "All branches",
@@ -103,6 +118,7 @@ export function resolveManageUserAccountsAccess(
       selectedAreaId: filters.requestedAreaId,
       selectedRoleName: filters.requestedRoleName,
       selectedStatus: filters.requestedStatus,
+      selectedSort: filters.requestedSort,
       allowedBranchIds: auth.assignedBranchIds,
       canChooseBranch: true,
       allBranchLabel: "All assigned branches",
@@ -127,6 +143,7 @@ export function resolveManageUserAccountsAccess(
     selectedAreaId: filters.requestedAreaId,
     selectedRoleName: filters.requestedRoleName,
     selectedStatus: filters.requestedStatus,
+    selectedSort: filters.requestedSort,
     allowedBranchIds: [auth.activeBranchId],
     canChooseBranch: false,
     allBranchLabel: "Own branch",

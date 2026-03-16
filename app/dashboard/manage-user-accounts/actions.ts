@@ -43,6 +43,13 @@ export async function updateManagedUserAccountAction(
   const middleName = String(formData.get("middle_name") ?? "").trim();
   const lastName = String(formData.get("last_name") ?? "").trim();
   const contactNo = String(formData.get("contact_no") ?? "").trim();
+  const branchIdRaw = String(formData.get("branch_id") ?? "").trim();
+  const branchIds = formData
+    .getAll("branch_ids")
+    .map((value) => String(value ?? "").trim())
+    .filter((value) => /^\d+$/.test(value))
+    .map((value) => Number(value));
+  const areaIdRaw = String(formData.get("area_id") ?? "").trim();
 
   if (!userId || !firstName || !lastName) {
     return {
@@ -60,6 +67,9 @@ export async function updateManagedUserAccountAction(
     middleName,
     lastName,
     contactNo,
+    branchId: /^\d+$/.test(branchIdRaw) ? Number(branchIdRaw) : null,
+    branchIds,
+    areaId: /^\d+$/.test(areaIdRaw) ? Number(areaIdRaw) : null,
   });
 
   if (!result.ok) {

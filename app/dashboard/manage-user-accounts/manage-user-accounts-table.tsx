@@ -6,7 +6,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DeleteAccountButton } from "@/app/dashboard/manage-user-accounts/delete-account-button";
 import { ToggleAccountStatusButton } from "@/app/dashboard/manage-user-accounts/toggle-account-status-button";
-import type { ManagedUserListRow } from "@/app/dashboard/manage-user-accounts/types";
+import type {
+  ManagedCollectorReassignmentRequiredPayload,
+  ManagedUserListRow,
+} from "@/app/dashboard/manage-user-accounts/types";
 import { getManagedUserViewHref } from "@/app/dashboard/manage-user-accounts/view-routes";
 
 function roleBadgeClass(roleName: string) {
@@ -29,10 +32,15 @@ export function ManageUserAccountsTable({
   users,
   onDeleted,
   onEdit,
+  onReassignmentRequired,
 }: {
   users: ManagedUserListRow[];
   onDeleted: () => void;
   onEdit: (userId: string) => void;
+  onReassignmentRequired: (
+    blocked: ManagedCollectorReassignmentRequiredPayload,
+    retryAction: () => Promise<void>,
+  ) => void;
 }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -108,12 +116,18 @@ export function ManageUserAccountsTable({
                     <ToggleAccountStatusButton
                       currentStatus={row.status}
                       onStatusChanged={onDeleted}
+                      onReassignmentRequired={onReassignmentRequired}
                       userId={row.userId}
                       userLabel={row.fullName}
                     />
                   ) : null}
                   {row.canDelete ? (
-                    <DeleteAccountButton onDeleted={onDeleted} userId={row.userId} userLabel={row.fullName} />
+                    <DeleteAccountButton
+                      onDeleted={onDeleted}
+                      onReassignmentRequired={onReassignmentRequired}
+                      userId={row.userId}
+                      userLabel={row.fullName}
+                    />
                   ) : null}
                 </div>
               </td>

@@ -19,6 +19,7 @@ async function insertCollectionRecord(params: {
     .values({
       collection_code: params.collectionCode,
       loan_id: params.loanContext.loanId,
+      collector_id: params.loanContext.collectorId,
       amount: params.amount,
       note: params.note,
       encoded_by: params.encodedBy,

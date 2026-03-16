@@ -263,11 +263,20 @@ function buildCollectionScopeFilters(
   collectorIds: string[],
   range: CollectorsDateRange,
 ) {
-  return [
-    ...buildLoanScopeFilters(access, collectorIds),
-    gte(collections.collection_date, range.start),
-    lte(collections.collection_date, range.end),
-  ];
+  const conditions: SQL[] = [inArray(collections.collector_id, collectorIds)];
+
+  if (access.selectedBranchId) {
+    conditions.push(eq(loan_records.branch_id, access.selectedBranchId));
+  } else if (access.allowedBranchIds.length > 0) {
+    conditions.push(inArray(loan_records.branch_id, access.allowedBranchIds));
+  } else {
+    conditions.push(eq(loan_records.loan_id, -1));
+  }
+
+  conditions.push(gte(collections.collection_date, range.start));
+  conditions.push(lte(collections.collection_date, range.end));
+
+  return conditions;
 }
 
 async function loadCollectorBaseRows(
@@ -383,7 +392,7 @@ async function loadCollectionStats(
 
   const rows = await db
     .select({
-      collectorId: loan_records.collector_id,
+      collectorId: collections.collector_id,
       totalCollected: sql<number>`coalesce(sum(${collections.amount}), 0)`,
       averageCollectionAmount: sql<number>`coalesce(avg(${collections.amount}), 0)`,
       collectionEntries: sql<number>`count(*)`,
@@ -394,7 +403,7 @@ async function loadCollectionStats(
     .from(collections)
     .innerJoin(loan_records, eq(loan_records.loan_id, collections.loan_id))
     .where(whereFrom(buildCollectionScopeFilters(access, collectorIds, range)))
-    .groupBy(loan_records.collector_id)
+    .groupBy(collections.collector_id)
     .catch(() => []);
 
   const result = new Map<string, CollectionStatsRow>();

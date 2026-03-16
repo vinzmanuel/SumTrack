@@ -14,6 +14,7 @@ export async function GET(request: Request) {
     areaId: url.searchParams.get("areaId") ?? undefined,
     role: url.searchParams.get("role") ?? undefined,
     status: url.searchParams.get("status") ?? undefined,
+    sort: url.searchParams.get("sort") ?? undefined,
     query: url.searchParams.get("query") ?? undefined,
     page: url.searchParams.get("page") ?? undefined,
   });

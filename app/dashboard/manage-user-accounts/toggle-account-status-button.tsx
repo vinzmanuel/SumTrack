@@ -14,15 +14,24 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import type {
+  ManagedCollectorReassignmentRequiredPayload,
+  ManagedUserMutationErrorPayload,
+} from "@/app/dashboard/manage-user-accounts/types";
 
 export function ToggleAccountStatusButton({
   currentStatus,
   onStatusChanged,
+  onReassignmentRequired,
   userId,
   userLabel,
 }: {
   currentStatus: "active" | "inactive";
   onStatusChanged: () => void;
+  onReassignmentRequired: (
+    blocked: ManagedCollectorReassignmentRequiredPayload,
+    retryAction: () => Promise<void>,
+  ) => void;
   userId: string;
   userLabel: string;
 }) {
@@ -32,34 +41,44 @@ export function ToggleAccountStatusButton({
   const nextStatus = currentStatus === "active" ? "inactive" : "active";
   const actionLabel = currentStatus === "active" ? "Deactivate" : "Reactivate";
 
+  async function performStatusChange() {
+    const response = await fetch(`/dashboard/manage-user-accounts/${userId}/status`, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ status: nextStatus }),
+    });
+    const payload = (await response.json().catch(() => null)) as ManagedUserMutationErrorPayload | null;
+
+    if (!response.ok) {
+      if (payload?.errorType === "reassignment_required" && payload.reassignmentRequired && payload.collectorId) {
+        setOpen(false);
+        onReassignmentRequired(payload as ManagedCollectorReassignmentRequiredPayload, performStatusChange);
+        return;
+      }
+
+      const message = payload?.message ?? `Unable to ${actionLabel.toLowerCase()} this account right now.`;
+      setErrorMessage(message);
+      toast.error(message);
+      return;
+    }
+
+    setOpen(false);
+    toast.success(
+      currentStatus === "active"
+        ? `${userLabel} was deactivated.`
+        : `${userLabel} was reactivated.`,
+    );
+    onStatusChanged();
+  }
+
   function handleStatusChange() {
     setErrorMessage(null);
 
     startTransition(async () => {
-      const response = await fetch(`/dashboard/manage-user-accounts/${userId}/status`, {
-        method: "POST",
-        credentials: "same-origin",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ status: nextStatus }),
-      });
-      const payload = (await response.json().catch(() => null)) as { message?: string } | null;
-
-      if (!response.ok) {
-        const message = payload?.message ?? `Unable to ${actionLabel.toLowerCase()} this account right now.`;
-        setErrorMessage(message);
-        toast.error(message);
-        return;
-      }
-
-      setOpen(false);
-      toast.success(
-        currentStatus === "active"
-          ? `${userLabel} was deactivated.`
-          : `${userLabel} was reactivated.`,
-      );
-      onStatusChanged();
+      await performStatusChange();
     });
   }
 

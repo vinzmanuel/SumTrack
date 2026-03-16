@@ -29,6 +29,7 @@ export type LoanCollectionContext = {
   loanId: number;
   loanCode: string;
   branchId: number;
+  collectorId: string;
   collectorName: string;
 };
 

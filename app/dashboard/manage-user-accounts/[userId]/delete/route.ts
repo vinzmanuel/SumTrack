@@ -21,7 +21,7 @@ export async function POST(
   const result = await deleteManagedUserAccount(accessState, userId);
 
   if (!result.ok) {
-    return NextResponse.json({ message: result.message }, { status: 400 });
+    return NextResponse.json(result, { status: result.errorType === "reassignment_required" ? 409 : 400 });
   }
 
   return NextResponse.json({ ok: true });

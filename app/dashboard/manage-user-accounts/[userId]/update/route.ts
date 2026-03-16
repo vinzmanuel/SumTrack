@@ -19,13 +19,16 @@ export async function POST(
 
   const { userId } = await context.params;
   const body = (await request.json().catch(() => null)) as
-    | {
+      | {
         roleId?: number | string;
         email?: string;
         firstName?: string;
         middleName?: string;
         lastName?: string;
         contactNo?: string;
+        branchId?: number | string;
+        branchIds?: Array<number | string>;
+        areaId?: number | string;
       }
     | null;
 
@@ -43,10 +46,33 @@ export async function POST(
     middleName: String(body?.middleName ?? "").trim(),
     lastName: String(body?.lastName ?? "").trim(),
     contactNo: String(body?.contactNo ?? "").trim(),
+    branchId:
+      typeof body?.branchId === "number"
+        ? body.branchId
+        : /^\d+$/.test(String(body?.branchId ?? ""))
+          ? Number(body?.branchId)
+          : null,
+    branchIds: Array.isArray(body?.branchIds)
+      ? body.branchIds
+          .map((value) =>
+            typeof value === "number"
+              ? value
+              : /^\d+$/.test(String(value ?? ""))
+                ? Number(value)
+                : null,
+          )
+          .filter((value): value is number => value !== null)
+      : [],
+    areaId:
+      typeof body?.areaId === "number"
+        ? body.areaId
+        : /^\d+$/.test(String(body?.areaId ?? ""))
+          ? Number(body?.areaId)
+          : null,
   });
 
   if (!result.ok) {
-    return NextResponse.json({ message: result.message }, { status: 400 });
+    return NextResponse.json(result, { status: result.errorType === "reassignment_required" ? 409 : 400 });
   }
 
   return NextResponse.json({ ok: true });

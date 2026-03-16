@@ -2,7 +2,10 @@
 
 import { Button } from "@/components/ui/button";
 import { ManageUserAccountsTable } from "@/app/dashboard/manage-user-accounts/manage-user-accounts-table";
-import type { ManageUserAccountsPageData } from "@/app/dashboard/manage-user-accounts/types";
+import type {
+  ManagedCollectorReassignmentRequiredPayload,
+  ManageUserAccountsPageData,
+} from "@/app/dashboard/manage-user-accounts/types";
 
 export function ManageUserAccountsResultsSection({
   data,
@@ -11,6 +14,7 @@ export function ManageUserAccountsResultsSection({
   onDeleted,
   onEdit,
   onPageChange,
+  onReassignmentRequired,
 }: {
   data: ManageUserAccountsPageData;
   errorMessage: string | null;
@@ -18,6 +22,10 @@ export function ManageUserAccountsResultsSection({
   onDeleted: () => void;
   onEdit: (userId: string) => void;
   onPageChange: (page: number) => void;
+  onReassignmentRequired: (
+    blocked: ManagedCollectorReassignmentRequiredPayload,
+    retryAction: () => Promise<void>,
+  ) => void;
 }) {
   const totalPages = Math.max(Math.ceil(data.totalCount / data.pageSize), 1);
   const safePage = Math.min(Math.max(data.page, 1), totalPages);
@@ -26,7 +34,12 @@ export function ManageUserAccountsResultsSection({
 
   return (
     <div className="relative space-y-3">
-      <ManageUserAccountsTable onDeleted={onDeleted} onEdit={onEdit} users={data.users} />
+      <ManageUserAccountsTable
+        onDeleted={onDeleted}
+        onEdit={onEdit}
+        onReassignmentRequired={onReassignmentRequired}
+        users={data.users}
+      />
       <div className="flex flex-col gap-3 border-t pt-3 text-sm md:flex-row md:items-center md:justify-between">
         <div className="space-y-1">
           <p className="text-muted-foreground">

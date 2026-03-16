@@ -145,6 +145,7 @@ export async function resolveLoanCollectionContext(
       loanId: loan.loan_id,
       loanCode: loan.loan_code,
       branchId: loan.branch_id,
+      collectorId: loan.collector_id,
       collectorName,
     },
   };

@@ -50,7 +50,12 @@ export default async function CollectorProfilePage({
   const routeParams = await params;
   const currentSearchParams = (await searchParams) ?? {};
   const filters = parseCollectorsFilters(currentSearchParams);
-  const detailTab = parseCollectorDetailTab(currentSearchParams.tab);
+  const source = currentSearchParams.source === "manage-users" ? "manage-users" : "collectors";
+  const detailTab = currentSearchParams.tab
+    ? parseCollectorDetailTab(currentSearchParams.tab)
+    : source === "collectors"
+      ? "performance"
+      : "profile";
   const period = parseCollectorProfilePeriod(currentSearchParams.period);
   const assignedLoansFilters = parseCollectorAssignedLoansFilters(currentSearchParams);
   const access = resolveCollectorsPageAccess(auth, { requestedBranchId: null });
@@ -87,7 +92,6 @@ export default async function CollectorProfilePage({
     );
   }
 
-  const source = currentSearchParams.source === "manage-users" ? "manage-users" : "collectors";
   const backParams = new URLSearchParams();
   if (filters.requestedBranchId) {
     backParams.set("branch", String(filters.requestedBranchId));

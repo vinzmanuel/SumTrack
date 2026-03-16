@@ -14,40 +14,59 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import type {
+  ManagedCollectorReassignmentRequiredPayload,
+  ManagedUserMutationErrorPayload,
+} from "@/app/dashboard/manage-user-accounts/types";
 
 export function DeleteAccountButton({
   userId,
   userLabel,
   onDeleted,
+  onReassignmentRequired,
 }: {
   userId: string;
   userLabel: string;
   onDeleted: () => void;
+  onReassignmentRequired: (
+    blocked: ManagedCollectorReassignmentRequiredPayload,
+    retryAction: () => Promise<void>,
+  ) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
+  async function performDelete() {
+    const response = await fetch(`/dashboard/manage-user-accounts/${userId}/delete`, {
+      method: "POST",
+      credentials: "same-origin",
+    });
+    const payload = (await response.json().catch(() => null)) as ManagedUserMutationErrorPayload | null;
+
+    if (!response.ok) {
+      if (payload?.errorType === "reassignment_required" && payload.reassignmentRequired && payload.collectorId) {
+        setOpen(false);
+        onReassignmentRequired(payload as ManagedCollectorReassignmentRequiredPayload, performDelete);
+        return;
+      }
+
+      const message = payload?.message ?? "Unable to delete this account right now.";
+      setErrorMessage(message);
+      toast.error(message);
+      return;
+    }
+
+    setOpen(false);
+    toast.success(`${userLabel} was deleted.`);
+    onDeleted();
+  }
+
   function handleDelete() {
     setErrorMessage(null);
 
     startTransition(async () => {
-      const response = await fetch(`/dashboard/manage-user-accounts/${userId}/delete`, {
-        method: "POST",
-        credentials: "same-origin",
-      });
-      const payload = (await response.json().catch(() => null)) as { message?: string } | null;
-
-      if (!response.ok) {
-        const message = payload?.message ?? "Unable to delete this account right now.";
-        setErrorMessage(message);
-        toast.error(message);
-        return;
-      }
-
-      setOpen(false);
-      toast.success(`${userLabel} was deleted.`);
-      onDeleted();
+      await performDelete();
     });
   }
 

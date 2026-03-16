@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq, ilike, inArray, isNull, ne, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, isNull, ne, or, sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import {
   areas,
@@ -24,8 +24,14 @@ import {
   canManageManagedUserStatus,
   canDeleteManagedUser,
   canEditManagedUser,
+  type ManagedCollectorBlockedActionType,
+  type ManagedCollectorReassignmentCandidate,
+  type ManagedCollectorReassignmentPreview,
+  type ManagedCollectorReassignmentRequiredPayload,
+  type ManagedCollectorReassignmentResult,
   type ManageUserAccountsPageData,
   type ManageUserAccountsScope,
+  type ManageUserAccountsSort,
   type ManagedUserAreaOption,
   type ManagedUserBranchOption,
   type ManagedUserDetail,
@@ -33,8 +39,56 @@ import {
   type ManagedUserRoleOption,
 } from "@/app/dashboard/manage-user-accounts/types";
 import { deleteAuthUserSafely } from "@/app/dashboard/create-account/action-identifiers";
+import { ACTIVE_LOAN_STATUSES } from "@/app/dashboard/loans/active-statuses";
 
 const MANAGE_USERS_PAGE_SIZE = 20;
+const EDITABLE_EMPLOYEE_ROLE_NAMES = [
+  "Admin",
+  "Auditor",
+  "Branch Manager",
+  "Secretary",
+  "Collector",
+] as const;
+const BRANCH_ASSIGNED_ROLE_NAMES = new Set(["Branch Manager", "Secretary", "Auditor"]);
+const ROLE_SORT_ORDER_SQL = sql<number>`
+  case
+    when ${roles.role_name} = 'Admin' then 1
+    when ${roles.role_name} = 'Auditor' then 2
+    when ${roles.role_name} = 'Branch Manager' then 3
+    when ${roles.role_name} = 'Secretary' then 4
+    when ${roles.role_name} = 'Collector' then 5
+    when ${roles.role_name} = 'Borrower' then 6
+    else 999
+  end
+`;
+
+type ActiveAssignmentState = {
+  currentBranchId: number | null;
+  currentBranchName: string | null;
+  currentAreaId: number | null;
+  currentAreaCode: string | null;
+  currentAreaBranchId: number | null;
+  currentBranchCode: string | null;
+  activeBranchAssignments: { branchId: number; branchName: string; branchCode: string }[];
+};
+
+type ManagedUserMutationResult =
+  | { ok: true }
+  | {
+      ok: false;
+      message: string;
+      errorType?: "reassignment_required";
+      reassignmentRequired?: true;
+      actionType?: ManagedCollectorBlockedActionType;
+      collectorId?: string;
+      currentRole?: string;
+      nextRole?: string | null;
+      nextBranchId?: number | null;
+      nextAreaId?: number | null;
+      activeLoanCount?: number;
+      overdueLoanCount?: number;
+      totalLiveLoanCount?: number;
+    };
 
 function formatFullName(firstName: string | null, middleName: string | null, lastName: string | null) {
   return [firstName, middleName, lastName].filter(Boolean).join(" ").trim() || "N/A";
@@ -361,14 +415,519 @@ function resolveEditableRoleNames(scope: ManageUserAccountsScope, row: { roleNam
   }
 
   if (scope.roleName === "Admin") {
-    if (row.roleName === "Secretary" || row.roleName === "Branch Manager") {
-      return ["Branch Manager", "Secretary"];
-    }
-
-    return [row.roleName];
+    return [...EDITABLE_EMPLOYEE_ROLE_NAMES];
   }
 
-  return [row.roleName];
+  if (scope.roleName === "Branch Manager" && row.roleName === "Collector") {
+    return ["Collector", "Secretary"];
+  }
+
+  return [];
+}
+
+function buildManageUserSortOrder(sort: ManageUserAccountsSort) {
+  if (sort === "date_created_asc") {
+    return [asc(users.date_created), asc(users.company_id)] as const;
+  }
+
+  if (sort === "date_created_desc") {
+    return [desc(users.date_created), asc(users.company_id)] as const;
+  }
+
+  if (sort === "role_desc") {
+    return [desc(ROLE_SORT_ORDER_SQL), asc(users.company_id)] as const;
+  }
+
+  return [asc(ROLE_SORT_ORDER_SQL), asc(users.company_id)] as const;
+}
+
+async function loadActiveAssignmentState(userId: string): Promise<ActiveAssignmentState> {
+  const [activeBranchAssignments, activeAreaAssignment] = await Promise.all([
+    db
+      .select({
+        branchId: employee_branch_assignment.branch_id,
+        branchName: branch.branch_name,
+        branchCode: branch.branch_code,
+      })
+      .from(employee_branch_assignment)
+      .innerJoin(branch, eq(branch.branch_id, employee_branch_assignment.branch_id))
+      .where(
+        and(
+          eq(employee_branch_assignment.employee_user_id, userId),
+          isNull(employee_branch_assignment.end_date),
+        ),
+      )
+      .orderBy(asc(branch.branch_name))
+      .catch(() => []),
+    db
+      .select({
+        areaId: employee_area_assignment.area_id,
+        areaCode: areas.area_code,
+        branchId: areas.branch_id,
+        branchName: branch.branch_name,
+        branchCode: branch.branch_code,
+      })
+      .from(employee_area_assignment)
+      .innerJoin(areas, eq(areas.area_id, employee_area_assignment.area_id))
+      .innerJoin(branch, eq(branch.branch_id, areas.branch_id))
+      .where(
+        and(
+          eq(employee_area_assignment.employee_user_id, userId),
+          isNull(employee_area_assignment.end_date),
+        ),
+      )
+      .limit(1)
+      .then((rows) => rows[0] ?? null)
+      .catch(() => null),
+  ]);
+
+  return {
+    currentBranchId: activeBranchAssignments[0]?.branchId ?? activeAreaAssignment?.branchId ?? null,
+    currentBranchName: activeBranchAssignments[0]?.branchName ?? activeAreaAssignment?.branchName ?? null,
+    currentBranchCode: activeBranchAssignments[0]?.branchCode ?? activeAreaAssignment?.branchCode ?? null,
+    currentAreaId: activeAreaAssignment?.areaId ?? null,
+    currentAreaCode: activeAreaAssignment?.areaCode ?? null,
+    currentAreaBranchId: activeAreaAssignment?.branchId ?? null,
+    activeBranchAssignments,
+  };
+}
+
+async function countLiveCollectorLoans(userId: string) {
+  return db
+    .select({
+      activeLoanCount: sql<number>`sum(case when ${loan_records.status} = 'Active' then 1 else 0 end)`,
+      overdueLoanCount: sql<number>`sum(case when ${loan_records.status} = 'Overdue' then 1 else 0 end)`,
+    })
+    .from(loan_records)
+    .where(
+      and(
+        eq(loan_records.collector_id, userId),
+        inArray(loan_records.status, [...ACTIVE_LOAN_STATUSES]),
+      ),
+    )
+    .limit(1)
+    .then((rows) => {
+      const row = rows[0];
+      const activeLoanCount = Number(row?.activeLoanCount) || 0;
+      const overdueLoanCount = Number(row?.overdueLoanCount) || 0;
+      return {
+        activeLoanCount,
+        overdueLoanCount,
+        totalLiveLoanCount: activeLoanCount + overdueLoanCount,
+      };
+    })
+    .catch(() => ({
+      activeLoanCount: 0,
+      overdueLoanCount: 0,
+      totalLiveLoanCount: 0,
+    }));
+}
+
+function buildCollectorReassignmentRequiredResult(params: {
+  actionType: ManagedCollectorBlockedActionType;
+  collectorId: string;
+  currentRole: string;
+  nextRole?: string | null;
+  nextBranchId?: number | null;
+  nextAreaId?: number | null;
+  counts: { activeLoanCount: number; overdueLoanCount: number; totalLiveLoanCount: number };
+}): ManagedUserMutationResult {
+  const actionMessage =
+    params.actionType === "role_change"
+      ? "before changing this collector"
+      : params.actionType === "branch_reassignment" || params.actionType === "area_reassignment"
+        ? "before moving this collector"
+        : params.actionType === "deactivate"
+          ? "before deactivating this collector"
+          : "before deleting this collector";
+
+  return {
+    ok: false,
+    errorType: "reassignment_required",
+    reassignmentRequired: true,
+    actionType: params.actionType,
+    collectorId: params.collectorId,
+    currentRole: params.currentRole,
+    nextRole: params.nextRole ?? null,
+    nextBranchId: params.nextBranchId ?? null,
+    nextAreaId: params.nextAreaId ?? null,
+    activeLoanCount: params.counts.activeLoanCount,
+    overdueLoanCount: params.counts.overdueLoanCount,
+    totalLiveLoanCount: params.counts.totalLiveLoanCount,
+    message: `This collector still has active or overdue loans assigned (${params.counts.activeLoanCount} active, ${params.counts.overdueLoanCount} overdue). Reassign the live loans first ${actionMessage}.`,
+  };
+}
+
+async function maybeBuildCollectorStructuralBlock(params: {
+  collectorId: string;
+  currentRole: string;
+  nextRole: string;
+  currentBranchId: number | null;
+  currentAreaId: number | null;
+  requestedBranchId: number | null;
+  requestedAreaId: number | null;
+}): Promise<ManagedUserMutationResult | null> {
+  let actionType: ManagedCollectorBlockedActionType | null = null;
+
+  if (params.nextRole !== "Collector") {
+    actionType = "role_change";
+  } else if (params.requestedBranchId !== null && params.requestedBranchId !== params.currentBranchId) {
+    actionType = "branch_reassignment";
+  } else if (params.requestedAreaId !== null && params.requestedAreaId !== params.currentAreaId) {
+    actionType = "area_reassignment";
+  }
+
+  if (!actionType) {
+    return null;
+  }
+
+  const counts = await countLiveCollectorLoans(params.collectorId);
+  if (counts.totalLiveLoanCount <= 0) {
+    return null;
+  }
+
+  return buildCollectorReassignmentRequiredResult({
+    actionType,
+    collectorId: params.collectorId,
+    currentRole: params.currentRole,
+    nextRole: params.nextRole,
+    nextBranchId: params.requestedBranchId,
+    nextAreaId: params.requestedAreaId,
+    counts,
+  });
+}
+
+async function maybeBuildCollectorLifecycleBlock(params: {
+  actionType: "deactivate" | "delete";
+  collectorId: string;
+  currentRole: string;
+}): Promise<ManagedUserMutationResult | null> {
+  const counts = await countLiveCollectorLoans(params.collectorId);
+  if (counts.totalLiveLoanCount <= 0) {
+    return null;
+  }
+
+  return buildCollectorReassignmentRequiredResult({
+    actionType: params.actionType,
+    collectorId: params.collectorId,
+    currentRole: params.currentRole,
+    counts,
+  });
+}
+
+type CollectorReassignmentContext =
+  ManagedCollectorReassignmentRequiredPayload & {
+    collectorName: string;
+    collectorCompanyId: string;
+    currentAreaId: number | null;
+    currentAreaCode: string | null;
+    currentBranchId: number | null;
+    currentBranchCode: string | null;
+  };
+
+async function loadCollectorReassignmentContext(params: {
+  scope: ManageUserAccountsScope;
+  collectorId: string;
+  actionType: ManagedCollectorBlockedActionType;
+  nextRole?: string | null;
+  nextBranchId?: number | null;
+  nextAreaId?: number | null;
+}): Promise<CollectorReassignmentContext | ManagedUserMutationResult> {
+  const detail = await loadManagedUserDetail(params.scope, params.collectorId);
+
+  if (!detail) {
+    return { ok: false as const, message: "Collector account not found in your scope." };
+  }
+
+  if (detail.roleName !== "Collector") {
+    return { ok: false as const, message: "Loan reassignment is only available for collector accounts." };
+  }
+
+  if (params.scope.roleName === "Auditor") {
+    return { ok: false as const, message: "Auditor accounts are read-only in this flow." };
+  }
+
+  if (params.actionType === "deactivate") {
+    if (!detail.canManageStatus) {
+      return { ok: false as const, message: "You are not allowed to update this account status." };
+    }
+  } else if (params.actionType === "delete") {
+    if (!detail.canDelete) {
+      return { ok: false as const, message: "You are not allowed to delete this user account." };
+    }
+  } else if (!detail.canEdit) {
+    return { ok: false as const, message: "You are not allowed to edit this user account." };
+  }
+
+  const assignmentState = await loadActiveAssignmentState(params.collectorId);
+  const counts = await countLiveCollectorLoans(params.collectorId);
+  const blockerResult = buildCollectorReassignmentRequiredResult({
+    actionType: params.actionType,
+    collectorId: params.collectorId,
+    currentRole: detail.roleName,
+    nextRole: params.nextRole ?? null,
+    nextBranchId: params.nextBranchId ?? null,
+    nextAreaId: params.nextAreaId ?? null,
+    counts,
+  });
+
+  return {
+    errorType: "reassignment_required",
+    reassignmentRequired: true,
+    actionType: params.actionType,
+    collectorId: params.collectorId,
+    collectorName: detail.fullName,
+    collectorCompanyId: detail.companyId,
+    currentRole: detail.roleName,
+    nextRole: params.nextRole ?? null,
+    nextBranchId: params.nextBranchId ?? null,
+    nextAreaId: params.nextAreaId ?? null,
+    activeLoanCount: counts.activeLoanCount,
+    overdueLoanCount: counts.overdueLoanCount,
+    totalLiveLoanCount: counts.totalLiveLoanCount,
+    message: blockerResult.ok ? "Reassignment is required first." : blockerResult.message,
+    currentAreaId: assignmentState.currentAreaId,
+    currentAreaCode: assignmentState.currentAreaCode,
+    currentBranchId: assignmentState.currentBranchId,
+    currentBranchCode: assignmentState.currentBranchCode,
+  };
+}
+
+function resolveCollectorCandidateScopeLabel(context: CollectorReassignmentContext) {
+  if (context.actionType === "branch_reassignment") {
+    return context.currentBranchCode
+      ? `Choose an active collector in branch ${context.currentBranchCode}.`
+      : "Choose an active collector in the same branch.";
+  }
+
+  return context.currentAreaCode
+    ? `Choose an active collector in area ${context.currentAreaCode}.`
+    : "Choose an active collector in the same area.";
+}
+
+async function loadCollectorReplacementCandidates(
+  scope: ManageUserAccountsScope,
+  context: CollectorReassignmentContext,
+): Promise<ManagedCollectorReassignmentCandidate[]> {
+  if (context.actionType === "branch_reassignment") {
+    if (context.currentBranchId === null) {
+      return [];
+    }
+  } else if (context.currentAreaId === null) {
+    return [];
+  }
+
+  const managerBranchId = scope.allowedBranchIds[0] ?? null;
+
+  return db
+    .select({
+      userId: users.user_id,
+      companyId: users.company_id,
+      firstName: employee_info.first_name,
+      middleName: employee_info.middle_name,
+      lastName: employee_info.last_name,
+      areaId: areas.area_id,
+      areaCode: areas.area_code,
+      branchId: branch.branch_id,
+      branchCode: branch.branch_code,
+      branchName: branch.branch_name,
+    })
+    .from(users)
+    .innerJoin(roles, eq(roles.role_id, users.role_id))
+    .innerJoin(employee_info, eq(employee_info.user_id, users.user_id))
+    .innerJoin(
+      employee_area_assignment,
+      and(
+        eq(employee_area_assignment.employee_user_id, users.user_id),
+        isNull(employee_area_assignment.end_date),
+      ),
+    )
+    .innerJoin(areas, eq(areas.area_id, employee_area_assignment.area_id))
+    .innerJoin(branch, eq(branch.branch_id, areas.branch_id))
+    .where(
+      and(
+        ne(users.user_id, context.collectorId),
+        eq(users.status, "active"),
+        eq(roles.role_name, "Collector"),
+        context.actionType === "branch_reassignment"
+          ? eq(areas.branch_id, context.currentBranchId!)
+          : eq(areas.area_id, context.currentAreaId!),
+        scope.roleName === "Branch Manager" && managerBranchId !== null
+          ? eq(areas.branch_id, managerBranchId)
+          : undefined,
+      ),
+    )
+    .orderBy(asc(employee_info.first_name), asc(employee_info.last_name), asc(users.company_id))
+    .then((rows) =>
+      rows.map((row) => ({
+        userId: row.userId,
+        fullName: formatFullName(row.firstName, row.middleName, row.lastName),
+        companyId: row.companyId,
+        areaId: row.areaId,
+        areaCode: row.areaCode,
+        branchId: row.branchId,
+        branchCode: row.branchCode,
+        branchName: row.branchName,
+      })),
+    )
+    .catch(() => []);
+}
+
+async function loadCollectorReplacementCandidateById(params: {
+  scope: ManageUserAccountsScope;
+  context: CollectorReassignmentContext;
+  replacementCollectorId: string;
+}): Promise<ManagedCollectorReassignmentCandidate | null> {
+  const candidates = await loadCollectorReplacementCandidates(params.scope, params.context);
+  return candidates.find((item) => item.userId === params.replacementCollectorId) ?? null;
+}
+
+export async function loadCollectorLoanReassignmentPreview(params: {
+  scope: ManageUserAccountsScope;
+  collectorId: string;
+  actionType: ManagedCollectorBlockedActionType;
+  nextRole?: string | null;
+  nextBranchId?: number | null;
+  nextAreaId?: number | null;
+}): Promise<ManagedCollectorReassignmentPreview | ManagedUserMutationResult> {
+  const context = await loadCollectorReassignmentContext(params);
+
+  if ("ok" in context) {
+    return context;
+  }
+
+  const candidates = await loadCollectorReplacementCandidates(params.scope, context);
+
+  return {
+    ...context,
+    candidateScopeLabel: resolveCollectorCandidateScopeLabel(context),
+    candidates,
+  };
+}
+
+export async function reassignCollectorLiveLoans(params: {
+  scope: ManageUserAccountsScope;
+  collectorId: string;
+  replacementCollectorId: string;
+  actionType: ManagedCollectorBlockedActionType;
+  nextRole?: string | null;
+  nextBranchId?: number | null;
+  nextAreaId?: number | null;
+}): Promise<ManagedCollectorReassignmentResult | ManagedUserMutationResult> {
+  const context = await loadCollectorReassignmentContext(params);
+
+  if ("ok" in context) {
+    return context;
+  }
+
+  const replacementCollector = await loadCollectorReplacementCandidateById({
+    scope: params.scope,
+    context,
+    replacementCollectorId: params.replacementCollectorId,
+  });
+
+  if (!replacementCollector) {
+    return {
+      ok: false as const,
+      message:
+        context.actionType === "branch_reassignment"
+          ? "Select an active collector in the same branch."
+          : "Select an active collector in the same area.",
+    };
+  }
+
+  const reassignedRows = await db
+    .update(loan_records)
+    .set({ collector_id: params.replacementCollectorId })
+    .where(
+      and(
+        eq(loan_records.collector_id, params.collectorId),
+        inArray(loan_records.status, [...ACTIVE_LOAN_STATUSES]),
+      ),
+    )
+    .returning({ loanId: loan_records.loan_id });
+
+  return {
+    ok: true as const,
+    reassignedLoanCount: reassignedRows.length,
+    replacementCollectorId: replacementCollector.userId,
+    replacementCollectorName: replacementCollector.fullName,
+  };
+}
+
+async function countLiveBorrowerLoans(userId: string) {
+  return db
+    .select({ value: sql<number>`count(*)` })
+    .from(loan_records)
+    .where(
+      and(
+        eq(loan_records.borrower_id, userId),
+        inArray(loan_records.status, [...ACTIVE_LOAN_STATUSES]),
+      ),
+    )
+    .then((rows) => Number(rows[0]?.value) || 0)
+    .catch(() => 0);
+}
+
+async function findConflictingSingleBranchRoleAssignee(params: {
+  roleName: "Branch Manager";
+  branchId: number;
+  excludeUserId: string;
+}) {
+  return db
+    .select({
+      userId: users.user_id,
+      firstName: employee_info.first_name,
+      middleName: employee_info.middle_name,
+      lastName: employee_info.last_name,
+      companyId: users.company_id,
+      branchName: branch.branch_name,
+    })
+    .from(employee_branch_assignment)
+    .innerJoin(users, eq(users.user_id, employee_branch_assignment.employee_user_id))
+    .innerJoin(roles, eq(roles.role_id, users.role_id))
+    .innerJoin(employee_info, eq(employee_info.user_id, users.user_id))
+    .innerJoin(branch, eq(branch.branch_id, employee_branch_assignment.branch_id))
+    .where(
+      and(
+        eq(employee_branch_assignment.branch_id, params.branchId),
+        isNull(employee_branch_assignment.end_date),
+        eq(roles.role_name, params.roleName),
+        ne(users.user_id, params.excludeUserId),
+      ),
+    )
+    .limit(1)
+    .then((rows) => rows[0] ?? null)
+    .catch(() => null);
+}
+
+async function findConflictingAuditorAssignments(params: {
+  branchIds: number[];
+  excludeUserId: string;
+}) {
+  if (params.branchIds.length === 0) {
+    return [];
+  }
+
+  return db
+    .select({
+      branchId: employee_branch_assignment.branch_id,
+      branchName: branch.branch_name,
+      branchCode: branch.branch_code,
+    })
+    .from(employee_branch_assignment)
+    .innerJoin(users, eq(users.user_id, employee_branch_assignment.employee_user_id))
+    .innerJoin(roles, eq(roles.role_id, users.role_id))
+    .innerJoin(branch, eq(branch.branch_id, employee_branch_assignment.branch_id))
+    .where(
+      and(
+        inArray(employee_branch_assignment.branch_id, params.branchIds),
+        isNull(employee_branch_assignment.end_date),
+        eq(roles.role_name, "Auditor"),
+        ne(users.user_id, params.excludeUserId),
+      ),
+    )
+    .catch(() => []);
 }
 
 async function loadBaseManageUsersRows(scope: ManageUserAccountsScope) {
@@ -376,6 +935,7 @@ async function loadBaseManageUsersRows(scope: ManageUserAccountsScope) {
   const filters = buildManageUsersFilters(scope, scopedUserIds);
   const statusCountFilters = buildManageUsersStatusCountsFilters(scope, scopedUserIds);
   const requestedPage = Math.max(scope.page, 1);
+  const sortOrder = buildManageUserSortOrder(scope.selectedSort);
 
   const [totalCount, statusCountsRows] = await Promise.all([
     db
@@ -430,7 +990,7 @@ async function loadBaseManageUsersRows(scope: ManageUserAccountsScope) {
     .leftJoin(employee_info, eq(employee_info.user_id, users.user_id))
     .leftJoin(borrower_info, eq(borrower_info.user_id, users.user_id))
     .where(filters.length > 0 ? and(...filters) : undefined)
-    .orderBy(asc(roles.role_name), asc(users.company_id))
+    .orderBy(...sortOrder)
     .limit(MANAGE_USERS_PAGE_SIZE)
     .offset(offset)
     .catch(() => []);
@@ -527,6 +1087,7 @@ export async function loadManageUserAccountsPageData(
     areas: areaRows.map((row): ManagedUserAreaOption => ({
       areaId: row.areaId,
       areaCode: row.areaCode,
+      branchId: scope.selectedBranchId ?? undefined,
     })),
     users: usersRows,
     selectedAreaId,
@@ -580,12 +1141,18 @@ export async function loadManagedUserDetail(
     return null;
   }
 
+  const assignmentState = await loadActiveAssignmentState(userId);
+
   const scopeMaps = await loadScopeMaps([userId]);
   const isBorrower = row.roleName === "Borrower";
   const firstName = isBorrower ? row.borrowerFirstName : row.employeeFirstName;
   const middleName = isBorrower ? row.borrowerMiddleName : row.employeeMiddleName;
   const lastName = isBorrower ? row.borrowerLastName : row.employeeLastName;
   const editableRoleNames = resolveEditableRoleNames(scope, row);
+  const canEditRole =
+    row.roleName !== "Borrower" &&
+    ((scope.roleName === "Admin" && !isBorrower) ||
+      (scope.roleName === "Branch Manager" && row.roleName === "Collector"));
   const editableRoleRows = editableRoleNames.length
     ? await db
         .select({
@@ -595,6 +1162,52 @@ export async function loadManagedUserDetail(
         .from(roles)
         .where(inArray(roles.role_name, editableRoleNames))
         .orderBy(asc(roles.role_name))
+        .catch(() => [])
+    : [];
+  const currentBranchId = assignmentState.currentBranchId;
+  const currentBranchName = assignmentState.currentBranchName;
+  const currentAreaId = assignmentState.currentAreaId;
+  const currentAreaCode = assignmentState.currentAreaCode;
+  const currentBranchAssignments = assignmentState.activeBranchAssignments.map((item) => ({
+    branchId: item.branchId,
+    branchName: item.branchName,
+    branchCode: item.branchCode,
+  }));
+  const canEditBranchAssignment = scope.roleName === "Admin" && !isBorrower;
+  const canEditAuditorBranchAssignments = scope.roleName === "Admin" && !isBorrower;
+  const branchManagerBranchId = scope.allowedBranchIds[0] ?? null;
+  const canEditAreaAssignment =
+    !isBorrower &&
+    (scope.roleName === "Admin" ||
+      (scope.roleName === "Branch Manager" &&
+        row.roleName === "Collector" &&
+        branchManagerBranchId !== null &&
+        currentBranchId === branchManagerBranchId));
+  const editableBranchOptions = canEditBranchAssignment
+    ? await db
+        .select({
+          branchId: branch.branch_id,
+          branchName: branch.branch_name,
+          branchCode: branch.branch_code,
+        })
+        .from(branch)
+        .orderBy(asc(branch.branch_name))
+        .catch(() => [])
+    : [];
+  const editableAreaOptions = canEditAreaAssignment
+    ? await db
+        .select({
+          areaId: areas.area_id,
+          areaCode: areas.area_code,
+          branchId: areas.branch_id,
+        })
+        .from(areas)
+        .where(
+          scope.roleName === "Branch Manager" && branchManagerBranchId !== null
+            ? eq(areas.branch_id, branchManagerBranchId)
+            : undefined,
+        )
+        .orderBy(asc(areas.area_code))
         .catch(() => [])
     : [];
 
@@ -626,10 +1239,21 @@ export async function loadManagedUserDetail(
     canEdit: canEditManagedUser(scope, row),
     canManageStatus: canManageManagedUserStatus(scope, row),
     canDelete: canDeleteManagedUser(scope, row),
+    canEditRole,
     editableRoleOptions: editableRoleRows.map((item) => ({
       roleId: item.roleId,
       roleName: item.roleName,
     })),
+    canEditBranchAssignment,
+    canEditAuditorBranchAssignments,
+    canEditAreaAssignment,
+    currentBranchId,
+    currentBranchName,
+    currentAreaId,
+    currentAreaCode,
+    currentBranchAssignments,
+    editableBranchOptions,
+    editableAreaOptions,
   };
 }
 
@@ -665,7 +1289,10 @@ export async function updateManagedUserAccount(params: {
   middleName: string;
   lastName: string;
   contactNo: string;
-}) {
+  branchId: number | null;
+  branchIds: number[];
+  areaId: number | null;
+}): Promise<ManagedUserMutationResult> {
   const detail = await loadManagedUserDetail(params.scope, params.userId);
 
   if (!detail) {
@@ -686,10 +1313,17 @@ export async function updateManagedUserAccount(params: {
 
   const editableRoleIds = new Set(detail.editableRoleOptions.map((item) => item.roleId ?? -1));
   const nextRoleId = params.roleId ?? detail.roleId;
-  const canChangeRole = editableRoleIds.size > 1;
+  const canChangeRole = detail.canEditRole;
 
-  if (detail.roleName === "Borrower" && nextRoleId !== detail.roleId) {
-    return { ok: false as const, message: "Borrower accounts cannot be changed to another role." };
+  const nextRoleOption =
+    detail.editableRoleOptions.find((item) => item.roleId === nextRoleId) ??
+    (nextRoleId === detail.roleId ? { roleId: detail.roleId, roleName: detail.roleName } : null);
+  const nextRoleName = nextRoleOption?.roleName ?? detail.roleName;
+
+  if (detail.roleName === "Borrower" || nextRoleName === "Borrower") {
+    if (nextRoleId !== detail.roleId) {
+      return { ok: false as const, message: "Borrower accounts cannot be changed to another role." };
+    }
   }
 
   if (!canChangeRole && nextRoleId !== detail.roleId) {
@@ -700,8 +1334,20 @@ export async function updateManagedUserAccount(params: {
     return { ok: false as const, message: "This role change is not allowed in this edit flow." };
   }
 
-  const nextRole = detail.editableRoleOptions.find((item) => item.roleId === nextRoleId);
-  const requiresContactNo = detail.roleName === "Borrower" || nextRole?.roleName === "Collector";
+  if (params.scope.roleName === "Auditor") {
+    return { ok: false as const, message: "Auditor accounts are read-only in this flow." };
+  }
+
+  const assignmentState = await loadActiveAssignmentState(params.userId);
+  const currentBranchId = assignmentState.currentBranchId;
+  const currentAreaId = assignmentState.currentAreaId;
+  const requestedBranchId = params.branchId ?? currentBranchId;
+  const requestedAreaId = params.areaId ?? currentAreaId;
+  const requestedBranchIds = Array.from(
+    new Set(params.branchIds.filter((value): value is number => Number.isFinite(value))),
+  );
+  const managerBranchId = params.scope.allowedBranchIds[0] ?? null;
+  const requiresContactNo = detail.roleName === "Borrower" || nextRoleName === "Collector";
 
   if (requiresContactNo && !params.contactNo) {
     return { ok: false as const, message: "Contact number is required for this account." };
@@ -713,6 +1359,222 @@ export async function updateManagedUserAccount(params: {
 
   if (params.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(params.email)) {
     return { ok: false as const, message: "Enter a valid email address." };
+  }
+
+  if (
+    detail.accountCategory === "Borrower" &&
+    (params.branchId !== null || params.areaId !== null || requestedBranchIds.length > 0)
+  ) {
+    return { ok: false as const, message: "Borrowers cannot be reassigned." };
+  }
+
+  if (detail.roleName === "Collector") {
+    const structuralBlock = await maybeBuildCollectorStructuralBlock({
+      collectorId: params.userId,
+      currentRole: detail.roleName,
+      nextRole: nextRoleName,
+      currentBranchId,
+      currentAreaId,
+      requestedBranchId,
+      requestedAreaId,
+    });
+
+    if (structuralBlock) {
+      return structuralBlock;
+    }
+  }
+
+  if (params.scope.roleName === "Branch Manager") {
+    if (detail.roleName === "Collector") {
+      if (currentBranchId === null || managerBranchId === null || currentBranchId !== managerBranchId) {
+        return {
+          ok: false as const,
+          message: "You can only manage collectors assigned to your own branch.",
+        };
+      }
+      if (!["Collector", "Secretary"].includes(nextRoleName)) {
+        return {
+          ok: false as const,
+          message: "Branch Manager can only keep this account as Collector or promote it to Secretary.",
+        };
+      }
+      if (requestedBranchId !== currentBranchId) {
+        return {
+          ok: false as const,
+          message: "Branch reassignment is not allowed in this edit flow.",
+        };
+      }
+    } else {
+      if (params.branchId !== null && params.branchId !== currentBranchId) {
+        return {
+          ok: false as const,
+          message: "Branch reassignment is not allowed in this edit flow.",
+        };
+      }
+      if (params.areaId !== null && params.areaId !== currentAreaId) {
+        return {
+          ok: false as const,
+          message: "Area reassignment is not allowed for this account in your edit flow.",
+        };
+      }
+    }
+  }
+
+  const needsCollectorArea = nextRoleName === "Collector";
+  const needsAuditorBranchAssignments = nextRoleName === "Auditor";
+  const needsSingleBranchAssignment =
+    BRANCH_ASSIGNED_ROLE_NAMES.has(nextRoleName) && nextRoleName !== "Auditor";
+
+  let validatedBranchId: number | null = null;
+  let validatedAreaId: number | null = null;
+  let validatedBranchIds: number[] = [];
+
+  if (needsCollectorArea) {
+    if (!requestedAreaId) {
+      return { ok: false as const, message: "Area assignment is required for collector accounts." };
+    }
+
+    const areaRow = await db
+      .select({
+        areaId: areas.area_id,
+        areaCode: areas.area_code,
+        branchId: areas.branch_id,
+      })
+      .from(areas)
+      .where(eq(areas.area_id, requestedAreaId))
+      .limit(1)
+      .then((rows) => rows[0] ?? null)
+      .catch(() => null);
+
+    if (!areaRow) {
+      return { ok: false as const, message: "Selected area was not found." };
+    }
+
+    if (params.scope.roleName === "Branch Manager" && managerBranchId !== areaRow.branchId) {
+      return {
+        ok: false as const,
+        message: "You can only reassign collectors to areas within your own branch.",
+      };
+    }
+
+    if (requestedBranchId && requestedBranchId !== areaRow.branchId) {
+      return {
+        ok: false as const,
+        message: "Selected area does not belong to the selected branch.",
+      };
+    }
+
+    validatedAreaId = areaRow.areaId;
+    validatedBranchId = areaRow.branchId;
+  } else if (needsAuditorBranchAssignments) {
+    if (params.scope.roleName !== "Admin") {
+      return {
+        ok: false as const,
+        message: "Only Admin can assign auditor branch jurisdictions in this flow.",
+      };
+    }
+
+    if (requestedBranchIds.length === 0) {
+      return {
+        ok: false as const,
+        message: "Auditor accounts must have at least one branch assignment.",
+      };
+    }
+
+    const branchRows = await db
+      .select({
+        branchId: branch.branch_id,
+        branchName: branch.branch_name,
+        branchCode: branch.branch_code,
+      })
+      .from(branch)
+      .where(inArray(branch.branch_id, requestedBranchIds))
+      .catch(() => []);
+
+    if (branchRows.length !== requestedBranchIds.length) {
+      return {
+        ok: false as const,
+        message: "One or more selected branches were not found.",
+      };
+    }
+
+    const conflictingAuditorAssignments = await findConflictingAuditorAssignments({
+      branchIds: requestedBranchIds,
+      excludeUserId: params.userId,
+    });
+
+    if (conflictingAuditorAssignments.length > 0) {
+      const branchLabel = conflictingAuditorAssignments
+        .map((item) => item.branchCode || item.branchName)
+        .join(", ");
+
+      return {
+        ok: false as const,
+        message: `Each branch can only have one Auditor. Resolve the existing Auditor assignment for ${branchLabel} first.`,
+      };
+    }
+
+    validatedBranchIds = requestedBranchIds;
+  } else if (needsSingleBranchAssignment) {
+    const effectiveBranchId =
+      params.scope.roleName === "Branch Manager" ? currentBranchId ?? managerBranchId : requestedBranchId;
+
+    if (!effectiveBranchId) {
+      return { ok: false as const, message: "Branch assignment is required for this role." };
+    }
+
+    const branchRow = await db
+      .select({
+        branchId: branch.branch_id,
+      })
+      .from(branch)
+      .where(eq(branch.branch_id, effectiveBranchId))
+      .limit(1)
+      .then((rows) => rows[0] ?? null)
+      .catch(() => null);
+
+    if (!branchRow) {
+      return { ok: false as const, message: "Selected branch was not found." };
+    }
+
+    if (params.scope.roleName === "Branch Manager" && managerBranchId !== effectiveBranchId) {
+      return {
+        ok: false as const,
+        message: "You can only manage assignments within your own branch.",
+      };
+    }
+
+    if (nextRoleName === "Branch Manager") {
+      const existingBranchManager = await findConflictingSingleBranchRoleAssignee({
+        roleName: "Branch Manager",
+        branchId: branchRow.branchId,
+        excludeUserId: params.userId,
+      });
+
+      if (existingBranchManager) {
+        return {
+          ok: false as const,
+          message: `Each branch can only have one Branch Manager. ${formatFullName(existingBranchManager.firstName, existingBranchManager.middleName, existingBranchManager.lastName)} (${existingBranchManager.companyId}) is already assigned to ${existingBranchManager.branchName}.`,
+        };
+      }
+    }
+
+    validatedBranchId = branchRow.branchId;
+  } else {
+    if (params.scope.roleName === "Branch Manager") {
+      if (params.branchId !== null && params.branchId !== currentBranchId) {
+        return {
+          ok: false as const,
+          message: "Branch reassignment is not allowed in this edit flow.",
+        };
+      }
+      if (params.areaId !== null && params.areaId !== currentAreaId) {
+        return {
+          ok: false as const,
+          message: "Area reassignment is not allowed in this edit flow.",
+        };
+      }
+    }
   }
 
   try {
@@ -753,6 +1615,111 @@ export async function updateManagedUserAccount(params: {
       .where(eq(employee_info.user_id, params.userId));
   }
 
+  const today = new Date().toISOString().slice(0, 10);
+  const shouldHaveAreaAssignment = nextRoleName === "Collector";
+  if (shouldHaveAreaAssignment) {
+    if (currentAreaId !== validatedAreaId) {
+      await db
+        .update(employee_area_assignment)
+        .set({ end_date: today })
+        .where(
+          and(
+            eq(employee_area_assignment.employee_user_id, params.userId),
+            isNull(employee_area_assignment.end_date),
+          ),
+        );
+
+      await db.insert(employee_area_assignment).values({
+        employee_user_id: params.userId,
+        area_id: validatedAreaId!,
+        start_date: today,
+        end_date: null,
+      });
+    }
+
+    await db
+      .update(employee_branch_assignment)
+      .set({ end_date: today })
+      .where(
+        and(
+          eq(employee_branch_assignment.employee_user_id, params.userId),
+          isNull(employee_branch_assignment.end_date),
+        ),
+      );
+  } else {
+    await db
+      .update(employee_area_assignment)
+      .set({ end_date: today })
+      .where(
+        and(
+          eq(employee_area_assignment.employee_user_id, params.userId),
+          isNull(employee_area_assignment.end_date),
+        ),
+      );
+  }
+
+  if (nextRoleName === "Auditor") {
+    const activeBranchIds = assignmentState.activeBranchAssignments.map((item) => item.branchId).sort((a, b) => a - b);
+    const nextAuditorBranchIds = [...validatedBranchIds].sort((a, b) => a - b);
+    const branchesChanged =
+      activeBranchIds.length !== nextAuditorBranchIds.length ||
+      activeBranchIds.some((branchId, index) => branchId !== nextAuditorBranchIds[index]);
+
+    if (branchesChanged) {
+      await db
+        .update(employee_branch_assignment)
+        .set({ end_date: today })
+        .where(
+          and(
+            eq(employee_branch_assignment.employee_user_id, params.userId),
+            isNull(employee_branch_assignment.end_date),
+          ),
+        );
+
+      await db.insert(employee_branch_assignment).values(
+        validatedBranchIds.map((branchId) => ({
+          employee_user_id: params.userId,
+          branch_id: branchId,
+          start_date: today,
+          end_date: null,
+        })),
+      );
+    }
+  } else if (needsSingleBranchAssignment) {
+    const activeBranchIds = assignmentState.activeBranchAssignments.map((item) => item.branchId);
+    const needsNewSingleBranch =
+      activeBranchIds.length !== 1 || activeBranchIds[0] !== validatedBranchId;
+
+    if (needsNewSingleBranch) {
+      await db
+        .update(employee_branch_assignment)
+        .set({ end_date: today })
+        .where(
+          and(
+            eq(employee_branch_assignment.employee_user_id, params.userId),
+            isNull(employee_branch_assignment.end_date),
+          ),
+        );
+
+      await db.insert(employee_branch_assignment).values({
+        employee_user_id: params.userId,
+        branch_id: validatedBranchId!,
+        start_date: today,
+        end_date: null,
+      });
+    }
+  } else {
+    await db
+      .update(employee_branch_assignment)
+      .set({ end_date: today })
+      .where(
+        and(
+          eq(employee_branch_assignment.employee_user_id, params.userId),
+          isNull(employee_branch_assignment.end_date),
+        ),
+      );
+  }
+
   return { ok: true as const };
 }
 
@@ -760,7 +1727,7 @@ export async function updateManagedUserStatus(params: {
   scope: ManageUserAccountsScope;
   userId: string;
   nextStatus: "active" | "inactive";
-}) {
+}): Promise<ManagedUserMutationResult> {
   const detail = await loadManagedUserDetail(params.scope, params.userId);
 
   if (!detail) {
@@ -775,6 +1742,30 @@ export async function updateManagedUserStatus(params: {
     return { ok: true as const };
   }
 
+  if (params.nextStatus === "inactive") {
+    if (detail.roleName === "Collector") {
+      const lifecycleBlock = await maybeBuildCollectorLifecycleBlock({
+        actionType: "deactivate",
+        collectorId: params.userId,
+        currentRole: detail.roleName,
+      });
+      if (lifecycleBlock) {
+        return lifecycleBlock;
+      }
+    }
+
+    if (detail.roleName === "Borrower") {
+      const liveBorrowerLoans = await countLiveBorrowerLoans(params.userId);
+      if (liveBorrowerLoans > 0) {
+        return {
+          ok: false as const,
+          message:
+            "This borrower still has active or overdue loans and cannot be deactivated.",
+        };
+      }
+    }
+  }
+
   await db
     .update(users)
     .set({
@@ -786,7 +1777,10 @@ export async function updateManagedUserStatus(params: {
   return { ok: true as const };
 }
 
-export async function deleteManagedUserAccount(scope: ManageUserAccountsScope, userId: string) {
+export async function deleteManagedUserAccount(
+  scope: ManageUserAccountsScope,
+  userId: string,
+): Promise<ManagedUserMutationResult> {
   const detail = await loadManagedUserDetail(scope, userId);
 
   if (!detail) {
@@ -797,9 +1791,32 @@ export async function deleteManagedUserAccount(scope: ManageUserAccountsScope, u
     return { ok: false as const, message: "You are not allowed to delete this user account." };
   }
 
+  if (detail.roleName === "Collector") {
+    const lifecycleBlock = await maybeBuildCollectorLifecycleBlock({
+      actionType: "delete",
+      collectorId: userId,
+      currentRole: detail.roleName,
+    });
+    if (lifecycleBlock) {
+      return lifecycleBlock;
+    }
+  }
+
+  if (detail.roleName === "Borrower") {
+    const liveBorrowerLoans = await countLiveBorrowerLoans(userId);
+    if (liveBorrowerLoans > 0) {
+      return {
+        ok: false as const,
+        message:
+          "This borrower still has active or overdue loans and cannot be deleted.",
+      };
+    }
+  }
+
   const dependencyChecks = await Promise.all([
     db.select({ value: sql<number>`count(*)` }).from(loan_records).where(eq(loan_records.borrower_id, userId)).then((rows) => Number(rows[0]?.value) || 0).catch(() => 0),
     db.select({ value: sql<number>`count(*)` }).from(loan_records).where(eq(loan_records.collector_id, userId)).then((rows) => Number(rows[0]?.value) || 0).catch(() => 0),
+    db.select({ value: sql<number>`count(*)` }).from(collections).where(eq(collections.collector_id, userId)).then((rows) => Number(rows[0]?.value) || 0).catch(() => 0),
     db.select({ value: sql<number>`count(*)` }).from(collections).where(eq(collections.encoded_by, userId)).then((rows) => Number(rows[0]?.value) || 0).catch(() => 0),
     db.select({ value: sql<number>`count(*)` }).from(expenses).where(eq(expenses.recorded_by, userId)).then((rows) => Number(rows[0]?.value) || 0).catch(() => 0),
     db.select({ value: sql<number>`count(*)` }).from(incentive_rules).where(eq(incentive_rules.created_by, userId)).then((rows) => Number(rows[0]?.value) || 0).catch(() => 0),

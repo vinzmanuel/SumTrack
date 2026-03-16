@@ -305,6 +305,7 @@ export const collections = pgTable(
     }),
     collection_code: varchar({ length: 200 }).notNull(),
     loan_id: integer().notNull(),
+    collector_id: uuid("collector_id"),
     amount: numeric({ precision: 10, scale: 2 }).notNull(),
     note: text(),
     encoded_by: uuid().notNull(),
@@ -321,8 +322,14 @@ export const collections = pgTable(
       foreignColumns: [loan_records.loan_id],
       name: "collections_loan_id_fkey",
     }),
+    foreignKey({
+      columns: [table.collector_id],
+      foreignColumns: [users.user_id],
+      name: "collections_collector_id_fkey",
+    }).onDelete("set null"),
     unique("collections_collection_code_key").on(table.collection_code),
     check("chk_collections_amount_nonnegative", sql`amount >= (0)::numeric`),
+    index("collections_collector_id_idx").on(table.collector_id),
   ],
 );
 
