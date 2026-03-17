@@ -641,7 +641,134 @@ export function resolveBranchActionPermissions(
     canEditDetails: access.roleName === "Admin" || access.roleName === "Branch Manager",
     canManageLifecycle: access.roleName === "Admin",
     canDelete: access.roleName === "Admin",
+    canManageAreas: access.roleName === "Admin" || access.roleName === "Branch Manager",
   };
+}
+
+export async function createAreaByBranchCode(params: {
+  access: Extract<BranchDetailAccessState, { view: "detail" }>;
+  branchCode: string;
+  areaNo: string;
+  description: string;
+}): Promise<BranchMutationResult> {
+  const target = await loadBranchMutationTarget(params.access, params.branchCode);
+  if (!target) {
+    return { ok: false, message: "Branch not found in your allowed scope." };
+  }
+
+  if (params.access.roleName !== "Admin" && params.access.roleName !== "Branch Manager") {
+    return { ok: false, message: "You are not allowed to create areas for this branch." };
+  }
+
+  if (target.status !== "active") {
+    return { ok: false, message: "Areas cannot be created inside an inactive branch." };
+  }
+
+  const areaNo = params.areaNo.trim();
+  const description = params.description.trim();
+  const areaCode = `${target.branchCode}-${areaNo}`;
+
+  if (!/^[0-9]{2}$/.test(areaNo)) {
+    return { ok: false, message: "Area No. must use exactly two digits." };
+  }
+
+  const duplicateAreaNo = await db
+    .select({ areaId: areas.area_id })
+    .from(areas)
+    .where(and(eq(areas.branch_id, target.branchId), eq(areas.area_no, areaNo)))
+    .limit(1)
+    .then((rows) => rows[0] ?? null)
+    .catch(() => null);
+
+  if (duplicateAreaNo) {
+    return { ok: false, message: `Area No. ${areaNo} already exists in this branch.` };
+  }
+
+  const duplicateAreaCode = await db
+    .select({ areaId: areas.area_id })
+    .from(areas)
+    .where(eq(areas.area_code, areaCode))
+    .limit(1)
+    .then((rows) => rows[0] ?? null)
+    .catch(() => null);
+
+  if (duplicateAreaCode) {
+    return { ok: false, message: `Area Code ${areaCode} already exists.` };
+  }
+
+  try {
+    await db.insert(areas).values({
+      branch_id: target.branchId,
+      area_no: areaNo,
+      area_code: areaCode,
+      description: description || null,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+
+    if (message.includes("uq_areas_branch_area_no")) {
+      return { ok: false, message: `Area No. ${areaNo} already exists in this branch.` };
+    }
+
+    if (message.includes("areas_area_code_key")) {
+      return { ok: false, message: `Area Code ${areaCode} already exists.` };
+    }
+
+    return {
+      ok: false,
+      message: "The area could not be created due to a database error. Please try again.",
+    };
+  }
+
+  return { ok: true, message: "Area created." };
+}
+
+export async function updateAreaByBranchCode(params: {
+  access: Extract<BranchDetailAccessState, { view: "detail" }>;
+  branchCode: string;
+  areaId: number;
+  description: string;
+}): Promise<BranchMutationResult> {
+  const target = await loadBranchMutationTarget(params.access, params.branchCode);
+  if (!target) {
+    return { ok: false, message: "Branch not found in your allowed scope." };
+  }
+
+  if (params.access.roleName !== "Admin" && params.access.roleName !== "Branch Manager") {
+    return { ok: false, message: "You are not allowed to edit areas for this branch." };
+  }
+  const description = params.description.trim();
+
+  const existingArea = await db
+    .select({
+      areaId: areas.area_id,
+      areaCode: areas.area_code,
+    })
+    .from(areas)
+    .where(and(eq(areas.area_id, params.areaId), eq(areas.branch_id, target.branchId)))
+    .limit(1)
+    .then((rows) => rows[0] ?? null)
+    .catch(() => null);
+
+  if (!existingArea) {
+    return { ok: false, message: "Area not found in this branch." };
+  }
+
+  try {
+    await db
+      .update(areas)
+      .set({
+        description: description || null,
+      })
+      .where(eq(areas.area_id, existingArea.areaId));
+  } catch {
+    return {
+      ok: false,
+      message: "The area could not be updated due to a database error. Please try again.",
+    };
+  }
+
+  return { ok: true, message: "Area updated." };
 }
 
 export async function updateBranchDetailsByCode(params: {

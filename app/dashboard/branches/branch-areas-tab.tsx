@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { ArrowUpDown, Search } from "lucide-react";
+import { BranchCreateAreaDialog } from "@/app/dashboard/branches/branch-create-area-dialog";
+import { BranchEditAreaDialog } from "@/app/dashboard/branches/branch-edit-area-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -56,7 +58,15 @@ function descriptionLabel(value: string | null) {
   return trimmed && trimmed.length > 0 ? trimmed : "No area description added";
 }
 
-export function BranchAreasTab({ data }: { data: BranchAreasTabData }) {
+export function BranchAreasTab({
+  branchCode,
+  canManageAreas,
+  data,
+}: {
+  branchCode: string;
+  canManageAreas: boolean;
+  data: BranchAreasTabData;
+}) {
   const [query, setQuery] = useState("");
   const [collectorFilter, setCollectorFilter] = useState("all");
   const [sort, setSort] = useState<AreaSort>("area_code_asc");
@@ -133,74 +143,82 @@ export function BranchAreasTab({ data }: { data: BranchAreasTabData }) {
     <Card className="overflow-hidden border-border/70 shadow-sm">
       <CardContent className="p-0">
         <div className="space-y-3 px-4 pb-3 pt-3 md:px-5 md:pb-4">
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-end">
-            <div className="flex-1 space-y-1">
-              <label className="text-sm font-medium" htmlFor="branchAreaSearch">
-                Search
-              </label>
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  className="pl-9"
-                  id="branchAreaSearch"
-                  onChange={(event) => {
-                    setQuery(event.target.value);
+          <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+            <div className="flex flex-1 flex-col gap-3 xl:flex-row xl:items-end">
+              <div className="flex-1 space-y-1">
+                <label className="text-sm font-medium" htmlFor="branchAreaSearch">
+                  Search
+                </label>
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    className="pl-9"
+                    id="branchAreaSearch"
+                    onChange={(event) => {
+                      setQuery(event.target.value);
+                      setPage(1);
+                    }}
+                    placeholder="Search area code, area no., description, or collector"
+                    value={query}
+                  />
+                </div>
+              </div>
+
+              <div className="w-full space-y-1 sm:w-56">
+                <label className="text-sm font-medium" htmlFor="branchAreaCollector">
+                  Collector
+                </label>
+                <Select
+                  onValueChange={(value) => {
+                    setCollectorFilter(value);
                     setPage(1);
                   }}
-                  placeholder="Search area code, area no., or collector"
-                  value={query}
-                />
+                  value={collectorFilter}
+                >
+                  <SelectTrigger className="w-full" id="branchAreaCollector">
+                    <SelectValue placeholder="All collectors" />
+                  </SelectTrigger>
+                  <SelectContent align="end">
+                    <SelectItem value="all">All collectors</SelectItem>
+                    {collectorOptions.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="w-full space-y-1 sm:w-56">
+                <label className="text-sm font-medium" htmlFor="branchAreaSort">
+                  Sort
+                </label>
+                <Select
+                  onValueChange={(value) => {
+                    setSort(value as AreaSort);
+                    setPage(1);
+                  }}
+                  value={sort}
+                >
+                  <SelectTrigger className="w-full" id="branchAreaSort">
+                    <SelectValue placeholder="Sort areas" />
+                  </SelectTrigger>
+                  <SelectContent align="end">
+                    {(Object.entries(SORT_LABELS) as Array<[AreaSort, string]>).map(([value, label]) => (
+                      <SelectItem key={value} value={value}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
-            <div className="w-full space-y-1 sm:w-56">
-              <label className="text-sm font-medium" htmlFor="branchAreaCollector">
-                Collector
-              </label>
-              <Select
-                onValueChange={(value) => {
-                  setCollectorFilter(value);
-                  setPage(1);
-                }}
-                value={collectorFilter}
-              >
-                <SelectTrigger className="w-full" id="branchAreaCollector">
-                  <SelectValue placeholder="All collectors" />
-                </SelectTrigger>
-                <SelectContent align="end">
-                  <SelectItem value="all">All collectors</SelectItem>
-                  {collectorOptions.map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {option}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="w-full space-y-1 sm:w-56">
-              <label className="text-sm font-medium" htmlFor="branchAreaSort">
-                Sort
-              </label>
-              <Select
-                onValueChange={(value) => {
-                  setSort(value as AreaSort);
-                  setPage(1);
-                }}
-                value={sort}
-              >
-                <SelectTrigger className="w-full" id="branchAreaSort">
-                  <SelectValue placeholder="Sort areas" />
-                </SelectTrigger>
-                <SelectContent align="end">
-                  {(Object.entries(SORT_LABELS) as Array<[AreaSort, string]>).map(([value, label]) => (
-                    <SelectItem key={value} value={value}>
-                      {label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {canManageAreas ? (
+              <div className="flex justify-end">
+                <BranchCreateAreaDialog branchCode={branchCode} />
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -250,9 +268,16 @@ export function BranchAreasTab({ data }: { data: BranchAreasTabData }) {
                         <td className="px-2 py-3">{formatCurrency(row.collectionsThisMonth)}</td>
                         <td className="px-2 py-3 text-muted-foreground">{formatDate(row.dateCreated)}</td>
                         <td className="px-2 py-3">
-                          <Button disabled size="sm" type="button" variant="outline">
-                            Manage
-                          </Button>
+                          {canManageAreas ? (
+                            <BranchEditAreaDialog
+                              areaCode={row.areaCode}
+                              areaId={row.areaId}
+                              branchCode={branchCode}
+                              description={row.description}
+                            />
+                          ) : (
+                            <span className="text-muted-foreground">View only</span>
+                          )}
                         </td>
                       </tr>
                     ))}

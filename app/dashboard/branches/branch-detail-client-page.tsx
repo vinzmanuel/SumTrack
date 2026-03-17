@@ -181,7 +181,11 @@ export function BranchDetailClientPage({
       ) : activeTab === "employees" ? (
         <BranchEmployeesTab data={employeesData} />
       ) : (
-        <BranchAreasTab data={areasData} />
+        <BranchAreasTab
+          branchCode={data.branchCode}
+          canManageAreas={permissions.canManageAreas}
+          data={areasData}
+        />
       )}
     </div>
   );

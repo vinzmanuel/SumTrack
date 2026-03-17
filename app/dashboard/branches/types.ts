@@ -101,6 +101,7 @@ export type BranchActionPermissions = {
   canEditDetails: boolean;
   canManageLifecycle: boolean;
   canDelete: boolean;
+  canManageAreas: boolean;
 };
 
 export type BranchMutationResult =

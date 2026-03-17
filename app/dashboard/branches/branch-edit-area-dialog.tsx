@@ -12,70 +12,58 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export function BranchEditDialog({
-  branchAddress,
+export function BranchEditAreaDialog({
+  areaCode,
+  areaId,
   branchCode,
-  branchName,
-  triggerLabel = "Edit",
+  description,
 }: {
-  branchAddress: string;
+  areaCode: string;
+  areaId: number;
   branchCode: string;
-  branchName: string;
-  triggerLabel?: string;
+  description: string | null;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [name, setName] = useState(branchName);
-  const [address, setAddress] = useState(branchAddress);
+  const [nextDescription, setNextDescription] = useState(description ?? "");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const hasChanges = useMemo(
-    () => name.trim() !== branchName.trim() || address.trim() !== branchAddress.trim(),
-    [address, branchAddress, branchName, name],
+    () => nextDescription.trim() !== (description ?? "").trim(),
+    [description, nextDescription],
   );
 
   function handleOpenChange(nextOpen: boolean) {
+    setOpen(nextOpen);
     if (!nextOpen) {
-      setName(branchName);
-      setAddress(branchAddress);
+      setNextDescription(description ?? "");
       setErrorMessage(null);
       setIsSaving(false);
     }
-    setOpen(nextOpen);
   }
-
   async function handleSave() {
-    if (!name.trim()) {
-      setErrorMessage("Branch name is required.");
-      return;
-    }
-
-    if (!address.trim()) {
-      setErrorMessage("Branch address is required.");
-      return;
-    }
-
     setIsSaving(true);
     setErrorMessage(null);
 
-    const response = await fetch(`/dashboard/branches/${encodeURIComponent(branchCode)}/edit`, {
-      method: "POST",
-      credentials: "same-origin",
-      headers: {
-        "Content-Type": "application/json",
+    const response = await fetch(
+      `/dashboard/branches/${encodeURIComponent(branchCode)}/areas/${areaId}/edit`,
+      {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          description: nextDescription,
+        }),
       },
-      body: JSON.stringify({
-        branchName: name,
-        branchAddress: address,
-      }),
-    });
+    );
 
     const payload = (await response.json().catch(() => null)) as { message?: string } | null;
-    const message = payload?.message ?? "Unable to update branch details right now.";
+    const message = payload?.message ?? "Unable to update area right now.";
 
     if (!response.ok) {
       setIsSaving(false);
@@ -97,35 +85,32 @@ export function BranchEditDialog({
         size="sm"
         type="button"
       >
-        {triggerLabel}
+        Edit
       </Button>
 
       <Dialog onOpenChange={handleOpenChange} open={open}>
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle>Edit Branch Details</DialogTitle>
+            <DialogTitle>Edit Area</DialogTitle>
             <DialogDescription>
-              Update the branch name and address for {branchName}. Structural branch identity fields stay read-only here.
+              Update the editable area details for {areaCode}. Area Code stays read-only here.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
             <div className="rounded-md border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
-              Branch Code: {branchCode}
-            </div>
-
-            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-              Province, municipality, location codes, and lifecycle status are fixed outside this edit flow. Only the official branch name and address can be updated here.
+              Area Code: {areaCode}
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="branch-name">Branch Name</Label>
-              <Input id="branch-name" onChange={(event) => setName(event.target.value)} value={name} />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="branch-address">Branch Address</Label>
-              <Input id="branch-address" onChange={(event) => setAddress(event.target.value)} value={address} />
+              <Label htmlFor={`edit-area-description-${areaId}`}>Description</Label>
+              <textarea
+                className="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 flex min-h-24 w-full rounded-md border px-3 py-2 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px]"
+                id={`edit-area-description-${areaId}`}
+                onChange={(event) => setNextDescription(event.target.value)}
+                placeholder="Barangays: Bool, Mansasa, Dampas"
+                value={nextDescription}
+              />
             </div>
 
             {errorMessage ? <p className="text-sm text-destructive">{errorMessage}</p> : null}
