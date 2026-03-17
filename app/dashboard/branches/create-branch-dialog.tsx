@@ -2,10 +2,19 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Combobox as ComboboxPrimitive } from "@base-ui/react";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
 import { buildBranchCode, normalizeBranchCodeInput } from "@/app/dashboard/branches/branch-code";
+import psgcLocations from "@/lib/data/psgc_official_provinces_municipalities.json";
 import { Button } from "@/components/ui/button";
+import {
+  Combobox,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from "@/components/ui/combobox";
 import {
   Dialog,
   DialogContent,
@@ -16,9 +25,53 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
+
+type LocationDataset = {
+  provinces: Array<{
+    name: string;
+    municipalities: Array<{
+      name: string;
+    }>;
+  }>;
+};
+
+function DialogComboboxContent({
+  children,
+  container,
+}: {
+  children: React.ReactNode;
+  container: HTMLElement | null;
+}) {
+  return (
+    <ComboboxPrimitive.Portal container={container}>
+      <ComboboxPrimitive.Positioner
+        align="start"
+        className="isolate z-50"
+        side="bottom"
+        sideOffset={6}
+      >
+        <ComboboxPrimitive.Popup
+          className={cn(
+            "group/combobox-content relative max-h-96 w-(--anchor-width) max-w-(--available-width) min-w-[calc(var(--anchor-width)+--spacing(7))] origin-(--transform-origin) overflow-hidden rounded-md bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10 duration-100 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 *:data-[slot=input-group]:m-1 *:data-[slot=input-group]:mb-0 *:data-[slot=input-group]:h-8 *:data-[slot=input-group]:border-input/30 *:data-[slot=input-group]:bg-input/30 *:data-[slot=input-group]:shadow-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          )}
+          data-slot="combobox-content"
+        >
+          {children}
+        </ComboboxPrimitive.Popup>
+      </ComboboxPrimitive.Positioner>
+    </ComboboxPrimitive.Portal>
+  );
+}
 
 export function CreateBranchDialog() {
+  const locationDataset = psgcLocations as LocationDataset;
+  const provinceOptions = useMemo(
+    () => locationDataset.provinces.map((province) => province.name),
+    [locationDataset.provinces],
+  );
   const router = useRouter();
+  const [popupContainer, setPopupContainer] = useState<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [provinceName, setProvinceName] = useState("");
@@ -33,6 +86,17 @@ export function CreateBranchDialog() {
     () => buildBranchCode(provinceCode, municipalityCode),
     [municipalityCode, provinceCode],
   );
+  const municipalityOptions = useMemo(() => {
+    if (!provinceName) {
+      return [];
+    }
+
+    const selectedProvince = locationDataset.provinces.find(
+      (province) => province.name === provinceName,
+    );
+
+    return selectedProvince?.municipalities.map((municipality) => municipality.name) ?? [];
+  }, [locationDataset.provinces, provinceName]);
 
   function resetForm() {
     setProvinceName("");
@@ -50,6 +114,16 @@ export function CreateBranchDialog() {
     if (!nextOpen) {
       resetForm();
     }
+  }
+
+  function handleProvinceChange(nextProvince: string | null) {
+    const normalizedProvince = nextProvince ?? "";
+    setProvinceName(normalizedProvince);
+    setMunicipalityName("");
+  }
+
+  function handleMunicipalityChange(nextMunicipality: string | null) {
+    setMunicipalityName(nextMunicipality ?? "");
   }
 
   async function handleCreate() {
@@ -105,6 +179,7 @@ export function CreateBranchDialog() {
 
       <Dialog onOpenChange={handleOpenChange} open={open}>
         <DialogContent className="sm:max-w-2xl">
+          <div ref={setPopupContainer} />
           <DialogHeader>
             <DialogTitle>Create Branch</DialogTitle>
             <DialogDescription>
@@ -120,11 +195,27 @@ export function CreateBranchDialog() {
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-1.5">
                 <Label htmlFor="create-branch-province-name">Province Name</Label>
-                <Input
-                  id="create-branch-province-name"
-                  onChange={(event) => setProvinceName(event.target.value)}
-                  value={provinceName}
-                />
+                <Combobox
+                  items={provinceOptions}
+                  onValueChange={handleProvinceChange}
+                  value={provinceName || null}
+                >
+                  <ComboboxInput
+                    className="w-full"
+                    placeholder="Select province"
+                    showClear
+                  />
+                  <DialogComboboxContent container={popupContainer}>
+                    <ComboboxEmpty>No province found.</ComboboxEmpty>
+                    <ComboboxList>
+                      {(item) => (
+                        <ComboboxItem key={item} value={item}>
+                          {item}
+                        </ComboboxItem>
+                      )}
+                    </ComboboxList>
+                  </DialogComboboxContent>
+                </Combobox>
               </div>
 
               <div className="space-y-1.5">
@@ -143,11 +234,30 @@ export function CreateBranchDialog() {
 
               <div className="space-y-1.5">
                 <Label htmlFor="create-branch-municipality-name">Municipality / City Name</Label>
-                <Input
-                  id="create-branch-municipality-name"
-                  onChange={(event) => setMunicipalityName(event.target.value)}
-                  value={municipalityName}
-                />
+                <Combobox
+                  items={municipalityOptions}
+                  onValueChange={handleMunicipalityChange}
+                  value={municipalityName || null}
+                >
+                  <ComboboxInput
+                    className="w-full"
+                    disabled={!provinceName}
+                    placeholder={provinceName ? "Select municipality / city" : "Select province first"}
+                    showClear
+                  />
+                  <DialogComboboxContent container={popupContainer}>
+                    <ComboboxEmpty>
+                      {provinceName ? "No municipality found." : "Select a province first."}
+                    </ComboboxEmpty>
+                    <ComboboxList>
+                      {(item) => (
+                        <ComboboxItem key={item} value={item}>
+                          {item}
+                        </ComboboxItem>
+                      )}
+                    </ComboboxList>
+                  </DialogComboboxContent>
+                </Combobox>
               </div>
 
               <div className="space-y-1.5">
