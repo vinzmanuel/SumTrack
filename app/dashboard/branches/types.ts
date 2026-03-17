@@ -101,6 +101,7 @@ export type BranchActionPermissions = {
   canEditDetails: boolean;
   canManageLifecycle: boolean;
   canDelete: boolean;
+  canManageEmployees: boolean;
   canManageAreas: boolean;
 };
 
@@ -134,6 +135,8 @@ export type BranchEmployeeListRow = {
   scopeLabel: string;
   contactNo: string | null;
   email: string | null;
+  canView: boolean;
+  canEdit: boolean;
 };
 
 export type BranchEmployeesTabData = {

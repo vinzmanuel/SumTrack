@@ -179,7 +179,10 @@ export function BranchDetailClientPage({
       {activeTab === "overview" ? (
         <BranchOverviewTab data={data} />
       ) : activeTab === "employees" ? (
-        <BranchEmployeesTab data={employeesData} />
+        <BranchEmployeesTab
+          canManageEmployees={permissions.canManageEmployees}
+          data={employeesData}
+        />
       ) : (
         <BranchAreasTab
           branchCode={data.branchCode}

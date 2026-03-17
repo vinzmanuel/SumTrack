@@ -64,12 +64,14 @@ function branchLabel(branch: { branchName: string; branchCode?: string }) {
 }
 
 export function ManagedUserAccountEditModal({
+  mode = "full",
   onOpenChange,
   onSaved,
   onReassignmentRequired,
   open,
   userId,
 }: {
+  mode?: "full" | "staffing";
   onOpenChange: (open: boolean) => void;
   onSaved: () => void;
   onReassignmentRequired: (
@@ -142,7 +144,17 @@ export function ManagedUserAccountEditModal({
     return () => controller.abort();
   }, [open, userId]);
 
-  const roleOptions = useMemo(() => detail?.editableRoleOptions ?? [], [detail?.editableRoleOptions]);
+  const roleOptions = useMemo(() => {
+    const options = detail?.editableRoleOptions ?? [];
+
+    if (mode !== "staffing") {
+      return options;
+    }
+
+    return options.filter((item) =>
+      item.roleName === "Branch Manager" || item.roleName === "Secretary" || item.roleName === "Collector",
+    );
+  }, [detail?.editableRoleOptions, mode]);
   const selectedRole = useMemo(() => {
     if (!detail || !formState) {
       return null;
@@ -164,7 +176,7 @@ export function ManagedUserAccountEditModal({
     Boolean(detail?.canEditBranchAssignment) &&
     (selectedRoleName === "Secretary" || selectedRoleName === "Branch Manager");
   const showAuditorBranchSelector =
-    Boolean(detail?.canEditAuditorBranchAssignments) && selectedRoleName === "Auditor";
+    mode === "full" && Boolean(detail?.canEditAuditorBranchAssignments) && selectedRoleName === "Auditor";
   const showAreaAssignmentControl = Boolean(detail?.canEditAreaAssignment) && selectedRoleName === "Collector";
   const visibleAreaOptions =
     detail && formState
@@ -276,12 +288,16 @@ export function ManagedUserAccountEditModal({
       return "Unable to load account details.";
     }
 
-    if (!formState.firstName.trim()) {
+    if (mode === "full" && !formState.firstName.trim()) {
       return "First name is required.";
     }
 
-    if (!formState.lastName.trim()) {
+    if (mode === "full" && !formState.lastName.trim()) {
       return "Last name is required.";
+    }
+
+    if (mode === "staffing" && selectedRoleName === "Collector" && !formState.contactNo) {
+      return "Collector role requires a contact number. Update the contact details in Manage User Accounts first.";
     }
 
     if (requiresContactNo && !formState.contactNo) {
@@ -394,9 +410,11 @@ export function ManagedUserAccountEditModal({
       <Dialog onOpenChange={handleOpenChange} open={open}>
         <DialogContent className="sm:max-w-3xl">
           <DialogHeader>
-            <DialogTitle>Edit User Account</DialogTitle>
+            <DialogTitle>{mode === "staffing" ? "Edit Branch Staffing" : "Edit User Account"}</DialogTitle>
             <DialogDescription>
-              Update the allowed profile fields for this user account.
+              {mode === "staffing"
+                ? "Update the branch staffing controls for this account. Username, company ID, password, and profile details stay in their dedicated flows."
+                : "Update the allowed profile fields for this user account."}
             </DialogDescription>
           </DialogHeader>
 
@@ -408,91 +426,99 @@ export function ManagedUserAccountEditModal({
             </div>
           ) : (
             <div className="space-y-5">
-              <div className="space-y-3">
-                <div className="space-y-1">
-                  <p className="text-sm font-medium">Name Details</p>
-                  <p className="text-xs text-muted-foreground">Keep the user&apos;s legal name fields up to date.</p>
-                </div>
-                <div className="grid gap-4 md:grid-cols-3">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="edit-first-name">First Name</Label>
-                    <Input
-                      id="edit-first-name"
-                      required
-                      onChange={(event) =>
-                        setFormState((previous) =>
-                          previous ? { ...previous, firstName: event.target.value } : previous,
-                        )
-                      }
-                      value={formState.firstName}
-                    />
+              {mode === "full" ? (
+                <>
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium">Name Details</p>
+                      <p className="text-xs text-muted-foreground">Keep the user&apos;s legal name fields up to date.</p>
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-3">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="edit-first-name">First Name</Label>
+                        <Input
+                          id="edit-first-name"
+                          required
+                          onChange={(event) =>
+                            setFormState((previous) =>
+                              previous ? { ...previous, firstName: event.target.value } : previous,
+                            )
+                          }
+                          value={formState.firstName}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="edit-middle-name">Middle Name</Label>
+                        <Input
+                          id="edit-middle-name"
+                          onChange={(event) =>
+                            setFormState((previous) =>
+                              previous ? { ...previous, middleName: event.target.value } : previous,
+                            )
+                          }
+                          value={formState.middleName}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="edit-last-name">Last Name</Label>
+                        <Input
+                          id="edit-last-name"
+                          required
+                          onChange={(event) =>
+                            setFormState((previous) =>
+                              previous ? { ...previous, lastName: event.target.value } : previous,
+                            )
+                          }
+                          value={formState.lastName}
+                        />
+                      </div>
+                    </div>
                   </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="edit-middle-name">Middle Name</Label>
-                    <Input
-                      id="edit-middle-name"
-                      onChange={(event) =>
-                        setFormState((previous) =>
-                          previous ? { ...previous, middleName: event.target.value } : previous,
-                        )
-                      }
-                      value={formState.middleName}
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="edit-last-name">Last Name</Label>
-                    <Input
-                      id="edit-last-name"
-                      required
-                      onChange={(event) =>
-                        setFormState((previous) =>
-                          previous ? { ...previous, lastName: event.target.value } : previous,
-                        )
-                      }
-                      value={formState.lastName}
-                    />
-                  </div>
-                </div>
-              </div>
 
-              <div className="space-y-3">
-                <div className="space-y-1">
-                  <p className="text-sm font-medium">Contact Details</p>
-                  <p className="text-xs text-muted-foreground">
-                    Contact number stays required for Collector and Borrower accounts.
-                  </p>
-                </div>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="edit-email">Email</Label>
-                    <Input
-                      id="edit-email"
-                      onChange={(event) =>
-                        setFormState((previous) => (previous ? { ...previous, email: event.target.value } : previous))
-                      }
-                      type="email"
-                      value={formState.email}
-                    />
+                  <div className="space-y-3">
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium">Contact Details</p>
+                      <p className="text-xs text-muted-foreground">
+                        Contact number stays required for Collector and Borrower accounts.
+                      </p>
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="edit-email">Email</Label>
+                        <Input
+                          id="edit-email"
+                          onChange={(event) =>
+                            setFormState((previous) => (previous ? { ...previous, email: event.target.value } : previous))
+                          }
+                          type="email"
+                          value={formState.email}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="edit-contact-no">Contact Number</Label>
+                        <Input
+                          id="edit-contact-no"
+                          inputMode="numeric"
+                          maxLength={11}
+                          onChange={(event) =>
+                            setFormState((previous) =>
+                              previous
+                                ? { ...previous, contactNo: normalizeAccountContactNo(event.target.value) }
+                                : previous,
+                            )
+                          }
+                          placeholder="09XXXXXXXXX"
+                          value={formState.contactNo}
+                        />
+                      </div>
+                    </div>
                   </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="edit-contact-no">Contact Number</Label>
-                    <Input
-                      id="edit-contact-no"
-                      inputMode="numeric"
-                      maxLength={11}
-                      onChange={(event) =>
-                        setFormState((previous) =>
-                          previous
-                            ? { ...previous, contactNo: normalizeAccountContactNo(event.target.value) }
-                            : previous,
-                        )
-                      }
-                      placeholder="09XXXXXXXXX"
-                      value={formState.contactNo}
-                    />
-                  </div>
+                </>
+              ) : (
+                <div className="rounded-md border bg-muted/25 px-3 py-2 text-sm text-muted-foreground">
+                  This branch edit flow only covers staffing controls: role, branch assignment, and area assignment.
                 </div>
-              </div>
+              )}
 
               {showRoleSelector ? (
                 <div className="space-y-3">
@@ -536,7 +562,9 @@ export function ManagedUserAccountEditModal({
                   <div className="space-y-1">
                     <p className="text-sm font-medium">Assignment Controls</p>
                     <p className="text-xs text-muted-foreground">
-                      The fields below adapt to the selected role so the required assignment inputs are always visible.
+                      {mode === "staffing"
+                        ? "Only staffing-related controls are available here. Profile fields stay in Manage User Accounts."
+                        : "The fields below adapt to the selected role so the required assignment inputs are always visible."}
                     </p>
                   </div>
 

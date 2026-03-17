@@ -641,6 +641,7 @@ export function resolveBranchActionPermissions(
     canEditDetails: access.roleName === "Admin" || access.roleName === "Branch Manager",
     canManageLifecycle: access.roleName === "Admin",
     canDelete: access.roleName === "Admin",
+    canManageEmployees: access.roleName === "Admin" || access.roleName === "Branch Manager",
     canManageAreas: access.roleName === "Admin" || access.roleName === "Branch Manager",
   };
 }
@@ -1060,6 +1061,11 @@ export async function loadBranchEmployeesTabDataByCode(
       scopeLabel: branchCodeLabel,
       contactNo: row.contactNo,
       email: row.email,
+      canView: true,
+      canEdit:
+        access.roleName === "Admin"
+          ? row.roleName !== "Auditor"
+          : row.roleName === "Secretary",
     })),
     ...collectorRows.map((row) => ({
       userId: row.userId,
@@ -1070,6 +1076,8 @@ export async function loadBranchEmployeesTabDataByCode(
       scopeLabel: row.areaCode,
       contactNo: row.contactNo,
       email: row.email,
+      canView: true,
+      canEdit: access.roleName === "Admin" || access.roleName === "Branch Manager",
     })),
   ];
 
