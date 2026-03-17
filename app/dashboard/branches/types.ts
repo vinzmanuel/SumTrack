@@ -1,6 +1,8 @@
 import type { DashboardAuthResult } from "@/app/dashboard/auth";
 import type { AnalyticsChartModel } from "@/components/analytics/types";
 
+export type BranchStatus = "active" | "inactive";
+
 export type BranchesAccessState =
   | {
       view: "network";
@@ -26,6 +28,7 @@ export type BranchNetworkCardData = {
   branchId: number;
   branchName: string;
   branchCode: string;
+  status: BranchStatus;
   municipalityName: string;
   provinceName: string;
   branchAddress: string;
@@ -72,6 +75,7 @@ export type BranchDetailOverviewData = {
   branchId: number;
   branchName: string;
   branchCode: string;
+  status: BranchStatus;
   municipalityName: string;
   provinceName: string;
   branchAddress: string;
@@ -93,6 +97,22 @@ export type BranchDetailOverviewData = {
   collectionsTrend: AnalyticsChartModel;
 };
 
+export type BranchActionPermissions = {
+  canEditDetails: boolean;
+  canManageLifecycle: boolean;
+  canDelete: boolean;
+};
+
+export type BranchMutationResult =
+  | {
+      ok: true;
+      message: string;
+    }
+  | {
+      ok: false;
+      message: string;
+    };
+
 export type BranchEmployeeListRow = {
   userId: string;
   fullName: string;
@@ -107,6 +127,25 @@ export type BranchEmployeeListRow = {
 export type BranchEmployeesTabData = {
   branchCode: string;
   employees: BranchEmployeeListRow[];
+};
+
+export type BranchAreaListRow = {
+  areaId: number;
+  areaCode: string;
+  areaNo: string;
+  description: string | null;
+  assignedCollectorLabel: string;
+  assignedCollectorNames: string[];
+  borrowerCount: number;
+  activeLoanCount: number;
+  overdueLoanCount: number;
+  collectionsThisMonth: number;
+  dateCreated: string | null;
+};
+
+export type BranchAreasTabData = {
+  branchCode: string;
+  areas: BranchAreaListRow[];
 };
 
 export function parseBranchDetailTab(value: string | undefined): BranchDetailTabKey {

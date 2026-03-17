@@ -6,9 +6,15 @@ import { Building2, MapPin } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { BranchDeleteButton } from "@/app/dashboard/branches/branch-delete-button";
+import { BranchEditDialog } from "@/app/dashboard/branches/branch-edit-dialog";
+import { BranchAreasTab } from "@/app/dashboard/branches/branch-areas-tab";
 import { BranchEmployeesTab } from "@/app/dashboard/branches/branch-employees-tab";
 import { BranchOverviewTab } from "@/app/dashboard/branches/branch-overview-tab";
+import { BranchStatusButton } from "@/app/dashboard/branches/branch-status-button";
 import type {
+  BranchActionPermissions,
+  BranchAreasTabData,
   BranchDetailOverviewData,
   BranchDetailTabKey,
   BranchEmployeesTabData,
@@ -25,23 +31,6 @@ function replacePageUrl(next: { tab: BranchDetailTabKey }) {
 
   const query = url.searchParams.toString();
   window.history.replaceState(null, "", query ? `${url.pathname}?${query}` : url.pathname);
-}
-
-function PlaceholderTab({
-  title,
-  description,
-}: {
-  title: string;
-  description: string;
-}) {
-  return (
-    <Card className="border-border/70 shadow-sm">
-      <CardContent className="px-5 py-10 text-center">
-        <p className="text-base font-semibold text-foreground">{title}</p>
-        <p className="mt-2 text-sm text-muted-foreground">{description}</p>
-      </CardContent>
-    </Card>
-  );
 }
 
 function TabButton({
@@ -70,16 +59,24 @@ export function BranchDetailClientPage({
   backHref,
   backLabel,
   data,
+  areasData,
   employeesData,
   initialTab,
+  permissions,
 }: {
   backHref: string;
   backLabel: string;
   data: BranchDetailOverviewData;
+  areasData: BranchAreasTabData;
   employeesData: BranchEmployeesTabData;
   initialTab: BranchDetailTabKey;
+  permissions: BranchActionPermissions;
 }) {
   const [activeTab, setActiveTab] = useState<BranchDetailTabKey>(initialTab);
+  const statusBadgeClass =
+    data.status === "active"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+      : "border-amber-200 bg-amber-50 text-amber-800";
 
   useEffect(() => {
     setActiveTab(initialTab);
@@ -87,9 +84,9 @@ export function BranchDetailClientPage({
 
   return (
     <div className="space-y-4">
-      <Card className="overflow-hidden border-border/70 shadow-sm">
+      <Card className="overflow-hidden border-border/70 py-0 shadow-sm">
         <CardContent className="p-0">
-          <div className="bg-gradient-to-r from-slate-50 via-white to-emerald-50/60 p-6">
+          <div className="rounded-t-[inherit] bg-gradient-to-r from-slate-50 via-white to-emerald-50/60 p-6">
             <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
               <div className="space-y-3">
                 <div className="flex items-start gap-3">
@@ -109,56 +106,71 @@ export function BranchDetailClientPage({
                   <Badge className="border-zinc-300 bg-background text-zinc-700" variant="outline">
                     Branch Code: {data.branchCode}
                   </Badge>
-                  <Badge className="border-emerald-200 bg-emerald-50 text-emerald-800" variant="outline">
+                  <Badge className={statusBadgeClass} variant="outline">
                     Status: {data.statusLabel}
                   </Badge>
-                  {data.managerName ? (
-                    <Badge className="border-blue-200 bg-blue-50 text-blue-700" variant="outline">
-                      Manager Assigned
-                    </Badge>
-                  ) : null}
-                  {data.auditorName ? (
-                    <Badge className="border-amber-200 bg-amber-50 text-amber-700" variant="outline">
-                      Auditor Assigned
-                    </Badge>
-                  ) : null}
                 </div>
               </div>
 
-              <Link href={backHref}>
-                <Button size="sm" type="button" variant="outline">
-                  {backLabel}
-                </Button>
-              </Link>
+              <div className="flex justify-end">
+                <Link href={backHref}>
+                  <Button size="sm" type="button" variant="outline">
+                    {backLabel}
+                  </Button>
+                </Link>
+              </div>
             </div>
           </div>
 
           <div className="border-t border-border/70 p-6">
-            <div className="inline-flex flex-wrap gap-2 rounded-xl border border-border/70 bg-muted/30 p-1">
-              <TabButton
-                active={activeTab === "overview"}
-                label="Overview"
-                onClick={() => {
-                  setActiveTab("overview");
-                  replacePageUrl({ tab: "overview" });
-                }}
-              />
-              <TabButton
-                active={activeTab === "employees"}
-                label="Employees"
-                onClick={() => {
-                  setActiveTab("employees");
-                  replacePageUrl({ tab: "employees" });
-                }}
-              />
-              <TabButton
-                active={activeTab === "areas"}
-                label="Areas"
-                onClick={() => {
-                  setActiveTab("areas");
-                  replacePageUrl({ tab: "areas" });
-                }}
-              />
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="inline-flex flex-wrap gap-2 rounded-xl border border-border/70 bg-muted/30 p-1">
+                <TabButton
+                  active={activeTab === "overview"}
+                  label="Overview"
+                  onClick={() => {
+                    setActiveTab("overview");
+                    replacePageUrl({ tab: "overview" });
+                  }}
+                />
+                <TabButton
+                  active={activeTab === "employees"}
+                  label="Employees"
+                  onClick={() => {
+                    setActiveTab("employees");
+                    replacePageUrl({ tab: "employees" });
+                  }}
+                />
+                <TabButton
+                  active={activeTab === "areas"}
+                  label="Areas"
+                  onClick={() => {
+                    setActiveTab("areas");
+                    replacePageUrl({ tab: "areas" });
+                  }}
+                />
+              </div>
+
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                {permissions.canEditDetails ? (
+                  <BranchEditDialog
+                    branchAddress={data.branchAddress}
+                    branchCode={data.branchCode}
+                    branchName={data.branchName}
+                    triggerLabel="Edit"
+                  />
+                ) : null}
+                {permissions.canManageLifecycle ? (
+                  <BranchStatusButton
+                    branchCode={data.branchCode}
+                    branchName={data.branchName}
+                    status={data.status}
+                  />
+                ) : null}
+                {permissions.canDelete ? (
+                  <BranchDeleteButton branchCode={data.branchCode} branchName={data.branchName} />
+                ) : null}
+              </div>
             </div>
           </div>
         </CardContent>
@@ -169,10 +181,7 @@ export function BranchDetailClientPage({
       ) : activeTab === "employees" ? (
         <BranchEmployeesTab data={employeesData} />
       ) : (
-        <PlaceholderTab
-          description="Area assignments, area metrics, and area-level controls will be added in a later pass."
-          title="Areas Tab Coming Soon"
-        />
+        <BranchAreasTab data={areasData} />
       )}
     </div>
   );

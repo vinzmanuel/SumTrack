@@ -61,4 +61,7 @@ export type CreateLoanPageState =
     }
   | {
       status: "branch_assignment_required";
+    }
+  | {
+      status: "inactive_branch";
     };

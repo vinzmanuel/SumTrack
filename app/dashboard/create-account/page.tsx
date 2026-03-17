@@ -154,6 +154,7 @@ export default async function CreateAccountPage() {
       branch_name: branch.branch_name,
     })
     .from(branch)
+    .where(eq(branch.status, "active"))
     .orderBy(branch.branch_name)
     .catch(() => []);
 
@@ -165,6 +166,8 @@ export default async function CreateAccountPage() {
       area_code: areas.area_code,
     })
     .from(areas)
+    .innerJoin(branch, eq(branch.branch_id, areas.branch_id))
+    .where(eq(branch.status, "active"))
     .orderBy(areas.area_code)
     .catch(() => []);
 
@@ -197,6 +200,26 @@ export default async function CreateAccountPage() {
     area_no: item.area_no,
     area_code: item.area_code,
   }));
+
+  if (!isAdmin && fixedBranchId && mappedBranches.length === 0) {
+    return (
+      <main className="mx-auto flex min-h-screen w-full max-w-4xl items-center justify-center p-6">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle>Create Account</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-amber-700 dark:text-amber-400">
+              Your assigned branch is inactive, so new account creation is currently blocked there.
+            </p>
+            <Link className="text-sm underline" href="/dashboard">
+              Back to dashboard
+            </Link>
+          </CardContent>
+        </Card>
+      </main>
+    );
+  }
 
   return (
     <main className="mx-auto min-h-screen w-full max-w-5xl p-6">

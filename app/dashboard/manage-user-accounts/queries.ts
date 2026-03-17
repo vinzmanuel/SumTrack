@@ -1191,6 +1191,7 @@ export async function loadManagedUserDetail(
           branchCode: branch.branch_code,
         })
         .from(branch)
+        .where(eq(branch.status, "active"))
         .orderBy(asc(branch.branch_name))
         .catch(() => [])
     : [];
@@ -1202,10 +1203,14 @@ export async function loadManagedUserDetail(
           branchId: areas.branch_id,
         })
         .from(areas)
+        .innerJoin(branch, eq(branch.branch_id, areas.branch_id))
         .where(
-          scope.roleName === "Branch Manager" && branchManagerBranchId !== null
-            ? eq(areas.branch_id, branchManagerBranchId)
-            : undefined,
+          and(
+            eq(branch.status, "active"),
+            scope.roleName === "Branch Manager" && branchManagerBranchId !== null
+              ? eq(areas.branch_id, branchManagerBranchId)
+              : undefined,
+          ),
         )
         .orderBy(asc(areas.area_code))
         .catch(() => [])
@@ -1319,6 +1324,7 @@ export async function updateManagedUserAccount(params: {
     detail.editableRoleOptions.find((item) => item.roleId === nextRoleId) ??
     (nextRoleId === detail.roleId ? { roleId: detail.roleId, roleName: detail.roleName } : null);
   const nextRoleName = nextRoleOption?.roleName ?? detail.roleName;
+  const roleChanged = nextRoleName !== detail.roleName;
 
   if (detail.roleName === "Borrower" || nextRoleName === "Borrower") {
     if (nextRoleId !== detail.roleId) {
@@ -1439,8 +1445,10 @@ export async function updateManagedUserAccount(params: {
         areaId: areas.area_id,
         areaCode: areas.area_code,
         branchId: areas.branch_id,
+        branchStatus: branch.status,
       })
       .from(areas)
+      .innerJoin(branch, eq(branch.branch_id, areas.branch_id))
       .where(eq(areas.area_id, requestedAreaId))
       .limit(1)
       .then((rows) => rows[0] ?? null)
@@ -1461,6 +1469,13 @@ export async function updateManagedUserAccount(params: {
       return {
         ok: false as const,
         message: "Selected area does not belong to the selected branch.",
+      };
+    }
+
+    if (areaRow.branchStatus !== "active" && (areaRow.areaId !== currentAreaId || roleChanged)) {
+      return {
+        ok: false as const,
+        message: "Inactive branches cannot receive new area assignments in this flow.",
       };
     }
 
@@ -1486,6 +1501,7 @@ export async function updateManagedUserAccount(params: {
         branchId: branch.branch_id,
         branchName: branch.branch_name,
         branchCode: branch.branch_code,
+        status: branch.status,
       })
       .from(branch)
       .where(inArray(branch.branch_id, requestedBranchIds))
@@ -1495,6 +1511,19 @@ export async function updateManagedUserAccount(params: {
       return {
         ok: false as const,
         message: "One or more selected branches were not found.",
+      };
+    }
+
+    const currentAuditorBranchIds = assignmentState.activeBranchAssignments.map((item) => item.branchId).sort((a, b) => a - b);
+    const nextAuditorBranchIds = [...requestedBranchIds].sort((a, b) => a - b);
+    const auditorAssignmentsChanging =
+      currentAuditorBranchIds.length !== nextAuditorBranchIds.length ||
+      currentAuditorBranchIds.some((branchId, index) => branchId !== nextAuditorBranchIds[index]);
+
+    if ((roleChanged || auditorAssignmentsChanging) && branchRows.some((item) => item.status !== "active")) {
+      return {
+        ok: false as const,
+        message: "Inactive branches cannot receive new auditor jurisdiction assignments.",
       };
     }
 
@@ -1526,6 +1555,7 @@ export async function updateManagedUserAccount(params: {
     const branchRow = await db
       .select({
         branchId: branch.branch_id,
+        status: branch.status,
       })
       .from(branch)
       .where(eq(branch.branch_id, effectiveBranchId))
@@ -1541,6 +1571,13 @@ export async function updateManagedUserAccount(params: {
       return {
         ok: false as const,
         message: "You can only manage assignments within your own branch.",
+      };
+    }
+
+    if (branchRow.status !== "active" && (branchRow.branchId !== currentBranchId || roleChanged)) {
+      return {
+        ok: false as const,
+        message: "Inactive branches cannot receive new assignments in this flow.",
       };
     }
 

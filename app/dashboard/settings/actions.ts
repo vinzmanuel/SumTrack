@@ -216,17 +216,29 @@ export async function updateSelfPasswordAction(
       };
     }
 
-    await verifyClient.auth.signOut();
-
     const supabase = await createClient();
+    const {
+      data: { user: sessionUser },
+    } = await supabase.auth.getUser();
+
+    if (!sessionUser || sessionUser.id !== auth.userId) {
+      return {
+        status: "error",
+        message: "Your session could not be verified. Refresh the page and try again.",
+      };
+    }
+
     const { error: updateError } = await supabase.auth.updateUser({
       password: nextPassword,
     });
 
     if (updateError) {
+      const lowerMessage = updateError.message.toLowerCase();
       return {
         status: "error",
-        message: updateError.message || "Unable to update password right now.",
+        message: lowerMessage.includes("auth session missing")
+          ? "Your session expired or could not be refreshed. Refresh the page and try again."
+          : updateError.message || "Unable to update password right now.",
       };
     }
 

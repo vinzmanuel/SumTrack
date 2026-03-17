@@ -50,9 +50,20 @@ export const branch = pgTable(
     branch_code: varchar({ length: 50 }).notNull(),
     branch_name: varchar({ length: 100 }).notNull(),
     branch_address: text().notNull(),
+    status: text()
+      .$type<"active" | "inactive">()
+      .notNull()
+      .default("active"),
     date_created: timestamp({ mode: "string" }).defaultNow(),
   },
-  (table) => [unique("branch_branch_code_key").on(table.branch_code)],
+  (table) => [
+    unique("branch_branch_code_key").on(table.branch_code),
+    check(
+      "branch_status_check",
+      sql`${table.status} in ('active', 'inactive')`
+    ),
+    index("branch_status_idx").on(table.status),
+  ],
 );
 
 export const areas = pgTable(
@@ -69,6 +80,11 @@ export const areas = pgTable(
     branch_id: integer().notNull(),
     area_no: varchar({ length: 2 }).notNull(),
     area_code: varchar({ length: 80 }).notNull(),
+    description: text("description"),
+    status: text()
+      .$type<"active" | "inactive">()
+      .notNull()
+      .default("active"),
     date_created: timestamp({ mode: "string" }).defaultNow(),
   },
   (table) => [
@@ -80,6 +96,11 @@ export const areas = pgTable(
     unique("uq_areas_branch_area_no").on(table.branch_id, table.area_no),
     unique("areas_area_code_key").on(table.area_code),
     check("chk_areas_area_no_format", sql`(area_no)::text ~ '^[0-9]{2}$'::text`),
+    check(
+      "area_status_check",
+      sql`${table.status} in ('active', 'inactive')`
+    ),
+    index("areas_status_idx").on(table.status),
   ],
 );
 

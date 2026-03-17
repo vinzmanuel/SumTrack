@@ -4,8 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getDashboardAuthContext } from "@/app/dashboard/auth";
 import { BranchDetailClientPage } from "@/app/dashboard/branches/branch-detail-client-page";
 import {
+  loadBranchAreasTabDataByCode,
   loadBranchDetailOverviewByCode,
   loadBranchEmployeesTabDataByCode,
+  resolveBranchActionPermissions,
 } from "@/app/dashboard/branches/queries";
 import {
   parseBranchDetailTab,
@@ -68,11 +70,12 @@ export default async function BranchDetailPage({ params, searchParams }: BranchD
 
   const resolvedSearchParams = (await searchParams) ?? {};
   const initialTab = parseBranchDetailTab(resolvedSearchParams.tab);
-  const [branch, employeesData] = await Promise.all([
+  const [branch, employeesData, areasData] = await Promise.all([
     loadBranchDetailOverviewByCode(access, branchCode),
     loadBranchEmployeesTabDataByCode(access, branchCode),
+    loadBranchAreasTabDataByCode(access, branchCode),
   ]);
-  if (!branch || !employeesData) {
+  if (!branch || !employeesData || !areasData) {
     notFound();
   }
 
@@ -84,14 +87,17 @@ export default async function BranchDetailPage({ params, searchParams }: BranchD
     resolvedSearchParams.source === "branches" || !resolvedSearchParams.source
       ? "Back to Branches"
       : "Back";
+  const permissions = resolveBranchActionPermissions(access);
 
   return (
     <BranchDetailClientPage
       backHref={safeReturnTo}
       backLabel={backLabel}
       data={branch}
+      areasData={areasData}
       employeesData={employeesData}
       initialTab={initialTab}
+      permissions={permissions}
     />
   );
 }

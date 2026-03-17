@@ -98,8 +98,26 @@ export async function loadCreateLoanPageData(
     return { status: "forbidden" };
   }
 
-  const branchFilter = access.fixedBranchId !== null ? eq(branch.branch_id, access.fixedBranchId) : undefined;
-  const areaBranchFilter = access.fixedBranchId !== null ? eq(areas.branch_id, access.fixedBranchId) : undefined;
+  if (access.fixedBranchId !== null) {
+    const activeBranch = await db
+      .select({ branch_id: branch.branch_id })
+      .from(branch)
+      .where(and(eq(branch.branch_id, access.fixedBranchId), eq(branch.status, "active")))
+      .limit(1)
+      .then((rows) => rows[0] ?? null)
+      .catch(() => null);
+
+    if (!activeBranch) {
+      return { status: "inactive_branch" };
+    }
+  }
+
+  const branchFilter = access.fixedBranchId !== null
+    ? and(eq(branch.branch_id, access.fixedBranchId), eq(branch.status, "active"))
+    : eq(branch.status, "active");
+  const areaBranchFilter = access.fixedBranchId !== null
+    ? and(eq(areas.branch_id, access.fixedBranchId), eq(branch.status, "active"))
+    : eq(branch.status, "active");
   const loanBranchFilter =
     access.fixedBranchId !== null ? eq(loan_records.branch_id, access.fixedBranchId) : undefined;
 
@@ -121,6 +139,7 @@ export async function loadCreateLoanPageData(
         area_code: areas.area_code,
       })
       .from(areas)
+      .innerJoin(branch, eq(branch.branch_id, areas.branch_id))
       .where(areaBranchFilter)
       .orderBy(asc(areas.area_code))
       .catch(() => []),
@@ -136,6 +155,7 @@ export async function loadCreateLoanPageData(
       .from(borrower_info)
       .innerJoin(users, eq(users.user_id, borrower_info.user_id))
       .innerJoin(areas, eq(areas.area_id, borrower_info.area_id))
+      .innerJoin(branch, eq(branch.branch_id, areas.branch_id))
       .where(areaBranchFilter)
       .orderBy(
         asc(borrower_info.first_name),
@@ -153,6 +173,7 @@ export async function loadCreateLoanPageData(
       })
       .from(employee_area_assignment)
       .innerJoin(areas, eq(areas.area_id, employee_area_assignment.area_id))
+      .innerJoin(branch, eq(branch.branch_id, areas.branch_id))
       .innerJoin(users, eq(users.user_id, employee_area_assignment.employee_user_id))
       .innerJoin(roles, eq(roles.role_id, users.role_id))
       .leftJoin(employee_info, eq(employee_info.user_id, users.user_id))

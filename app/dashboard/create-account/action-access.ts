@@ -156,6 +156,21 @@ async function resolveBranchSelection(
     };
   }
 
+  const activeBranch = await db
+    .select({ branch_id: branch.branch_id })
+    .from(branch)
+    .where(and(eq(branch.branch_id, branchId), eq(branch.status, "active")))
+    .limit(1)
+    .then((rows) => rows[0] ?? null)
+    .catch(() => null);
+
+  if (!activeBranch) {
+    return {
+      ok: false,
+      state: createErrorState("Selected branch is inactive and cannot accept new accounts."),
+    };
+  }
+
   if (!creator.isAdmin && creator.allowedSingleBranchId !== null && branchRow.branch_id !== creator.allowedSingleBranchId) {
     return {
       ok: false,
@@ -213,7 +228,8 @@ export async function resolveCreateAccountScope(
         area_no: areas.area_no,
       })
       .from(areas)
-      .where(and(eq(areas.area_id, input.areaId), eq(areas.branch_id, input.branchId)))
+      .innerJoin(branch, eq(branch.branch_id, areas.branch_id))
+      .where(and(eq(areas.area_id, input.areaId), eq(areas.branch_id, input.branchId), eq(branch.status, "active")))
       .limit(1)
       .then((rows) => rows[0] ?? null)
       .catch(() => null);
@@ -256,14 +272,14 @@ export async function resolveCreateAccountScope(
             branch_name: branch.branch_name,
           })
           .from(branch)
-          .where(inArray(branch.branch_id, uniqueBranchIds))
+          .where(and(inArray(branch.branch_id, uniqueBranchIds), eq(branch.status, "active")))
           .catch(() => [])
       : [];
 
     if (branchRows.length !== uniqueBranchIds.length) {
       return {
         ok: false,
-        state: createErrorState("One or more selected branches were not found."),
+        state: createErrorState("One or more selected branches are inactive or were not found."),
       };
     }
 

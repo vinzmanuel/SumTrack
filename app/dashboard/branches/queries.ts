@@ -10,12 +10,19 @@ import {
   employee_area_assignment,
   employee_branch_assignment,
   employee_info,
+  expenses,
+  incentive_payout_batches,
+  incentive_rules,
   loan_records,
   roles,
   users,
 } from "@/db/schema";
 import type {
+  BranchActionPermissions,
   BranchDetailAccessState,
+  BranchAreasTabData,
+  BranchAreaListRow,
+  BranchMutationResult,
   BranchEmployeesTabData,
   BranchEmployeeListRow,
   BranchDetailOverviewData,
@@ -97,6 +104,7 @@ async function loadBranchSummaryCards(
       branchId: branch.branch_id,
       branchName: branch.branch_name,
       branchCode: branch.branch_code,
+      status: branch.status,
       municipalityName: branch.municipality_name,
       provinceName: branch.province_name,
       branchAddress: branch.branch_address,
@@ -229,6 +237,7 @@ async function loadBranchSummaryCards(
     branchId: row.branchId,
     branchName: row.branchName,
     branchCode: row.branchCode,
+    status: row.status,
     municipalityName: row.municipalityName,
     provinceName: row.provinceName,
     branchAddress: row.branchAddress,
@@ -474,11 +483,12 @@ export async function loadBranchDetailOverviewByCode(
     branchId: branchCard.branchId,
     branchName: branchCard.branchName,
     branchCode: branchCard.branchCode,
+    status: branchCard.status,
     municipalityName: branchCard.municipalityName,
     provinceName: branchCard.provinceName,
     branchAddress: branchCard.branchAddress,
     dateCreated: branchCard.dateCreated,
-    statusLabel: "Active",
+    statusLabel: branchCard.status === "active" ? "Active" : "Inactive",
     managerName: managerRow
       ? formatFullName(managerRow.firstName, managerRow.middleName, managerRow.lastName)
       : null,
@@ -498,6 +508,253 @@ export async function loadBranchDetailOverviewByCode(
     collectionsThisMonth: Number(collectionsThisMonthRow?.total) || 0,
     collectionsTrend: buildCollectionsTrendChart(collectionsTrendRows),
   };
+}
+
+async function loadBranchMutationTarget(
+  access: Extract<BranchDetailAccessState, { view: "detail" }>,
+  branchCode: string,
+) {
+  const scopedWhere = buildBranchScopeWhere(access);
+  const branchWhere = scopedWhere
+    ? and(scopedWhere, eq(branch.branch_code, branchCode))
+    : eq(branch.branch_code, branchCode);
+
+  return db
+    .select({
+      branchId: branch.branch_id,
+      branchCode: branch.branch_code,
+      branchName: branch.branch_name,
+      branchAddress: branch.branch_address,
+      status: branch.status,
+      municipalityName: branch.municipality_name,
+      provinceName: branch.province_name,
+    })
+    .from(branch)
+    .where(branchWhere)
+    .limit(1)
+    .then((rows) => rows[0] ?? null)
+    .catch(() => null);
+}
+
+export function resolveBranchActionPermissions(
+  access: Extract<BranchDetailAccessState, { view: "detail" }>,
+): BranchActionPermissions {
+  return {
+    canEditDetails: access.roleName === "Admin" || access.roleName === "Branch Manager",
+    canManageLifecycle: access.roleName === "Admin",
+    canDelete: access.roleName === "Admin",
+  };
+}
+
+export async function updateBranchDetailsByCode(params: {
+  access: Extract<BranchDetailAccessState, { view: "detail" }>;
+  branchCode: string;
+  branchName: string;
+  branchAddress: string;
+}): Promise<BranchMutationResult> {
+  const target = await loadBranchMutationTarget(params.access, params.branchCode);
+  if (!target) {
+    return { ok: false, message: "Branch not found in your allowed scope." };
+  }
+
+  if (params.access.roleName !== "Admin" && params.access.roleName !== "Branch Manager") {
+    return { ok: false, message: "You are not allowed to edit branch details." };
+  }
+
+  const branchName = params.branchName.trim();
+  const branchAddress = params.branchAddress.trim();
+
+  if (!branchName) {
+    return { ok: false, message: "Branch name is required." };
+  }
+
+  if (!branchAddress) {
+    return { ok: false, message: "Branch address is required." };
+  }
+
+  await db
+    .update(branch)
+    .set({
+      branch_name: branchName,
+      branch_address: branchAddress,
+    })
+    .where(eq(branch.branch_id, target.branchId));
+
+  return { ok: true, message: "Branch details updated." };
+}
+
+export async function updateBranchStatusByCode(params: {
+  access: Extract<BranchDetailAccessState, { view: "detail" }>;
+  branchCode: string;
+  nextStatus: "active" | "inactive";
+}): Promise<BranchMutationResult> {
+  const target = await loadBranchMutationTarget(params.access, params.branchCode);
+  if (!target) {
+    return { ok: false, message: "Branch not found in your allowed scope." };
+  }
+
+  if (params.access.roleName !== "Admin") {
+    return { ok: false, message: "Only Admin can change branch lifecycle status." };
+  }
+
+  if (target.status === params.nextStatus) {
+    return {
+      ok: true,
+      message: params.nextStatus === "active" ? "Branch is already active." : "Branch is already inactive.",
+    };
+  }
+
+  await db
+    .update(branch)
+    .set({
+      status: params.nextStatus,
+    })
+    .where(eq(branch.branch_id, target.branchId));
+
+  return {
+    ok: true,
+    message: params.nextStatus === "active" ? "Branch reactivated." : "Branch deactivated.",
+  };
+}
+
+export async function deleteBranchByCode(params: {
+  access: Extract<BranchDetailAccessState, { view: "detail" }>;
+  branchCode: string;
+}): Promise<BranchMutationResult> {
+  const target = await loadBranchMutationTarget(params.access, params.branchCode);
+  if (!target) {
+    return { ok: false, message: "Branch not found in your allowed scope." };
+  }
+
+  if (params.access.roleName !== "Admin") {
+    return { ok: false, message: "Only Admin can delete branches." };
+  }
+
+  const [
+    activeBranchEmployeeCount,
+    activeCollectorCount,
+    activeBorrowerCount,
+    liveLoanCount,
+    totalLoanCount,
+    areaCount,
+    expenseCount,
+    incentiveRuleCount,
+    payoutBatchCount,
+  ] = await Promise.all([
+    db
+      .select({ value: sql<number>`count(*)` })
+      .from(employee_branch_assignment)
+      .innerJoin(users, eq(users.user_id, employee_branch_assignment.employee_user_id))
+      .where(
+        and(
+          eq(employee_branch_assignment.branch_id, target.branchId),
+          isNull(employee_branch_assignment.end_date),
+          eq(users.status, "active"),
+        ),
+      )
+      .then((rows) => Number(rows[0]?.value) || 0)
+      .catch(() => 0),
+    db
+      .select({ value: sql<number>`count(distinct ${employee_area_assignment.employee_user_id})` })
+      .from(employee_area_assignment)
+      .innerJoin(areas, eq(areas.area_id, employee_area_assignment.area_id))
+      .innerJoin(users, eq(users.user_id, employee_area_assignment.employee_user_id))
+      .where(
+        and(
+          eq(areas.branch_id, target.branchId),
+          isNull(employee_area_assignment.end_date),
+          eq(users.status, "active"),
+        ),
+      )
+      .then((rows) => Number(rows[0]?.value) || 0)
+      .catch(() => 0),
+    db
+      .select({ value: sql<number>`count(distinct ${borrower_info.user_id})` })
+      .from(borrower_info)
+      .innerJoin(areas, eq(areas.area_id, borrower_info.area_id))
+      .innerJoin(users, eq(users.user_id, borrower_info.user_id))
+      .where(and(eq(areas.branch_id, target.branchId), eq(users.status, "active")))
+      .then((rows) => Number(rows[0]?.value) || 0)
+      .catch(() => 0),
+    db
+      .select({ value: sql<number>`count(*)` })
+      .from(loan_records)
+      .where(and(eq(loan_records.branch_id, target.branchId), inArray(loan_records.status, ["Active", "Overdue"])))
+      .then((rows) => Number(rows[0]?.value) || 0)
+      .catch(() => 0),
+    db
+      .select({ value: sql<number>`count(*)` })
+      .from(loan_records)
+      .where(eq(loan_records.branch_id, target.branchId))
+      .then((rows) => Number(rows[0]?.value) || 0)
+      .catch(() => 0),
+    db
+      .select({ value: sql<number>`count(*)` })
+      .from(areas)
+      .where(eq(areas.branch_id, target.branchId))
+      .then((rows) => Number(rows[0]?.value) || 0)
+      .catch(() => 0),
+    db
+      .select({ value: sql<number>`count(*)` })
+      .from(expenses)
+      .where(eq(expenses.branch_id, target.branchId))
+      .then((rows) => Number(rows[0]?.value) || 0)
+      .catch(() => 0),
+    db
+      .select({ value: sql<number>`count(*)` })
+      .from(incentive_rules)
+      .where(eq(incentive_rules.branch_id, target.branchId))
+      .then((rows) => Number(rows[0]?.value) || 0)
+      .catch(() => 0),
+    db
+      .select({ value: sql<number>`count(*)` })
+      .from(incentive_payout_batches)
+      .where(eq(incentive_payout_batches.branch_id, target.branchId))
+      .then((rows) => Number(rows[0]?.value) || 0)
+      .catch(() => 0),
+  ]);
+
+  const reasons: string[] = [];
+
+  const activeEmployeeCount = activeBranchEmployeeCount + activeCollectorCount;
+  if (activeEmployeeCount > 0) {
+    reasons.push(`${activeEmployeeCount} active employee assignment(s)`);
+  }
+  if (activeBorrowerCount > 0) {
+    reasons.push(`${activeBorrowerCount} active borrower account(s)`);
+  }
+  if (liveLoanCount > 0) {
+    reasons.push(`${liveLoanCount} active or overdue loan(s)`);
+  }
+  if (areaCount > 0) {
+    reasons.push(`${areaCount} area record(s)`);
+  }
+  if (totalLoanCount > 0) {
+    reasons.push(`${totalLoanCount} loan record(s)`);
+  }
+  if (expenseCount > 0) {
+    reasons.push(`${expenseCount} expense record(s)`);
+  }
+  if (incentiveRuleCount > 0 || payoutBatchCount > 0) {
+    reasons.push("linked incentive records");
+  }
+
+  if (reasons.length > 0) {
+    return {
+      ok: false,
+      message: `This branch cannot be deleted yet. Resolve these dependencies first: ${reasons.join(", ")}.`,
+    };
+  }
+
+  try {
+    await db.delete(branch).where(eq(branch.branch_id, target.branchId));
+    return { ok: true, message: "Branch deleted." };
+  } catch {
+    return {
+      ok: false,
+      message: "This branch still has linked operational records and cannot be deleted.",
+    };
+  }
 }
 
 export async function loadBranchEmployeesTabDataByCode(
@@ -594,5 +851,146 @@ export async function loadBranchEmployeesTabDataByCode(
   return {
     branchCode: branchCodeLabel,
     employees: rows,
+  };
+}
+
+export async function loadBranchAreasTabDataByCode(
+  access: Extract<BranchDetailAccessState, { view: "detail" }>,
+  branchCode: string,
+): Promise<BranchAreasTabData | null> {
+  const branchCard = await loadBranchNetworkCardByCode(access, branchCode);
+  if (!branchCard) {
+    return null;
+  }
+
+  const branchId = branchCard.branchId;
+  const { start, next } = monthWindow();
+
+  const areaRows = await db
+    .select({
+      areaId: areas.area_id,
+      areaNo: areas.area_no,
+      areaCode: areas.area_code,
+      description: areas.description,
+      dateCreated: areas.date_created,
+    })
+    .from(areas)
+    .where(eq(areas.branch_id, branchId))
+    .orderBy(asc(areas.area_no), asc(areas.area_code))
+    .catch(() => []);
+
+  if (areaRows.length === 0) {
+    return {
+      branchCode: branchCard.branchCode,
+      areas: [],
+    };
+  }
+
+  const areaIds = areaRows.map((row) => row.areaId);
+
+  const [collectorRows, borrowerCountRows, loanCountRows, collectionTotalRows] = await Promise.all([
+    db
+      .select({
+        areaId: employee_area_assignment.area_id,
+        firstName: employee_info.first_name,
+        middleName: employee_info.middle_name,
+        lastName: employee_info.last_name,
+      })
+      .from(employee_area_assignment)
+      .innerJoin(users, eq(users.user_id, employee_area_assignment.employee_user_id))
+      .innerJoin(employee_info, eq(employee_info.user_id, users.user_id))
+      .innerJoin(roles, eq(roles.role_id, users.role_id))
+      .where(
+        and(
+          inArray(employee_area_assignment.area_id, areaIds),
+          isNull(employee_area_assignment.end_date),
+          eq(roles.role_name, "Collector"),
+        ),
+      )
+      .orderBy(asc(employee_info.last_name), asc(employee_info.first_name))
+      .catch(() => []),
+    db
+      .select({
+        areaId: borrower_info.area_id,
+        count: sql<number>`count(distinct ${borrower_info.user_id})`,
+      })
+      .from(borrower_info)
+      .innerJoin(users, eq(users.user_id, borrower_info.user_id))
+      .where(and(inArray(borrower_info.area_id, areaIds), eq(users.status, "active")))
+      .groupBy(borrower_info.area_id)
+      .catch(() => []),
+    db
+      .select({
+        areaId: borrower_info.area_id,
+        activeLoanCount: sql<number>`sum(case when ${loan_records.status} = 'Active' then 1 else 0 end)`,
+        overdueLoanCount: sql<number>`sum(case when ${loan_records.status} = 'Overdue' then 1 else 0 end)`,
+      })
+      .from(loan_records)
+      .innerJoin(borrower_info, eq(borrower_info.user_id, loan_records.borrower_id))
+      .where(inArray(borrower_info.area_id, areaIds))
+      .groupBy(borrower_info.area_id)
+      .catch(() => []),
+    db
+      .select({
+        areaId: borrower_info.area_id,
+        collectionsThisMonth: sql<number>`coalesce(sum(${collections.amount}), 0)`,
+      })
+      .from(collections)
+      .innerJoin(loan_records, eq(loan_records.loan_id, collections.loan_id))
+      .innerJoin(borrower_info, eq(borrower_info.user_id, loan_records.borrower_id))
+      .where(
+        and(
+          inArray(borrower_info.area_id, areaIds),
+          gte(collections.collection_date, start),
+          lt(collections.collection_date, next),
+        ),
+      )
+      .groupBy(borrower_info.area_id)
+      .catch(() => []),
+  ]);
+
+  const collectorMap = new Map<number, string[]>();
+  for (const row of collectorRows) {
+    const nextName = formatFullName(row.firstName, row.middleName, row.lastName);
+    const existing = collectorMap.get(row.areaId) ?? [];
+    collectorMap.set(row.areaId, [...existing, nextName]);
+  }
+
+  const borrowerCountMap = new Map(borrowerCountRows.map((row) => [row.areaId, Number(row.count) || 0]));
+  const loanCountMap = new Map(
+    loanCountRows.map((row) => [
+      row.areaId,
+      {
+        activeLoanCount: Number(row.activeLoanCount) || 0,
+        overdueLoanCount: Number(row.overdueLoanCount) || 0,
+      },
+    ]),
+  );
+  const collectionTotalMap = new Map(
+    collectionTotalRows.map((row) => [row.areaId, Number(row.collectionsThisMonth) || 0]),
+  );
+
+  const rows: BranchAreaListRow[] = areaRows.map((row) => {
+    const assignedCollectorNames = collectorMap.get(row.areaId) ?? [];
+
+    return {
+      areaId: row.areaId,
+      areaCode: row.areaCode,
+      areaNo: row.areaNo,
+      description: row.description ?? null,
+      assignedCollectorLabel:
+        assignedCollectorNames.length > 0 ? assignedCollectorNames.join(", ") : "Unassigned",
+      assignedCollectorNames,
+      borrowerCount: borrowerCountMap.get(row.areaId) ?? 0,
+      activeLoanCount: loanCountMap.get(row.areaId)?.activeLoanCount ?? 0,
+      overdueLoanCount: loanCountMap.get(row.areaId)?.overdueLoanCount ?? 0,
+      collectionsThisMonth: collectionTotalMap.get(row.areaId) ?? 0,
+      dateCreated: row.dateCreated,
+    };
+  });
+
+  return {
+    branchCode: branchCard.branchCode,
+    areas: rows,
   };
 }

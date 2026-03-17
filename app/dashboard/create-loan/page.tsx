@@ -62,6 +62,26 @@ function renderBranchAssignmentState() {
   );
 }
 
+function renderInactiveBranchState() {
+  return (
+    <main className="mx-auto flex min-h-screen w-full max-w-4xl items-center justify-center p-6">
+      <Card className="w-full max-w-md">
+        <CardHeader>
+          <CardTitle>Create Loan</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-amber-700 dark:text-amber-400">
+            Your assigned branch is inactive, so new loan creation is currently blocked there.
+          </p>
+          <Link className="text-sm underline" href="/dashboard">
+            Back to dashboard
+          </Link>
+        </CardContent>
+      </Card>
+    </main>
+  );
+}
+
 export default async function CreateLoanPage({ searchParams }: CreateLoanPageProps) {
   const params = (await searchParams) ?? {};
   const requestedBorrowerId = String(params.borrowerId ?? "").trim();
@@ -77,6 +97,10 @@ export default async function CreateLoanPage({ searchParams }: CreateLoanPagePro
 
   if (pageState.status === "branch_assignment_required") {
     return renderBranchAssignmentState();
+  }
+
+  if (pageState.status === "inactive_branch") {
+    return renderInactiveBranchState();
   }
 
   return (

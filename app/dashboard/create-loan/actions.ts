@@ -184,6 +184,7 @@ export async function createLoanAction(
       borrower_branch_id: areas.branch_id,
       borrower_area_id: areas.area_id,
       branch_name: branch.branch_name,
+      branch_status: branch.status,
     })
     .from(borrower_info)
     .innerJoin(users, eq(users.user_id, borrower_info.user_id))
@@ -245,6 +246,16 @@ export async function createLoanAction(
       message: "Selected branch does not match the borrower's assigned branch.",
       fieldErrors: {
         branch_id: `Borrower belongs to ${borrowerInfo.branch_name}.`,
+      },
+    };
+  }
+
+  if (borrowerInfo.branch_status !== "active") {
+    return {
+      status: "error",
+      message: "Loans cannot be created under an inactive branch.",
+      fieldErrors: {
+        branch_id: "Selected branch is inactive.",
       },
     };
   }

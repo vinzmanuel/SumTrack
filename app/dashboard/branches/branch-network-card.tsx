@@ -62,6 +62,16 @@ export function BranchNetworkCard({ branch }: { branch: BranchNetworkCardData })
                 <Badge className="border-zinc-300 bg-background text-zinc-700" variant="outline">
                   {branch.branchCode}
                 </Badge>
+                <Badge
+                  className={
+                    branch.status === "active"
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                      : "border-amber-200 bg-amber-50 text-amber-700"
+                  }
+                  variant="outline"
+                >
+                  {branch.status === "active" ? "Active" : "Inactive"}
+                </Badge>
                 <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700" variant="outline">
                   {branch.activeLoanCount + branch.overdueLoanCount} Live Loans
                 </Badge>

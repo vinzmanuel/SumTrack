@@ -25,6 +25,7 @@ const SORT_LABELS: Record<BranchSort, string> = {
 
 export function BranchesClientPage({ data }: { data: BranchNetworkPageData }) {
   const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const [sort, setSort] = useState<BranchSort>("name_asc");
 
   const visibleBranches = useMemo(() => {
@@ -46,7 +47,10 @@ export function BranchesClientPage({ data }: { data: BranchNetworkPageData }) {
         })
       : data.branches;
 
-    const sorted = [...filtered];
+    const statusFiltered =
+      statusFilter === "all" ? filtered : filtered.filter((branch) => branch.status === statusFilter);
+
+    const sorted = [...statusFiltered];
     sorted.sort((left, right) => {
       if (sort === "name_desc") {
         return right.branchName.localeCompare(left.branchName);
@@ -64,7 +68,7 @@ export function BranchesClientPage({ data }: { data: BranchNetworkPageData }) {
     });
 
     return sorted;
-  }, [data.branches, query, sort]);
+  }, [data.branches, query, sort, statusFilter]);
 
   return (
     <div className="space-y-4">
@@ -93,6 +97,22 @@ export function BranchesClientPage({ data }: { data: BranchNetworkPageData }) {
                     value={query}
                   />
                 </div>
+              </div>
+
+              <div className="w-full space-y-1 sm:w-52">
+                <label className="text-sm font-medium" htmlFor="branchStatusFilter">
+                  Status
+                </label>
+                <Select onValueChange={(value) => setStatusFilter(value as "all" | "active" | "inactive")} value={statusFilter}>
+                  <SelectTrigger className="w-full" id="branchStatusFilter">
+                    <SelectValue placeholder="All statuses" />
+                  </SelectTrigger>
+                  <SelectContent align="end">
+                    <SelectItem value="all">All statuses</SelectItem>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="w-full space-y-1 sm:w-60">
