@@ -228,7 +228,7 @@ export function CreateBranchDialog() {
                   value={provinceCode}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Use 2 to 20 uppercase letters or numbers only.
+                  Use 2 to 20 uppercase letters, numbers, or hyphens only.
                 </p>
               </div>
 

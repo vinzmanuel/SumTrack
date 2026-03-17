@@ -332,10 +332,10 @@ export async function createBranch(params: {
     return { ok: false, message: "Province code is required." };
   }
 
-  if (!/^[A-Z0-9]{2,20}$/.test(provinceCode)) {
+  if (!/^[A-Z0-9-]{2,20}$/.test(provinceCode)) {
     return {
       ok: false,
-      message: "Province code must use 2 to 20 uppercase letters or numbers only.",
+      message: "Province code must use 2 to 20 uppercase letters, numbers, or hyphens only.",
     };
   }
 
@@ -347,10 +347,10 @@ export async function createBranch(params: {
     return { ok: false, message: "Municipality/City code is required." };
   }
 
-  if (!/^[A-Z0-9]{2,20}$/.test(municipalityCode)) {
+  if (!/^[A-Z0-9-]{2,20}$/.test(municipalityCode)) {
     return {
       ok: false,
-      message: "Municipality/City code must use 2 to 20 uppercase letters or numbers only.",
+      message: "Municipality/City code must use 2 to 20 uppercase letters, numbers, or hyphens only.",
     };
   }
 
