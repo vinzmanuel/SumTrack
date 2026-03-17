@@ -19,6 +19,7 @@ import {
 } from "@/db/schema";
 import type {
   BranchActionPermissions,
+  BranchCreateMutationResult,
   BranchDetailAccessState,
   BranchAreasTabData,
   BranchAreaListRow,
@@ -31,6 +32,7 @@ import type {
   BranchNetworkPageData,
 } from "@/app/dashboard/branches/types";
 import type { AnalyticsChartModel, AnalyticsChartRow } from "@/components/analytics/types";
+import { buildBranchCode, normalizeBranchCodeInput } from "@/app/dashboard/branches/branch-code";
 
 function buildBranchScopeWhere(
   access:
@@ -300,6 +302,102 @@ export async function loadBranchCodeById(branchId: number): Promise<string | nul
     .limit(1)
     .then((rows) => rows[0]?.branchCode ?? null)
     .catch(() => null);
+}
+
+export async function createBranch(params: {
+  access: Extract<BranchesAccessState, { view: "network" }>;
+  provinceName: string;
+  provinceCode: string;
+  municipalityName: string;
+  municipalityCode: string;
+  branchName: string;
+  branchAddress: string;
+}): Promise<BranchCreateMutationResult> {
+  if (params.access.roleName !== "Admin" || !params.access.canCreateBranch) {
+    return { ok: false, message: "Only Admin can create branches." };
+  }
+
+  const provinceName = params.provinceName.trim().slice(0, 100);
+  const provinceCode = normalizeBranchCodeInput(params.provinceCode).slice(0, 20);
+  const municipalityName = params.municipalityName.trim().slice(0, 100);
+  const municipalityCode = normalizeBranchCodeInput(params.municipalityCode).slice(0, 20);
+  const branchName = params.branchName.trim().slice(0, 100);
+  const branchAddress = params.branchAddress.trim();
+
+  if (!provinceName) {
+    return { ok: false, message: "Province name is required." };
+  }
+
+  if (!provinceCode) {
+    return { ok: false, message: "Province code is required." };
+  }
+
+  if (!/^[A-Z0-9]{2,20}$/.test(provinceCode)) {
+    return {
+      ok: false,
+      message: "Province code must use 2 to 20 uppercase letters or numbers only.",
+    };
+  }
+
+  if (!municipalityName) {
+    return { ok: false, message: "Municipality/City name is required." };
+  }
+
+  if (!municipalityCode) {
+    return { ok: false, message: "Municipality/City code is required." };
+  }
+
+  if (!/^[A-Z0-9]{2,20}$/.test(municipalityCode)) {
+    return {
+      ok: false,
+      message: "Municipality/City code must use 2 to 20 uppercase letters or numbers only.",
+    };
+  }
+
+  if (!branchName) {
+    return { ok: false, message: "Branch name is required." };
+  }
+
+  if (!branchAddress) {
+    return { ok: false, message: "Branch address is required." };
+  }
+
+  const branchCode = buildBranchCode(provinceCode, municipalityCode);
+  if (!branchCode) {
+    return { ok: false, message: "Branch code could not be generated from the provided location codes." };
+  }
+
+  const existingBranch = await db
+    .select({ branchId: branch.branch_id })
+    .from(branch)
+    .where(eq(branch.branch_code, branchCode))
+    .limit(1)
+    .then((rows) => rows[0] ?? null)
+    .catch(() => null);
+
+  if (existingBranch) {
+    return {
+      ok: false,
+      message: `Branch code ${branchCode} already exists. Check the province and municipality codes before creating this branch.`,
+    };
+  }
+
+  await db.insert(branch).values({
+    province_name: provinceName,
+    province_code: provinceCode,
+    municipality_name: municipalityName,
+    municipality_code: municipalityCode,
+    branch_code: branchCode,
+    branch_name: branchName,
+    branch_address: branchAddress,
+    status: "active",
+  });
+
+  return {
+    ok: true,
+    message: "Branch created.",
+    branchCode,
+  };
 }
 
 function buildCollectionsTrendChart(rows: AnalyticsChartRow[]): AnalyticsChartModel {

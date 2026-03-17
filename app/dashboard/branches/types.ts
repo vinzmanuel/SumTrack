@@ -113,6 +113,17 @@ export type BranchMutationResult =
       message: string;
     };
 
+export type BranchCreateMutationResult =
+  | {
+      ok: true;
+      message: string;
+      branchCode: string;
+    }
+  | {
+      ok: false;
+      message: string;
+    };
+
 export type BranchEmployeeListRow = {
   userId: string;
   fullName: string;
@@ -176,8 +187,8 @@ export function resolveBranchesPageAccess(auth: DashboardAuthResult): BranchesAc
       view: "network",
       roleName: "Admin",
       allowedBranchIds: auth.assignedBranchIds,
-      canCreateBranch: false,
-      scopeMessage: "Branch creation and lifecycle actions will land in later passes.",
+      canCreateBranch: true,
+      scopeMessage: "Admin can create branches and manage branch lifecycle from this module.",
     };
   }
 

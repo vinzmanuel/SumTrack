@@ -11,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { CreateBranchDialog } from "@/app/dashboard/branches/create-branch-dialog";
 import { BranchNetworkCard } from "@/app/dashboard/branches/branch-network-card";
 import type { BranchNetworkPageData } from "@/app/dashboard/branches/types";
 
@@ -132,6 +133,12 @@ export function BranchesClientPage({ data }: { data: BranchNetworkPageData }) {
                   </SelectContent>
                 </Select>
               </div>
+
+              {data.canCreateBranch ? (
+                <div className="flex w-full xl:w-auto xl:justify-end">
+                  <CreateBranchDialog />
+                </div>
+              ) : null}
             </div>
 
             <p className="text-sm text-muted-foreground">{data.scopeMessage}</p>
