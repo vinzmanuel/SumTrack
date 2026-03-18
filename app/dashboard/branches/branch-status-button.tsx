@@ -80,20 +80,25 @@ export function BranchStatusButton({
             </AlertDialogTitle>
             <AlertDialogDescription>
               {status === "active"
-                ? `This will close ${branchName} for new operational work while keeping existing obligations visible.`
-                : `This will reopen ${branchName} for normal operational work.`}
+                ? `This will close ${branchName} for new accounts, new loans, new areas, and new staffing assignments. Existing collections, history, employees, and areas will remain visible so current obligations can still be resolved.`
+                : `This will reopen ${branchName} for normal operational work, including new accounts, loans, areas, and staffing assignments.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isSubmitting}>Cancel</AlertDialogCancel>
             <AlertDialogAction
+              className={
+                status === "active"
+                  ? "bg-amber-500 text-white hover:bg-amber-600"
+                  : "bg-emerald-600 text-white hover:bg-emerald-700"
+              }
               disabled={isSubmitting}
               onClick={(event) => {
                 event.preventDefault();
                 void handleConfirm();
               }}
             >
-              {isSubmitting ? "Saving..." : status === "active" ? "Deactivate" : "Reactivate"}
+              {isSubmitting ? "Saving..." : status === "active" ? "Yes, deactivate branch" : "Yes, reactivate branch"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

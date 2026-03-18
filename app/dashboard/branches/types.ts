@@ -149,6 +149,7 @@ export type BranchAreaListRow = {
   areaCode: string;
   areaNo: string;
   description: string | null;
+  status: "active" | "inactive";
   assignedCollectorLabel: string;
   assignedCollectorNames: string[];
   borrowerCount: number;

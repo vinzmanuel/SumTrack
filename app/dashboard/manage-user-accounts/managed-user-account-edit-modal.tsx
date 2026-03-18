@@ -152,7 +152,10 @@ export function ManagedUserAccountEditModal({
     }
 
     return options.filter((item) =>
-      item.roleName === "Branch Manager" || item.roleName === "Secretary" || item.roleName === "Collector",
+      item.roleName === "Auditor" ||
+      item.roleName === "Branch Manager" ||
+      item.roleName === "Secretary" ||
+      item.roleName === "Collector",
     );
   }, [detail?.editableRoleOptions, mode]);
   const selectedRole = useMemo(() => {
@@ -176,7 +179,7 @@ export function ManagedUserAccountEditModal({
     Boolean(detail?.canEditBranchAssignment) &&
     (selectedRoleName === "Secretary" || selectedRoleName === "Branch Manager");
   const showAuditorBranchSelector =
-    mode === "full" && Boolean(detail?.canEditAuditorBranchAssignments) && selectedRoleName === "Auditor";
+    Boolean(detail?.canEditAuditorBranchAssignments) && selectedRoleName === "Auditor";
   const showAreaAssignmentControl = Boolean(detail?.canEditAreaAssignment) && selectedRoleName === "Collector";
   const visibleAreaOptions =
     detail && formState

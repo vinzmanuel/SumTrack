@@ -63,7 +63,6 @@ export function BranchEmployeesTab({
   const searchParams = useSearchParams();
   const [query, setQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("all");
   const [page, setPage] = useState(1);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [reassignmentRequest, setReassignmentRequest] = useState<CollectorReassignmentRequest | null>(null);
@@ -85,10 +84,6 @@ export function BranchEmployeesTab({
 
     const rows = data.employees.filter((employee) => {
       if (roleFilter !== "all" && employee.roleName !== roleFilter) {
-        return false;
-      }
-
-      if (statusFilter !== "all" && employee.status !== statusFilter) {
         return false;
       }
 
@@ -118,7 +113,7 @@ export function BranchEmployeesTab({
 
       return left.fullName.localeCompare(right.fullName);
     });
-  }, [data.employees, query, roleFilter, statusFilter]);
+  }, [data.employees, query, roleFilter]);
 
   const totalPages = Math.max(Math.ceil(filteredEmployees.length / PAGE_SIZE), 1);
   const safePage = Math.min(page, totalPages);
@@ -186,28 +181,6 @@ export function BranchEmployeesTab({
                   </SelectContent>
                 </Select>
               </div>
-
-              <div className="w-full space-y-1 sm:w-44">
-                <label className="text-sm font-medium" htmlFor="branchEmployeeStatus">
-                  Status
-                </label>
-                <Select
-                  onValueChange={(value) => {
-                    setStatusFilter(value);
-                    setPage(1);
-                  }}
-                  value={statusFilter}
-                >
-                  <SelectTrigger className="w-full" id="branchEmployeeStatus">
-                    <SelectValue placeholder="All statuses" />
-                  </SelectTrigger>
-                  <SelectContent align="end">
-                    <SelectItem value="all">All statuses</SelectItem>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="inactive">Inactive</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
           </div>
 
@@ -216,7 +189,7 @@ export function BranchEmployeesTab({
               <div className="rounded-xl border border-dashed border-border/80 bg-muted/15 px-5 py-10 text-center">
                 <p className="text-sm font-medium text-foreground">No employees match the current branch filters.</p>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Try another search term, role, or status.
+                  Try another search term or role.
                 </p>
               </div>
             ) : (

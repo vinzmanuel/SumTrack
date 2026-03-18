@@ -86,6 +86,10 @@ function formatFullName(firstName: string | null, middleName: string | null, las
   return [firstName, middleName, lastName].filter(Boolean).join(" ").trim() || "Unassigned";
 }
 
+function pluralize(count: number, singular: string, plural = `${singular}s`) {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
 function branchScopedEmployeeRoleNames() {
   return ["Branch Manager", "Secretary", "Auditor"] as const;
 }
@@ -634,6 +638,40 @@ async function loadBranchMutationTarget(
     .catch(() => null);
 }
 
+async function loadAreaMutationTarget(params: {
+  access: Extract<BranchDetailAccessState, { view: "detail" }>;
+  branchCode: string;
+  areaId: number;
+}) {
+  const branchTarget = await loadBranchMutationTarget(params.access, params.branchCode);
+  if (!branchTarget) {
+    return null;
+  }
+
+  const areaRow = await db
+    .select({
+      areaId: areas.area_id,
+      areaCode: areas.area_code,
+      areaNo: areas.area_no,
+      description: areas.description,
+      status: areas.status,
+    })
+    .from(areas)
+    .where(and(eq(areas.area_id, params.areaId), eq(areas.branch_id, branchTarget.branchId)))
+    .limit(1)
+    .then((rows) => rows[0] ?? null)
+    .catch(() => null);
+
+  if (!areaRow) {
+    return null;
+  }
+
+  return {
+    branch: branchTarget,
+    area: areaRow,
+  };
+}
+
 export function resolveBranchActionPermissions(
   access: Extract<BranchDetailAccessState, { view: "detail" }>,
 ): BranchActionPermissions {
@@ -703,6 +741,7 @@ export async function createAreaByBranchCode(params: {
       area_no: areaNo,
       area_code: areaCode,
       description: description || null,
+      status: "active",
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -772,6 +811,125 @@ export async function updateAreaByBranchCode(params: {
   return { ok: true, message: "Area updated." };
 }
 
+export async function updateAreaStatusByBranchCode(params: {
+  access: Extract<BranchDetailAccessState, { view: "detail" }>;
+  branchCode: string;
+  areaId: number;
+  nextStatus: "active" | "inactive";
+}): Promise<BranchMutationResult> {
+  const target = await loadAreaMutationTarget(params);
+  if (!target) {
+    return { ok: false, message: "Area not found in this branch." };
+  }
+
+  if (params.access.roleName !== "Admin" && params.access.roleName !== "Branch Manager") {
+    return { ok: false, message: "You are not allowed to change area status for this branch." };
+  }
+
+  if (target.area.status === params.nextStatus) {
+    return {
+      ok: true,
+      message:
+        params.nextStatus === "active"
+          ? "Area is already active."
+          : "Area is already inactive.",
+    };
+  }
+
+  await db
+    .update(areas)
+    .set({ status: params.nextStatus })
+    .where(eq(areas.area_id, target.area.areaId));
+
+  return {
+    ok: true,
+    message:
+      params.nextStatus === "active"
+        ? "Area reactivated. New assignments and new operational work can use this area again."
+        : "Area deactivated. New assignments and new operational work are now blocked in this area while existing records remain visible.",
+  };
+}
+
+export async function deleteAreaByBranchCode(params: {
+  access: Extract<BranchDetailAccessState, { view: "detail" }>;
+  branchCode: string;
+  areaId: number;
+}): Promise<BranchMutationResult> {
+  const target = await loadAreaMutationTarget(params);
+  if (!target) {
+    return { ok: false, message: "Area not found in this branch." };
+  }
+
+  if (params.access.roleName !== "Admin" && params.access.roleName !== "Branch Manager") {
+    return { ok: false, message: "You are not allowed to delete areas for this branch." };
+  }
+
+  const [activeCollectorAssignmentCount, assignmentHistoryCount, borrowerCount, loanCount] = await Promise.all([
+    db
+      .select({ value: sql<number>`count(*)` })
+      .from(employee_area_assignment)
+      .where(
+        and(
+          eq(employee_area_assignment.area_id, target.area.areaId),
+          isNull(employee_area_assignment.end_date),
+        ),
+      )
+      .then((rows) => Number(rows[0]?.value) || 0)
+      .catch(() => 0),
+    db
+      .select({ value: sql<number>`count(*)` })
+      .from(employee_area_assignment)
+      .where(eq(employee_area_assignment.area_id, target.area.areaId))
+      .then((rows) => Number(rows[0]?.value) || 0)
+      .catch(() => 0),
+    db
+      .select({ value: sql<number>`count(*)` })
+      .from(borrower_info)
+      .where(eq(borrower_info.area_id, target.area.areaId))
+      .then((rows) => Number(rows[0]?.value) || 0)
+      .catch(() => 0),
+    db
+      .select({ value: sql<number>`count(*)` })
+      .from(loan_records)
+      .innerJoin(borrower_info, eq(borrower_info.user_id, loan_records.borrower_id))
+      .where(eq(borrower_info.area_id, target.area.areaId))
+      .then((rows) => Number(rows[0]?.value) || 0)
+      .catch(() => 0),
+  ]);
+
+  const reasons: string[] = [];
+  if (activeCollectorAssignmentCount > 0) {
+    reasons.push(pluralize(activeCollectorAssignmentCount, "active collector assignment"));
+  }
+  if (borrowerCount > 0) {
+    reasons.push(pluralize(borrowerCount, "borrower account"));
+  }
+  if (loanCount > 0) {
+    reasons.push(pluralize(loanCount, "loan record"));
+  }
+  if (assignmentHistoryCount > 0 && activeCollectorAssignmentCount === 0) {
+    reasons.push("collector assignment history");
+  }
+
+  if (reasons.length > 0) {
+    return {
+      ok: false,
+      message: `This area cannot be deleted yet. It still has ${reasons.join(", ")}. Resolve or remove these dependencies before deleting the area.`,
+    };
+  }
+
+  try {
+    await db.delete(areas).where(eq(areas.area_id, target.area.areaId));
+  } catch {
+    return {
+      ok: false,
+      message: "This area still has linked operational records and cannot be deleted.",
+    };
+  }
+
+  return { ok: true, message: "Area deleted." };
+}
+
 export async function updateBranchDetailsByCode(params: {
   access: Extract<BranchDetailAccessState, { view: "detail" }>;
   branchCode: string;
@@ -839,7 +997,10 @@ export async function updateBranchStatusByCode(params: {
 
   return {
     ok: true,
-    message: params.nextStatus === "active" ? "Branch reactivated." : "Branch deactivated.",
+    message:
+      params.nextStatus === "active"
+        ? "Branch reactivated. New accounts, loans, areas, and staffing assignments can be created here again."
+        : "Branch deactivated. New accounts, loans, areas, and staffing assignments into this branch are now blocked while existing obligations remain visible.",
   };
 }
 
@@ -944,22 +1105,22 @@ export async function deleteBranchByCode(params: {
 
   const activeEmployeeCount = activeBranchEmployeeCount + activeCollectorCount;
   if (activeEmployeeCount > 0) {
-    reasons.push(`${activeEmployeeCount} active employee assignment(s)`);
+    reasons.push(`${pluralize(activeEmployeeCount, "active employee assignment")}`);
   }
   if (activeBorrowerCount > 0) {
-    reasons.push(`${activeBorrowerCount} active borrower account(s)`);
+    reasons.push(`${pluralize(activeBorrowerCount, "active borrower account")}`);
   }
   if (liveLoanCount > 0) {
-    reasons.push(`${liveLoanCount} active or overdue loan(s)`);
+    reasons.push(`${pluralize(liveLoanCount, "active or overdue loan")}`);
   }
   if (areaCount > 0) {
-    reasons.push(`${areaCount} area record(s)`);
+    reasons.push(`${pluralize(areaCount, "area attached to it", "areas attached to it")}`);
   }
   if (totalLoanCount > 0) {
-    reasons.push(`${totalLoanCount} loan record(s)`);
+    reasons.push(`${pluralize(totalLoanCount, "loan record")}`);
   }
   if (expenseCount > 0) {
-    reasons.push(`${expenseCount} expense record(s)`);
+    reasons.push(`${pluralize(expenseCount, "expense record")}`);
   }
   if (incentiveRuleCount > 0 || payoutBatchCount > 0) {
     reasons.push("linked incentive records");
@@ -968,7 +1129,7 @@ export async function deleteBranchByCode(params: {
   if (reasons.length > 0) {
     return {
       ok: false,
-      message: `This branch cannot be deleted yet. Resolve these dependencies first: ${reasons.join(", ")}.`,
+      message: `This branch cannot be deleted yet. It still has ${reasons.join(", ")}. Resolve or remove these dependencies before deleting the branch.`,
     };
   }
 
@@ -1018,6 +1179,7 @@ export async function loadBranchEmployeesTabDataByCode(
           eq(employee_branch_assignment.branch_id, branchId),
           isNull(employee_branch_assignment.end_date),
           inArray(roles.role_name, [...employeeRoleNames]),
+          eq(users.status, "active"),
         ),
       )
       .orderBy(asc(roles.role_name), asc(employee_info.last_name), asc(employee_info.first_name))
@@ -1045,6 +1207,7 @@ export async function loadBranchEmployeesTabDataByCode(
           eq(areas.branch_id, branchId),
           isNull(employee_area_assignment.end_date),
           eq(roles.role_name, "Collector"),
+          eq(users.status, "active"),
         ),
       )
       .orderBy(asc(employee_info.last_name), asc(employee_info.first_name))
@@ -1062,10 +1225,7 @@ export async function loadBranchEmployeesTabDataByCode(
       contactNo: row.contactNo,
       email: row.email,
       canView: true,
-      canEdit:
-        access.roleName === "Admin"
-          ? row.roleName !== "Auditor"
-          : row.roleName === "Secretary",
+      canEdit: access.roleName === "Admin" || row.roleName === "Secretary",
     })),
     ...collectorRows.map((row) => ({
       userId: row.userId,
@@ -1105,6 +1265,7 @@ export async function loadBranchAreasTabDataByCode(
       areaNo: areas.area_no,
       areaCode: areas.area_code,
       description: areas.description,
+      status: areas.status,
       dateCreated: areas.date_created,
     })
     .from(areas)
@@ -1211,6 +1372,7 @@ export async function loadBranchAreasTabDataByCode(
       areaCode: row.areaCode,
       areaNo: row.areaNo,
       description: row.description ?? null,
+      status: row.status,
       assignedCollectorLabel:
         assignedCollectorNames.length > 0 ? assignedCollectorNames.join(", ") : "Unassigned",
       assignedCollectorNames,

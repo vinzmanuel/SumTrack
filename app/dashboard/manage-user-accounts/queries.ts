@@ -1207,6 +1207,7 @@ export async function loadManagedUserDetail(
         .where(
           and(
             eq(branch.status, "active"),
+            eq(areas.status, "active"),
             scope.roleName === "Branch Manager" && branchManagerBranchId !== null
               ? eq(areas.branch_id, branchManagerBranchId)
               : undefined,
@@ -1445,6 +1446,7 @@ export async function updateManagedUserAccount(params: {
         areaId: areas.area_id,
         areaCode: areas.area_code,
         branchId: areas.branch_id,
+        areaStatus: areas.status,
         branchStatus: branch.status,
       })
       .from(areas)
@@ -1476,6 +1478,13 @@ export async function updateManagedUserAccount(params: {
       return {
         ok: false as const,
         message: "Inactive branches cannot receive new area assignments in this flow.",
+      };
+    }
+
+    if (areaRow.areaStatus !== "active" && (areaRow.areaId !== currentAreaId || roleChanged)) {
+      return {
+        ok: false as const,
+        message: "Inactive areas cannot receive new assignments in this flow.",
       };
     }
 

@@ -167,7 +167,7 @@ export default async function CreateAccountPage() {
     })
     .from(areas)
     .innerJoin(branch, eq(branch.branch_id, areas.branch_id))
-    .where(eq(branch.status, "active"))
+    .where(and(eq(branch.status, "active"), eq(areas.status, "active")))
     .orderBy(areas.area_code)
     .catch(() => []);
 

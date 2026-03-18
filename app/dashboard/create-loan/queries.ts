@@ -116,8 +116,8 @@ export async function loadCreateLoanPageData(
     ? and(eq(branch.branch_id, access.fixedBranchId), eq(branch.status, "active"))
     : eq(branch.status, "active");
   const areaBranchFilter = access.fixedBranchId !== null
-    ? and(eq(areas.branch_id, access.fixedBranchId), eq(branch.status, "active"))
-    : eq(branch.status, "active");
+    ? and(eq(areas.branch_id, access.fixedBranchId), eq(branch.status, "active"), eq(areas.status, "active"))
+    : and(eq(branch.status, "active"), eq(areas.status, "active"));
   const loanBranchFilter =
     access.fixedBranchId !== null ? eq(loan_records.branch_id, access.fixedBranchId) : undefined;
 

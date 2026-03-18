@@ -186,8 +186,10 @@ export function BranchDetailClientPage({
       ) : (
         <BranchAreasTab
           branchCode={data.branchCode}
-          canManageAreas={permissions.canManageAreas}
+          canCreateAreas={permissions.canManageAreas && data.status === "active"}
+          canEditAreas={permissions.canManageAreas}
           data={areasData}
+          isBranchActive={data.status === "active"}
         />
       )}
     </div>

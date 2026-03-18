@@ -183,6 +183,7 @@ export async function createLoanAction(
       username: users.username,
       borrower_branch_id: areas.branch_id,
       borrower_area_id: areas.area_id,
+      borrower_area_status: areas.status,
       branch_name: branch.branch_name,
       branch_status: branch.status,
     })
@@ -256,6 +257,16 @@ export async function createLoanAction(
       message: "Loans cannot be created under an inactive branch.",
       fieldErrors: {
         branch_id: "Selected branch is inactive.",
+      },
+    };
+  }
+
+  if (borrowerInfo.borrower_area_status !== "active") {
+    return {
+      status: "error",
+      message: "Loans cannot be created under an inactive area.",
+      fieldErrors: {
+        area_id: "Selected area is inactive.",
       },
     };
   }

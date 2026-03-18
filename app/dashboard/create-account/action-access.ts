@@ -229,7 +229,14 @@ export async function resolveCreateAccountScope(
       })
       .from(areas)
       .innerJoin(branch, eq(branch.branch_id, areas.branch_id))
-      .where(and(eq(areas.area_id, input.areaId), eq(areas.branch_id, input.branchId), eq(branch.status, "active")))
+      .where(
+        and(
+          eq(areas.area_id, input.areaId),
+          eq(areas.branch_id, input.branchId),
+          eq(branch.status, "active"),
+          eq(areas.status, "active"),
+        ),
+      )
       .limit(1)
       .then((rows) => rows[0] ?? null)
       .catch(() => null);
