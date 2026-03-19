@@ -179,7 +179,7 @@ export function BranchAreasTab({
           ) : (
             <div className="space-y-3">
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[1220px] text-sm">
+                <table className="w-full min-w-305 text-sm">
                   <thead>
                     <tr className="border-b text-left">
                       <th className="px-2 py-2.5 font-medium">Area</th>

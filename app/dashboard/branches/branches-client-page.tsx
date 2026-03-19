@@ -4,30 +4,22 @@ import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { CreateBranchDialog } from "@/app/dashboard/branches/create-branch-dialog";
 import { BranchNetworkCard } from "@/app/dashboard/branches/branch-network-card";
 import type { BranchNetworkPageData } from "@/app/dashboard/branches/types";
 
-type BranchSort = "name_asc" | "name_desc" | "collections_desc" | "overdue_desc";
-
-const SORT_LABELS: Record<BranchSort, string> = {
-  name_asc: "Branch Name A-Z",
-  name_desc: "Branch Name Z-A",
-  collections_desc: "Collections This Month",
-  overdue_desc: "Overdue Loans",
-};
-
 export function BranchesClientPage({ data }: { data: BranchNetworkPageData }) {
   const [query, setQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
-  const [sort, setSort] = useState<BranchSort>("name_asc");
+  const [statusFilter, setStatusFilter] = useState<"active" | "inactive">("active");
+
+  const activeCount = useMemo(
+    () => data.branches.filter((branch) => branch.status === "active").length,
+    [data.branches],
+  );
+  const inactiveCount = useMemo(
+    () => data.branches.filter((branch) => branch.status === "inactive").length,
+    [data.branches],
+  );
 
   const visibleBranches = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
@@ -48,28 +40,13 @@ export function BranchesClientPage({ data }: { data: BranchNetworkPageData }) {
         })
       : data.branches;
 
-    const statusFiltered =
-      statusFilter === "all" ? filtered : filtered.filter((branch) => branch.status === statusFilter);
+    const statusFiltered = filtered.filter((branch) => branch.status === statusFilter);
 
     const sorted = [...statusFiltered];
-    sorted.sort((left, right) => {
-      if (sort === "name_desc") {
-        return right.branchName.localeCompare(left.branchName);
-      }
-
-      if (sort === "collections_desc") {
-        return right.collectionsThisMonth - left.collectionsThisMonth || left.branchName.localeCompare(right.branchName);
-      }
-
-      if (sort === "overdue_desc") {
-        return right.overdueLoanCount - left.overdueLoanCount || left.branchName.localeCompare(right.branchName);
-      }
-
-      return left.branchName.localeCompare(right.branchName);
-    });
+    sorted.sort((left, right) => left.branchName.localeCompare(right.branchName));
 
     return sorted;
-  }, [data.branches, query, sort, statusFilter]);
+  }, [data.branches, query, statusFilter]);
 
   return (
     <div className="space-y-4">
@@ -83,6 +60,31 @@ export function BranchesClientPage({ data }: { data: BranchNetworkPageData }) {
       <Card className="overflow-hidden border-border/70 shadow-sm">
         <CardContent className="p-0">
           <div className="space-y-4 px-4 pb-4 pt-3 md:px-5 md:pb-5">
+            <div className="flex flex-wrap gap-2">
+              <button
+                className={`rounded-md border px-3 py-1.5 text-sm font-medium transition-colors ${
+                  statusFilter === "active"
+                    ? "border-emerald-600 bg-emerald-50 text-emerald-700"
+                    : "border-border bg-background text-muted-foreground hover:bg-muted/40"
+                }`}
+                onClick={() => setStatusFilter("active")}
+                type="button"
+              >
+                Active ({activeCount})
+              </button>
+              <button
+                className={`rounded-md border px-3 py-1.5 text-sm font-medium transition-colors ${
+                  statusFilter === "inactive"
+                    ? "border-amber-600 bg-amber-50 text-amber-700"
+                    : "border-border bg-background text-muted-foreground hover:bg-muted/40"
+                }`}
+                onClick={() => setStatusFilter("inactive")}
+                type="button"
+              >
+                Inactive ({inactiveCount})
+              </button>
+            </div>
+
             <div className="flex flex-col gap-3 xl:flex-row xl:items-end">
               <div className="flex-1 space-y-1">
                 <label className="text-sm font-medium" htmlFor="branchSearch">
@@ -98,40 +100,6 @@ export function BranchesClientPage({ data }: { data: BranchNetworkPageData }) {
                     value={query}
                   />
                 </div>
-              </div>
-
-              <div className="w-full space-y-1 sm:w-52">
-                <label className="text-sm font-medium" htmlFor="branchStatusFilter">
-                  Status
-                </label>
-                <Select onValueChange={(value) => setStatusFilter(value as "all" | "active" | "inactive")} value={statusFilter}>
-                  <SelectTrigger className="w-full" id="branchStatusFilter">
-                    <SelectValue placeholder="All statuses" />
-                  </SelectTrigger>
-                  <SelectContent align="end">
-                    <SelectItem value="all">All statuses</SelectItem>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="inactive">Inactive</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="w-full space-y-1 sm:w-60">
-                <label className="text-sm font-medium" htmlFor="branchSort">
-                  Sort
-                </label>
-                <Select onValueChange={(value) => setSort(value as BranchSort)} value={sort}>
-                  <SelectTrigger className="w-full" id="branchSort">
-                    <SelectValue placeholder="Select sort" />
-                  </SelectTrigger>
-                  <SelectContent align="end">
-                    {(Object.entries(SORT_LABELS) as Array<[BranchSort, string]>).map(([value, label]) => (
-                      <SelectItem key={value} value={value}>
-                        {label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
               </div>
 
               {data.canCreateBranch ? (
