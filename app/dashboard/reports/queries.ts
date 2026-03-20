@@ -208,6 +208,12 @@ function buildReportsLibraryRow(row: {
   generatedType: "user" | "system";
   generatedAt: string;
   status: "active" | "archived";
+  generatedByUserId: string;
+  generatedByName: string;
+  generatedByRoleName: string | null;
+  branchScope: number[];
+  dateFrom: string | null;
+  dateTo: string | null;
   sourceEntityType: "loan" | "collection" | null;
   sourceEntityId: number | null;
 }): ReportsLibraryRow {
@@ -220,9 +226,62 @@ function buildReportsLibraryRow(row: {
     generatedType: row.generatedType,
     generatedAt: row.generatedAt,
     status: row.status,
+    generatedByUserId: row.generatedByUserId,
+    generatedByName: row.generatedByName,
+    generatedByRoleName: row.generatedByRoleName,
+    branchScope: row.branchScope,
+    dateFrom: row.dateFrom,
+    dateTo: row.dateTo,
     sourceEntityType: row.sourceEntityType,
     sourceEntityId: row.sourceEntityId,
   };
+}
+
+function buildReportUserOptionLabel(params: {
+  firstName: string | null;
+  middleName: string | null;
+  lastName: string | null;
+  companyId: string | null;
+  username: string | null;
+}) {
+  const first = params.firstName?.trim() ?? "";
+  const middle = params.middleName?.trim() ?? "";
+  const last = params.lastName?.trim() ?? "";
+  const middleInitial = middle ? `${middle[0].toUpperCase()}.` : "";
+  const fullName = [first, middleInitial, last].filter(Boolean).join(" ").trim();
+  const identity = fullName || params.username || "Unknown User";
+  const company = params.companyId?.trim() || "N/A";
+
+  return `${identity} (${company})`;
+}
+
+async function loadVisibleLibraryBranchOptions(
+  access: ReportsReadyAccessState,
+): Promise<ReportsBranchOption[]> {
+  if (access.roleName === "Admin") {
+    return db
+      .select({
+        branchId: branch.branch_id,
+        branchName: branch.branch_name,
+      })
+      .from(branch)
+      .orderBy(asc(branch.branch_name))
+      .catch(() => []);
+  }
+
+  if (access.allowedBranchIds.length === 0) {
+    return [];
+  }
+
+  return db
+    .select({
+      branchId: branch.branch_id,
+      branchName: branch.branch_name,
+    })
+    .from(branch)
+    .where(inArray(branch.branch_id, access.allowedBranchIds))
+    .orderBy(asc(branch.branch_name))
+    .catch(() => []);
 }
 
 async function loadVisibleBranchOptions(access: ReportsReadyAccessState): Promise<ReportsBranchOption[]> {
@@ -780,25 +839,150 @@ export async function loadReportsLibraryPageData(
   access: ReportsReadyAccessState,
   filters: ReportsLibraryFilterState,
 ): Promise<ReportsLibraryPageData> {
-  const rows = await db
-    .select({
-      reportId: reports.report_id,
-      title: reports.title,
-      reportCategory: reports.report_category,
-      templateKey: reports.template_key,
-      generatedType: reports.generated_type,
-      generatedAt: reports.generated_at,
-      status: reports.status,
-      sourceEntityType: reports.source_entity_type,
-      sourceEntityId: reports.source_entity_id,
-    })
-    .from(reports)
-    .where(buildReportsLibraryScopeWhere(access))
-    .orderBy(desc(reports.generated_at), desc(reports.report_id))
-    .catch(() => []);
+  const [rows, visibleBranchOptions] = await Promise.all([
+      db
+        .select({
+          reportId: reports.report_id,
+          title: reports.title,
+          reportCategory: reports.report_category,
+          templateKey: reports.template_key,
+          generatedType: reports.generated_type,
+          generatedAt: reports.generated_at,
+          status: reports.status,
+          generatedByUserId: reports.generated_by,
+          generatedByName: sql<string>`coalesce(nullif(trim(concat_ws(' ', ${employee_info.first_name}, ${employee_info.middle_name}, ${employee_info.last_name})), ''), ${users.username})`,
+          generatedByFirstName: employee_info.first_name,
+          generatedByMiddleName: employee_info.middle_name,
+          generatedByLastName: employee_info.last_name,
+          generatedByUsername: users.username,
+          generatedByCompanyId: users.company_id,
+          generatedByRoleName: roles.role_name,
+          branchScope: reports.branch_scope,
+          dateFrom: reports.date_from,
+          dateTo: reports.date_to,
+          sourceEntityType: reports.source_entity_type,
+          sourceEntityId: reports.source_entity_id,
+        })
+        .from(reports)
+        .innerJoin(users, eq(users.user_id, reports.generated_by))
+        .leftJoin(employee_info, eq(employee_info.user_id, users.user_id))
+        .leftJoin(roles, eq(roles.role_id, users.role_id))
+        .where(buildReportsLibraryScopeWhere(access))
+        .orderBy(desc(reports.generated_at), desc(reports.report_id))
+        .catch(() => []),
+      loadVisibleLibraryBranchOptions(access),
+    ]);
 
-  const visibleRows = rows.map(buildReportsLibraryRow);
-  const filteredRows = visibleRows.filter((row) => {
+  const visibleRows = rows.map((row) =>
+    buildReportsLibraryRow({
+      reportId: row.reportId,
+      title: row.title,
+      reportCategory: row.reportCategory,
+      templateKey: row.templateKey,
+      generatedType: row.generatedType,
+      generatedAt: row.generatedAt,
+      status: row.status,
+      generatedByUserId: row.generatedByUserId,
+      generatedByName: row.generatedByName,
+      generatedByRoleName: row.generatedByRoleName,
+      branchScope: row.branchScope,
+      dateFrom: row.dateFrom,
+      dateTo: row.dateTo,
+      sourceEntityType: row.sourceEntityType,
+      sourceEntityId: row.sourceEntityId,
+    }),
+  );
+  const generatedByRoles = Array.from(
+    new Map(
+      rows
+        .filter((row) => Boolean(row.generatedByRoleName))
+        .map((row) => [
+          row.generatedByRoleName as string,
+          {
+            roleName: row.generatedByRoleName as string,
+          },
+        ] as const)
+        .sort((left, right) => left[1].roleName.localeCompare(right[1].roleName)),
+    ).values(),
+  );
+  const generatedByUsers = Array.from(
+    new Map(
+      rows
+        .map((row) => [
+          row.generatedByUserId,
+          {
+            userId: row.generatedByUserId,
+            displayName: buildReportUserOptionLabel({
+              firstName: row.generatedByFirstName,
+              middleName: row.generatedByMiddleName,
+              lastName: row.generatedByLastName,
+              companyId: row.generatedByCompanyId,
+              username: row.generatedByUsername,
+            }),
+            roleName: row.generatedByRoleName,
+          },
+        ] as const)
+        .sort((left, right) => left[1].displayName.localeCompare(right[1].displayName)),
+    ).values(),
+  );
+  const templates = Array.from(
+    new Map(
+      visibleRows
+        .map((row) => [
+          row.templateKey,
+          {
+            templateKey: row.templateKey,
+            label: row.templateLabel,
+          },
+        ] as const)
+        .sort((left, right) => left[1].label.localeCompare(right[1].label)),
+    ).values(),
+  );
+
+  const advancedFilteredRows = visibleRows.filter((row) => {
+    if (filters.templateKey && row.templateKey !== filters.templateKey) {
+      return false;
+    }
+
+      if (filters.generatedType !== "all" && row.generatedType !== filters.generatedType) {
+        return false;
+      }
+
+      if (filters.generatedByRoleName && row.generatedByRoleName !== filters.generatedByRoleName) {
+        return false;
+      }
+
+      if (filters.generatedByUserId && row.generatedByUserId !== filters.generatedByUserId) {
+        return false;
+      }
+
+    if (
+      filters.branchIds.length > 0 &&
+      !filters.branchIds.some((branchId) => row.branchScope.includes(branchId))
+    ) {
+      return false;
+    }
+
+    if (filters.generatedDateFrom && row.generatedAt.slice(0, 10) < filters.generatedDateFrom) {
+      return false;
+    }
+
+    if (filters.generatedDateTo && row.generatedAt.slice(0, 10) > filters.generatedDateTo) {
+      return false;
+    }
+
+    if (filters.coverageDateFrom && (!row.dateTo || row.dateTo < filters.coverageDateFrom)) {
+      return false;
+    }
+
+    if (filters.coverageDateTo && (!row.dateFrom || row.dateFrom > filters.coverageDateTo)) {
+      return false;
+    }
+
+    return true;
+  });
+
+  const filteredRows = advancedFilteredRows.filter((row) => {
     const matchesCategory =
       filters.category === "all"
         ? true
@@ -813,11 +997,17 @@ export async function loadReportsLibraryPageData(
     filters,
     rows: filteredRows,
     counts: {
-      all: visibleRows.length,
-      analytics: visibleRows.filter((row) => row.reportCategory === "analytics").length,
-      documents: visibleRows.filter((row) => row.reportCategory === "document").length,
-      active: visibleRows.filter((row) => row.status === "active").length,
-      archived: visibleRows.filter((row) => row.status === "archived").length,
+      all: advancedFilteredRows.length,
+      analytics: advancedFilteredRows.filter((row) => row.reportCategory === "analytics").length,
+      documents: advancedFilteredRows.filter((row) => row.reportCategory === "document").length,
+      active: advancedFilteredRows.filter((row) => row.status === "active").length,
+      archived: advancedFilteredRows.filter((row) => row.status === "archived").length,
+    },
+    filterOptions: {
+      templates,
+      generatedByRoles,
+      generatedByUsers,
+      branches: visibleBranchOptions,
     },
   };
 }

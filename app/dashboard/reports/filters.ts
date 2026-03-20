@@ -1,5 +1,7 @@
 import type {
   ReportsCreateTab,
+  ReportsLibraryGeneratedTypeFilter,
+  ReportsLibraryGeneratedDatePreset,
   ReportsLibraryCategoryTab,
   ReportsLibraryFilterState,
   ReportsLibraryStatusTab,
@@ -7,6 +9,72 @@ import type {
 
 function firstValue(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
+}
+
+function allValues(value: string | string[] | undefined) {
+  if (Array.isArray(value)) {
+    return value;
+  }
+
+  return value ? [value] : [];
+}
+
+function parseIntegerArray(value: string | string[] | undefined) {
+  return allValues(value)
+    .map((item) => Number(item))
+    .filter((item) => Number.isInteger(item) && item > 0);
+}
+
+function parseNullableDate(value: string | string[] | undefined) {
+  const nextValue = firstValue(value)?.trim() ?? "";
+  return /^\d{4}-\d{2}-\d{2}$/.test(nextValue) ? nextValue : null;
+}
+
+function parseGeneratedType(
+  value: string | string[] | undefined,
+): ReportsLibraryGeneratedTypeFilter {
+  const nextValue = firstValue(value);
+  return nextValue === "user" || nextValue === "system" ? nextValue : "all";
+}
+
+function parseGeneratedDatePreset(
+  value: string | string[] | undefined,
+): ReportsLibraryGeneratedDatePreset {
+  const nextValue = firstValue(value);
+
+  if (
+    nextValue === "today" ||
+    nextValue === "this_week" ||
+    nextValue === "this_month" ||
+    nextValue === "this_year" ||
+    nextValue === "custom"
+  ) {
+    return nextValue;
+  }
+
+  return "all";
+}
+
+function parseNullableString(value: string | string[] | undefined) {
+  const nextValue = firstValue(value)?.trim() ?? "";
+  return nextValue.length > 0 ? nextValue : null;
+}
+
+export function createDefaultReportsLibraryFilters(): ReportsLibraryFilterState {
+  return {
+    category: "all",
+    status: "active",
+    templateKey: null,
+    generatedType: "all",
+    generatedByRoleName: null,
+    generatedByUserId: null,
+    branchIds: [],
+    generatedDatePreset: "all",
+    generatedDateFrom: null,
+    generatedDateTo: null,
+    coverageDateFrom: null,
+    coverageDateTo: null,
+  };
 }
 
 export function parseReportsLibraryCategoryTab(
@@ -28,9 +96,28 @@ export function parseReportsLibraryStatusTab(
 }
 
 export function parseReportsLibraryFilters(searchParams: Record<string, string | string[] | undefined>) {
+  const generatedDateFrom = parseNullableDate(searchParams.generatedFrom);
+  const generatedDateTo = parseNullableDate(searchParams.generatedTo);
+  const generatedDatePreset = parseGeneratedDatePreset(searchParams.generatedPreset);
+
   return {
     category: parseReportsLibraryCategoryTab(searchParams.category),
     status: parseReportsLibraryStatusTab(searchParams.status),
+    templateKey: parseNullableString(searchParams.template),
+    generatedType: parseGeneratedType(searchParams.generatedType),
+    generatedByRoleName: parseNullableString(searchParams.generatedByRole),
+    generatedByUserId: parseNullableString(searchParams.generatedBy),
+    branchIds: parseIntegerArray(searchParams.branch),
+    generatedDatePreset:
+      generatedDatePreset !== "all"
+        ? generatedDatePreset
+        : generatedDateFrom || generatedDateTo
+          ? "custom"
+          : "all",
+    generatedDateFrom,
+    generatedDateTo,
+    coverageDateFrom: parseNullableDate(searchParams.coverageFrom),
+    coverageDateTo: parseNullableDate(searchParams.coverageTo),
   } satisfies ReportsLibraryFilterState;
 }
 
@@ -43,6 +130,46 @@ export function buildReportsLibraryHref(filters: ReportsLibraryFilterState) {
 
   if (filters.status !== "active") {
     search.set("status", filters.status);
+  }
+
+  if (filters.templateKey) {
+    search.set("template", filters.templateKey);
+  }
+
+  if (filters.generatedType !== "all") {
+    search.set("generatedType", filters.generatedType);
+  }
+
+  if (filters.generatedByRoleName) {
+    search.set("generatedByRole", filters.generatedByRoleName);
+  }
+
+  if (filters.generatedByUserId) {
+    search.set("generatedBy", filters.generatedByUserId);
+  }
+
+  for (const branchId of filters.branchIds) {
+    search.append("branch", String(branchId));
+  }
+
+  if (filters.generatedDatePreset !== "all" && filters.generatedDatePreset !== "custom") {
+    search.set("generatedPreset", filters.generatedDatePreset);
+  }
+
+  if (filters.generatedDateFrom) {
+    search.set("generatedFrom", filters.generatedDateFrom);
+  }
+
+  if (filters.generatedDateTo) {
+    search.set("generatedTo", filters.generatedDateTo);
+  }
+
+  if (filters.coverageDateFrom) {
+    search.set("coverageFrom", filters.coverageDateFrom);
+  }
+
+  if (filters.coverageDateTo) {
+    search.set("coverageTo", filters.coverageDateTo);
   }
 
   const query = search.toString();

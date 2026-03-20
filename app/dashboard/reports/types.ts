@@ -40,10 +40,28 @@ export type ReportsPageData = {
 export type ReportsLibraryCategoryTab = "all" | "analytics" | "documents";
 export type ReportsLibraryStatusTab = "active" | "archived";
 export type ReportsCreateTab = "analytics" | "documents";
+export type ReportsLibraryGeneratedTypeFilter = "all" | "user" | "system";
+export type ReportsLibraryGeneratedDatePreset =
+  | "all"
+  | "today"
+  | "this_week"
+  | "this_month"
+  | "this_year"
+  | "custom";
 
 export type ReportsLibraryFilterState = {
   category: ReportsLibraryCategoryTab;
   status: ReportsLibraryStatusTab;
+  templateKey: string | null;
+  generatedType: ReportsLibraryGeneratedTypeFilter;
+  generatedByRoleName: string | null;
+  generatedByUserId: string | null;
+  branchIds: number[];
+  generatedDatePreset: ReportsLibraryGeneratedDatePreset;
+  generatedDateFrom: string | null;
+  generatedDateTo: string | null;
+  coverageDateFrom: string | null;
+  coverageDateTo: string | null;
 };
 
 export type ReportsLibraryRow = {
@@ -55,8 +73,29 @@ export type ReportsLibraryRow = {
   generatedType: "user" | "system";
   generatedAt: string;
   status: "active" | "archived";
+  generatedByUserId: string;
+  generatedByName: string;
+  generatedByRoleName: string | null;
+  branchScope: number[];
+  dateFrom: string | null;
+  dateTo: string | null;
   sourceEntityType: "loan" | "collection" | null;
   sourceEntityId: number | null;
+};
+
+export type ReportsLibraryTemplateFilterOption = {
+  templateKey: string;
+  label: string;
+};
+
+export type ReportsLibraryGeneratedByFilterOption = {
+  userId: string;
+  displayName: string;
+  roleName: string | null;
+};
+
+export type ReportsLibraryGeneratedByRoleFilterOption = {
+  roleName: string;
 };
 
 export type ReportsLibraryPageData = {
@@ -68,6 +107,12 @@ export type ReportsLibraryPageData = {
     documents: number;
     active: number;
     archived: number;
+  };
+  filterOptions: {
+    templates: ReportsLibraryTemplateFilterOption[];
+    generatedByRoles: ReportsLibraryGeneratedByRoleFilterOption[];
+    generatedByUsers: ReportsLibraryGeneratedByFilterOption[];
+    branches: ReportsBranchOption[];
   };
 };
 
