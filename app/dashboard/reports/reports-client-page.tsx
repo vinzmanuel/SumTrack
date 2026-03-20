@@ -1,11 +1,19 @@
 "use client";
 
+import Link from "next/link";
 import type { ReactNode } from "react";
-import { BarChart3, FileText, FolderKanban, Lock, Sparkles } from "lucide-react";
+import { ArrowLeft, BarChart3, FileText, FolderKanban, Lock, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AnalyticsReportGenerationForm } from "@/app/dashboard/reports/analytics-report-generation-form";
-import type { ReportsPageAccessState, ReportsPageCategoryItem, ReportsPageData } from "@/app/dashboard/reports/types";
+import { buildReportsCreateHref } from "@/app/dashboard/reports/filters";
+import type {
+  ReportsCreateTab,
+  ReportsPageAccessState,
+  ReportsPageCategoryItem,
+  ReportsPageData,
+} from "@/app/dashboard/reports/types";
 
 const ANALYTICAL_REPORT_ITEMS: ReportsPageCategoryItem[] = [
   {
@@ -111,7 +119,7 @@ function CategorySection(props: {
             </div>
             <div className="rounded-xl border border-border/70 bg-background px-4 py-3">
               <p className="text-sm text-muted-foreground">
-                Saved report viewing, exporting, and archive actions are reserved for later reports passes.
+                Saved reports return to the Reports Library after generation. Viewer, export, and archive actions are reserved for later passes.
               </p>
             </div>
           </>
@@ -126,11 +134,31 @@ function CategorySection(props: {
   );
 }
 
-export function ReportsClientPage({
+function TabButton({
+  active,
+  label,
+}: {
+  active: boolean;
+  label: string;
+}) {
+  return (
+    <span
+      className={`inline-flex rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+        active ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+      }`}
+    >
+      {label}
+    </span>
+  );
+}
+
+export function ReportsCreateClientPage({
   access,
+  activeTab,
   pageData,
 }: {
   access: Extract<ReportsPageAccessState, { view: "ready" }>;
+  activeTab: ReportsCreateTab;
   pageData: ReportsPageData;
 }) {
   return (
@@ -139,10 +167,17 @@ export function ReportsClientPage({
         <div className="bg-gradient-to-r from-slate-50 via-white to-emerald-50/60 px-6 py-6">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
             <div className="space-y-3">
+              <Link href="/dashboard/reports">
+                <Button className="gap-2 px-0 text-muted-foreground hover:text-foreground" variant="ghost">
+                  <ArrowLeft className="h-4 w-4" />
+                  Back to Reports Library
+                </Button>
+              </Link>
+
               <div className="space-y-1">
-                <h1 className="text-3xl font-semibold tracking-tight text-foreground">Reports</h1>
+                <h1 className="text-3xl font-semibold tracking-tight text-foreground">Create Report</h1>
                 <p className="text-sm text-muted-foreground">
-                  Module shell for saved reporting workflows, grouped into analytical reports and operational documents.
+                  Generate and save a new report or document inside your current reporting scope.
                 </p>
               </div>
 
@@ -163,7 +198,7 @@ export function ReportsClientPage({
                   <FolderKanban className="h-4 w-4" />
                 </div>
                 <div className="space-y-1">
-                  <p className="text-sm font-medium text-foreground">PASS 3</p>
+                  <p className="text-sm font-medium text-foreground">PASS 4</p>
                   <p className="max-w-sm text-sm text-muted-foreground">
                     {access.scopeDetail}
                   </p>
@@ -172,44 +207,57 @@ export function ReportsClientPage({
             </div>
           </div>
         </div>
+
+        <div className="border-t border-border/70 p-6">
+          <div className="inline-flex flex-wrap gap-2 rounded-xl border border-border/70 bg-muted/30 p-1">
+            <Link href={buildReportsCreateHref("analytics")}>
+              <TabButton active={activeTab === "analytics"} label="Analytical Reports" />
+            </Link>
+            <Link href={buildReportsCreateHref("documents")}>
+              <TabButton active={activeTab === "documents"} label="Operational Documents" />
+            </Link>
+          </div>
+        </div>
       </Card>
 
-      <CategorySection
-        accessible={access.canAccessAnalytics}
-        description="Management-facing reporting space for aggregated branch and financial summaries."
-        icon="analytics"
-        items={ANALYTICAL_REPORT_ITEMS}
-        lockedDescription="Your current role is limited to operational document workflows. Broad analytical reporting is not enabled here."
-        lockedTitle="Analytical reports are not available for this role"
-        generationSlot={
-          <AnalyticsReportGenerationForm
-            access={access}
-            analyticsTemplates={pageData.analyticsTemplates}
-            branchOptions={pageData.branchOptions}
-          />
-        }
-        title="Analytical Reports"
-      />
-
-      <CategorySection
-        accessible={access.canAccessOperationalDocuments}
-        description="Record-specific reporting lane for printable operational documents tied to loans and collections."
-        generationSlot={
-          <Card className="border-border/70 bg-background">
-            <CardHeader>
-              <CardTitle className="text-xl">Operational Document Entry Points</CardTitle>
-              <CardDescription>
-                PASS 3 uses related record pages as the generation surface. Open a loan detail page to generate Borrower Loan Schedule and Loan Receipt Summary, or use collection history rows to generate Collection Receipt.
-              </CardDescription>
-            </CardHeader>
-          </Card>
-        }
-        icon="documents"
-        items={OPERATIONAL_DOCUMENT_ITEMS}
-        lockedDescription="Operational document generation is not available for your current role in this module."
-        lockedTitle="Operational documents are not available for this role"
-        title="Operational Documents"
-      />
+      {activeTab === "analytics" ? (
+        <CategorySection
+          accessible={access.canAccessAnalytics}
+          description="Management-facing reporting space for aggregated branch and financial summaries."
+          icon="analytics"
+          items={ANALYTICAL_REPORT_ITEMS}
+          lockedDescription="Your current role is limited to operational document workflows. Broad analytical reporting is not enabled here."
+          lockedTitle="Analytical reports are not available for this role"
+          generationSlot={
+            <AnalyticsReportGenerationForm
+              access={access}
+              analyticsTemplates={pageData.analyticsTemplates}
+              branchOptions={pageData.branchOptions}
+            />
+          }
+          title="Analytical Reports"
+        />
+      ) : (
+        <CategorySection
+          accessible={access.canAccessOperationalDocuments}
+          description="Record-specific reporting lane for printable operational documents tied to loans and collections."
+          generationSlot={
+            <Card className="border-border/70 bg-background">
+              <CardHeader>
+                <CardTitle className="text-xl">Operational Document Entry Points</CardTitle>
+                <CardDescription>
+                  Operational documents continue to be generated from their related record pages. Open a loan detail page to generate Borrower Loan Schedule and Loan Receipt Summary, or use collection history rows to generate Collection Receipt.
+                </CardDescription>
+              </CardHeader>
+            </Card>
+          }
+          icon="documents"
+          items={OPERATIONAL_DOCUMENT_ITEMS}
+          lockedDescription="Operational document generation is not available for your current role in this module."
+          lockedTitle="Operational documents are not available for your current role"
+          title="Operational Documents"
+        />
+      )}
     </div>
   );
 }

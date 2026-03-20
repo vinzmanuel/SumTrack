@@ -37,6 +37,40 @@ export type ReportsPageData = {
   analyticsTemplates: ReportsAnalyticsTemplateOption[];
 };
 
+export type ReportsLibraryCategoryTab = "all" | "analytics" | "documents";
+export type ReportsLibraryStatusTab = "active" | "archived";
+export type ReportsCreateTab = "analytics" | "documents";
+
+export type ReportsLibraryFilterState = {
+  category: ReportsLibraryCategoryTab;
+  status: ReportsLibraryStatusTab;
+};
+
+export type ReportsLibraryRow = {
+  reportId: number;
+  title: string;
+  reportCategory: "analytics" | "document";
+  templateKey: string;
+  templateLabel: string;
+  generatedType: "user" | "system";
+  generatedAt: string;
+  status: "active" | "archived";
+  sourceEntityType: "loan" | "collection" | null;
+  sourceEntityId: number | null;
+};
+
+export type ReportsLibraryPageData = {
+  filters: ReportsLibraryFilterState;
+  rows: ReportsLibraryRow[];
+  counts: {
+    all: number;
+    analytics: number;
+    documents: number;
+    active: number;
+    archived: number;
+  };
+};
+
 export type ReportsPageAccessState =
     | {
       view: "ready";

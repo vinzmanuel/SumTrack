@@ -88,6 +88,20 @@ export function getOperationalDocumentTemplateDefinition(
   return OPERATIONAL_DOCUMENT_TEMPLATES.find((template) => template.key === key) ?? null;
 }
 
+export function resolveReportTemplateLabel(templateKey: string) {
+  const analyticsTemplate = ANALYTICS_REPORT_TEMPLATES.find((template) => template.key === templateKey);
+  if (analyticsTemplate) {
+    return analyticsTemplate.label;
+  }
+
+  const documentTemplate = OPERATIONAL_DOCUMENT_TEMPLATES.find((template) => template.key === templateKey);
+  if (documentTemplate) {
+    return documentTemplate.label;
+  }
+
+  return templateKey;
+}
+
 export function buildAnalyticsTemplateOptions(
   branchCount: number,
   canAccessAnalytics: boolean,

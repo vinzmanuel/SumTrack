@@ -9,7 +9,9 @@ import {
   inArray,
   isNull,
   lte,
+  or,
   sql,
+  type SQL,
 } from "drizzle-orm";
 import { ACTIVE_LOAN_STATUSES } from "@/app/dashboard/loans/active-statuses";
 import {
@@ -25,11 +27,15 @@ import {
   buildAnalyticsTemplateOptions,
   getAnalyticsTemplateDefinition,
   getOperationalDocumentTemplateDefinition,
+  resolveReportTemplateLabel,
 } from "@/app/dashboard/reports/templates";
 import type {
   AnalyticsReportTemplateKey,
   OperationalDocumentTemplateKey,
   ReportsBranchOption,
+  ReportsLibraryFilterState,
+  ReportsLibraryPageData,
+  ReportsLibraryRow,
   ReportsPageData,
   ReportsReadyAccessState,
 } from "@/app/dashboard/reports/types";
@@ -152,6 +158,71 @@ function buildDateRangeLabel(dateFrom: string, dateTo: string) {
   }
 
   return `${formatIsoDate(dateFrom)} to ${formatIsoDate(dateTo)}`;
+}
+
+function buildReportsLibraryScopeWhere(access: ReportsReadyAccessState) {
+  if (access.roleName === "Admin") {
+    return undefined;
+  }
+
+  const conditions: SQL[] = [];
+
+  if (access.roleName === "Auditor") {
+    conditions.push(eq(reports.report_category, "analytics"));
+  }
+
+  if (access.roleName === "Secretary") {
+    conditions.push(eq(reports.report_category, "document"));
+  }
+
+  if (access.fixedBranchId !== null) {
+    conditions.push(sql`array_position(${reports.branch_scope}, ${access.fixedBranchId}) is not null`);
+  } else if (access.allowedBranchIds.length > 0) {
+    const branchScopeConditions = access.allowedBranchIds.map((branchId) =>
+      sql`array_position(${reports.branch_scope}, ${branchId}) is not null`,
+    );
+    const branchScopeWhere =
+      branchScopeConditions.length === 1
+        ? branchScopeConditions[0]
+        : or(...branchScopeConditions);
+
+    if (branchScopeWhere) {
+      conditions.push(branchScopeWhere);
+    }
+  } else {
+    conditions.push(eq(reports.report_id, -1));
+  }
+
+  if (conditions.length === 0) {
+    return undefined;
+  }
+
+  return conditions.length === 1 ? conditions[0] : and(...conditions);
+}
+
+function buildReportsLibraryRow(row: {
+  reportId: number;
+  title: string;
+  reportCategory: "analytics" | "document";
+  templateKey: string;
+  generatedType: "user" | "system";
+  generatedAt: string;
+  status: "active" | "archived";
+  sourceEntityType: "loan" | "collection" | null;
+  sourceEntityId: number | null;
+}): ReportsLibraryRow {
+  return {
+    reportId: row.reportId,
+    title: row.title,
+    reportCategory: row.reportCategory,
+    templateKey: row.templateKey,
+    templateLabel: resolveReportTemplateLabel(row.templateKey),
+    generatedType: row.generatedType,
+    generatedAt: row.generatedAt,
+    status: row.status,
+    sourceEntityType: row.sourceEntityType,
+    sourceEntityId: row.sourceEntityId,
+  };
 }
 
 async function loadVisibleBranchOptions(access: ReportsReadyAccessState): Promise<ReportsBranchOption[]> {
@@ -702,6 +773,52 @@ export async function loadReportsPageData(access: ReportsReadyAccessState): Prom
   return {
     branchOptions,
     analyticsTemplates: buildAnalyticsTemplateOptions(branchOptions.length, access.canAccessAnalytics),
+  };
+}
+
+export async function loadReportsLibraryPageData(
+  access: ReportsReadyAccessState,
+  filters: ReportsLibraryFilterState,
+): Promise<ReportsLibraryPageData> {
+  const rows = await db
+    .select({
+      reportId: reports.report_id,
+      title: reports.title,
+      reportCategory: reports.report_category,
+      templateKey: reports.template_key,
+      generatedType: reports.generated_type,
+      generatedAt: reports.generated_at,
+      status: reports.status,
+      sourceEntityType: reports.source_entity_type,
+      sourceEntityId: reports.source_entity_id,
+    })
+    .from(reports)
+    .where(buildReportsLibraryScopeWhere(access))
+    .orderBy(desc(reports.generated_at), desc(reports.report_id))
+    .catch(() => []);
+
+  const visibleRows = rows.map(buildReportsLibraryRow);
+  const filteredRows = visibleRows.filter((row) => {
+    const matchesCategory =
+      filters.category === "all"
+        ? true
+        : filters.category === "documents"
+          ? row.reportCategory === "document"
+          : row.reportCategory === "analytics";
+    const matchesStatus = row.status === filters.status;
+    return matchesCategory && matchesStatus;
+  });
+
+  return {
+    filters,
+    rows: filteredRows,
+    counts: {
+      all: visibleRows.length,
+      analytics: visibleRows.filter((row) => row.reportCategory === "analytics").length,
+      documents: visibleRows.filter((row) => row.reportCategory === "document").length,
+      active: visibleRows.filter((row) => row.status === "active").length,
+      archived: visibleRows.filter((row) => row.status === "archived").length,
+    },
   };
 }
 
