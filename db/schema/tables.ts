@@ -13,6 +13,7 @@ import {
   uniqueIndex,
   uuid,
   varchar,
+  jsonb,
   index,
 } from "drizzle-orm/pg-core";
 
@@ -557,6 +558,86 @@ export const incentive_payout_history = pgTable(
       sql`${table.computed_incentive} >= 0`,
     ),
   ],
+);
+
+export const reports = pgTable(
+  "reports",
+  {
+    report_id: integer("report_id")
+      .primaryKey()
+      .generatedAlwaysAsIdentity(),
+    title: varchar("title", { length: 160 }).notNull(),
+    report_category: text("report_category")
+      .$type<"analytics" | "document">()
+      .notNull(),
+    template_key: varchar("template_key", { length: 80 }).notNull(),
+    generated_type: text("generated_type")
+      .$type<"user" | "system">()
+      .notNull()
+      .default("user"),
+    generated_by: uuid("generated_by").notNull(),
+    generated_at: timestamp("generated_at", { mode: "string" })
+      .notNull()
+      .defaultNow(),
+    filters: jsonb("filters").notNull(),
+    branch_scope: integer("branch_scope")
+      .array()
+      .notNull()
+      .default(sql`'{}'::integer[]`),
+    date_from: date("date_from"),
+    date_to: date("date_to"),
+    source_entity_type: text("source_entity_type").$type<
+      "loan" | "collection" | null
+    >(),
+    source_entity_id: integer("source_entity_id"),
+    snapshot: jsonb("snapshot").notNull(),
+    status: text("status")
+      .$type<"active" | "archived">()
+      .notNull()
+      .default("active"),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.generated_by],
+      foreignColumns: [users.user_id],
+      name: "reports_generated_by_fkey",
+    }),
+    check(
+      "reports_report_category_check",
+      sql`${table.report_category} in ('analytics', 'document')`
+    ),
+    check(
+      "reports_generated_type_check",
+      sql`${table.generated_type} in ('user', 'system')`
+    ),
+    check(
+      "reports_source_entity_type_check",
+      sql`${table.source_entity_type} is null or ${table.source_entity_type} in ('loan', 'collection')`
+    ),
+    check(
+      "reports_status_check",
+      sql`${table.status} in ('active', 'archived')`
+    ),
+    index("reports_generated_at_idx").on(table.generated_at),
+    index("reports_generated_by_idx").on(table.generated_by),
+    index("reports_report_category_idx").on(table.report_category),
+    index("reports_template_key_idx").on(table.template_key),
+    index("reports_generated_type_idx").on(table.generated_type),
+    index("reports_status_idx").on(table.status),
+    index("reports_status_generated_at_idx").on(
+      table.status,
+      table.generated_at
+    ),
+    index("reports_generated_by_status_generated_at_idx").on(
+      table.generated_by,
+      table.status,
+      table.generated_at
+    ),
+    index("reports_source_entity_lookup_idx").on(
+      table.source_entity_type,
+      table.source_entity_id
+    ),
+  ]
 );
 
 export const loan_docs = pgTable(

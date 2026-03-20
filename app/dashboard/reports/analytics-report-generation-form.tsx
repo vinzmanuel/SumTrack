@@ -1,0 +1,303 @@
+"use client";
+
+import { useActionState, useMemo, useState } from "react";
+import { useFormStatus } from "react-dom";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { generateAnalyticsReportAction } from "@/app/dashboard/reports/actions";
+import { initialGenerateAnalyticsReportState } from "@/app/dashboard/reports/state";
+import type {
+  ReportsAnalyticsTemplateOption,
+  ReportsBranchOption,
+  ReportsReadyAccessState,
+} from "@/app/dashboard/reports/types";
+
+function SubmitButton(props: { disabled?: boolean }) {
+  const { pending } = useFormStatus();
+
+  return (
+    <Button disabled={pending || props.disabled} type="submit">
+      {pending ? "Generating..." : "Generate and Save Report"}
+    </Button>
+  );
+}
+
+function currentMonthValue() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  return `${year}-${month}`;
+}
+
+function currentMonthStart() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  return `${year}-${month}-01`;
+}
+
+function currentDateValue() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function templateRequiresDateMode(
+  templates: ReportsAnalyticsTemplateOption[],
+  key: string,
+): "none" | "month" | "range" {
+  return templates.find((template) => template.key === key)?.dateMode ?? "none";
+}
+
+export function AnalyticsReportGenerationForm(props: {
+  access: ReportsReadyAccessState;
+  branchOptions: ReportsBranchOption[];
+  analyticsTemplates: ReportsAnalyticsTemplateOption[];
+}) {
+  const [state, formAction] = useActionState(
+    generateAnalyticsReportAction,
+    initialGenerateAnalyticsReportState,
+  );
+
+  const availableTemplates = useMemo(
+    () => props.analyticsTemplates.filter((template) => template.available),
+    [props.analyticsTemplates],
+  );
+  const unavailableTemplates = useMemo(
+    () => props.analyticsTemplates.filter((template) => !template.available),
+    [props.analyticsTemplates],
+  );
+  const hasAvailableTemplates = availableTemplates.length > 0;
+
+  const [templateKey, setTemplateKey] = useState<string>(availableTemplates[0]?.key ?? "");
+  const [selectedBranchIds, setSelectedBranchIds] = useState<string[]>(
+    props.access.fixedBranchId !== null ? [String(props.access.fixedBranchId)] : [],
+  );
+  const [month, setMonth] = useState(currentMonthValue());
+  const [dateFrom, setDateFrom] = useState(currentMonthStart());
+  const [dateTo, setDateTo] = useState(currentDateValue());
+
+  const dateMode = templateRequiresDateMode(props.analyticsTemplates, templateKey);
+  const usingFixedBranch = props.access.fixedBranchId !== null;
+
+  return (
+    <Card className="border-border/70 bg-background">
+      <CardHeader className="space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <CardTitle className="text-xl">Generate Manual Analytics Report</CardTitle>
+          <Badge className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-emerald-800 hover:bg-emerald-50">
+            PASS 2
+          </Badge>
+        </div>
+        <CardDescription>
+          Generate and save analytics snapshots into the existing reports table. Viewer, export, and archive workflows come in later passes.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form action={formAction} className="space-y-6">
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="template_key">Template</Label>
+              <Select onValueChange={setTemplateKey} value={templateKey}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select analytics template" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableTemplates.map((template) => (
+                    <SelectItem key={template.key} value={template.key}>
+                      {template.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <input name="template_key" type="hidden" value={templateKey} />
+              {state.fieldErrors?.template_key ? (
+                <p className="text-sm text-destructive">{state.fieldErrors.template_key}</p>
+              ) : null}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="title">Title</Label>
+              <Input
+                id="title"
+                name="title"
+                placeholder="Leave blank to use the default generated title"
+              />
+              <p className="text-xs text-muted-foreground">
+                Saved reports always need a title. If you leave this blank, the system will generate one from the template, date, and branch scope.
+              </p>
+              {state.fieldErrors?.title ? (
+                <p className="text-sm text-destructive">{state.fieldErrors.title}</p>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Branch Scope</Label>
+            {usingFixedBranch ? (
+              <div className="rounded-md border bg-muted/20 px-3 py-3 text-sm">
+                <p className="font-medium text-foreground">
+                  {props.access.fixedBranchName ?? "Assigned branch"}
+                </p>
+                <p className="mt-1 text-muted-foreground">
+                  Your role is fixed to a single branch for manual analytics generation.
+                </p>
+                <input name="branch_ids" type="hidden" value={String(props.access.fixedBranchId)} />
+              </div>
+            ) : (
+              <div className="space-y-2 rounded-md border p-3">
+                <p className="text-sm text-muted-foreground">
+                  Select one or more branches within your current reporting scope.
+                </p>
+                <div className="grid gap-2 md:grid-cols-2">
+                  {props.branchOptions.map((item) => {
+                    const checked = selectedBranchIds.includes(String(item.branchId));
+
+                    return (
+                      <label className="flex items-center gap-2 text-sm" key={item.branchId}>
+                        <input
+                          checked={checked}
+                          className="h-4 w-4"
+                          name="branch_ids"
+                          onChange={(event) => {
+                            const value = String(item.branchId);
+                            setSelectedBranchIds((previous) => {
+                              if (event.target.checked) {
+                                return previous.includes(value) ? previous : [...previous, value];
+                              }
+
+                              return previous.filter((branchId) => branchId !== value);
+                            });
+                          }}
+                          type="checkbox"
+                          value={String(item.branchId)}
+                        />
+                        <span>{item.branchName}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            {state.fieldErrors?.branch_ids ? (
+              <p className="text-sm text-destructive">{state.fieldErrors.branch_ids}</p>
+            ) : null}
+          </div>
+
+          {dateMode === "month" ? (
+            <div className="space-y-2">
+              <Label htmlFor="month">Month</Label>
+              <Input
+                id="month"
+                name="month"
+                onChange={(event) => setMonth(event.target.value)}
+                type="month"
+                value={month}
+              />
+              {state.fieldErrors?.month ? (
+                <p className="text-sm text-destructive">{state.fieldErrors.month}</p>
+              ) : null}
+            </div>
+          ) : null}
+
+          {dateMode === "range" ? (
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="date_from">Start Date</Label>
+                <Input
+                  id="date_from"
+                  name="date_from"
+                  onChange={(event) => setDateFrom(event.target.value)}
+                  type="date"
+                  value={dateFrom}
+                />
+                {state.fieldErrors?.date_from ? (
+                  <p className="text-sm text-destructive">{state.fieldErrors.date_from}</p>
+                ) : null}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="date_to">End Date</Label>
+                <Input
+                  id="date_to"
+                  name="date_to"
+                  onChange={(event) => setDateTo(event.target.value)}
+                  type="date"
+                  value={dateTo}
+                />
+                {state.fieldErrors?.date_to ? (
+                  <p className="text-sm text-destructive">{state.fieldErrors.date_to}</p>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+
+          {dateMode === "none" ? (
+            <div className="rounded-md border border-dashed border-border/80 bg-muted/15 px-3 py-3 text-sm text-muted-foreground">
+              This template saves a live-loan snapshot without an additional date filter.
+            </div>
+          ) : null}
+
+          {unavailableTemplates.length > 0 ? (
+            <div className="rounded-md border border-dashed border-border/80 bg-muted/15 px-4 py-3">
+              <p className="text-sm font-medium text-foreground">Unavailable in your current scope</p>
+              <div className="mt-2 space-y-1">
+                {unavailableTemplates.map((template) => (
+                  <p className="text-sm text-muted-foreground" key={template.key}>
+                    {template.label}: {template.availabilityNote}
+                  </p>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {state.status === "error" && state.message ? (
+            <p className="text-sm text-destructive">{state.message}</p>
+          ) : null}
+
+          <SubmitButton disabled={!hasAvailableTemplates} />
+        </form>
+
+        {state.status === "success" && state.result ? (
+          <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50/70 p-4">
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-emerald-900">Report saved</p>
+              <p className="text-sm text-emerald-800">
+                {state.result.templateLabel} was saved as report #{state.result.reportId}.
+              </p>
+            </div>
+            <div className="mt-3 grid gap-2 text-sm text-emerald-900 md:grid-cols-2">
+              <p>
+                <span className="font-medium">Title:</span> {state.result.title}
+              </p>
+              <p>
+                <span className="font-medium">Branches:</span> {state.result.branchCount}
+              </p>
+              <p>
+                <span className="font-medium">Generated At:</span> {state.result.generatedAt}
+              </p>
+              <p>
+                <span className="font-medium">Date Range:</span>{" "}
+                {state.result.dateFrom && state.result.dateTo
+                  ? `${state.result.dateFrom} to ${state.result.dateTo}`
+                  : "Current snapshot"}
+              </p>
+            </div>
+          </div>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}

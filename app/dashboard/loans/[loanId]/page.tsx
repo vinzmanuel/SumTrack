@@ -15,6 +15,7 @@ import {
 } from "@/db/schema";
 import { LoanDocumentsSection } from "@/app/dashboard/loans/[loanId]/documents/loan-documents-section";
 import { LoanDetailForm } from "@/app/dashboard/loans/[loanId]/loan-detail-form";
+import { LoanOperationalDocumentsCard } from "@/app/dashboard/loans/[loanId]/loan-operational-documents-card";
 import type { CollectionHistoryRow } from "@/app/dashboard/loans/[loanId]/state";
 
 type PageProps = {
@@ -135,6 +136,7 @@ export default async function LoanDetailPage({ params, searchParams }: PageProps
   const canManageDocs = isAdmin || isBranchManager || isSecretary;
   const canViewDocs = canManageDocs || isAuditor || isBorrower;
   const canRecordCollections = isAdmin || isBranchManager || isSecretary;
+  const canGenerateOperationalDocuments = canManageDocs;
 
   const borrowerInfo = await db
     .select({
@@ -335,12 +337,17 @@ export default async function LoanDetailPage({ params, searchParams }: PageProps
 
       <LoanDetailForm
         assignedCollectorLabel={assignedCollectorLabel}
+        canGenerateOperationalDocuments={canGenerateOperationalDocuments}
         canRecordCollections={canRecordCollections}
         estimatedDailyPayment={estimatedDailyPayment}
         initialCollections={initialCollectionRows}
         loanId={String(loan.loan_id)}
         totalPayable={totalPayable}
       />
+
+      {canGenerateOperationalDocuments ? (
+        <LoanOperationalDocumentsCard loanId={loan.loan_id} />
+      ) : null}
 
       <LoanDocumentsSection
         canManage={canManageDocs}

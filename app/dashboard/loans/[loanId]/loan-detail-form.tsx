@@ -16,6 +16,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createCollectionAction } from "@/app/dashboard/loans/[loanId]/actions";
+import { GenerateOperationalDocumentButton } from "@/app/dashboard/loans/[loanId]/generate-operational-document-button";
 import {
   initialLoanDetailState,
   type CollectionHistoryRow,
@@ -28,6 +29,7 @@ type LoanDetailFormProps = {
   totalPayable: number;
   estimatedDailyPayment: number | null;
   canRecordCollections: boolean;
+  canGenerateOperationalDocuments: boolean;
 };
 
 function SubmitButton() {
@@ -101,6 +103,7 @@ export function LoanDetailForm({
   totalPayable,
   estimatedDailyPayment,
   canRecordCollections,
+  canGenerateOperationalDocuments,
 }: LoanDetailFormProps) {
   const [state, formAction] = useActionState(createCollectionAction, initialLoanDetailState);
   const formRef = useRef<HTMLFormElement>(null);
@@ -390,6 +393,9 @@ export function LoanDetailForm({
                     <th className="px-2 py-2 font-medium">Amount</th>
                     <th className="px-2 py-2 font-medium">Collector</th>
                     <th className="px-2 py-2 font-medium">Note</th>
+                    {canGenerateOperationalDocuments ? (
+                      <th className="px-2 py-2 font-medium">Document</th>
+                    ) : null}
                   </tr>
                 </thead>
                 <tbody>
@@ -405,6 +411,17 @@ export function LoanDetailForm({
                       <td className="px-2 py-2">{formatMoney(row.amount)}</td>
                       <td className="px-2 py-2">{row.collectorName}</td>
                       <td className="px-2 py-2 text-red-500">{row.note || "-"}</td>
+                      {canGenerateOperationalDocuments ? (
+                        <td className="px-2 py-2">
+                          <GenerateOperationalDocumentButton
+                            label="Generate Receipt"
+                            size="sm"
+                            sourceEntityId={Number(row.collectionId)}
+                            templateKey="collection_receipt"
+                            variant="outline"
+                          />
+                        </td>
+                      ) : null}
                     </tr>
                   ))}
                 </tbody>
