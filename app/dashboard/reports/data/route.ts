@@ -20,9 +20,25 @@ export async function GET(request: Request) {
   }
 
   const url = new URL(request.url);
-  const filters = parseReportsLibraryFilters(
-    Object.fromEntries(url.searchParams.entries()),
-  );
+  const searchParams: Record<string, string | string[] | undefined> = {};
+
+  for (const [key, value] of url.searchParams.entries()) {
+    const existing = searchParams[key];
+
+    if (typeof existing === "undefined") {
+      searchParams[key] = value;
+      continue;
+    }
+
+    if (Array.isArray(existing)) {
+      existing.push(value);
+      continue;
+    }
+
+    searchParams[key] = [existing, value];
+  }
+
+  const filters = parseReportsLibraryFilters(searchParams);
   const pageData = await loadReportsLibraryPageData(access, filters);
 
   return NextResponse.json(pageData);

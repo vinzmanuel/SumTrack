@@ -982,16 +982,15 @@ export async function loadReportsLibraryPageData(
     return true;
   });
 
-  const filteredRows = advancedFilteredRows.filter((row) => {
-    const matchesCategory =
-      filters.category === "all"
-        ? true
-        : filters.category === "documents"
-          ? row.reportCategory === "document"
-          : row.reportCategory === "analytics";
-    const matchesStatus = row.status === filters.status;
-    return matchesCategory && matchesStatus;
-  });
+  const categoryScopedRows = advancedFilteredRows.filter((row) =>
+    filters.category === "all"
+      ? true
+      : filters.category === "documents"
+        ? row.reportCategory === "document"
+        : row.reportCategory === "analytics",
+  );
+
+  const filteredRows = categoryScopedRows.filter((row) => row.status === filters.status);
 
   return {
     filters,
@@ -1000,8 +999,8 @@ export async function loadReportsLibraryPageData(
       all: advancedFilteredRows.length,
       analytics: advancedFilteredRows.filter((row) => row.reportCategory === "analytics").length,
       documents: advancedFilteredRows.filter((row) => row.reportCategory === "document").length,
-      active: advancedFilteredRows.filter((row) => row.status === "active").length,
-      archived: advancedFilteredRows.filter((row) => row.status === "archived").length,
+      active: categoryScopedRows.filter((row) => row.status === "active").length,
+      archived: categoryScopedRows.filter((row) => row.status === "archived").length,
     },
     filterOptions: {
       templates,

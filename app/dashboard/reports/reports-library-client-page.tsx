@@ -39,14 +39,6 @@ function buildReportsLibraryDataUrl(filters: ReportsLibraryFilterState) {
   return href.replace("/dashboard/reports", "/dashboard/reports/data");
 }
 
-function areBranchArraysEqual(left: number[], right: number[]) {
-  if (left.length !== right.length) {
-    return false;
-  }
-
-  return left.every((value, index) => value === right[index]);
-}
-
 function TabButton({
   active,
   label,
@@ -332,7 +324,6 @@ export function ReportsLibraryClientPage({
   const initialFilters = useMemo(() => pageData.filters, [pageData.filters]);
   const [results, setResults] = useState(pageData);
   const [filters, setFilters] = useState(initialFilters);
-  const [appliedFilters, setAppliedFilters] = useState(initialFilters);
   const [isPending, setIsPending] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -342,7 +333,6 @@ export function ReportsLibraryClientPage({
   useEffect(() => {
     setResults(pageData);
     setFilters(initialFilters);
-    setAppliedFilters(initialFilters);
     setErrorMessage(null);
   }, [initialFilters, pageData]);
 
@@ -382,7 +372,6 @@ export function ReportsLibraryClientPage({
       }
 
       setResults(nextData);
-      setAppliedFilters(nextData.filters);
       updateHistory(nextData.filters);
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") {
@@ -419,20 +408,6 @@ export function ReportsLibraryClientPage({
     category: filters.category,
     status: filters.status,
   } satisfies ReportsLibraryFilterState;
-  const hasPendingFilterChange =
-    filters.category !== appliedFilters.category ||
-    filters.status !== appliedFilters.status ||
-    filters.templateKey !== appliedFilters.templateKey ||
-    filters.generatedType !== appliedFilters.generatedType ||
-    filters.generatedByRoleName !== appliedFilters.generatedByRoleName ||
-    filters.generatedByUserId !== appliedFilters.generatedByUserId ||
-    filters.generatedDatePreset !== appliedFilters.generatedDatePreset ||
-    filters.generatedDateFrom !== appliedFilters.generatedDateFrom ||
-    filters.generatedDateTo !== appliedFilters.generatedDateTo ||
-    filters.coverageDateFrom !== appliedFilters.coverageDateFrom ||
-    filters.coverageDateTo !== appliedFilters.coverageDateTo ||
-    !areBranchArraysEqual(filters.branchIds, appliedFilters.branchIds);
-
   return (
     <div className="space-y-6">
       <Card className="overflow-hidden p-0">
@@ -658,7 +633,7 @@ export function ReportsLibraryClientPage({
 
             {errorMessage ? <p className="text-destructive text-sm">{errorMessage}</p> : null}
 
-            {isPending || hasPendingFilterChange ? (
+            {isPending ? (
               <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-background/65 backdrop-blur-[1px]">
                 <div className="rounded-md border bg-background px-3 py-2 text-sm text-muted-foreground shadow-sm">
                   Updating reports...
