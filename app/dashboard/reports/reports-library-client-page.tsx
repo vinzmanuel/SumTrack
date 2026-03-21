@@ -755,8 +755,8 @@ export function ReportsLibraryClientPage({
                           (access.roleName === "Admin" || row.generatedByUserId === access.userId);
 
                         return (
-                          <tr className="align-top text-sm" key={row.reportId}>
-                            <td className="px-4 py-4">
+                          <tr className="align-middle text-sm" key={row.reportId}>
+                            <td className="px-4 py-4 align-middle">
                               <div className="space-y-1">
                                 <p className="font-medium text-foreground">{row.title}</p>
                                 {row.sourceEntityType && row.sourceEntityId ? (
@@ -766,7 +766,7 @@ export function ReportsLibraryClientPage({
                                 ) : null}
                               </div>
                             </td>
-                            <td className="px-4 py-4">
+                            <td className="px-4 py-4 align-middle">
                               <GeneratedByCell
                                 generatedByCompanyId={row.generatedByCompanyId}
                                 generatedByName={row.generatedByName}
@@ -774,10 +774,10 @@ export function ReportsLibraryClientPage({
                                 generatedType={row.generatedType}
                               />
                             </td>
-                            <td className="px-4 py-4 text-muted-foreground">
+                            <td className="px-4 py-4 align-middle text-muted-foreground">
                               {formatGeneratedAt(row.generatedAt)}
                             </td>
-                            <td className="px-4 py-4">
+                            <td className="px-4 py-4 align-middle">
                               <Badge
                                 className={
                                   row.status === "active"
@@ -788,7 +788,7 @@ export function ReportsLibraryClientPage({
                                 {row.status === "active" ? "Active" : "Archived"}
                               </Badge>
                             </td>
-                            <td className="px-4 py-4">
+                            <td className="px-4 py-4 align-middle">
                               <div className="flex flex-wrap items-center gap-2">
                                 <Link href={`/dashboard/reports/${row.reportId}`}>
                                   <Button size="sm" type="button" variant="outline">
