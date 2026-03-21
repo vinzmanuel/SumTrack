@@ -5,6 +5,7 @@ import type {
   ReportsLibraryCategoryTab,
   ReportsLibraryFilterState,
   ReportsLibraryStatusTab,
+  ReportsTemplateCategoryKey,
 } from "@/app/dashboard/reports/types";
 
 function firstValue(value: string | string[] | undefined) {
@@ -23,6 +24,11 @@ function parseIntegerArray(value: string | string[] | undefined) {
   return allValues(value)
     .map((item) => Number(item))
     .filter((item) => Number.isInteger(item) && item > 0);
+}
+
+function parsePositivePage(value: string | string[] | undefined) {
+  const nextValue = Number(firstValue(value));
+  return Number.isInteger(nextValue) && nextValue > 0 ? nextValue : 1;
 }
 
 function parseNullableDate(value: string | string[] | undefined) {
@@ -60,10 +66,32 @@ function parseNullableString(value: string | string[] | undefined) {
   return nextValue.length > 0 ? nextValue : null;
 }
 
+function parseTemplateCategory(
+  value: string | string[] | undefined,
+): ReportsTemplateCategoryKey | null {
+  const nextValue = firstValue(value);
+
+  if (
+    nextValue === "financials" ||
+    nextValue === "collections" ||
+    nextValue === "loans" ||
+    nextValue === "borrowers" ||
+    nextValue === "branches" ||
+    nextValue === "collectors" ||
+    nextValue === "documents"
+  ) {
+    return nextValue;
+  }
+
+  return null;
+}
+
 export function createDefaultReportsLibraryFilters(): ReportsLibraryFilterState {
   return {
     category: "all",
     status: "active",
+    page: 1,
+    templateCategory: null,
     templateKey: null,
     generatedType: "all",
     generatedByRoleName: null,
@@ -103,6 +131,8 @@ export function parseReportsLibraryFilters(searchParams: Record<string, string |
   return {
     category: parseReportsLibraryCategoryTab(searchParams.category),
     status: parseReportsLibraryStatusTab(searchParams.status),
+    page: parsePositivePage(searchParams.page),
+    templateCategory: parseTemplateCategory(searchParams.templateCategory),
     templateKey: parseNullableString(searchParams.template),
     generatedType: parseGeneratedType(searchParams.generatedType),
     generatedByRoleName: parseNullableString(searchParams.generatedByRole),
@@ -130,6 +160,14 @@ export function buildReportsLibraryHref(filters: ReportsLibraryFilterState) {
 
   if (filters.status !== "active") {
     search.set("status", filters.status);
+  }
+
+  if (filters.page > 1) {
+    search.set("page", String(filters.page));
+  }
+
+  if (filters.templateCategory) {
+    search.set("templateCategory", filters.templateCategory);
   }
 
   if (filters.templateKey) {

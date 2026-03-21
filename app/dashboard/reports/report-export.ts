@@ -48,8 +48,48 @@ function resolveCsvTable(report: ReportsViewerPageData): ReportsSnapshotTableSec
     return tableSections.find((section) => section.key === "branchLiveLoans") ?? null;
   }
 
+  if (report.templateKey === "overdue_loans_report") {
+    return tableSections.find((section) => section.key === "overdueLoansRawData") ?? null;
+  }
+
+  if (report.templateKey === "collections_by_collector") {
+    return tableSections.find((section) => section.key === "collectionsByCollectorRawData") ?? null;
+  }
+
+  if (report.templateKey === "released_loans_report") {
+    return tableSections.find((section) => section.key === "releasedLoansRawData") ?? null;
+  }
+
+  if (report.templateKey === "closed_loans_report") {
+    return tableSections.find((section) => section.key === "closedLoansRawData") ?? null;
+  }
+
   if (report.templateKey === "branch_performance_comparison") {
     return tableSections.find((section) => section.key === "branchComparison") ?? null;
+  }
+
+  if (report.templateKey === "branch_collections_comparison") {
+    return tableSections.find((section) => section.key === "branchCollectionsComparisonRawData") ?? null;
+  }
+
+  if (report.templateKey === "branch_loans_comparison") {
+    return tableSections.find((section) => section.key === "branchLoansComparisonRawData") ?? null;
+  }
+
+  if (report.templateKey === "borrower_summary") {
+    return tableSections.find((section) => section.key === "borrowerSummaryRawData") ?? null;
+  }
+
+  if (report.templateKey === "borrowers_with_overdue_loans") {
+    return tableSections.find((section) => section.key === "borrowersWithOverdueLoansRawData") ?? null;
+  }
+
+  if (report.templateKey === "collector_performance_report") {
+    return tableSections.find((section) => section.key === "collectorPerformanceRawData") ?? null;
+  }
+
+  if (report.templateKey === "collector_leaderboard_report") {
+    return tableSections.find((section) => section.key === "collectorLeaderboardRawData") ?? null;
   }
 
   if (report.templateKey === "borrower_loan_schedule") {

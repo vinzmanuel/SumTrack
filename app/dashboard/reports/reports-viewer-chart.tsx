@@ -52,6 +52,19 @@ function mapChartData(chart: ReportsSnapshotChartSection) {
   }));
 }
 
+function getSeriesValueFormat(
+  chart: ReportsSnapshotChartSection,
+  dataKey: string | number | undefined,
+) {
+  const series = chart.series.find((item) => item.key === dataKey);
+  return series?.valueFormat ?? chart.valueFormat;
+}
+
+function getAxisFormat(chart: ReportsSnapshotChartSection, axisId: "left" | "right") {
+  const series = chart.series.find((item) => (item.yAxisId ?? "left") === axisId);
+  return series?.valueFormat ?? chart.valueFormat;
+}
+
 function ViewerChartTooltip(props: {
   active?: boolean;
   label?: string | number;
@@ -61,7 +74,7 @@ function ViewerChartTooltip(props: {
     name?: string | number;
     value?: string | number;
   }>;
-  valueFormat?: ReportsSnapshotChartSection["valueFormat"];
+  chart: ReportsSnapshotChartSection;
 }) {
   if (!props.active || !props.payload?.length) {
     return null;
@@ -81,7 +94,10 @@ function ViewerChartTooltip(props: {
               <span>{String(entry.name ?? entry.dataKey ?? "")}</span>
             </div>
             <span className="font-medium text-foreground">
-              {formatTooltipValue(Number(entry.value ?? 0), props.valueFormat)}
+              {formatTooltipValue(
+                Number(entry.value ?? 0),
+                getSeriesValueFormat(props.chart, entry.dataKey),
+              )}
             </span>
           </div>
         ))}
@@ -96,6 +112,10 @@ export function ReportsViewerChart(props: {
 }) {
   const chartType = props.forceChartType ?? props.chart.chartType;
   const data = mapChartData(props.chart);
+  const hasRightAxis = props.chart.series.some((series) => (series.yAxisId ?? "left") === "right");
+  const leftAxisFormat = getAxisFormat(props.chart, "left");
+  const rightAxisFormat = getAxisFormat(props.chart, "right");
+  const isHorizontalBarChart = chartType === "bar" && props.chart.layout === "horizontal";
 
   if (data.length === 0) {
     return (
@@ -107,7 +127,7 @@ export function ReportsViewerChart(props: {
 
   const sharedProps = {
     data,
-    margin: { top: 12, right: 16, left: 8, bottom: 0 },
+    margin: { top: 12, right: hasRightAxis ? 30 : 16, left: 8, bottom: 0 },
   };
 
   return (
@@ -119,14 +139,26 @@ export function ReportsViewerChart(props: {
               <CartesianGrid stroke="#e5e7eb" strokeDasharray="3 3" vertical={false} />
               <XAxis axisLine={false} dataKey="bucket" tick={{ fill: "#6b7280", fontSize: 12 }} tickLine={false} />
               <YAxis
+                yAxisId="left"
                 axisLine={false}
                 tick={{ fill: "#6b7280", fontSize: 12 }}
-                tickFormatter={(value) => formatAxisValue(Number(value ?? 0), props.chart.valueFormat)}
+                tickFormatter={(value) => formatAxisValue(Number(value ?? 0), leftAxisFormat)}
                 tickLine={false}
                 width={88}
               />
+              {hasRightAxis ? (
+                <YAxis
+                  yAxisId="right"
+                  orientation="right"
+                  axisLine={false}
+                  tick={{ fill: "#6b7280", fontSize: 12 }}
+                  tickFormatter={(value) => formatAxisValue(Number(value ?? 0), rightAxisFormat)}
+                  tickLine={false}
+                  width={72}
+                />
+              ) : null}
               <Tooltip
-                content={<ViewerChartTooltip valueFormat={props.chart.valueFormat} />}
+                content={<ViewerChartTooltip chart={props.chart} />}
                 cursor={{ stroke: "#d4d4d8", strokeDasharray: "4 4" }}
               />
               <Legend />
@@ -140,6 +172,7 @@ export function ReportsViewerChart(props: {
                     stroke={series.color}
                     strokeWidth={2.5}
                     type="monotone"
+                    yAxisId={series.yAxisId ?? "left"}
                   />
                 ) : (
                   <Bar
@@ -148,6 +181,7 @@ export function ReportsViewerChart(props: {
                     key={series.key}
                     name={series.label}
                     radius={[6, 6, 0, 0]}
+                    yAxisId={series.yAxisId ?? "left"}
                   />
                 ),
               )}
@@ -157,14 +191,26 @@ export function ReportsViewerChart(props: {
               <CartesianGrid stroke="#e5e7eb" strokeDasharray="3 3" vertical={false} />
               <XAxis axisLine={false} dataKey="bucket" tick={{ fill: "#6b7280", fontSize: 12 }} tickLine={false} />
               <YAxis
+                yAxisId="left"
                 axisLine={false}
                 tick={{ fill: "#6b7280", fontSize: 12 }}
-                tickFormatter={(value) => formatAxisValue(Number(value ?? 0), props.chart.valueFormat)}
+                tickFormatter={(value) => formatAxisValue(Number(value ?? 0), leftAxisFormat)}
                 tickLine={false}
                 width={88}
               />
+              {hasRightAxis ? (
+                <YAxis
+                  yAxisId="right"
+                  orientation="right"
+                  axisLine={false}
+                  tick={{ fill: "#6b7280", fontSize: 12 }}
+                  tickFormatter={(value) => formatAxisValue(Number(value ?? 0), rightAxisFormat)}
+                  tickLine={false}
+                  width={72}
+                />
+              ) : null}
               <Tooltip
-                content={<ViewerChartTooltip valueFormat={props.chart.valueFormat} />}
+                content={<ViewerChartTooltip chart={props.chart} />}
                 cursor={{ stroke: "#d4d4d8", strokeDasharray: "4 4" }}
               />
               <Legend />
@@ -177,22 +223,66 @@ export function ReportsViewerChart(props: {
                   stroke={series.color}
                   strokeWidth={2.5}
                   type="monotone"
+                  yAxisId={series.yAxisId ?? "left"}
                 />
               ))}
             </LineChart>
           ) : (
-            <BarChart {...sharedProps}>
+            <BarChart
+              {...sharedProps}
+              layout={isHorizontalBarChart ? "vertical" : "horizontal"}
+              margin={
+                isHorizontalBarChart
+                  ? { top: 12, right: 20, left: 100, bottom: 0 }
+                  : sharedProps.margin
+              }
+            >
               <CartesianGrid stroke="#e5e7eb" strokeDasharray="3 3" vertical={false} />
-              <XAxis axisLine={false} dataKey="bucket" tick={{ fill: "#6b7280", fontSize: 12 }} tickLine={false} />
-              <YAxis
+              <XAxis
                 axisLine={false}
+                dataKey={isHorizontalBarChart ? undefined : "bucket"}
                 tick={{ fill: "#6b7280", fontSize: 12 }}
-                tickFormatter={(value) => formatAxisValue(Number(value ?? 0), props.chart.valueFormat)}
+                tickFormatter={
+                  isHorizontalBarChart
+                    ? (value) => formatAxisValue(Number(value ?? 0), leftAxisFormat)
+                    : undefined
+                }
                 tickLine={false}
-                width={88}
+                type={isHorizontalBarChart ? "number" : "category"}
               />
+              <YAxis
+                yAxisId="left"
+                axisLine={false}
+                dataKey={isHorizontalBarChart ? "bucket" : undefined}
+                tick={{ fill: "#6b7280", fontSize: 12 }}
+                tickFormatter={
+                  isHorizontalBarChart
+                    ? undefined
+                    : (value) => formatAxisValue(Number(value ?? 0), leftAxisFormat)
+                }
+                tickLine={false}
+                type={isHorizontalBarChart ? "category" : "number"}
+                width={isHorizontalBarChart ? 160 : 88}
+              />
+              {hasRightAxis ? (
+                <YAxis
+                  yAxisId="right"
+                  orientation="right"
+                  axisLine={false}
+                  dataKey={isHorizontalBarChart ? "bucket" : undefined}
+                  tick={{ fill: "#6b7280", fontSize: 12 }}
+                  tickFormatter={
+                    isHorizontalBarChart
+                      ? undefined
+                      : (value) => formatAxisValue(Number(value ?? 0), rightAxisFormat)
+                  }
+                  tickLine={false}
+                  type={isHorizontalBarChart ? "category" : "number"}
+                  width={72}
+                />
+              ) : null}
               <Tooltip
-                content={<ViewerChartTooltip valueFormat={props.chart.valueFormat} />}
+                content={<ViewerChartTooltip chart={props.chart} />}
                 cursor={{ fill: "rgba(148, 163, 184, 0.12)" }}
               />
               <Legend />
@@ -202,7 +292,8 @@ export function ReportsViewerChart(props: {
                   fill={series.color}
                   key={series.key}
                   name={series.label}
-                  radius={[6, 6, 0, 0]}
+                  radius={isHorizontalBarChart ? [0, 6, 6, 0] : [6, 6, 0, 0]}
+                  yAxisId={series.yAxisId ?? "left"}
                 />
               ))}
             </BarChart>

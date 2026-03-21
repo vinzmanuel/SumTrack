@@ -20,7 +20,10 @@ import { initialGenerateAnalyticsReportState } from "@/app/dashboard/reports/sta
 import type {
   ReportsAnalyticsTemplateOption,
   ReportsBranchOption,
+  ReportsCollectorOption,
   ReportsReadyAccessState,
+  ReportsTemplateCategoryDefinition,
+  ReportsTemplateCategoryKey,
 } from "@/app/dashboard/reports/types";
 
 function SubmitButton(props: { disabled?: boolean }) {
@@ -65,33 +68,98 @@ function templateRequiresDateMode(
 export function AnalyticsReportGenerationForm(props: {
   access: ReportsReadyAccessState;
   branchOptions: ReportsBranchOption[];
+  collectorOptions: ReportsCollectorOption[];
   analyticsTemplates: ReportsAnalyticsTemplateOption[];
+  analyticsTemplateCategories: ReportsTemplateCategoryDefinition[];
 }) {
   const [state, formAction] = useActionState(
     generateAnalyticsReportAction,
     initialGenerateAnalyticsReportState,
   );
 
+  const initialCategory =
+    props.analyticsTemplateCategories.find((category) =>
+      props.analyticsTemplates.some(
+        (template) => template.category === category.key && template.available,
+      ),
+    )?.key ??
+    props.analyticsTemplateCategories[0]?.key ??
+    "financials";
+
+  const [selectedCategory, setSelectedCategory] = useState<ReportsTemplateCategoryKey>(
+    initialCategory,
+  );
+  const effectiveSelectedCategory = props.analyticsTemplateCategories.some(
+    (category) => category.key === selectedCategory,
+  )
+    ? selectedCategory
+    : initialCategory;
+
+  const categoryTemplates = useMemo(
+    () =>
+      props.analyticsTemplates.filter((template) => template.category === effectiveSelectedCategory),
+    [effectiveSelectedCategory, props.analyticsTemplates],
+  );
   const availableTemplates = useMemo(
+    () => categoryTemplates.filter((template) => template.available),
+    [categoryTemplates],
+  );
+  const unavailableTemplates = useMemo(
+    () => categoryTemplates.filter((template) => !template.available),
+    [categoryTemplates],
+  );
+  const allAvailableTemplates = useMemo(
     () => props.analyticsTemplates.filter((template) => template.available),
     [props.analyticsTemplates],
   );
-  const unavailableTemplates = useMemo(
-    () => props.analyticsTemplates.filter((template) => !template.available),
-    [props.analyticsTemplates],
-  );
-  const hasAvailableTemplates = availableTemplates.length > 0;
 
   const [templateKey, setTemplateKey] = useState<string>(availableTemplates[0]?.key ?? "");
   const [selectedBranchIds, setSelectedBranchIds] = useState<string[]>(
     props.access.fixedBranchId !== null ? [String(props.access.fixedBranchId)] : [],
   );
+  const [collectorId, setCollectorId] = useState("");
   const [month, setMonth] = useState(currentMonthValue());
   const [dateFrom, setDateFrom] = useState(currentMonthStart());
   const [dateTo, setDateTo] = useState(currentDateValue());
 
-  const dateMode = templateRequiresDateMode(props.analyticsTemplates, templateKey);
+  const effectiveTemplateKey = categoryTemplates.some((template) => template.key === templateKey)
+    ? templateKey
+    : availableTemplates[0]?.key ?? "";
+  const dateMode = templateRequiresDateMode(props.analyticsTemplates, effectiveTemplateKey);
+  const selectedTemplate =
+    props.analyticsTemplates.find((template) => template.key === effectiveTemplateKey) ?? null;
   const usingFixedBranch = props.access.fixedBranchId !== null;
+  const effectiveSelectedBranchIds = useMemo(
+    () =>
+      usingFixedBranch
+        ? [String(props.access.fixedBranchId)]
+        : selectedBranchIds,
+    [props.access.fixedBranchId, selectedBranchIds, usingFixedBranch],
+  );
+  const collectorSelectionRequired = selectedTemplate?.key === "collector_performance_report";
+  const filteredCollectorOptions = useMemo(() => {
+    const selectedBranchIdSet = new Set(
+      effectiveSelectedBranchIds
+        .map((value) => Number(value))
+        .filter((value) => Number.isInteger(value) && value > 0),
+    );
+
+    if (selectedBranchIdSet.size === 0) {
+      return usingFixedBranch ? props.collectorOptions : [];
+    }
+
+    return props.collectorOptions.filter((item) => selectedBranchIdSet.has(item.branchId));
+  }, [effectiveSelectedBranchIds, props.collectorOptions, usingFixedBranch]);
+  const effectiveCollectorId = filteredCollectorOptions.some(
+    (item) => item.collectorId === collectorId,
+  )
+    ? collectorId
+    : filteredCollectorOptions[0]?.collectorId ?? "";
+  const selectedCategoryDefinition =
+    props.analyticsTemplateCategories.find(
+      (category) => category.key === effectiveSelectedCategory,
+    ) ?? null;
+  const hasAvailableTemplates = availableTemplates.length > 0 && Boolean(effectiveTemplateKey);
 
   return (
     <Card className="border-border/70 bg-background">
@@ -108,10 +176,56 @@ export function AnalyticsReportGenerationForm(props: {
         </CardHeader>
         <CardContent>
           <form action={formAction} className="space-y-6">
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <Label>Template Category</Label>
+                <p className="text-xs text-muted-foreground">
+                  Choose a reporting category first, then select a template inside it.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {props.analyticsTemplateCategories.map((category) => {
+                  const availableCount = props.analyticsTemplates.filter(
+                    (template) => template.category === category.key && template.available,
+                  ).length;
+
+                  return (
+                    <Button
+                      className="h-auto rounded-xl px-4 py-3 text-left"
+                      key={category.key}
+                      onClick={() => {
+                        setSelectedCategory(category.key);
+                        const nextTemplate =
+                          props.analyticsTemplates.find(
+                            (template) =>
+                              template.category === category.key && template.available,
+                          )?.key ?? "";
+                        setTemplateKey(nextTemplate);
+                      }}
+                      type="button"
+                      variant={effectiveSelectedCategory === category.key ? "default" : "outline"}
+                    >
+                      <span className="flex flex-col items-start gap-0.5">
+                        <span>{category.label}</span>
+                        <span className="text-xs opacity-80">
+                          {availableCount > 0 ? `${availableCount} available` : "Planned / unavailable"}
+                        </span>
+                      </span>
+                    </Button>
+                  );
+                })}
+              </div>
+              {selectedCategoryDefinition ? (
+                <div className="rounded-md border border-dashed border-border/80 bg-muted/15 px-3 py-3 text-sm text-muted-foreground">
+                  {selectedCategoryDefinition.description}
+                </div>
+              ) : null}
+            </div>
+
             <div className="grid gap-4 lg:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="template_key">Template</Label>
-                <Select onValueChange={setTemplateKey} value={templateKey}>
+                <Select onValueChange={setTemplateKey} value={effectiveTemplateKey}>
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select analytics template" />
                   </SelectTrigger>
@@ -123,7 +237,12 @@ export function AnalyticsReportGenerationForm(props: {
                     ))}
                   </SelectContent>
                 </Select>
-                <input name="template_key" type="hidden" value={templateKey} />
+                <input name="template_key" type="hidden" value={effectiveTemplateKey} />
+                {categoryTemplates.length > 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    {categoryTemplates.length} template{categoryTemplates.length === 1 ? "" : "s"} in {selectedCategoryDefinition?.label ?? "this category"}.
+                  </p>
+                ) : null}
                 {state.fieldErrors?.template_key ? (
                   <p className="text-sm text-destructive">{state.fieldErrors.template_key}</p>
                 ) : null}
@@ -192,10 +311,46 @@ export function AnalyticsReportGenerationForm(props: {
                   </div>
                 </div>
               )}
-              {state.fieldErrors?.branch_ids ? (
+                {state.fieldErrors?.branch_ids ? (
                 <p className="text-sm text-destructive">{state.fieldErrors.branch_ids}</p>
               ) : null}
+              {selectedTemplate?.category === "branches" ? (
+                <p className="text-xs text-muted-foreground">
+                  These branch comparison templates use the exact branches you choose here. Single-branch output is allowed, but 2 or more selected branches make the comparison much more useful.
+                </p>
+              ) : null}
             </div>
+
+            {collectorSelectionRequired ? (
+              <div className="space-y-2">
+                <Label htmlFor="collector_id">Collector</Label>
+                <Select onValueChange={setCollectorId} value={effectiveCollectorId}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select collector" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {filteredCollectorOptions.map((collector) => (
+                      <SelectItem key={collector.collectorId} value={collector.collectorId}>
+                        {collector.collectorName} ({collector.companyId})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <input name="collector_id" type="hidden" value={effectiveCollectorId} />
+                {filteredCollectorOptions.length > 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    This is a single-collector report. Choose the collector you want to analyze inside the selected branch scope.
+                  </p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    No collectors are available in the currently selected branch scope.
+                  </p>
+                )}
+                {state.fieldErrors?.collector_id ? (
+                  <p className="text-sm text-destructive">{state.fieldErrors.collector_id}</p>
+                ) : null}
+              </div>
+            ) : null}
 
             {dateMode === "month" ? (
               <div className="space-y-2">
@@ -253,7 +408,9 @@ export function AnalyticsReportGenerationForm(props: {
 
             {unavailableTemplates.length > 0 ? (
               <div className="rounded-md border border-dashed border-border/80 bg-muted/15 px-4 py-3">
-                <p className="text-sm font-medium text-foreground">Unavailable in your current scope</p>
+                <p className="text-sm font-medium text-foreground">
+                  Unavailable in {selectedCategoryDefinition?.label ?? "this category"}
+                </p>
                 <div className="mt-2 space-y-1">
                   {unavailableTemplates.map((template) => (
                     <p className="text-sm text-muted-foreground" key={template.key}>
@@ -261,6 +418,12 @@ export function AnalyticsReportGenerationForm(props: {
                     </p>
                   ))}
                 </div>
+              </div>
+            ) : null}
+
+            {!hasAvailableTemplates && allAvailableTemplates.length > 0 ? (
+              <div className="rounded-md border border-dashed border-border/80 bg-muted/15 px-4 py-3 text-sm text-muted-foreground">
+                No templates in {selectedCategoryDefinition?.label ?? "this category"} are ready to generate yet. Choose another category to continue.
               </div>
             ) : null}
 

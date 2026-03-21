@@ -558,12 +558,14 @@ async function loadCollectionTrendBuckets(
   access: AnalyticsAccess,
   collectorId: string,
   range: CollectorsDateRange,
-  granularity: "day" | "month",
+  granularity: "day" | "week" | "month",
 ): Promise<CollectionTrendBucketRow[]> {
   const collectorIds = [collectorId];
   const bucketExpression =
     granularity === "day"
       ? sql<string>`${collections.collection_date}::text`
+      : granularity === "week"
+        ? sql<string>`to_char(date_trunc('week', ${collections.collection_date}), 'YYYY-MM-DD')`
       : sql<string>`to_char(date_trunc('month', ${collections.collection_date}), 'YYYY-MM-01')`;
 
   const rows = await db
@@ -582,6 +584,55 @@ async function loadCollectionTrendBuckets(
     bucketKey: row.bucketKey,
     totalCollected: toNumber(row.totalCollected),
   }));
+}
+
+export async function loadCollectorPerformanceRowsForCustomRange(
+  access: AnalyticsAccess,
+  params: {
+    dateFrom: string;
+    dateTo: string;
+    collectorId?: string;
+    includePrevious?: boolean;
+    mode?: CollectorRowMode;
+  },
+) {
+  return loadAllCollectorRows(
+    access,
+    {
+      selectedBranchRaw: "all",
+      selectedRange: "custom",
+      fromRaw: params.dateFrom,
+      toRaw: params.dateTo,
+      searchQuery: "",
+      page: 1,
+    },
+    params.collectorId,
+    {
+      includePrevious: params.includePrevious,
+      mode: params.mode,
+    },
+  );
+}
+
+export async function loadCollectorTrendBucketsForCustomRange(
+  access: AnalyticsAccess,
+  params: {
+    collectorId: string;
+    dateFrom: string;
+    dateTo: string;
+    granularity: "day" | "week" | "month";
+  },
+) {
+  return loadCollectionTrendBuckets(
+    access,
+    params.collectorId,
+    {
+      start: params.dateFrom,
+      end: params.dateTo,
+      label: "custom range",
+    },
+    params.granularity,
+  );
 }
 
 function buildTrendChart(

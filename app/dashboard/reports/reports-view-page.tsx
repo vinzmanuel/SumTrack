@@ -558,6 +558,145 @@ function renderBranchPerformanceComparison(report: ReportsViewerPageData) {
   );
 }
 
+function renderAnalyticsChartAndTableReport(
+  report: ReportsViewerPageData,
+  options: {
+    chartKey: string;
+    chartTitle: string;
+    tableKey: string;
+    tableTitle: string;
+    forceChartType?: ReportsSnapshotChartSection["chartType"];
+  },
+) {
+  const chart = findChartSection(report.snapshot, options.chartKey);
+  const rawTable = findTableSection(report.snapshot, options.tableKey);
+
+  return (
+    <div className="space-y-8">
+      <CompactSummary items={report.snapshot.summaryCards} title="Summary" />
+      {chart ? (
+        <ReportSection title={options.chartTitle}>
+          <ReportsViewerChart chart={chart} forceChartType={options.forceChartType} />
+        </ReportSection>
+      ) : null}
+      {rawTable ? (
+        <ReportSection title={options.tableTitle}>
+          <ReportsViewerDataTable section={rawTable} />
+        </ReportSection>
+      ) : null}
+    </div>
+  );
+}
+
+function renderOverdueLoansReport(report: ReportsViewerPageData) {
+  return renderAnalyticsChartAndTableReport(report, {
+    chartKey: "overdueLoansByBranch",
+    chartTitle: "Overdue Loan Burden by Branch",
+    tableKey: "overdueLoansRawData",
+    tableTitle: "Overdue Loan Details",
+  });
+}
+
+function renderCollectionsByCollector(report: ReportsViewerPageData) {
+  return renderAnalyticsChartAndTableReport(report, {
+    chartKey: "collectionsByCollectorChart",
+    chartTitle: "Collections by Collector",
+    tableKey: "collectionsByCollectorRawData",
+    tableTitle: "Collector Collection Breakdown",
+  });
+}
+
+function renderReleasedLoansReport(report: ReportsViewerPageData) {
+  return renderAnalyticsChartAndTableReport(report, {
+    chartKey: "releasedLoansByBranch",
+    chartTitle: "Released Loans by Branch",
+    tableKey: "releasedLoansRawData",
+    tableTitle: "Released Loan Details",
+  });
+}
+
+function renderClosedLoansReport(report: ReportsViewerPageData) {
+  return renderAnalyticsChartAndTableReport(report, {
+    chartKey: "closedLoansByBranch",
+    chartTitle: "Closed Loans by Branch",
+    tableKey: "closedLoansRawData",
+    tableTitle: "Closed Loan Details",
+  });
+}
+
+function renderBranchCollectionsComparison(report: ReportsViewerPageData) {
+  return renderAnalyticsChartAndTableReport(report, {
+    chartKey: "branchCollectionsComparisonChart",
+    chartTitle: "Branch Collections Comparison",
+    tableKey: "branchCollectionsComparisonRawData",
+    tableTitle: "Branch Collection Breakdown",
+  });
+}
+
+function renderBranchLoansComparison(report: ReportsViewerPageData) {
+  return renderAnalyticsChartAndTableReport(report, {
+    chartKey: "branchLoansComparisonChart",
+    chartTitle: "Branch Loan-State Comparison",
+    tableKey: "branchLoansComparisonRawData",
+    tableTitle: "Branch Loan Comparison Table",
+  });
+}
+
+function renderBorrowerSummary(report: ReportsViewerPageData) {
+  return renderAnalyticsChartAndTableReport(report, {
+    chartKey: "borrowerSummaryChart",
+    chartTitle: "Borrower Volume by Branch",
+    tableKey: "borrowerSummaryRawData",
+    tableTitle: "Borrower Summary Table",
+  });
+}
+
+function renderBorrowersWithOverdueLoans(report: ReportsViewerPageData) {
+  return renderAnalyticsChartAndTableReport(report, {
+    chartKey: "overdueBorrowersByBranch",
+    chartTitle: "Overdue Borrowers by Branch",
+    tableKey: "borrowersWithOverdueLoansRawData",
+    tableTitle: "Borrowers with Overdue Loans",
+  });
+}
+
+function renderCollectorPerformanceReport(report: ReportsViewerPageData) {
+  const chart = findChartSection(report.snapshot, "collectorPerformanceTrend");
+  const rawTable = findTableSection(report.snapshot, "collectorPerformanceRawData");
+  const collectorLabel =
+    typeof report.snapshot.meta["collectorLabel"] === "string"
+      ? String(report.snapshot.meta["collectorLabel"])
+      : null;
+
+  return (
+    <div className="space-y-8">
+      <CompactSummary items={report.snapshot.summaryCards} title="Summary" />
+      {collectorLabel ? (
+        <p className="text-sm text-muted-foreground">Collector: {collectorLabel}</p>
+      ) : null}
+      {chart ? (
+        <ReportSection title="Collector Trend">
+          <ReportsViewerChart chart={chart} forceChartType="line" />
+        </ReportSection>
+      ) : null}
+      {rawTable ? (
+        <ReportSection title="Activity by Period">
+          <ReportsViewerDataTable section={rawTable} />
+        </ReportSection>
+      ) : null}
+    </div>
+  );
+}
+
+function renderCollectorLeaderboardReport(report: ReportsViewerPageData) {
+  return renderAnalyticsChartAndTableReport(report, {
+    chartKey: "collectorLeaderboardChart",
+    chartTitle: "Collector Leaderboard",
+    tableKey: "collectorLeaderboardRawData",
+    tableTitle: "Collector Ranking Table",
+  });
+}
+
 function renderBorrowerLoanSchedule(report: ReportsViewerPageData) {
   const borrowerDetails = findFieldListSection(report.snapshot, "borrowerDetails");
   const loanSummary =
@@ -661,8 +800,48 @@ function renderReportBody(report: ReportsViewerPageData) {
     return renderActiveLoansSummary(report);
   }
 
+  if (report.templateKey === "overdue_loans_report") {
+    return renderOverdueLoansReport(report);
+  }
+
+  if (report.templateKey === "collections_by_collector") {
+    return renderCollectionsByCollector(report);
+  }
+
+  if (report.templateKey === "released_loans_report") {
+    return renderReleasedLoansReport(report);
+  }
+
+  if (report.templateKey === "closed_loans_report") {
+    return renderClosedLoansReport(report);
+  }
+
   if (report.templateKey === "branch_performance_comparison") {
     return renderBranchPerformanceComparison(report);
+  }
+
+  if (report.templateKey === "branch_collections_comparison") {
+    return renderBranchCollectionsComparison(report);
+  }
+
+  if (report.templateKey === "branch_loans_comparison") {
+    return renderBranchLoansComparison(report);
+  }
+
+  if (report.templateKey === "borrower_summary") {
+    return renderBorrowerSummary(report);
+  }
+
+  if (report.templateKey === "borrowers_with_overdue_loans") {
+    return renderBorrowersWithOverdueLoans(report);
+  }
+
+  if (report.templateKey === "collector_performance_report") {
+    return renderCollectorPerformanceReport(report);
+  }
+
+  if (report.templateKey === "collector_leaderboard_report") {
+    return renderCollectorLeaderboardReport(report);
   }
 
   if (report.templateKey === "borrower_loan_schedule") {
@@ -673,7 +852,15 @@ function renderReportBody(report: ReportsViewerPageData) {
     return renderCollectionReceipt(report);
   }
 
-  return renderLoanReceiptSummary(report);
+  if (report.templateKey === "loan_receipt_summary") {
+    return renderLoanReceiptSummary(report);
+  }
+
+  return (
+    <div className="rounded-lg border border-dashed border-border/70 bg-muted/10 px-4 py-8 text-sm text-muted-foreground">
+      This saved report template is not supported by the current viewer yet.
+    </div>
+  );
 }
 
 export function ReportsViewPage(props: { report: ReportsViewerPageData }) {

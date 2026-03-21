@@ -41,7 +41,9 @@ import type {
   ReportsLibraryGeneratedByFilterOption,
   ReportsLibraryGeneratedByRoleFilterOption,
   ReportsLibraryGeneratedDatePreset,
+  ReportsLibraryTemplateCategoryFilterOption,
   ReportsLibraryTemplateFilterOption,
+  ReportsTemplateCategoryKey,
 } from "@/app/dashboard/reports/types";
 
 type BranchComboboxOption = {
@@ -251,6 +253,7 @@ function GeneratedDatePresetSelect(props: {
 
 export function ReportsLibraryFilterSheet(props: {
   filters: ReportsLibraryFilterState;
+  templateCategoryOptions: ReportsLibraryTemplateCategoryFilterOption[];
   templateOptions: ReportsLibraryTemplateFilterOption[];
   generatedByRoleOptions: ReportsLibraryGeneratedByRoleFilterOption[];
   generatedByOptions: ReportsLibraryGeneratedByFilterOption[];
@@ -259,9 +262,22 @@ export function ReportsLibraryFilterSheet(props: {
 }) {
   const [open, setOpen] = useState(false);
   const [draftFilters, setDraftFilters] = useState<ReportsLibraryFilterState>(props.filters);
+  const filteredTemplateOptions = useMemo(
+    () =>
+      draftFilters.templateCategory
+        ? props.templateOptions.filter(
+            (option) => option.templateCategory === draftFilters.templateCategory,
+          )
+        : props.templateOptions,
+    [draftFilters.templateCategory, props.templateOptions],
+  );
 
   const resetDraft = () => {
-    setDraftFilters(createDefaultReportsLibraryFilters());
+    setDraftFilters({
+      ...createDefaultReportsLibraryFilters(),
+      category: props.filters.category,
+      status: props.filters.status,
+    });
   };
   const showOwnershipSection = draftFilters.generatedType !== "system";
 
@@ -311,6 +327,42 @@ export function ReportsLibraryFilterSheet(props: {
               >
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
+                    <Label htmlFor="reports-filter-template-category">Category</Label>
+                    <Select
+                      onValueChange={(value) =>
+                        setDraftFilters((current) => ({
+                          ...current,
+                          templateCategory:
+                            value === "__all__" ? null : (value as ReportsTemplateCategoryKey),
+                          templateKey:
+                            value === "__all__"
+                              ? current.templateKey
+                              : props.templateOptions.some(
+                                    (option) =>
+                                      option.templateKey === current.templateKey &&
+                                      option.templateCategory === value,
+                                  )
+                                ? current.templateKey
+                                : null,
+                        }))
+                      }
+                      value={draftFilters.templateCategory ?? "__all__"}
+                    >
+                      <SelectTrigger id="reports-filter-template-category">
+                        <SelectValue placeholder="All categories" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__all__">All categories</SelectItem>
+                        {props.templateCategoryOptions.map((option) => (
+                          <SelectItem key={option.key} value={option.key}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
                     <Label htmlFor="reports-filter-template">Report Template</Label>
                     <Select
                       onValueChange={(value) =>
@@ -326,7 +378,7 @@ export function ReportsLibraryFilterSheet(props: {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="__all__">All templates</SelectItem>
-                        {props.templateOptions.map((option) => (
+                        {filteredTemplateOptions.map((option) => (
                           <SelectItem key={option.templateKey} value={option.templateKey}>
                             {option.label}
                           </SelectItem>
@@ -334,7 +386,9 @@ export function ReportsLibraryFilterSheet(props: {
                       </SelectContent>
                     </Select>
                   </div>
+                </div>
 
+                <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="reports-filter-generated-type">Generated Type</Label>
                     <Select

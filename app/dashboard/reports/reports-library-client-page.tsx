@@ -17,6 +17,7 @@ import type {
   ReportsLibraryPageData,
   ReportsLibraryStatusTab,
   ReportsPageAccessState,
+  ReportsTemplateCategoryKey,
 } from "@/app/dashboard/reports/types";
 
 function formatGeneratedAt(value: string) {
@@ -37,6 +38,28 @@ function formatGeneratedAt(value: string) {
 function buildReportsLibraryDataUrl(filters: ReportsLibraryFilterState) {
   const href = buildReportsLibraryHref(filters);
   return href.replace("/dashboard/reports", "/dashboard/reports/data");
+}
+
+function templateCategoryMatchesLibraryTab(
+  libraryCategory: ReportsLibraryCategoryTab,
+  templateCategory: ReportsTemplateCategoryKey | null,
+) {
+  if (!templateCategory || libraryCategory === "all") {
+    return true;
+  }
+
+  if (libraryCategory === "documents") {
+    return templateCategory === "documents";
+  }
+
+  return templateCategory !== "documents";
+}
+
+function templateKeyMatchesLibraryTab(
+  libraryCategory: ReportsLibraryCategoryTab,
+  templateCategory: ReportsTemplateCategoryKey | null,
+) {
+  return templateCategoryMatchesLibraryTab(libraryCategory, templateCategory);
 }
 
 function TabButton({
@@ -193,6 +216,24 @@ function buildActiveFilterChipData(
       label: `Template: ${templateLabelMap.get(filters.templateKey) ?? filters.templateKey}`,
       nextFilters: {
         ...filters,
+        templateKey: null,
+      },
+    });
+  }
+
+  if (filters.templateCategory) {
+    const templateCategoryLabelMap = new Map(
+      pageData.filterOptions.templateCategories.map((option) => [option.key, option.label]),
+    );
+
+    chips.push({
+      key: "templateCategory",
+      label: `Category: ${
+        templateCategoryLabelMap.get(filters.templateCategory) ?? filters.templateCategory
+      }`,
+      nextFilters: {
+        ...filters,
+        templateCategory: null,
         templateKey: null,
       },
     });
@@ -372,6 +413,7 @@ export function ReportsLibraryClientPage({
       }
 
       setResults(nextData);
+      setFilters(nextData.filters);
       updateHistory(nextData.filters);
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") {
@@ -390,10 +432,27 @@ export function ReportsLibraryClientPage({
     }
   }, [updateHistory]);
 
-  const applyFilters = useCallback((nextFilters: ReportsLibraryFilterState) => {
-    setFilters(nextFilters);
-    void loadResults(nextFilters);
-  }, [loadResults]);
+  const applyFilters = useCallback(
+    (nextFilters: ReportsLibraryFilterState, options?: { preservePage?: boolean }) => {
+      const resolvedFilters = options?.preservePage ? nextFilters : { ...nextFilters, page: 1 };
+      setFilters(resolvedFilters);
+      void loadResults(resolvedFilters);
+    },
+    [loadResults],
+  );
+
+  const handlePageChange = useCallback(
+    (page: number) => {
+      applyFilters(
+        {
+          ...filtersRef.current,
+          page,
+        },
+        { preservePage: true },
+      );
+    },
+    [applyFilters],
+  );
 
   const emptyState = resolveEmptyState(filters, results.counts);
   const canGenerate = access.canAccessAnalytics || access.canAccessOperationalDocuments;
@@ -408,6 +467,11 @@ export function ReportsLibraryClientPage({
     category: filters.category,
     status: filters.status,
   } satisfies ReportsLibraryFilterState;
+  const totalPages = Math.max(Math.ceil(results.totalCount / results.pageSize), 1);
+  const safePage = Math.min(Math.max(results.page, 1), totalPages);
+  const showingFrom = results.totalCount === 0 ? 0 : (safePage - 1) * results.pageSize + 1;
+  const showingTo =
+    results.totalCount === 0 ? 0 : Math.min(safePage * results.pageSize, results.totalCount);
   return (
     <div className="space-y-6">
       <Card className="overflow-hidden p-0">
@@ -451,10 +515,12 @@ export function ReportsLibraryClientPage({
               count={results.counts.all}
               label="All Reports"
               onSelect={(category) =>
-                applyFilters({
-                  ...filtersRef.current,
-                  category,
-                })
+                  applyFilters({
+                    ...filtersRef.current,
+                    category,
+                    templateCategory: filtersRef.current.templateCategory,
+                    templateKey: filtersRef.current.templateKey,
+                  })
               }
             />
             <CategoryTabButton
@@ -464,9 +530,23 @@ export function ReportsLibraryClientPage({
               label="Analytics"
               onSelect={(category) =>
                 applyFilters({
-                  ...filtersRef.current,
-                  category,
-                })
+                    ...filtersRef.current,
+                    category,
+                    templateCategory: templateCategoryMatchesLibraryTab(
+                      category,
+                      filtersRef.current.templateCategory,
+                    )
+                      ? filtersRef.current.templateCategory
+                      : null,
+                    templateKey: templateKeyMatchesLibraryTab(
+                      category,
+                      results.filterOptions.templates.find(
+                        (option) => option.templateKey === filtersRef.current.templateKey,
+                      )?.templateCategory ?? null,
+                    )
+                      ? filtersRef.current.templateKey
+                      : null,
+                  })
               }
             />
             <CategoryTabButton
@@ -476,9 +556,23 @@ export function ReportsLibraryClientPage({
               label="Documents"
               onSelect={(category) =>
                 applyFilters({
-                  ...filtersRef.current,
-                  category,
-                })
+                    ...filtersRef.current,
+                    category,
+                    templateCategory: templateCategoryMatchesLibraryTab(
+                      category,
+                      filtersRef.current.templateCategory,
+                    )
+                      ? filtersRef.current.templateCategory
+                      : null,
+                    templateKey: templateKeyMatchesLibraryTab(
+                      category,
+                      results.filterOptions.templates.find(
+                        (option) => option.templateKey === filtersRef.current.templateKey,
+                      )?.templateCategory ?? null,
+                    )
+                      ? filtersRef.current.templateKey
+                      : null,
+                  })
               }
             />
           </div>
@@ -534,6 +628,7 @@ export function ReportsLibraryClientPage({
               generatedByRoleOptions={results.filterOptions.generatedByRoles}
               generatedByOptions={results.filterOptions.generatedByUsers}
               onApply={applyFilters}
+              templateCategoryOptions={results.filterOptions.templateCategories}
               templateOptions={results.filterOptions.templates}
             />
           </div>
@@ -639,7 +734,41 @@ export function ReportsLibraryClientPage({
               </div>
             )}
 
-            {errorMessage ? <p className="text-destructive text-sm">{errorMessage}</p> : null}
+            {results.totalCount > 0 ? (
+              <div className="flex flex-col gap-3 border-t pt-3 text-sm md:flex-row md:items-center md:justify-between">
+                <div className="space-y-1">
+                  <p className="text-muted-foreground">
+                    Showing {showingFrom}-{showingTo} of {results.totalCount}
+                  </p>
+                  {errorMessage ? <p className="text-destructive text-sm">{errorMessage}</p> : null}
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground">
+                    Page {safePage} of {totalPages}
+                  </span>
+                  <Button
+                    disabled={isPending || safePage <= 1}
+                    onClick={() => handlePageChange(safePage - 1)}
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    disabled={isPending || safePage >= totalPages}
+                    onClick={() => handlePageChange(safePage + 1)}
+                    size="sm"
+                    type="button"
+                    variant="outline"
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            ) : errorMessage ? (
+              <p className="text-destructive text-sm">{errorMessage}</p>
+            ) : null}
 
             {isPending ? (
               <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-background/65 backdrop-blur-[1px]">

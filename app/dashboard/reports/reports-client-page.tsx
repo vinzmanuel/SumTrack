@@ -15,47 +15,6 @@ import type {
   ReportsPageData,
 } from "@/app/dashboard/reports/types";
 
-const ANALYTICAL_REPORT_ITEMS: ReportsPageCategoryItem[] = [
-  {
-    key: "monthly-collections-summary",
-    title: "Monthly Collections Summary",
-    blurb: "Branch-scoped collection totals, trends, and missed-payment signals.",
-  },
-  {
-    key: "active-loans-summary",
-    title: "Active Loans Summary",
-    blurb: "Live loan exposure, active/overdue counts, and operational loan totals.",
-  },
-  {
-    key: "branch-performance-comparison",
-    title: "Branch Performance Comparison",
-    blurb: "Cross-branch comparison for collections, borrowers, and loan activity.",
-  },
-  {
-    key: "monthly-financial-overview",
-    title: "Monthly Financial Overview",
-    blurb: "Collections, expenses, and monthly operating totals inside the current scope.",
-  },
-];
-
-const OPERATIONAL_DOCUMENT_ITEMS: ReportsPageCategoryItem[] = [
-  {
-    key: "borrower-loan-schedule",
-    title: "Borrower Loan Schedule",
-    blurb: "Loan-scoped schedule summary document prepared from the current loan record.",
-  },
-  {
-    key: "collection-receipt",
-    title: "Collection Receipt",
-    blurb: "Single collection receipt generated from a saved collection record.",
-  },
-  {
-    key: "loan-receipt-summary",
-    title: "Loan Receipt Summary",
-    blurb: "Whole-loan payment summary document with saved collection history context.",
-  },
-];
-
 function CategoryPreviewCard(props: ReportsPageCategoryItem) {
   return (
     <div className="rounded-xl border border-dashed border-border/80 bg-muted/20 p-4">
@@ -161,6 +120,21 @@ export function ReportsCreateClientPage({
   activeTab: ReportsCreateTab;
   pageData: ReportsPageData;
 }) {
+  const analyticalReportItems: ReportsPageCategoryItem[] = pageData.analyticsTemplateCategories.map(
+    (category) => ({
+      key: category.key,
+      title: category.label,
+      blurb: category.description,
+    }),
+  );
+  const operationalDocumentItems: ReportsPageCategoryItem[] = pageData.operationalDocumentTemplates.map(
+    (template) => ({
+      key: template.key,
+      title: template.label,
+      blurb: template.description,
+    }),
+  );
+
   return (
     <div className="space-y-6">
       <Card className="overflow-hidden p-0">
@@ -225,14 +199,16 @@ export function ReportsCreateClientPage({
           accessible={access.canAccessAnalytics}
           description="Management-facing reporting space for aggregated branch and financial summaries."
           icon="analytics"
-          items={ANALYTICAL_REPORT_ITEMS}
+          items={analyticalReportItems}
           lockedDescription="Your current role is limited to operational document workflows. Broad analytical reporting is not enabled here."
           lockedTitle="Analytical reports are not available for this role"
           generationSlot={
             <AnalyticsReportGenerationForm
               access={access}
               analyticsTemplates={pageData.analyticsTemplates}
+              analyticsTemplateCategories={pageData.analyticsTemplateCategories}
               branchOptions={pageData.branchOptions}
+              collectorOptions={pageData.collectorOptions}
             />
           }
           title="Analytical Reports"
@@ -252,7 +228,7 @@ export function ReportsCreateClientPage({
             </Card>
           }
           icon="documents"
-          items={OPERATIONAL_DOCUMENT_ITEMS}
+          items={operationalDocumentItems}
           lockedDescription="Operational document generation is not available for your current role in this module."
           lockedTitle="Operational documents are not available for your current role"
           title="Operational Documents"

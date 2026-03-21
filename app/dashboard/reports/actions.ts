@@ -22,7 +22,10 @@ import type {
 } from "@/app/dashboard/reports/types";
 
 type FieldErrors = Partial<
-  Record<"title" | "template_key" | "branch_ids" | "month" | "date_from" | "date_to", string>
+  Record<
+    "title" | "template_key" | "branch_ids" | "collector_id" | "month" | "date_from" | "date_to",
+    string
+  >
 >;
 
 function getTrimmed(formData: FormData, key: string) {
@@ -48,6 +51,7 @@ export async function generateAnalyticsReportAction(
   const month = getTrimmed(formData, "month");
   const dateFrom = getTrimmed(formData, "date_from");
   const dateTo = getTrimmed(formData, "date_to");
+  const collectorId = getTrimmed(formData, "collector_id");
   const branchIds = parseBranchIds(formData);
 
   const fieldErrors: FieldErrors = {};
@@ -56,9 +60,16 @@ export async function generateAnalyticsReportAction(
   if (!template) {
     fieldErrors.template_key = "Select a valid analytics report template.";
   }
+  if (template && !template.implemented) {
+    fieldErrors.template_key = "This analytics report template is planned but not implemented yet.";
+  }
 
   if (branchIds.length === 0) {
     fieldErrors.branch_ids = "Select at least one branch.";
+  }
+
+  if (template?.key === "collector_performance_report" && !collectorId) {
+    fieldErrors.collector_id = "Select a collector for this report.";
   }
 
   if (template?.dateMode === "month" && !month) {
@@ -114,6 +125,7 @@ export async function generateAnalyticsReportAction(
     title,
     templateKey: template.key,
     branchIds,
+    collectorId: collectorId || null,
     month: month || null,
     dateFrom: dateFrom || null,
     dateTo: dateTo || null,
@@ -159,6 +171,13 @@ export async function generateOperationalDocumentAction(
     return {
       status: "error",
       message: "Unable to generate this document from the selected record.",
+    };
+  }
+
+  if (!template.implemented) {
+    return {
+      status: "error",
+      message: "This operational document template is planned but not implemented yet.",
     };
   }
 

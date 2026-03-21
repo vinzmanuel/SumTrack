@@ -10,12 +10,69 @@ export type AnalyticsReportTemplateKey =
   | "financial_overview"
   | "monthly_collections_summary"
   | "active_loans_summary"
-  | "branch_performance_comparison";
+  | "branch_performance_comparison"
+  | "collections_by_collector"
+  | "overdue_loans_report"
+  | "released_loans_report"
+  | "closed_loans_report"
+  | "borrower_summary"
+  | "borrowers_with_overdue_loans"
+  | "branch_collections_comparison"
+  | "branch_loans_comparison"
+  | "collector_performance_report"
+  | "collector_leaderboard_report";
 
 export type OperationalDocumentTemplateKey =
   | "borrower_loan_schedule"
   | "collection_receipt"
   | "loan_receipt_summary";
+
+export type ReportsTemplateCategoryKey =
+  | "financials"
+  | "collections"
+  | "loans"
+  | "borrowers"
+  | "branches"
+  | "collectors"
+  | "documents";
+
+export type ReportsTemplatePersistedCategory = "analytics" | "document";
+
+export type ReportsTemplateCategoryDefinition = {
+  key: ReportsTemplateCategoryKey;
+  label: string;
+  description: string;
+  reportCategory: ReportsTemplatePersistedCategory;
+};
+
+export type ReportsAnalyticsTemplateOption = {
+  key: AnalyticsReportTemplateKey;
+  label: string;
+  category: ReportsTemplateCategoryKey;
+  categoryLabel: string;
+  reportCategory: "analytics";
+  description: string;
+  allowedRoles: ReportsRoleName[];
+  generationMode: "manual";
+  dateMode: "none" | "month" | "range";
+  minBranchCount: number;
+  implemented: boolean;
+  available: boolean;
+  availabilityNote: string | null;
+};
+
+export type ReportsOperationalDocumentTemplateOption = {
+  key: OperationalDocumentTemplateKey;
+  label: string;
+  category: "documents";
+  categoryLabel: string;
+  reportCategory: "document";
+  description: string;
+  allowedRoles: ReportsRoleName[];
+  generationMode: "record";
+  sourceEntityType: "loan" | "collection";
+  implemented: boolean;
+};
 
 export type ReportsSnapshotValueFormat = "currency" | "number" | "text";
 
@@ -31,6 +88,8 @@ export type ReportsSnapshotChartSeries = {
   label: string;
   color: string;
   type?: "bar" | "line";
+  valueFormat?: ReportsSnapshotValueFormat;
+  yAxisId?: "left" | "right";
 };
 
 export type ReportsSnapshotChartSection = {
@@ -38,6 +97,7 @@ export type ReportsSnapshotChartSection = {
   title: string;
   type: "chart";
   chartType: "bar" | "line" | "composed";
+  layout?: "vertical" | "horizontal";
   indexLabel?: string;
   valueFormat?: ReportsSnapshotValueFormat;
   note?: string;
@@ -102,19 +162,20 @@ export type ReportsBranchOption = {
   branchName: string;
 };
 
-export type ReportsAnalyticsTemplateOption = {
-  key: AnalyticsReportTemplateKey;
-  label: string;
-  description: string;
-  dateMode: "none" | "month" | "range";
-  minBranchCount: number;
-  available: boolean;
-  availabilityNote: string | null;
+export type ReportsCollectorOption = {
+  collectorId: string;
+  collectorName: string;
+  companyId: string;
+  branchId: number;
+  branchName: string;
 };
 
 export type ReportsPageData = {
   branchOptions: ReportsBranchOption[];
+  collectorOptions: ReportsCollectorOption[];
   analyticsTemplates: ReportsAnalyticsTemplateOption[];
+  analyticsTemplateCategories: ReportsTemplateCategoryDefinition[];
+  operationalDocumentTemplates: ReportsOperationalDocumentTemplateOption[];
 };
 
 export type ReportsLibraryCategoryTab = "all" | "analytics" | "documents";
@@ -132,6 +193,8 @@ export type ReportsLibraryGeneratedDatePreset =
 export type ReportsLibraryFilterState = {
   category: ReportsLibraryCategoryTab;
   status: ReportsLibraryStatusTab;
+  page: number;
+  templateCategory: ReportsTemplateCategoryKey | null;
   templateKey: string | null;
   generatedType: ReportsLibraryGeneratedTypeFilter;
   generatedByRoleName: string | null;
@@ -148,6 +211,8 @@ export type ReportsLibraryRow = {
   reportId: number;
   title: string;
   reportCategory: "analytics" | "document";
+  templateCategory: ReportsTemplateCategoryKey;
+  templateCategoryLabel: string;
   templateKey: string;
   templateLabel: string;
   generatedType: "user" | "system";
@@ -166,6 +231,13 @@ export type ReportsLibraryRow = {
 export type ReportsLibraryTemplateFilterOption = {
   templateKey: string;
   label: string;
+  templateCategory: ReportsTemplateCategoryKey;
+};
+
+export type ReportsLibraryTemplateCategoryFilterOption = {
+  key: ReportsTemplateCategoryKey;
+  label: string;
+  reportCategory: ReportsTemplatePersistedCategory;
 };
 
 export type ReportsLibraryGeneratedByFilterOption = {
@@ -181,6 +253,9 @@ export type ReportsLibraryGeneratedByRoleFilterOption = {
 export type ReportsLibraryPageData = {
   filters: ReportsLibraryFilterState;
   rows: ReportsLibraryRow[];
+  page: number;
+  pageSize: number;
+  totalCount: number;
   counts: {
     all: number;
     analytics: number;
@@ -189,6 +264,7 @@ export type ReportsLibraryPageData = {
     archived: number;
   };
   filterOptions: {
+    templateCategories: ReportsLibraryTemplateCategoryFilterOption[];
     templates: ReportsLibraryTemplateFilterOption[];
     generatedByRoles: ReportsLibraryGeneratedByRoleFilterOption[];
     generatedByUsers: ReportsLibraryGeneratedByFilterOption[];

@@ -7,25 +7,44 @@ import {
   eq,
   gte,
   inArray,
+  isNull,
   lte,
   or,
   sql,
   type SQL,
 } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
+import {
+  loadCollectorPerformanceRowsForCustomRange,
+  loadCollectorTrendBucketsForCustomRange,
+} from "@/app/dashboard/collectors/queries";
 import { ACTIVE_LOAN_STATUSES } from "@/app/dashboard/loans/active-statuses";
 import {
   buildActiveLoansSummarySnapshot,
+  buildBranchCollectionsComparisonSnapshot,
+  buildBranchLoansComparisonSnapshot,
   buildBranchPerformanceComparisonSnapshot,
+  buildBorrowerSummarySnapshot,
+  buildBorrowersWithOverdueLoansSnapshot,
   buildBorrowerLoanScheduleSnapshot,
+  buildClosedLoansReportSnapshot,
   buildCollectionReceiptSnapshot,
+  buildCollectorLeaderboardReportSnapshot,
+  buildCollectorPerformanceReportSnapshot,
+  buildCollectionsByCollectorSnapshot,
   buildFinancialOverviewSnapshot,
   buildLoanReceiptSummarySnapshot,
   buildMonthlyCollectionsSummarySnapshot,
+  buildOverdueLoansReportSnapshot,
+  buildReleasedLoansReportSnapshot,
 } from "@/app/dashboard/reports/snapshot-builders";
 import {
+  buildAnalyticsTemplateCategoryOptions,
   buildAnalyticsTemplateOptions,
+  buildOperationalDocumentTemplateOptions,
   getAnalyticsTemplateDefinition,
   getOperationalDocumentTemplateDefinition,
+  resolveReportTemplateCategory,
   resolveReportTemplateLabel,
 } from "@/app/dashboard/reports/templates";
 import type {
@@ -54,12 +73,20 @@ import {
   reports,
   roles,
   users,
+  employee_area_assignment,
 } from "@/db/schema";
+import type { CollectorsAccessState } from "@/app/dashboard/collectors/types";
+
+const borrowerUsers = alias(users, "reports_borrower_users");
+const collectorUsers = alias(users, "reports_collector_users");
+const REPORTS_LIBRARY_PAGE_SIZE = 10;
+type ReportsCollectorAnalyticsAccess = Extract<CollectorsAccessState, { view: "analytics" }>;
 
 type GenerateAnalyticsReportInput = {
   title: string;
   templateKey: AnalyticsReportTemplateKey;
   branchIds: number[];
+  collectorId: string | null;
   dateFrom: string | null;
   dateTo: string | null;
   month: string | null;
@@ -229,6 +256,31 @@ function formatMoney(value: number) {
   })}`;
 }
 
+function currentManilaIsoDate() {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const parts = formatter.formatToParts(new Date());
+  const year = parts.find((part) => part.type === "year")?.value ?? "0000";
+  const month = parts.find((part) => part.type === "month")?.value ?? "01";
+  const day = parts.find((part) => part.type === "day")?.value ?? "01";
+
+  return `${year}-${month}-${day}`;
+}
+
+function calculateDaysBetweenIsoDates(startDate: string, endDate: string) {
+  const start = new Date(`${startDate}T00:00:00Z`);
+  const end = new Date(`${endDate}T00:00:00Z`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    return 0;
+  }
+
+  return Math.max(Math.floor((end.getTime() - start.getTime()) / 86400000), 0);
+}
+
 function resolveMonthWindow(month: string) {
   const match = month.match(/^(\d{4})-(\d{2})$/);
   if (!match) {
@@ -332,10 +384,16 @@ function buildReportsLibraryRow(row: {
   sourceEntityType: "loan" | "collection" | null;
   sourceEntityId: number | null;
 }): ReportsLibraryRow {
+  const templateCategory = resolveReportTemplateCategory(row.templateKey);
+
   return {
     reportId: row.reportId,
     title: row.title,
     reportCategory: row.reportCategory,
+    templateCategory:
+      templateCategory?.key ?? (row.reportCategory === "document" ? "documents" : "financials"),
+    templateCategoryLabel:
+      templateCategory?.label ?? (row.reportCategory === "document" ? "Documents" : "Financials"),
     templateKey: row.templateKey,
     templateLabel: resolveReportTemplateLabel(row.templateKey),
     generatedType: row.generatedType,
@@ -429,6 +487,180 @@ async function loadSelectedBranchRows(branchIds: number[]) {
     .where(inArray(branch.branch_id, branchIds))
     .orderBy(asc(branch.branch_name))
     .catch(() => []);
+}
+
+async function loadVisibleCollectorOptions(access: ReportsReadyAccessState) {
+  if (!access.canAccessAnalytics || access.allowedBranchIds.length === 0) {
+    return [];
+  }
+
+  return db
+    .select({
+      collectorId: users.user_id,
+      collectorName: sql<string>`coalesce(nullif(trim(concat_ws(' ', ${employee_info.first_name}, ${employee_info.middle_name}, ${employee_info.last_name})), ''), ${users.username})`,
+      companyId: users.company_id,
+      branchId: branch.branch_id,
+      branchName: branch.branch_name,
+    })
+    .from(employee_area_assignment)
+    .innerJoin(users, eq(users.user_id, employee_area_assignment.employee_user_id))
+    .innerJoin(roles, eq(roles.role_id, users.role_id))
+    .innerJoin(areas, eq(areas.area_id, employee_area_assignment.area_id))
+    .innerJoin(branch, eq(branch.branch_id, areas.branch_id))
+    .leftJoin(employee_info, eq(employee_info.user_id, users.user_id))
+    .where(
+      and(
+        eq(roles.role_name, "Collector"),
+        isNull(employee_area_assignment.end_date),
+        inArray(branch.branch_id, access.allowedBranchIds),
+      ),
+    )
+    .groupBy(
+      users.user_id,
+      users.company_id,
+      users.username,
+      employee_info.first_name,
+      employee_info.middle_name,
+      employee_info.last_name,
+      branch.branch_id,
+      branch.branch_name,
+    )
+    .orderBy(asc(branch.branch_name), asc(employee_info.last_name), asc(employee_info.first_name))
+    .catch(() => []);
+}
+
+function buildReportsCollectorAnalyticsAccess(
+  access: ReportsReadyAccessState,
+  branchIds: number[],
+): ReportsCollectorAnalyticsAccess {
+  return {
+    view: "analytics",
+    roleName: access.roleName,
+    allowedBranchIds: branchIds,
+    selectedBranchId: null,
+    canChooseBranch: false,
+    branchFilterLabel: "Branch",
+    fixedBranchName: null,
+  };
+}
+
+function resolveCollectorTrendBucketMode(dateFrom: string, dateTo: string) {
+  const dayCount = countInclusiveDays(dateFrom, dateTo);
+
+  if (dayCount <= 31) {
+    return "day" as const;
+  }
+
+  if (dayCount <= 120) {
+    return "week" as const;
+  }
+
+  return "month" as const;
+}
+
+function bucketKeyToCollectorPeriodLabel(bucketKey: string, mode: "day" | "week" | "month") {
+  if (mode === "month") {
+    return bucketLabelFromKey(bucketKey.slice(0, 7), "month");
+  }
+
+  if (mode === "day") {
+    return bucketLabelFromKey(bucketKey, "day");
+  }
+
+  const parsed = new Date(`${bucketKey}T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime())) {
+    return bucketKey;
+  }
+
+  const end = new Date(parsed);
+  end.setUTCDate(end.getUTCDate() + 6);
+
+  const startLabel = new Intl.DateTimeFormat("en-PH", {
+    month: "short",
+    day: "2-digit",
+    timeZone: "UTC",
+  }).format(parsed);
+  const endLabel = new Intl.DateTimeFormat("en-PH", {
+    month: "short",
+    day: "2-digit",
+    timeZone: "UTC",
+  }).format(end);
+
+  return `${startLabel} - ${endLabel}`;
+}
+
+function startOfIsoWeek(dateValue: string) {
+  const parsed = new Date(`${dateValue}T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime())) {
+    return dateValue;
+  }
+
+  const dayOfWeek = parsed.getUTCDay();
+  const offset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  parsed.setUTCDate(parsed.getUTCDate() + offset);
+  return parsed.toISOString().slice(0, 10);
+}
+
+function enumerateCollectorBucketDefinitions(
+  dateFrom: string,
+  dateTo: string,
+  mode: "day" | "week" | "month",
+) {
+  if (mode === "day") {
+    return enumerateBucketLabels(dateFrom, dateTo, "day");
+  }
+
+  if (mode === "month") {
+    return enumerateBucketLabels(dateFrom, dateTo, "month");
+  }
+
+  const start = new Date(`${startOfIsoWeek(dateFrom)}T00:00:00Z`);
+  const end = new Date(`${dateTo}T00:00:00Z`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) {
+    return [] as Array<{ key: string; label: string }>;
+  }
+
+  const rows: Array<{ key: string; label: string }> = [];
+  const cursor = new Date(start);
+
+  while (cursor <= end) {
+    const key = cursor.toISOString().slice(0, 10);
+    rows.push({
+      key,
+      label: bucketKeyToCollectorPeriodLabel(key, "week"),
+    });
+    cursor.setUTCDate(cursor.getUTCDate() + 7);
+  }
+
+  return rows;
+}
+
+async function loadLoanPaymentSummary(loanIds: number[]) {
+  const safeLoanIds = Array.from(new Set(loanIds));
+  if (safeLoanIds.length === 0) {
+    return new Map<number, { totalPaid: number; completionDate: string | null }>();
+  }
+
+  const paymentRows = await db
+    .select({
+      loanId: collections.loan_id,
+      totalPaid: sql<number>`coalesce(sum(${collections.amount}), 0)`,
+      completionDate: sql<string | null>`max(${collections.collection_date})`,
+    })
+    .from(collections)
+    .where(inArray(collections.loan_id, safeLoanIds))
+    .groupBy(collections.loan_id)
+    .catch(() => []);
+
+  return new Map(
+    paymentRows.map((row) => [
+      row.loanId,
+      {
+        totalPaid: toNumber(row.totalPaid),
+        completionDate: row.completionDate,
+      },
+    ]),
+  );
 }
 
 async function loadLiveLoanBranchMetrics(branchIds: number[]) {
@@ -913,6 +1145,503 @@ async function loadActiveLoansSummaryData(branchRows: Array<{ branchId: number; 
   };
 }
 
+async function loadOverdueLoansReportData(
+  branchRows: Array<{ branchId: number; branchName: string }>,
+  dateFrom: string,
+  dateTo: string,
+) {
+  const branchIds = branchRows.map((row) => row.branchId);
+  const overdueLoanRows = await db
+    .select({
+      loanId: loan_records.loan_id,
+      borrowerId: loan_records.borrower_id,
+      branchId: loan_records.branch_id,
+      branchName: branch.branch_name,
+      loanCode: loan_records.loan_code,
+      releaseDate: loan_records.start_date,
+      dueDate: loan_records.due_date,
+      principal: loan_records.principal,
+      interest: loan_records.interest,
+      collectorUsername: collectorUsers.username,
+      collectorFirstName: employee_info.first_name,
+      collectorMiddleName: employee_info.middle_name,
+      collectorLastName: employee_info.last_name,
+      borrowerFirstName: borrower_info.first_name,
+      borrowerMiddleName: borrower_info.middle_name,
+      borrowerLastName: borrower_info.last_name,
+      borrowerUsername: borrowerUsers.username,
+      borrowerCompanyId: borrowerUsers.company_id,
+      status: loan_records.status,
+    })
+    .from(loan_records)
+    .innerJoin(branch, eq(branch.branch_id, loan_records.branch_id))
+    .innerJoin(borrower_info, eq(borrower_info.user_id, loan_records.borrower_id))
+    .leftJoin(borrowerUsers, eq(borrowerUsers.user_id, loan_records.borrower_id))
+    .leftJoin(collectorUsers, eq(collectorUsers.user_id, loan_records.collector_id))
+    .leftJoin(employee_info, eq(employee_info.user_id, collectorUsers.user_id))
+    .where(
+      and(
+        inArray(loan_records.branch_id, branchIds),
+        eq(loan_records.status, "Overdue"),
+        gte(loan_records.due_date, dateFrom),
+        lte(loan_records.due_date, dateTo),
+      ),
+    )
+    .orderBy(asc(branch.branch_name), asc(loan_records.due_date), asc(loan_records.loan_code))
+    .catch(() => []);
+
+  const paymentSummaryMap = await loadLoanPaymentSummary(
+    overdueLoanRows.map((row) => row.loanId),
+  );
+  const today = currentManilaIsoDate();
+
+  const rawRows = overdueLoanRows
+    .map((row) => {
+      const paymentSummary = paymentSummaryMap.get(row.loanId);
+      const totalPaid = paymentSummary?.totalPaid ?? 0;
+      const principal = toNumber(row.principal);
+      const interestRate = toNumber(row.interest);
+      const expectedTotal = principal + (principal * interestRate) / 100;
+
+      return {
+        borrowerId: row.borrowerId,
+        branchName: row.branchName,
+        borrowerName:
+          [row.borrowerFirstName, row.borrowerMiddleName, row.borrowerLastName]
+            .filter(Boolean)
+            .join(" ")
+            .trim() ||
+          row.borrowerCompanyId ||
+          row.borrowerUsername ||
+          row.borrowerId,
+        loanCode: row.loanCode,
+        releaseDate: row.releaseDate,
+        dueDate: row.dueDate,
+        daysOverdue: calculateDaysBetweenIsoDates(row.dueDate, today),
+        outstandingBalance: Math.max(expectedTotal - totalPaid, 0),
+        totalPaid,
+        expectedTotal,
+        collectorName: buildUserDisplayName({
+          firstName: row.collectorFirstName,
+          middleName: row.collectorMiddleName,
+          lastName: row.collectorLastName,
+          username: row.collectorUsername,
+          fallback: "Unassigned",
+        }),
+        status: row.status,
+      };
+    })
+    .sort((left, right) => {
+      if (right.daysOverdue !== left.daysOverdue) {
+        return right.daysOverdue - left.daysOverdue;
+      }
+
+      return left.dueDate.localeCompare(right.dueDate);
+    });
+
+  const branchCountMap = new Map<string, number>();
+  for (const row of rawRows) {
+    branchCountMap.set(row.branchName, (branchCountMap.get(row.branchName) ?? 0) + 1);
+  }
+
+  const totalDaysOverdue = rawRows.reduce((sum, row) => sum + row.daysOverdue, 0);
+
+  return {
+    summary: {
+      overdueLoansCount: rawRows.length,
+      totalOverdueBalance: rawRows.reduce((sum, row) => sum + row.outstandingBalance, 0),
+      averageDaysOverdue: rawRows.length > 0 ? Number((totalDaysOverdue / rawRows.length).toFixed(1)) : 0,
+      maxDaysOverdue: rawRows.reduce((max, row) => Math.max(max, row.daysOverdue), 0),
+      affectedBorrowers: new Set(rawRows.map((row) => row.borrowerId)).size,
+    },
+    chartRows: branchRows.map((row) => ({
+      bucket: row.branchName,
+      values: {
+        overdueLoans: branchCountMap.get(row.branchName) ?? 0,
+      },
+    })),
+    rawRows: rawRows.map((row) => ({
+      branchName: row.branchName,
+      borrowerName: row.borrowerName,
+      loanCode: row.loanCode,
+      releaseDate: row.releaseDate,
+      dueDate: row.dueDate,
+      daysOverdue: row.daysOverdue,
+      outstandingBalance: row.outstandingBalance,
+      totalPaid: row.totalPaid,
+      expectedTotal: row.expectedTotal,
+      collectorName: row.collectorName,
+      status: row.status,
+    })),
+  };
+}
+
+async function loadCollectionsByCollectorData(
+  branchRows: Array<{ branchId: number; branchName: string }>,
+  dateFrom: string,
+  dateTo: string,
+) {
+  const branchIds = branchRows.map((row) => row.branchId);
+  const [groupedRows, summaryRows] = await Promise.all([
+    db
+      .select({
+        collectorId: collections.collector_id,
+        companyId: collectorUsers.company_id,
+        branchId: loan_records.branch_id,
+        branchName: branch.branch_name,
+        collectorUsername: collectorUsers.username,
+        collectorFirstName: employee_info.first_name,
+        collectorMiddleName: employee_info.middle_name,
+        collectorLastName: employee_info.last_name,
+        totalCollectedAmount: sql<number>`coalesce(sum(${collections.amount}), 0)`,
+        numberOfCollections: sql<number>`count(*)`,
+        borrowersHandled: sql<number>`count(distinct ${loan_records.borrower_id})`,
+        activeLoansTouched: sql<number>`count(distinct case when ${loan_records.status} in ('Active', 'Overdue') then ${loan_records.loan_id} end)`,
+      })
+      .from(collections)
+      .innerJoin(loan_records, eq(loan_records.loan_id, collections.loan_id))
+      .innerJoin(branch, eq(branch.branch_id, loan_records.branch_id))
+      .leftJoin(collectorUsers, eq(collectorUsers.user_id, collections.collector_id))
+      .leftJoin(employee_info, eq(employee_info.user_id, collectorUsers.user_id))
+      .where(
+        and(
+          inArray(loan_records.branch_id, branchIds),
+          gte(collections.collection_date, dateFrom),
+          lte(collections.collection_date, dateTo),
+        ),
+      )
+      .groupBy(
+        collections.collector_id,
+        collectorUsers.company_id,
+        loan_records.branch_id,
+        branch.branch_name,
+        collectorUsers.username,
+        employee_info.first_name,
+        employee_info.middle_name,
+        employee_info.last_name,
+      )
+      .orderBy(desc(sql<number>`coalesce(sum(${collections.amount}), 0)`), asc(branch.branch_name))
+      .catch(() => []),
+    db
+      .select({
+        totalCollectedAmount: sql<number>`coalesce(sum(${collections.amount}), 0)`,
+        totalCollectionsCount: sql<number>`count(*)`,
+        totalBorrowersHandled: sql<number>`count(distinct ${loan_records.borrower_id})`,
+      })
+      .from(collections)
+      .innerJoin(loan_records, eq(loan_records.loan_id, collections.loan_id))
+      .where(
+        and(
+          inArray(loan_records.branch_id, branchIds),
+          gte(collections.collection_date, dateFrom),
+          lte(collections.collection_date, dateTo),
+        ),
+      )
+      .limit(1)
+      .catch(() => []),
+  ]);
+
+  const rawRows = groupedRows
+    .map((row) => {
+      const collectorName = buildUserDisplayName({
+        firstName: row.collectorFirstName,
+        middleName: row.collectorMiddleName,
+        lastName: row.collectorLastName,
+        username: row.collectorUsername,
+        fallback: "Unassigned",
+      });
+
+      return {
+        collectorKey: row.collectorId ?? `unassigned-${row.branchId}`,
+        collectorLabel:
+          row.companyId && row.companyId.trim()
+            ? `${collectorName} (${row.companyId})`
+            : collectorName,
+        collectorName,
+        companyId: row.companyId?.trim() || "-",
+        branchName: row.branchName,
+        totalCollectedAmount: toNumber(row.totalCollectedAmount),
+        numberOfCollections: toNumber(row.numberOfCollections),
+        averagePerCollection:
+          toNumber(row.numberOfCollections) > 0
+            ? toNumber(row.totalCollectedAmount) / toNumber(row.numberOfCollections)
+            : 0,
+        borrowersHandled: toNumber(row.borrowersHandled),
+        activeLoansTouched: toNumber(row.activeLoansTouched),
+      };
+    })
+    .sort((left, right) => {
+      if (right.totalCollectedAmount !== left.totalCollectedAmount) {
+        return right.totalCollectedAmount - left.totalCollectedAmount;
+      }
+
+      return left.collectorName.localeCompare(right.collectorName);
+    });
+
+  const collectorTotals = new Map<
+    string,
+    { label: string; totalCollectedAmount: number }
+  >();
+  for (const row of rawRows) {
+    const existing = collectorTotals.get(row.collectorKey) ?? {
+      label: row.collectorLabel,
+      totalCollectedAmount: 0,
+    };
+    existing.totalCollectedAmount += row.totalCollectedAmount;
+    collectorTotals.set(row.collectorKey, existing);
+  }
+
+  const summaryRow = summaryRows[0];
+  const totalCollectionsCount = toNumber(summaryRow?.totalCollectionsCount);
+
+  return {
+    summary: {
+      totalCollectedAmount: toNumber(summaryRow?.totalCollectedAmount),
+      totalCollectionsCount,
+      averagePerCollection:
+        totalCollectionsCount > 0 ? toNumber(summaryRow?.totalCollectedAmount) / totalCollectionsCount : 0,
+      totalCollectorsIncluded: collectorTotals.size,
+      totalBorrowersHandled: toNumber(summaryRow?.totalBorrowersHandled),
+    },
+    chartRows: Array.from(collectorTotals.values())
+      .sort((left, right) => right.totalCollectedAmount - left.totalCollectedAmount)
+      .map((row) => ({
+        bucket: row.label,
+        values: {
+          totalCollectedAmount: row.totalCollectedAmount,
+        },
+      })),
+    rawRows: rawRows.map((row) => ({
+      collectorName: row.collectorName,
+      companyId: row.companyId,
+      branchName: row.branchName,
+      totalCollectedAmount: row.totalCollectedAmount,
+      numberOfCollections: row.numberOfCollections,
+      averagePerCollection: row.averagePerCollection,
+      borrowersHandled: row.borrowersHandled,
+      activeLoansTouched: row.activeLoansTouched,
+    })),
+  };
+}
+
+async function loadReleasedLoansReportData(
+  branchRows: Array<{ branchId: number; branchName: string }>,
+  dateFrom: string,
+  dateTo: string,
+) {
+  const branchIds = branchRows.map((row) => row.branchId);
+  const releasedLoanRows = await db
+    .select({
+      loanId: loan_records.loan_id,
+      borrowerId: loan_records.borrower_id,
+      branchName: branch.branch_name,
+      loanCode: loan_records.loan_code,
+      releaseDate: loan_records.start_date,
+      principal: loan_records.principal,
+      interest: loan_records.interest,
+      collectorUsername: collectorUsers.username,
+      collectorFirstName: employee_info.first_name,
+      collectorMiddleName: employee_info.middle_name,
+      collectorLastName: employee_info.last_name,
+      borrowerFirstName: borrower_info.first_name,
+      borrowerMiddleName: borrower_info.middle_name,
+      borrowerLastName: borrower_info.last_name,
+      borrowerUsername: borrowerUsers.username,
+      borrowerCompanyId: borrowerUsers.company_id,
+      status: loan_records.status,
+    })
+    .from(loan_records)
+    .innerJoin(branch, eq(branch.branch_id, loan_records.branch_id))
+    .innerJoin(borrower_info, eq(borrower_info.user_id, loan_records.borrower_id))
+    .leftJoin(borrowerUsers, eq(borrowerUsers.user_id, loan_records.borrower_id))
+    .leftJoin(collectorUsers, eq(collectorUsers.user_id, loan_records.collector_id))
+    .leftJoin(employee_info, eq(employee_info.user_id, collectorUsers.user_id))
+    .where(
+      and(
+        inArray(loan_records.branch_id, branchIds),
+        gte(loan_records.start_date, dateFrom),
+        lte(loan_records.start_date, dateTo),
+      ),
+    )
+    .orderBy(desc(loan_records.start_date), asc(branch.branch_name), asc(loan_records.loan_code))
+    .catch(() => []);
+
+  const branchCountMap = new Map<string, number>();
+  const rawRows = releasedLoanRows.map((row) => {
+    const principal = toNumber(row.principal);
+    const interestRate = toNumber(row.interest);
+    const totalExpected = principal + (principal * interestRate) / 100;
+    branchCountMap.set(row.branchName, (branchCountMap.get(row.branchName) ?? 0) + 1);
+
+    return {
+      borrowerId: row.borrowerId,
+      releaseDate: row.releaseDate,
+      branchName: row.branchName,
+      borrowerName:
+        [row.borrowerFirstName, row.borrowerMiddleName, row.borrowerLastName]
+          .filter(Boolean)
+          .join(" ")
+          .trim() ||
+        row.borrowerCompanyId ||
+        row.borrowerUsername ||
+        row.borrowerId,
+      loanCode: row.loanCode,
+      principal,
+      interestRate: `${interestRate.toLocaleString("en-PH", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}%`,
+      totalExpected,
+      collectorName: buildUserDisplayName({
+        firstName: row.collectorFirstName,
+        middleName: row.collectorMiddleName,
+        lastName: row.collectorLastName,
+        username: row.collectorUsername,
+        fallback: "Unassigned",
+      }),
+      status: row.status,
+    };
+  });
+
+  return {
+    summary: {
+      releasedLoansCount: rawRows.length,
+      totalReleasedPrincipal: rawRows.reduce((sum, row) => sum + row.principal, 0),
+      totalReleasedExpectedAmount: rawRows.reduce((sum, row) => sum + row.totalExpected, 0),
+      totalBorrowersInvolved: new Set(rawRows.map((row) => row.borrowerId)).size,
+    },
+    chartRows: branchRows.map((row) => ({
+      bucket: row.branchName,
+      values: {
+        releasedLoans: branchCountMap.get(row.branchName) ?? 0,
+      },
+    })),
+    rawRows: rawRows.map((row) => ({
+      releaseDate: row.releaseDate,
+      branchName: row.branchName,
+      borrowerName: row.borrowerName,
+      loanCode: row.loanCode,
+      principal: row.principal,
+      interestRate: row.interestRate,
+      totalExpected: row.totalExpected,
+      collectorName: row.collectorName,
+      status: row.status,
+    })),
+  };
+}
+
+async function loadClosedLoansReportData(
+  branchRows: Array<{ branchId: number; branchName: string }>,
+  dateFrom: string,
+  dateTo: string,
+) {
+  const branchIds = branchRows.map((row) => row.branchId);
+  const closedLoanRows = await db
+    .select({
+      loanId: loan_records.loan_id,
+      borrowerId: loan_records.borrower_id,
+      branchName: branch.branch_name,
+      loanCode: loan_records.loan_code,
+      releaseDate: loan_records.start_date,
+      dueDate: loan_records.due_date,
+      principal: loan_records.principal,
+      collectorUsername: collectorUsers.username,
+      collectorFirstName: employee_info.first_name,
+      collectorMiddleName: employee_info.middle_name,
+      collectorLastName: employee_info.last_name,
+      borrowerFirstName: borrower_info.first_name,
+      borrowerMiddleName: borrower_info.middle_name,
+      borrowerLastName: borrower_info.last_name,
+      borrowerUsername: borrowerUsers.username,
+      borrowerCompanyId: borrowerUsers.company_id,
+      status: loan_records.status,
+    })
+    .from(loan_records)
+    .innerJoin(branch, eq(branch.branch_id, loan_records.branch_id))
+    .innerJoin(borrower_info, eq(borrower_info.user_id, loan_records.borrower_id))
+    .leftJoin(borrowerUsers, eq(borrowerUsers.user_id, loan_records.borrower_id))
+    .leftJoin(collectorUsers, eq(collectorUsers.user_id, loan_records.collector_id))
+    .leftJoin(employee_info, eq(employee_info.user_id, collectorUsers.user_id))
+    .where(
+      and(
+        inArray(loan_records.branch_id, branchIds),
+        inArray(loan_records.status, ["Completed", "Archived"]),
+      ),
+    )
+    .orderBy(desc(loan_records.start_date), asc(branch.branch_name), asc(loan_records.loan_code))
+    .catch(() => []);
+
+  const paymentSummaryMap = await loadLoanPaymentSummary(
+    closedLoanRows.map((row) => row.loanId),
+  );
+
+  const branchCountMap = new Map<string, number>();
+  const filteredRows = closedLoanRows
+    .map((row) => {
+      const paymentSummary = paymentSummaryMap.get(row.loanId);
+      const completionDate = paymentSummary?.completionDate ?? row.dueDate;
+      const totalPaid = paymentSummary?.totalPaid ?? 0;
+
+      return {
+        borrowerId: row.borrowerId,
+        completionDate,
+        branchName: row.branchName,
+        borrowerName:
+          [row.borrowerFirstName, row.borrowerMiddleName, row.borrowerLastName]
+            .filter(Boolean)
+            .join(" ")
+            .trim() ||
+          row.borrowerCompanyId ||
+          row.borrowerUsername ||
+          row.borrowerId,
+        loanCode: row.loanCode,
+        releaseDate: row.releaseDate,
+        principal: toNumber(row.principal),
+        totalPaid,
+        collectorName: buildUserDisplayName({
+          firstName: row.collectorFirstName,
+          middleName: row.collectorMiddleName,
+          lastName: row.collectorLastName,
+          username: row.collectorUsername,
+          fallback: "Unassigned",
+        }),
+        status: row.status,
+      };
+    })
+    .filter((row) => row.completionDate >= dateFrom && row.completionDate <= dateTo)
+    .sort((left, right) => right.completionDate.localeCompare(left.completionDate));
+
+  for (const row of filteredRows) {
+    branchCountMap.set(row.branchName, (branchCountMap.get(row.branchName) ?? 0) + 1);
+  }
+
+  return {
+    summary: {
+      closedLoansCount: filteredRows.length,
+      totalPrincipal: filteredRows.reduce((sum, row) => sum + row.principal, 0),
+      totalPaidAmount: filteredRows.reduce((sum, row) => sum + row.totalPaid, 0),
+      totalBorrowersInvolved: new Set(filteredRows.map((row) => row.borrowerId)).size,
+    },
+    chartRows: branchRows.map((row) => ({
+      bucket: row.branchName,
+      values: {
+        closedLoans: branchCountMap.get(row.branchName) ?? 0,
+      },
+    })),
+    rawRows: filteredRows.map((row) => ({
+      completionDate: row.completionDate,
+      branchName: row.branchName,
+      borrowerName: row.borrowerName,
+      loanCode: row.loanCode,
+      releaseDate: row.releaseDate,
+      principal: row.principal,
+      totalPaid: row.totalPaid,
+      collectorName: row.collectorName,
+      status: row.status,
+    })),
+  };
+}
+
 async function loadBranchPerformanceComparisonData(
   branchRows: Array<{ branchId: number; branchName: string }>,
   dateFrom: string,
@@ -1050,6 +1779,657 @@ async function loadBranchPerformanceComparisonData(
   };
 }
 
+async function loadBranchCollectionsComparisonData(
+  branchRows: Array<{ branchId: number; branchName: string }>,
+  dateFrom: string,
+  dateTo: string,
+) {
+  const branchIds = branchRows.map((row) => row.branchId);
+  const groupedRows = await db
+    .select({
+      branchId: loan_records.branch_id,
+      branchName: branch.branch_name,
+      totalCollectedAmount: sql<number>`coalesce(sum(${collections.amount}), 0)`,
+      collectionsCount: sql<number>`count(*)`,
+      borrowersServed: sql<number>`count(distinct ${loan_records.borrower_id})`,
+      collectorsInvolved: sql<number>`count(distinct ${collections.collector_id})`,
+    })
+    .from(collections)
+    .innerJoin(loan_records, eq(loan_records.loan_id, collections.loan_id))
+    .innerJoin(branch, eq(branch.branch_id, loan_records.branch_id))
+    .where(
+      and(
+        inArray(loan_records.branch_id, branchIds),
+        gte(collections.collection_date, dateFrom),
+        lte(collections.collection_date, dateTo),
+      ),
+    )
+    .groupBy(loan_records.branch_id, branch.branch_name)
+    .catch(() => []);
+
+  const groupedMap = new Map(
+    groupedRows.map((row) => [
+      row.branchId,
+      {
+        totalCollectedAmount: toNumber(row.totalCollectedAmount),
+        collectionsCount: toNumber(row.collectionsCount),
+        borrowersServed: toNumber(row.borrowersServed),
+        collectorsInvolved: toNumber(row.collectorsInvolved),
+      },
+    ]),
+  );
+
+  const rawRows = branchRows.map((row) => {
+    const metrics = groupedMap.get(row.branchId) ?? {
+      totalCollectedAmount: 0,
+      collectionsCount: 0,
+      borrowersServed: 0,
+      collectorsInvolved: 0,
+    };
+
+    return {
+      branchName: row.branchName,
+      totalCollectedAmount: metrics.totalCollectedAmount,
+      collectionsCount: metrics.collectionsCount,
+      averageCollectionAmount:
+        metrics.collectionsCount > 0
+          ? metrics.totalCollectedAmount / metrics.collectionsCount
+          : 0,
+      borrowersServed: metrics.borrowersServed,
+      collectorsInvolved: metrics.collectorsInvolved,
+    };
+  });
+
+  const totalCollectedAmount = rawRows.reduce((sum, row) => sum + row.totalCollectedAmount, 0);
+  const totalCollectionsCount = rawRows.reduce((sum, row) => sum + row.collectionsCount, 0);
+  const highestCollectingBranch =
+    rawRows
+      .slice()
+      .sort((left, right) => {
+        if (right.totalCollectedAmount !== left.totalCollectedAmount) {
+          return right.totalCollectedAmount - left.totalCollectedAmount;
+        }
+
+        return left.branchName.localeCompare(right.branchName);
+      })[0]?.branchName ?? "N/A";
+
+  return {
+    summary: {
+      branchesCompared: rawRows.length,
+      totalCollectedAmount,
+      totalCollectionsCount,
+      highestCollectingBranch,
+      averageCollectionAmount:
+        totalCollectionsCount > 0 ? totalCollectedAmount / totalCollectionsCount : 0,
+    },
+    chartRows: rawRows.map((row) => ({
+      bucket: row.branchName,
+      values: {
+        totalCollectedAmount: row.totalCollectedAmount,
+        collectionsCount: row.collectionsCount,
+      },
+    })),
+    rawRows,
+  };
+}
+
+async function loadBranchLoansComparisonData(
+  branchRows: Array<{ branchId: number; branchName: string }>,
+  dateFrom: string,
+  dateTo: string,
+) {
+  const branchIds = branchRows.map((row) => row.branchId);
+  const loanRows = await db
+    .select({
+      loanId: loan_records.loan_id,
+      branchId: loan_records.branch_id,
+      branchName: branch.branch_name,
+      borrowerId: loan_records.borrower_id,
+      principal: loan_records.principal,
+      interest: loan_records.interest,
+      status: loan_records.status,
+    })
+    .from(loan_records)
+    .innerJoin(branch, eq(branch.branch_id, loan_records.branch_id))
+    .where(
+      and(
+        inArray(loan_records.branch_id, branchIds),
+        gte(loan_records.start_date, dateFrom),
+        lte(loan_records.start_date, dateTo),
+      ),
+    )
+    .catch(() => []);
+
+  const paymentSummaryMap = await loadLoanPaymentSummary(loanRows.map((row) => row.loanId));
+
+  const branchMetrics = new Map<
+    number,
+    {
+      branchName: string;
+      activeLoans: number;
+      overdueLoans: number;
+      completedLoans: number;
+      borrowers: Set<string>;
+      outstandingBalance: number;
+    }
+  >();
+
+  for (const row of loanRows) {
+    const metrics = branchMetrics.get(row.branchId) ?? {
+      branchName: row.branchName,
+      activeLoans: 0,
+      overdueLoans: 0,
+      completedLoans: 0,
+      borrowers: new Set<string>(),
+      outstandingBalance: 0,
+    };
+
+    if (row.status === "Active") {
+      metrics.activeLoans += 1;
+    } else if (row.status === "Overdue") {
+      metrics.overdueLoans += 1;
+    } else if (row.status === "Completed" || row.status === "Archived") {
+      metrics.completedLoans += 1;
+    }
+
+    metrics.borrowers.add(row.borrowerId);
+
+    const principal = toNumber(row.principal);
+    const interestRate = toNumber(row.interest);
+    const totalPayable = principal + (principal * interestRate) / 100;
+    const totalPaid = paymentSummaryMap.get(row.loanId)?.totalPaid ?? 0;
+    metrics.outstandingBalance += Math.max(totalPayable - totalPaid, 0);
+
+    branchMetrics.set(row.branchId, metrics);
+  }
+
+  const rawRows = branchRows.map((row) => {
+    const metrics = branchMetrics.get(row.branchId);
+
+    return {
+      branchName: row.branchName,
+      activeLoans: metrics?.activeLoans ?? 0,
+      overdueLoans: metrics?.overdueLoans ?? 0,
+      completedLoans: metrics?.completedLoans ?? 0,
+      borrowersCount: metrics?.borrowers.size ?? 0,
+      outstandingBalance: metrics?.outstandingBalance ?? 0,
+    };
+  });
+
+  return {
+    summary: {
+      branchesCompared: rawRows.length,
+      totalActiveLoans: rawRows.reduce((sum, row) => sum + row.activeLoans, 0),
+      totalOverdueLoans: rawRows.reduce((sum, row) => sum + row.overdueLoans, 0),
+      totalCompletedLoans: rawRows.reduce((sum, row) => sum + row.completedLoans, 0),
+      totalOutstandingBalance: rawRows.reduce((sum, row) => sum + row.outstandingBalance, 0),
+    },
+    chartRows: rawRows.map((row) => ({
+      bucket: row.branchName,
+      values: {
+        activeLoans: row.activeLoans,
+        overdueLoans: row.overdueLoans,
+        completedLoans: row.completedLoans,
+      },
+    })),
+    rawRows,
+  };
+}
+
+async function loadBorrowerSummaryData(
+  branchRows: Array<{ branchId: number; branchName: string }>,
+  dateFrom: string,
+  dateTo: string,
+) {
+  const branchIds = branchRows.map((row) => row.branchId);
+  const borrowerLoanRows = await db
+    .select({
+      branchId: loan_records.branch_id,
+      branchName: branch.branch_name,
+      borrowerId: loan_records.borrower_id,
+      borrowerCreatedAt: sql<string | null>`${borrowerUsers.date_created}::text`,
+      status: loan_records.status,
+    })
+    .from(loan_records)
+    .innerJoin(branch, eq(branch.branch_id, loan_records.branch_id))
+    .leftJoin(borrowerUsers, eq(borrowerUsers.user_id, loan_records.borrower_id))
+    .where(inArray(loan_records.branch_id, branchIds))
+    .catch(() => []);
+
+  const branchMetrics = new Map<
+    number,
+    {
+      totalBorrowers: Set<string>;
+      activeBorrowers: Set<string>;
+      overdueBorrowers: Set<string>;
+      completedBorrowers: Set<string>;
+      newBorrowers: Set<string>;
+    }
+  >();
+  const totalBorrowers = new Set<string>();
+  const activeBorrowers = new Set<string>();
+  const overdueBorrowers = new Set<string>();
+  const completedBorrowers = new Set<string>();
+  const newBorrowers = new Set<string>();
+
+  for (const row of borrowerLoanRows) {
+    const metrics = branchMetrics.get(row.branchId) ?? {
+      totalBorrowers: new Set<string>(),
+      activeBorrowers: new Set<string>(),
+      overdueBorrowers: new Set<string>(),
+      completedBorrowers: new Set<string>(),
+      newBorrowers: new Set<string>(),
+    };
+
+    metrics.totalBorrowers.add(row.borrowerId);
+    totalBorrowers.add(row.borrowerId);
+
+    if (row.status === "Active") {
+      metrics.activeBorrowers.add(row.borrowerId);
+      activeBorrowers.add(row.borrowerId);
+    }
+
+    if (row.status === "Overdue") {
+      metrics.overdueBorrowers.add(row.borrowerId);
+      overdueBorrowers.add(row.borrowerId);
+    }
+
+    if (row.status === "Completed" || row.status === "Archived") {
+      metrics.completedBorrowers.add(row.borrowerId);
+      completedBorrowers.add(row.borrowerId);
+    }
+
+    const borrowerCreatedDate = row.borrowerCreatedAt?.slice(0, 10) ?? null;
+    if (borrowerCreatedDate && borrowerCreatedDate >= dateFrom && borrowerCreatedDate <= dateTo) {
+      metrics.newBorrowers.add(row.borrowerId);
+      newBorrowers.add(row.borrowerId);
+    }
+
+    branchMetrics.set(row.branchId, metrics);
+  }
+
+  const rawRows = branchRows.map((row) => {
+    const metrics = branchMetrics.get(row.branchId);
+
+    return {
+      branchName: row.branchName,
+      totalBorrowers: metrics?.totalBorrowers.size ?? 0,
+      borrowersWithActiveLoans: metrics?.activeBorrowers.size ?? 0,
+      borrowersWithOverdueLoans: metrics?.overdueBorrowers.size ?? 0,
+      borrowersWithCompletedLoans: metrics?.completedBorrowers.size ?? 0,
+      newBorrowers: metrics?.newBorrowers.size ?? 0,
+    };
+  });
+
+  return {
+    summary: {
+      totalBorrowers: totalBorrowers.size,
+      borrowersWithActiveLoans: activeBorrowers.size,
+      borrowersWithOverdueLoans: overdueBorrowers.size,
+      borrowersWithCompletedLoans: completedBorrowers.size,
+      newBorrowers: newBorrowers.size,
+    },
+    chartRows: rawRows.map((row) => ({
+      bucket: row.branchName,
+      values: {
+        totalBorrowers: row.totalBorrowers,
+      },
+    })),
+    rawRows,
+  };
+}
+
+async function loadBorrowersWithOverdueLoansData(
+  branchRows: Array<{ branchId: number; branchName: string }>,
+  dateFrom: string,
+  dateTo: string,
+) {
+  const branchIds = branchRows.map((row) => row.branchId);
+  const overdueLoanRows = await db
+    .select({
+      loanId: loan_records.loan_id,
+      borrowerId: loan_records.borrower_id,
+      branchName: branch.branch_name,
+      dueDate: loan_records.due_date,
+      principal: loan_records.principal,
+      interest: loan_records.interest,
+      collectorUsername: collectorUsers.username,
+      collectorFirstName: employee_info.first_name,
+      collectorMiddleName: employee_info.middle_name,
+      collectorLastName: employee_info.last_name,
+      borrowerFirstName: borrower_info.first_name,
+      borrowerMiddleName: borrower_info.middle_name,
+      borrowerLastName: borrower_info.last_name,
+      borrowerUsername: borrowerUsers.username,
+      borrowerCompanyId: borrowerUsers.company_id,
+    })
+    .from(loan_records)
+    .innerJoin(branch, eq(branch.branch_id, loan_records.branch_id))
+    .innerJoin(borrower_info, eq(borrower_info.user_id, loan_records.borrower_id))
+    .leftJoin(borrowerUsers, eq(borrowerUsers.user_id, loan_records.borrower_id))
+    .leftJoin(collectorUsers, eq(collectorUsers.user_id, loan_records.collector_id))
+    .leftJoin(employee_info, eq(employee_info.user_id, collectorUsers.user_id))
+    .where(
+      and(
+        inArray(loan_records.branch_id, branchIds),
+        eq(loan_records.status, "Overdue"),
+        gte(loan_records.due_date, dateFrom),
+        lte(loan_records.due_date, dateTo),
+      ),
+    )
+    .orderBy(asc(branch.branch_name), asc(loan_records.due_date))
+    .catch(() => []);
+
+  const paymentSummaryMap = await loadLoanPaymentSummary(
+    overdueLoanRows.map((row) => row.loanId),
+  );
+  const today = currentManilaIsoDate();
+  const borrowerMap = new Map<
+    string,
+    {
+      borrowerName: string;
+      branchNames: Set<string>;
+      collectorNames: Set<string>;
+      overdueLoansCount: number;
+      totalOverdueBalance: number;
+      maxDaysOverdue: number;
+      latestOverdueDueDate: string;
+    }
+  >();
+  const branchBorrowerMap = new Map<string, Set<string>>();
+
+  for (const row of overdueLoanRows) {
+    const paymentSummary = paymentSummaryMap.get(row.loanId);
+    const totalPaid = paymentSummary?.totalPaid ?? 0;
+    const principal = toNumber(row.principal);
+    const interestRate = toNumber(row.interest);
+    const expectedTotal = principal + (principal * interestRate) / 100;
+    const daysOverdue = calculateDaysBetweenIsoDates(row.dueDate, today);
+    const overdueBalance = Math.max(expectedTotal - totalPaid, 0);
+    const collectorName = buildUserDisplayName({
+      firstName: row.collectorFirstName,
+      middleName: row.collectorMiddleName,
+      lastName: row.collectorLastName,
+      username: row.collectorUsername,
+      fallback: "Unassigned",
+    });
+    const borrowerName =
+      [row.borrowerFirstName, row.borrowerMiddleName, row.borrowerLastName]
+        .filter(Boolean)
+        .join(" ")
+        .trim() ||
+      row.borrowerCompanyId ||
+      row.borrowerUsername ||
+      row.borrowerId;
+
+    const borrowerMetrics = borrowerMap.get(row.borrowerId) ?? {
+      borrowerName,
+      branchNames: new Set<string>(),
+      collectorNames: new Set<string>(),
+      overdueLoansCount: 0,
+      totalOverdueBalance: 0,
+      maxDaysOverdue: 0,
+      latestOverdueDueDate: row.dueDate,
+    };
+
+    borrowerMetrics.branchNames.add(row.branchName);
+    borrowerMetrics.collectorNames.add(collectorName);
+    borrowerMetrics.overdueLoansCount += 1;
+    borrowerMetrics.totalOverdueBalance += overdueBalance;
+    borrowerMetrics.maxDaysOverdue = Math.max(borrowerMetrics.maxDaysOverdue, daysOverdue);
+    if (row.dueDate > borrowerMetrics.latestOverdueDueDate) {
+      borrowerMetrics.latestOverdueDueDate = row.dueDate;
+    }
+
+    borrowerMap.set(row.borrowerId, borrowerMetrics);
+
+    const branchBorrowers = branchBorrowerMap.get(row.branchName) ?? new Set<string>();
+    branchBorrowers.add(row.borrowerId);
+    branchBorrowerMap.set(row.branchName, branchBorrowers);
+  }
+
+  const rawRows = Array.from(borrowerMap.values())
+    .map((row) => ({
+      borrowerName: row.borrowerName,
+      branch:
+        row.branchNames.size === 1
+          ? Array.from(row.branchNames)[0]!
+          : Array.from(row.branchNames).sort((left, right) => left.localeCompare(right)).join(", "),
+      collector:
+        row.collectorNames.size === 1
+          ? Array.from(row.collectorNames)[0]!
+          : Array.from(row.collectorNames).sort((left, right) => left.localeCompare(right)).join(", "),
+      overdueLoansCount: row.overdueLoansCount,
+      totalOverdueBalance: row.totalOverdueBalance,
+      maxDaysOverdue: row.maxDaysOverdue,
+      latestOverdueDueDate: row.latestOverdueDueDate,
+    }))
+    .sort((left, right) => {
+      if (right.maxDaysOverdue !== left.maxDaysOverdue) {
+        return right.maxDaysOverdue - left.maxDaysOverdue;
+      }
+
+      return left.borrowerName.localeCompare(right.borrowerName);
+    });
+
+  return {
+    summary: {
+      overdueBorrowersCount: rawRows.length,
+      overdueLoansCount: Array.from(borrowerMap.values()).reduce(
+        (sum, row) => sum + row.overdueLoansCount,
+        0,
+      ),
+      totalOverdueBalance: rawRows.reduce((sum, row) => sum + row.totalOverdueBalance, 0),
+      averageOverdueBalancePerBorrower:
+        rawRows.length > 0
+          ? rawRows.reduce((sum, row) => sum + row.totalOverdueBalance, 0) / rawRows.length
+          : 0,
+      maxDaysOverdue: rawRows.reduce((max, row) => Math.max(max, row.maxDaysOverdue), 0),
+      totalAffectedBranches: new Set(overdueLoanRows.map((row) => row.branchName)).size,
+    },
+    chartRows: branchRows.map((row) => ({
+      bucket: row.branchName,
+      values: {
+        overdueBorrowers: branchBorrowerMap.get(row.branchName)?.size ?? 0,
+      },
+    })),
+    rawRows,
+  };
+}
+
+async function loadCollectorPerformanceReportData(
+  access: ReportsReadyAccessState,
+  branchRows: Array<{ branchId: number; branchName: string }>,
+  dateFrom: string,
+  dateTo: string,
+  collectorId: string,
+) {
+  const collectorAccess = buildReportsCollectorAnalyticsAccess(
+    access,
+    branchRows.map((row) => row.branchId),
+  );
+  const [{ rows }, trendBuckets, bucketRows] = await Promise.all([
+    loadCollectorPerformanceRowsForCustomRange(collectorAccess, {
+      dateFrom,
+      dateTo,
+      collectorId,
+      includePrevious: true,
+      mode: "window",
+    }),
+    (async () => {
+      const bucketMode = resolveCollectorTrendBucketMode(dateFrom, dateTo);
+      return {
+        bucketMode,
+        rows: await loadCollectorTrendBucketsForCustomRange(collectorAccess, {
+          collectorId,
+          dateFrom,
+          dateTo,
+          granularity: bucketMode,
+        }),
+      };
+    })(),
+    (async () => {
+      const bucketMode = resolveCollectorTrendBucketMode(dateFrom, dateTo);
+      const bucketExpression =
+        bucketMode === "day"
+          ? sql<string>`${collections.collection_date}::text`
+          : bucketMode === "week"
+            ? sql<string>`to_char(date_trunc('week', ${collections.collection_date}), 'YYYY-MM-DD')`
+            : sql<string>`to_char(date_trunc('month', ${collections.collection_date}), 'YYYY-MM-01')`;
+
+      return db
+        .select({
+          bucketKey: bucketExpression,
+          totalCollected: sql<number>`coalesce(sum(${collections.amount}), 0)`,
+          collectionsCount: sql<number>`count(*)`,
+          borrowersHandled: sql<number>`count(distinct ${loan_records.borrower_id})`,
+          activeLoansHandled: sql<number>`count(distinct case when ${loan_records.status} in ('Active', 'Overdue') then ${loan_records.loan_id} end)`,
+        })
+        .from(collections)
+        .innerJoin(loan_records, eq(loan_records.loan_id, collections.loan_id))
+        .where(
+          and(
+            eq(collections.collector_id, collectorId),
+            inArray(loan_records.branch_id, branchRows.map((row) => row.branchId)),
+            gte(collections.collection_date, dateFrom),
+            lte(collections.collection_date, dateTo),
+          ),
+        )
+        .groupBy(bucketExpression)
+        .orderBy(asc(bucketExpression))
+        .catch(() => []);
+    })(),
+  ]);
+
+  const collectorRow = rows.find((row) => row.collectorId === collectorId) ?? null;
+  if (!collectorRow) {
+    return null;
+  }
+
+  const bucketMode = trendBuckets.bucketMode;
+  const bucketDefinitions = enumerateCollectorBucketDefinitions(dateFrom, dateTo, bucketMode);
+  const trendMap = new Map(trendBuckets.rows.map((row) => [row.bucketKey, row.totalCollected]));
+  const bucketRowMap = new Map(
+    bucketRows.map((row) => [
+      row.bucketKey,
+      {
+        totalCollected: toNumber(row.totalCollected),
+        collectionsCount: toNumber(row.collectionsCount),
+        borrowersHandled: toNumber(row.borrowersHandled),
+        activeLoansHandled: toNumber(row.activeLoansHandled),
+      },
+    ]),
+  );
+
+  return {
+    collectorLabel: `${collectorRow.fullName} (${collectorRow.companyId})`,
+    summary: {
+      totalCollected: collectorRow.totalCollected,
+      averageCollectionAmount: collectorRow.averageCollectionAmount,
+      collectionEntries: collectorRow.collectionEntries,
+      assignedActiveLoans: collectorRow.assignedActiveLoans,
+      portfolioRecoveryRate: `${collectorRow.portfolioRecoveryRate.toLocaleString("en-PH", {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1,
+      })}%`,
+      missedPaymentRate: `${collectorRow.missedPaymentRate.toLocaleString("en-PH", {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1,
+      })}%`,
+      completionRate: `${collectorRow.completionRate.toLocaleString("en-PH", {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1,
+      })}%`,
+    },
+    chartRows: bucketDefinitions.map((bucket) => ({
+      bucket: bucket.label,
+      values: {
+        totalCollected: trendMap.get(bucket.key) ?? 0,
+      },
+    })),
+    rawRows: bucketDefinitions.map((bucket) => {
+      const metrics = bucketRowMap.get(bucket.key);
+      const totalCollected = metrics?.totalCollected ?? 0;
+      const collectionsCount = metrics?.collectionsCount ?? 0;
+
+      return {
+        period: bucket.label,
+        totalCollected,
+        collectionsCount,
+        averagePerCollection: collectionsCount > 0 ? totalCollected / collectionsCount : 0,
+        borrowersHandled: metrics?.borrowersHandled ?? 0,
+        activeLoansHandled: metrics?.activeLoansHandled ?? 0,
+      };
+    }),
+  };
+}
+
+async function loadCollectorLeaderboardReportData(
+  access: ReportsReadyAccessState,
+  branchRows: Array<{ branchId: number; branchName: string }>,
+  dateFrom: string,
+  dateTo: string,
+) {
+  const collectorAccess = buildReportsCollectorAnalyticsAccess(
+    access,
+    branchRows.map((row) => row.branchId),
+  );
+  const { rows } = await loadCollectorPerformanceRowsForCustomRange(collectorAccess, {
+    dateFrom,
+    dateTo,
+    includePrevious: true,
+    mode: "window",
+  });
+
+  const sortedRows = rows.slice();
+  const rawRows = sortedRows.map((row, index) => ({
+    rank: index + 1,
+    collectorLabel: row.fullName,
+    companyId: row.companyId,
+    branchName: row.branchName,
+    areaLabel: row.areaLabel,
+    averageMonthlyCollections: row.averageMonthlyCollections,
+    totalCollected: row.totalCollected,
+    assignedActiveLoans: row.assignedActiveLoans,
+    portfolioRecoveryRate: `${row.portfolioRecoveryRate.toLocaleString("en-PH", {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1,
+    })}%`,
+    missedPaymentRate: `${row.missedPaymentRate.toLocaleString("en-PH", {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1,
+    })}%`,
+    periodChangePercent:
+      row.periodChangePercent === null
+        ? "-"
+        : `${row.periodChangePercent >= 0 ? "+" : ""}${row.periodChangePercent.toLocaleString("en-PH", {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0,
+          })}%`,
+  }));
+  const topCollector = sortedRows[0] ?? null;
+
+  return {
+    summary: {
+      totalCollectorsRanked: rawRows.length,
+      topCollector: topCollector ? `${topCollector.fullName} (${topCollector.companyId})` : "N/A",
+      topCollectorAverageMonthlyCollections: topCollector?.averageMonthlyCollections ?? 0,
+      totalCollectedAcrossRankedCollectors: rawRows.reduce((sum, row) => sum + row.totalCollected, 0),
+      averageCollectedPerCollector:
+        rawRows.length > 0
+          ? rawRows.reduce((sum, row) => sum + row.totalCollected, 0) / rawRows.length
+          : 0,
+    },
+    chartRows: sortedRows.slice(0, 10).map((row) => ({
+      bucket: `${row.fullName} (${row.companyId})`,
+      values: {
+        averageMonthlyCollections: row.averageMonthlyCollections,
+      },
+    })),
+    rawRows,
+  };
+}
+
 function buildDefaultTitle(
   templateKey: AnalyticsReportTemplateKey,
   scopeLabel: string,
@@ -1066,11 +2446,21 @@ function buildDefaultTitle(
 }
 
 export async function loadReportsPageData(access: ReportsReadyAccessState): Promise<ReportsPageData> {
-  const branchOptions = await loadVisibleBranchOptions(access);
+  const [branchOptions, collectorOptions] = await Promise.all([
+    loadVisibleBranchOptions(access),
+    loadVisibleCollectorOptions(access),
+  ]);
 
   return {
     branchOptions,
-    analyticsTemplates: buildAnalyticsTemplateOptions(branchOptions.length, access.canAccessAnalytics),
+    collectorOptions,
+    analyticsTemplates: buildAnalyticsTemplateOptions(
+      branchOptions.length,
+      access.roleName,
+      access.canAccessAnalytics,
+    ),
+    analyticsTemplateCategories: buildAnalyticsTemplateCategoryOptions(),
+    operationalDocumentTemplates: buildOperationalDocumentTemplateOptions(access.roleName),
   };
 }
 
@@ -1172,6 +2562,21 @@ export async function loadReportsLibraryPageData(
           {
             templateKey: row.templateKey,
             label: row.templateLabel,
+            templateCategory: row.templateCategory,
+          },
+        ] as const)
+        .sort((left, right) => left[1].label.localeCompare(right[1].label)),
+    ).values(),
+  );
+  const templateCategories = Array.from(
+    new Map(
+      visibleRows
+        .map((row) => [
+          row.templateCategory,
+          {
+            key: row.templateCategory,
+            label: row.templateCategoryLabel,
+            reportCategory: row.reportCategory,
           },
         ] as const)
         .sort((left, right) => left[1].label.localeCompare(right[1].label)),
@@ -1179,6 +2584,10 @@ export async function loadReportsLibraryPageData(
   );
 
   const advancedFilteredRows = visibleRows.filter((row) => {
+    if (filters.templateCategory && row.templateCategory !== filters.templateCategory) {
+      return false;
+    }
+
     if (filters.templateKey && row.templateKey !== filters.templateKey) {
       return false;
     }
@@ -1230,10 +2639,23 @@ export async function loadReportsLibraryPageData(
   );
 
   const filteredRows = categoryScopedRows.filter((row) => row.status === filters.status);
+  const totalCount = filteredRows.length;
+  const totalPages = Math.max(Math.ceil(totalCount / REPORTS_LIBRARY_PAGE_SIZE), 1);
+  const safePage = Math.min(Math.max(filters.page, 1), totalPages);
+  const paginatedRows = filteredRows.slice(
+    (safePage - 1) * REPORTS_LIBRARY_PAGE_SIZE,
+    safePage * REPORTS_LIBRARY_PAGE_SIZE,
+  );
 
   return {
-    filters,
-    rows: filteredRows,
+    filters: {
+      ...filters,
+      page: safePage,
+    },
+    rows: paginatedRows,
+    page: safePage,
+    pageSize: REPORTS_LIBRARY_PAGE_SIZE,
+    totalCount,
     counts: {
       all: advancedFilteredRows.length,
       analytics: advancedFilteredRows.filter((row) => row.reportCategory === "analytics").length,
@@ -1242,6 +2664,7 @@ export async function loadReportsLibraryPageData(
       archived: categoryScopedRows.filter((row) => row.status === "archived").length,
     },
     filterOptions: {
+      templateCategories,
       templates,
       generatedByRoles,
       generatedByUsers,
@@ -1374,6 +2797,20 @@ export async function generateAnalyticsReport(
     };
   }
 
+  if (!template.implemented) {
+    return {
+      ok: false as const,
+      message: "This analytics template is planned but not implemented yet.",
+    };
+  }
+
+  if (!template.allowedRoles.includes(access.roleName)) {
+    return {
+      ok: false as const,
+      message: "This analytics template is not available for your current role.",
+    };
+  }
+
   const normalizedBranchIds = sortBranchIds(
     access.fixedBranchId !== null ? [access.fixedBranchId] : input.branchIds,
   );
@@ -1397,7 +2834,7 @@ export async function generateAnalyticsReport(
       ok: false as const,
       message:
         template.minBranchCount > 1
-          ? "Branch Performance Comparison requires at least two selected branches."
+          ? `${template.label} requires at least two selected branches.`
           : "Select a valid branch scope for this report.",
     };
   }
@@ -1462,6 +2899,12 @@ export async function generateAnalyticsReport(
   const resolvedTitle = input.title.trim() || buildDefaultTitle(template.key, scopeLabel, dateLabel);
 
   let snapshot: unknown;
+  if (template.key === "collector_performance_report" && !input.collectorId) {
+    return {
+      ok: false as const,
+      message: "Select a collector for this performance report.",
+    };
+  }
 
   if (template.key === "financial_overview") {
     const reportData = await loadFinancialOverviewData(selectedBranchRows, dateFrom!, dateTo!);
@@ -1497,6 +2940,126 @@ export async function generateAnalyticsReport(
       branchRows: reportData.branchRows,
       collectorRows: reportData.collectorRows,
     });
+  } else if (template.key === "overdue_loans_report") {
+    const reportData = await loadOverdueLoansReportData(selectedBranchRows, dateFrom!, dateTo!);
+    snapshot = buildOverdueLoansReportSnapshot({
+      title: resolvedTitle,
+      generatedLabel,
+      scopeLabel,
+      summary: reportData.summary,
+      chartRows: reportData.chartRows,
+      rawRows: reportData.rawRows,
+    });
+  } else if (template.key === "collections_by_collector") {
+    const reportData = await loadCollectionsByCollectorData(selectedBranchRows, dateFrom!, dateTo!);
+    snapshot = buildCollectionsByCollectorSnapshot({
+      title: resolvedTitle,
+      generatedLabel,
+      scopeLabel,
+      summary: reportData.summary,
+      chartRows: reportData.chartRows,
+      rawRows: reportData.rawRows,
+    });
+  } else if (template.key === "released_loans_report") {
+    const reportData = await loadReleasedLoansReportData(selectedBranchRows, dateFrom!, dateTo!);
+    snapshot = buildReleasedLoansReportSnapshot({
+      title: resolvedTitle,
+      generatedLabel,
+      scopeLabel,
+      summary: reportData.summary,
+      chartRows: reportData.chartRows,
+      rawRows: reportData.rawRows,
+    });
+  } else if (template.key === "closed_loans_report") {
+    const reportData = await loadClosedLoansReportData(selectedBranchRows, dateFrom!, dateTo!);
+    snapshot = buildClosedLoansReportSnapshot({
+      title: resolvedTitle,
+      generatedLabel,
+      scopeLabel,
+      summary: reportData.summary,
+      chartRows: reportData.chartRows,
+      rawRows: reportData.rawRows,
+    });
+  } else if (template.key === "branch_collections_comparison") {
+    const reportData = await loadBranchCollectionsComparisonData(selectedBranchRows, dateFrom!, dateTo!);
+    snapshot = buildBranchCollectionsComparisonSnapshot({
+      title: resolvedTitle,
+      generatedLabel,
+      scopeLabel,
+      summary: reportData.summary,
+      chartRows: reportData.chartRows,
+      rawRows: reportData.rawRows,
+    });
+  } else if (template.key === "branch_loans_comparison") {
+    const reportData = await loadBranchLoansComparisonData(selectedBranchRows, dateFrom!, dateTo!);
+    snapshot = buildBranchLoansComparisonSnapshot({
+      title: resolvedTitle,
+      generatedLabel,
+      scopeLabel,
+      summary: reportData.summary,
+      chartRows: reportData.chartRows,
+      rawRows: reportData.rawRows,
+    });
+  } else if (template.key === "borrower_summary") {
+    const reportData = await loadBorrowerSummaryData(selectedBranchRows, dateFrom!, dateTo!);
+    snapshot = buildBorrowerSummarySnapshot({
+      title: resolvedTitle,
+      generatedLabel,
+      scopeLabel,
+      summary: reportData.summary,
+      chartRows: reportData.chartRows,
+      rawRows: reportData.rawRows,
+    });
+  } else if (template.key === "borrowers_with_overdue_loans") {
+    const reportData = await loadBorrowersWithOverdueLoansData(selectedBranchRows, dateFrom!, dateTo!);
+    snapshot = buildBorrowersWithOverdueLoansSnapshot({
+      title: resolvedTitle,
+      generatedLabel,
+      scopeLabel,
+      summary: reportData.summary,
+      chartRows: reportData.chartRows,
+      rawRows: reportData.rawRows,
+    });
+  } else if (template.key === "collector_performance_report") {
+    const reportData = await loadCollectorPerformanceReportData(
+      access,
+      selectedBranchRows,
+      dateFrom!,
+      dateTo!,
+      input.collectorId!,
+    );
+
+    if (!reportData) {
+      return {
+        ok: false as const,
+        message: "The selected collector is outside the chosen branch scope or no longer available.",
+      };
+    }
+
+    snapshot = buildCollectorPerformanceReportSnapshot({
+      title: resolvedTitle,
+      generatedLabel,
+      scopeLabel,
+      collectorLabel: reportData.collectorLabel,
+      summary: reportData.summary,
+      chartRows: reportData.chartRows,
+      rawRows: reportData.rawRows,
+    });
+  } else if (template.key === "collector_leaderboard_report") {
+    const reportData = await loadCollectorLeaderboardReportData(
+      access,
+      selectedBranchRows,
+      dateFrom!,
+      dateTo!,
+    );
+    snapshot = buildCollectorLeaderboardReportSnapshot({
+      title: resolvedTitle,
+      generatedLabel,
+      scopeLabel,
+      summary: reportData.summary,
+      chartRows: reportData.chartRows,
+      rawRows: reportData.rawRows,
+    });
   } else {
     const reportData = await loadBranchPerformanceComparisonData(selectedBranchRows, dateFrom!, dateTo!);
     snapshot = buildBranchPerformanceComparisonSnapshot({
@@ -1518,6 +3081,7 @@ export async function generateAnalyticsReport(
       generated_by: access.userId,
       filters: {
         branchIds: normalizedBranchIds,
+        collectorId: input.collectorId,
         month: input.month,
         dateFrom,
         dateTo,
@@ -1983,6 +3547,20 @@ export async function generateOperationalDocument(
     return {
       ok: false as const,
       message: "Select a valid document template.",
+    };
+  }
+
+  if (!template.implemented) {
+    return {
+      ok: false as const,
+      message: "This document template is planned but not implemented yet.",
+    };
+  }
+
+  if (!template.allowedRoles.includes(access.roleName)) {
+    return {
+      ok: false as const,
+      message: "This document template is not available for your current role.",
     };
   }
 
