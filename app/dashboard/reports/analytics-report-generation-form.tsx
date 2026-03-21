@@ -162,7 +162,7 @@ export function AnalyticsReportGenerationForm(props: {
   const hasAvailableTemplates = availableTemplates.length > 0 && Boolean(effectiveTemplateKey);
 
   return (
-    <Card className="border-border/70 bg-background">
+    <Card className="mx-auto w-full max-w-3xl border-border/70 bg-background">
         <CardHeader className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <CardTitle className="text-xl">Generate Manual Analytics Report</CardTitle>
@@ -178,43 +178,41 @@ export function AnalyticsReportGenerationForm(props: {
           <form action={formAction} className="space-y-6">
             <div className="space-y-3">
               <div className="space-y-1">
-                <Label>Template Category</Label>
+                <Label htmlFor="template_category">Template Category</Label>
                 <p className="text-xs text-muted-foreground">
                   Choose a reporting category first, then select a template inside it.
                 </p>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {props.analyticsTemplateCategories.map((category) => {
-                  const availableCount = props.analyticsTemplates.filter(
-                    (template) => template.category === category.key && template.available,
-                  ).length;
+              <Select
+                onValueChange={(value) => {
+                  const nextCategory = value as ReportsTemplateCategoryKey;
+                  setSelectedCategory(nextCategory);
+                  const nextTemplate =
+                    props.analyticsTemplates.find(
+                      (template) =>
+                        template.category === nextCategory && template.available,
+                    )?.key ?? "";
+                  setTemplateKey(nextTemplate);
+                }}
+                value={effectiveSelectedCategory}
+              >
+                <SelectTrigger className="w-full" id="template_category">
+                  <SelectValue placeholder="Select template category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {props.analyticsTemplateCategories.map((category) => {
+                    const availableCount = props.analyticsTemplates.filter(
+                      (template) => template.category === category.key && template.available,
+                    ).length;
 
-                  return (
-                    <Button
-                      className="h-auto rounded-xl px-4 py-3 text-left"
-                      key={category.key}
-                      onClick={() => {
-                        setSelectedCategory(category.key);
-                        const nextTemplate =
-                          props.analyticsTemplates.find(
-                            (template) =>
-                              template.category === category.key && template.available,
-                          )?.key ?? "";
-                        setTemplateKey(nextTemplate);
-                      }}
-                      type="button"
-                      variant={effectiveSelectedCategory === category.key ? "default" : "outline"}
-                    >
-                      <span className="flex flex-col items-start gap-0.5">
-                        <span>{category.label}</span>
-                        <span className="text-xs opacity-80">
-                          {availableCount > 0 ? `${availableCount} available` : "Planned / unavailable"}
-                        </span>
-                      </span>
-                    </Button>
-                  );
-                })}
-              </div>
+                    return (
+                      <SelectItem key={category.key} value={category.key}>
+                        {category.label} {availableCount > 0 ? `(${availableCount} available)` : "(planned / unavailable)"}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
               {selectedCategoryDefinition ? (
                 <div className="rounded-md border border-dashed border-border/80 bg-muted/15 px-3 py-3 text-sm text-muted-foreground">
                   {selectedCategoryDefinition.description}
