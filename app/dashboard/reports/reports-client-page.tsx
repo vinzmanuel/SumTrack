@@ -119,7 +119,7 @@ function CategorySection(props: {
             </div>
             <div className="rounded-xl border border-border/70 bg-background px-4 py-3">
               <p className="text-sm text-muted-foreground">
-                Saved reports return to the Reports Library after generation. Viewer, export, and archive actions are reserved for later passes.
+                Saved reports return to the Reports Library after generation, and each saved entry can now be opened on its own dedicated report page.
               </p>
             </div>
           </>

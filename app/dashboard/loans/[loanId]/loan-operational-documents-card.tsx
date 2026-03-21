@@ -5,7 +5,11 @@ import { GenerateOperationalDocumentButton } from "@/app/dashboard/loans/[loanId
 
 export function LoanOperationalDocumentsCard(props: {
   loanId: number;
+  loanStatus: string;
 }) {
+  const canGenerateLoanReceiptSummary =
+    props.loanStatus === "Completed" || props.loanStatus === "Archived";
+
   return (
     <Card>
       <CardHeader>
@@ -23,6 +27,12 @@ export function LoanOperationalDocumentsCard(props: {
         />
         <GenerateOperationalDocumentButton
           label="Generate Loan Receipt Summary"
+          disabled={!canGenerateLoanReceiptSummary}
+          disabledReason={
+            canGenerateLoanReceiptSummary
+              ? undefined
+              : "Loan receipt summaries are only available for completed or archived loans."
+          }
           sourceEntityId={props.loanId}
           templateKey="loan_receipt_summary"
           variant="outline"

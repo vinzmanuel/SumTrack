@@ -494,7 +494,7 @@ export function ReportsLibraryClientPage({
             <div className="space-y-1">
               <CardTitle>Saved Reports</CardTitle>
               <CardDescription>
-                Reports open into the library first. Viewing, export, and archive actions are reserved for later passes.
+                Saved reports and documents stay here first, and each entry opens into a dedicated report view page.
               </CardDescription>
             </div>
           </div>
@@ -579,6 +579,7 @@ export function ReportsLibraryClientPage({
                         <th className="px-4 py-3 font-medium">Generated Type</th>
                         <th className="px-4 py-3 font-medium">Generated At</th>
                         <th className="px-4 py-3 font-medium">Status</th>
+                        <th className="px-4 py-3 font-medium">Action</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border/60 bg-background">
@@ -622,6 +623,13 @@ export function ReportsLibraryClientPage({
                             >
                               {row.status === "active" ? "Active" : "Archived"}
                             </Badge>
+                          </td>
+                          <td className="px-4 py-4">
+                            <Link href={`/dashboard/reports/${row.reportId}`}>
+                              <Button size="sm" type="button" variant="outline">
+                                View
+                              </Button>
+                            </Link>
                           </td>
                         </tr>
                       ))}

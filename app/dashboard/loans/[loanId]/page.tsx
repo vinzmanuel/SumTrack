@@ -346,7 +346,7 @@ export default async function LoanDetailPage({ params, searchParams }: PageProps
       />
 
       {canGenerateOperationalDocuments ? (
-        <LoanOperationalDocumentsCard loanId={loan.loan_id} />
+        <LoanOperationalDocumentsCard loanId={loan.loan_id} loanStatus={loan.status} />
       ) : null}
 
       <LoanDocumentsSection

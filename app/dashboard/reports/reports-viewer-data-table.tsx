@@ -1,0 +1,60 @@
+import type { ReportsSnapshotTableSection } from "@/app/dashboard/reports/types";
+
+function formatCellValue(value: number | string, format?: ReportsSnapshotTableSection["columns"][number]["format"]) {
+  if (typeof value === "number") {
+    if (format === "currency") {
+      return `PHP ${value.toLocaleString("en-PH", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}`;
+    }
+
+    if (format === "number") {
+      return value.toLocaleString("en-PH");
+    }
+  }
+
+  return value === "" ? "-" : String(value);
+}
+
+export function ReportsViewerDataTable(props: {
+  section: ReportsSnapshotTableSection;
+  compact?: boolean;
+}) {
+  if (props.section.rows.length === 0) {
+    return (
+      <div className="rounded-lg border border-dashed border-border/70 bg-muted/10 px-4 py-8 text-center text-sm text-muted-foreground">
+        No saved rows were captured for this section.
+      </div>
+    );
+  }
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-border/70">
+      <div className="overflow-x-auto">
+        <table className={`min-w-full ${props.compact ? "text-sm" : "text-sm"}`}>
+          <thead className="bg-muted/15">
+            <tr className="border-b border-border/70 text-left text-muted-foreground">
+              {props.section.columns.map((column) => (
+                <th className="px-4 py-3 font-medium" key={column.key}>
+                  {column.label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border/60 bg-background">
+            {props.section.rows.map((row, index) => (
+              <tr className="align-top" key={index}>
+                {props.section.columns.map((column) => (
+                  <td className="px-4 py-3 align-top" key={column.key}>
+                    {formatCellValue((row[column.key] ?? "-") as number | string, column.format)}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}

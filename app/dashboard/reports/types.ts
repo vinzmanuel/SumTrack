@@ -17,6 +17,86 @@ export type OperationalDocumentTemplateKey =
   | "collection_receipt"
   | "loan_receipt_summary";
 
+export type ReportsSnapshotValueFormat = "currency" | "number" | "text";
+
+export type ReportsSnapshotSummaryItem = {
+  key: string;
+  label: string;
+  value: number | string;
+  format?: ReportsSnapshotValueFormat;
+};
+
+export type ReportsSnapshotChartSeries = {
+  key: string;
+  label: string;
+  color: string;
+  type?: "bar" | "line";
+};
+
+export type ReportsSnapshotChartSection = {
+  key: string;
+  title: string;
+  type: "chart";
+  chartType: "bar" | "line" | "composed";
+  indexLabel?: string;
+  valueFormat?: ReportsSnapshotValueFormat;
+  note?: string;
+  series: ReportsSnapshotChartSeries[];
+  rows: Array<{ bucket: string; values: Record<string, number> }>;
+};
+
+export type ReportsSnapshotTableColumn = {
+  key: string;
+  label: string;
+  format?: ReportsSnapshotValueFormat;
+};
+
+export type ReportsSnapshotTableSection = {
+  key: string;
+  title: string;
+  type: "table";
+  columns: ReportsSnapshotTableColumn[];
+  rows: Array<Record<string, number | string>>;
+};
+
+export type ReportsSnapshotFieldListSection = {
+  key: string;
+  title: string;
+  type: "field_list";
+  rows: Array<{ label: string; value: string }>;
+};
+
+export type ReportsSnapshotSection =
+  | ReportsSnapshotChartSection
+  | ReportsSnapshotTableSection
+  | ReportsSnapshotFieldListSection;
+
+export type AnalyticsReportSnapshot = {
+  version: 1;
+  category: "analytics";
+  templateKey: AnalyticsReportTemplateKey;
+  title: string;
+  generatedLabel: string;
+  scopeLabel: string;
+  summaryCards: ReportsSnapshotSummaryItem[];
+  sections: ReportsSnapshotSection[];
+  meta: Record<string, number | string | boolean | null>;
+};
+
+export type OperationalDocumentSnapshot = {
+  version: 1;
+  category: "document";
+  templateKey: OperationalDocumentTemplateKey;
+  title: string;
+  generatedLabel: string;
+  scopeLabel: string;
+  summaryCards: ReportsSnapshotSummaryItem[];
+  sections: ReportsSnapshotSection[];
+  meta: Record<string, number | string | boolean | null>;
+};
+
+export type SavedReportSnapshot = AnalyticsReportSnapshot | OperationalDocumentSnapshot;
+
 export type ReportsBranchOption = {
   branchId: number;
   branchName: string;
@@ -114,6 +194,26 @@ export type ReportsLibraryPageData = {
     generatedByUsers: ReportsLibraryGeneratedByFilterOption[];
     branches: ReportsBranchOption[];
   };
+};
+
+export type ReportsViewerPageData = {
+  reportId: number;
+  title: string;
+  reportCategory: "analytics" | "document";
+  templateKey: string;
+  templateLabel: string;
+  generatedType: "user" | "system";
+  generatedAt: string;
+  generatedByName: string;
+  generatedByRoleName: string | null;
+  status: "active" | "archived";
+  branchScopeIds: number[];
+  branchScopeNames: string[];
+  dateFrom: string | null;
+  dateTo: string | null;
+  sourceEntityType: "loan" | "collection" | null;
+  sourceEntityId: number | null;
+  snapshot: SavedReportSnapshot;
 };
 
 export type ReportsPageAccessState =
