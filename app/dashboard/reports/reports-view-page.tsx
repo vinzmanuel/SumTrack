@@ -1,7 +1,14 @@
+"use client";
+
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { useRef } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  canExportCsv,
+  exportReportCsv,
+  printReportContent,
+} from "@/app/dashboard/reports/report-export";
 import { ReportsViewerChart } from "@/app/dashboard/reports/reports-viewer-chart";
 import { ReportsViewerDataTable } from "@/app/dashboard/reports/reports-viewer-data-table";
 import type {
@@ -15,7 +22,7 @@ import type {
 } from "@/app/dashboard/reports/types";
 
 function formatMoney(value: number) {
-  return `PHP ${value.toLocaleString("en-PH", {
+  return `₱${value.toLocaleString("en-PH", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
@@ -66,6 +73,38 @@ function formatSummaryValue(item: ReportsSnapshotSummaryItem) {
   }
 
   return String(item.value);
+}
+
+const MONEY_FIELD_LABELS = new Set([
+  "Amount",
+  "Amount Paid",
+  "Daily Payment",
+  "Estimated Daily Payment",
+  "Outstanding Balance",
+  "Principal",
+  "Principal + Interest",
+  "Remaining Balance",
+  "Remaining Balance After Payment",
+  "Total Paid",
+  "Total Payable",
+]);
+
+function tryFormatMoneyText(label: string, value: string) {
+  if (!MONEY_FIELD_LABELS.has(label)) {
+    return value;
+  }
+
+  const normalized = value.replace(/,/g, "").trim();
+  if (!normalized || normalized === "-" || /[^0-9.-]/.test(normalized)) {
+    return value;
+  }
+
+  const parsed = Number(normalized);
+  if (Number.isNaN(parsed)) {
+    return value;
+  }
+
+  return formatMoney(parsed);
 }
 
 function getRowNumber(row: Record<string, number | string>, key: string) {
@@ -121,6 +160,18 @@ function getTableSections(snapshot: SavedReportSnapshot): ReportsSnapshotTableSe
   return snapshot.sections.filter(
     (section): section is ReportsSnapshotTableSection => isTableSection(section),
   );
+}
+
+function omitTableColumn(section: ReportsSnapshotTableSection, columnKey: string): ReportsSnapshotTableSection {
+  return {
+    ...section,
+    columns: section.columns.filter((column) => column.key !== columnKey),
+    rows: section.rows.map((row) => {
+      const nextRow = { ...row };
+      delete nextRow[columnKey];
+      return nextRow;
+    }),
+  };
 }
 
 function formatCoveragePeriod(report: ReportsViewerPageData) {
@@ -346,7 +397,9 @@ function FieldListBlock(props: {
           {props.section.rows.map((row) => (
             <div className="grid grid-cols-[150px_1fr] gap-3" key={row.label}>
               <dt className="font-medium text-foreground">{row.label}</dt>
-              <dd className="text-muted-foreground">{row.value}</dd>
+              <dd className="text-muted-foreground">
+                {tryFormatMoneyText(row.label, row.value)}
+              </dd>
             </div>
           ))}
         </dl>
@@ -358,7 +411,7 @@ function FieldListBlock(props: {
 function ReportSection(props: {
   title: string;
   description?: string;
-  children: ReactNode;
+  children: React.ReactNode;
 }) {
   return (
     <section className="space-y-3">
@@ -510,6 +563,10 @@ function renderBorrowerLoanSchedule(report: ReportsViewerPageData) {
   const loanSummary =
     findFieldListSection(report.snapshot, "loanSummary") ?? findFieldListSection(report.snapshot, "loanScheduleSummary");
   const scheduleTable = findTableSection(report.snapshot, "loanScheduleTable");
+  const scheduleTableForView =
+    scheduleTable && scheduleTable.columns.some((column) => column.key === "collector")
+      ? omitTableColumn(scheduleTable, "collector")
+      : scheduleTable;
 
   return (
     <div className="space-y-8">
@@ -519,9 +576,26 @@ function renderBorrowerLoanSchedule(report: ReportsViewerPageData) {
         {borrowerDetails ? <FieldListBlock columns={1} section={borrowerDetails} /> : null}
         {loanSummary ? <FieldListBlock columns={1} section={loanSummary} /> : null}
       </div>
-      {scheduleTable ? (
+      {scheduleTableForView ? (
         <ReportSection title="Loan Schedule">
-          <ReportsViewerDataTable section={scheduleTable} />
+          <ReportsViewerDataTable
+            section={scheduleTableForView}
+            cellClassNames={{
+              amount: "whitespace-nowrap",
+              dailyPayment: "whitespace-nowrap",
+              date: "whitespace-nowrap",
+              outstandingBalance: "whitespace-nowrap",
+              principalPlusInterest: "whitespace-nowrap",
+            }}
+            columnWidths={{
+              date: "7rem",
+              principalPlusInterest: "7.25rem",
+              dailyPayment: "7rem",
+              outstandingBalance: "7.25rem",
+              amount: "7rem",
+              note: "auto",
+            }}
+          />
         </ReportSection>
       ) : (
         <div className="rounded-lg border border-dashed border-border/70 bg-muted/10 px-4 py-8 text-sm text-muted-foreground">
@@ -604,6 +678,8 @@ function renderReportBody(report: ReportsViewerPageData) {
 
 export function ReportsViewPage(props: { report: ReportsViewerPageData }) {
   const isDocument = props.report.reportCategory === "document";
+  const reportContentRef = useRef<HTMLDivElement | null>(null);
+  const csvAvailable = canExportCsv(props.report);
 
   return (
     <main className="mx-auto max-w-6xl p-6">
@@ -616,18 +692,63 @@ export function ReportsViewPage(props: { report: ReportsViewerPageData }) {
         </Link>
 
         <article className="mx-auto max-w-5xl rounded-2xl border border-border/70 bg-background px-6 py-8 shadow-sm md:px-10">
-          <header className="space-y-4 border-b border-border/70 pb-6">
-            <div className="space-y-2">
-              <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                {isDocument ? "Saved Document" : "Saved Report"}
-              </p>
-              <h1 className="text-3xl font-semibold tracking-tight text-foreground">{props.report.title}</h1>
-              <p className="text-sm text-muted-foreground">{props.report.templateLabel}</p>
-            </div>
-            <ReportMetadata report={props.report} />
-          </header>
+          <div ref={reportContentRef}>
+            <header className="space-y-4 border-b border-border/70 pb-6">
+              <div className="space-y-2">
+                <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                  {isDocument ? "Saved Document" : "Saved Report"}
+                </p>
+                <h1 className="text-3xl font-semibold tracking-tight text-foreground">{props.report.title}</h1>
+                <p className="text-sm text-muted-foreground">{props.report.templateLabel}</p>
+              </div>
+              <ReportMetadata report={props.report} />
+            </header>
 
-          <div className="pt-8">{renderReportBody(props.report)}</div>
+            <div className="pt-8">{renderReportBody(props.report)}</div>
+          </div>
+
+          <div className="mt-10 border-t border-border/70 pt-5">
+            <div className="flex flex-wrap items-center justify-end gap-3">
+              <Button
+                disabled={!csvAvailable}
+                onClick={() => exportReportCsv(props.report)}
+                type="button"
+                variant="outline"
+              >
+                Export CSV
+              </Button>
+              <Button
+                onClick={() =>
+                  printReportContent({
+                    report: props.report,
+                    contentNode: reportContentRef.current,
+                    mode: "pdf",
+                  })
+                }
+                type="button"
+                variant="outline"
+              >
+                Export PDF
+              </Button>
+              <Button
+                onClick={() =>
+                  printReportContent({
+                    report: props.report,
+                    contentNode: reportContentRef.current,
+                    mode: "print",
+                  })
+                }
+                type="button"
+              >
+                Print
+              </Button>
+            </div>
+            {!csvAvailable ? (
+              <p className="mt-3 text-right text-xs text-muted-foreground">
+                CSV export is only available when this saved snapshot contains a natural raw table.
+              </p>
+            ) : null}
+          </div>
         </article>
       </div>
     </main>

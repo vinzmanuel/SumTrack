@@ -16,7 +16,7 @@ import {
 import type { ReportsSnapshotChartSection } from "@/app/dashboard/reports/types";
 
 function formatMoney(value: number) {
-  return `PHP ${value.toLocaleString("en-PH", {
+  return `₱${value.toLocaleString("en-PH", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
@@ -24,7 +24,7 @@ function formatMoney(value: number) {
 
 function formatAxisValue(value: number, format: ReportsSnapshotChartSection["valueFormat"]) {
   if (format === "currency") {
-    return `PHP ${value.toLocaleString("en-PH", {
+    return `₱${value.toLocaleString("en-PH", {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     })}`;

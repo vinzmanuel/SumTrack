@@ -1,9 +1,10 @@
+import { cn } from "@/lib/utils";
 import type { ReportsSnapshotTableSection } from "@/app/dashboard/reports/types";
 
 function formatCellValue(value: number | string, format?: ReportsSnapshotTableSection["columns"][number]["format"]) {
   if (typeof value === "number") {
     if (format === "currency") {
-      return `PHP ${value.toLocaleString("en-PH", {
+      return `₱${value.toLocaleString("en-PH", {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
       })}`;
@@ -20,6 +21,9 @@ function formatCellValue(value: number | string, format?: ReportsSnapshotTableSe
 export function ReportsViewerDataTable(props: {
   section: ReportsSnapshotTableSection;
   compact?: boolean;
+  columnWidths?: Partial<Record<string, string>>;
+  cellClassNames?: Partial<Record<string, string>>;
+  headerClassNames?: Partial<Record<string, string>>;
 }) {
   if (props.section.rows.length === 0) {
     return (
@@ -32,11 +36,30 @@ export function ReportsViewerDataTable(props: {
   return (
     <div className="overflow-hidden rounded-lg border border-border/70">
       <div className="overflow-x-auto">
-        <table className={`min-w-full ${props.compact ? "text-sm" : "text-sm"}`}>
+        <table
+          className={cn(
+            "min-w-full text-sm",
+            props.columnWidths ? "w-full table-fixed" : null,
+          )}
+        >
+          {props.columnWidths ? (
+            <colgroup>
+              {props.section.columns.map((column) => (
+                <col key={column.key} style={{ width: props.columnWidths?.[column.key] }} />
+              ))}
+            </colgroup>
+          ) : null}
           <thead className="bg-muted/15">
             <tr className="border-b border-border/70 text-left text-muted-foreground">
-              {props.section.columns.map((column) => (
-                <th className="px-4 py-3 font-medium" key={column.key}>
+              {props.section.columns.map((column, index) => (
+                <th
+                  className={cn(
+                    "px-4 py-3 align-top font-medium whitespace-normal break-words [overflow-wrap:anywhere]",
+                    index < props.section.columns.length - 1 ? "border-r border-border/60" : null,
+                    props.headerClassNames?.[column.key],
+                  )}
+                  key={column.key}
+                >
                   {column.label}
                 </th>
               ))}
@@ -45,8 +68,15 @@ export function ReportsViewerDataTable(props: {
           <tbody className="divide-y divide-border/60 bg-background">
             {props.section.rows.map((row, index) => (
               <tr className="align-top" key={index}>
-                {props.section.columns.map((column) => (
-                  <td className="px-4 py-3 align-top" key={column.key}>
+                {props.section.columns.map((column, columnIndex) => (
+                  <td
+                    className={cn(
+                      "px-4 py-3 align-top",
+                      columnIndex < props.section.columns.length - 1 ? "border-r border-border/60" : null,
+                      props.cellClassNames?.[column.key],
+                    )}
+                    key={column.key}
+                  >
                     {formatCellValue((row[column.key] ?? "-") as number | string, column.format)}
                   </td>
                 ))}

@@ -450,7 +450,7 @@ export function buildBorrowerLoanScheduleSnapshot(params: {
     principalPlusInterest: number;
     dailyPayment: number;
     outstandingBalance: number;
-    amount: number;
+    amount: number | string;
     collector: string;
     note: string;
   }>;

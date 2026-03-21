@@ -223,7 +223,7 @@ function formatIsoDate(value: string) {
 }
 
 function formatMoney(value: number) {
-  return `PHP ${value.toLocaleString("en-PH", {
+  return `₱${value.toLocaleString("en-PH", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
@@ -1625,16 +1625,16 @@ function buildLoanScheduleRows(params: {
       lastOutstandingBalance = current.outstandingBalance;
     }
 
-    return {
-      date,
-      principalPlusInterest: params.totalPayable,
-      dailyPayment: params.estimatedDailyPayment ?? 0,
-      outstandingBalance: lastOutstandingBalance,
-      amount: current?.amount ?? 0,
-      collector: current?.collectors.length
-        ? Array.from(new Set(current.collectors)).join(", ")
-        : "-",
-      note: current?.notes.length
+      return {
+        date,
+        principalPlusInterest: params.totalPayable,
+        dailyPayment: params.estimatedDailyPayment ?? 0,
+        outstandingBalance: lastOutstandingBalance,
+        amount: current ? current.amount : "-",
+        collector: current?.collectors.length
+          ? Array.from(new Set(current.collectors)).join(", ")
+          : "-",
+        note: current?.notes.length
         ? Array.from(new Set(current.notes)).join("; ")
         : "-",
     };
