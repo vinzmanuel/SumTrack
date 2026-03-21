@@ -1,8 +1,9 @@
 "use client";
 
-import Link from "next/link";
-import { useActionState, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -70,10 +71,12 @@ export function AnalyticsReportGenerationForm(props: {
   analyticsTemplates: ReportsAnalyticsTemplateOption[];
   analyticsTemplateCategories: ReportsTemplateCategoryDefinition[];
 }) {
+  const router = useRouter();
   const [state, formAction] = useActionState(
     generateAnalyticsReportAction,
     initialGenerateAnalyticsReportState,
   );
+  const handledSuccessReportIdRef = useRef<number | null>(null);
 
   const initialCategory =
     props.analyticsTemplateCategories.find((category) =>
@@ -158,6 +161,20 @@ export function AnalyticsReportGenerationForm(props: {
       (category) => category.key === effectiveSelectedCategory,
     ) ?? null;
   const hasAvailableTemplates = availableTemplates.length > 0 && Boolean(effectiveTemplateKey);
+
+  useEffect(() => {
+    if (state.status !== "success" || !state.result) {
+      return;
+    }
+
+    if (handledSuccessReportIdRef.current === state.result.reportId) {
+      return;
+    }
+
+    handledSuccessReportIdRef.current = state.result.reportId;
+    toast.success(`${state.result.templateLabel} saved. Opening report...`);
+    router.push(`/dashboard/reports/${state.result.reportId}`);
+  }, [router, state.result, state.status]);
 
   return (
     <Card className="mx-auto w-full max-w-3xl border-border/70 bg-background">
@@ -440,41 +457,6 @@ export function AnalyticsReportGenerationForm(props: {
 
             <SubmitButton disabled={!hasAvailableTemplates} />
           </form>
-        
-        {state.status === "success" && state.result ? (
-          <div className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50/70 p-4">
-            <div className="space-y-1">
-              <p className="text-sm font-medium text-emerald-900">Report saved</p>
-              <p className="text-sm text-emerald-800">
-                {state.result.templateLabel} was saved as report #{state.result.reportId}.
-              </p>
-            </div>
-            <div className="mt-3 grid gap-2 text-sm text-emerald-900 md:grid-cols-2">
-              <p>
-                <span className="font-medium">Title:</span> {state.result.title}
-              </p>
-              <p>
-                <span className="font-medium">Branches:</span> {state.result.branchCount}
-              </p>
-              <p>
-                <span className="font-medium">Generated At:</span> {state.result.generatedAt}
-              </p>
-              <p>
-                <span className="font-medium">Date Range:</span>{" "}
-                {state.result.dateFrom && state.result.dateTo
-                  ? `${state.result.dateFrom} to ${state.result.dateTo}`
-                  : "Current snapshot"}
-              </p>
-            </div>
-            <div className="mt-4">
-              <Link href={`/dashboard/reports/${state.result.reportId}`}>
-                <Button className="bg-emerald-700 text-white hover:bg-emerald-800" size="sm" type="button">
-                  View saved report
-                </Button>
-              </Link>
-            </div>
-          </div>
-        ) : null}
       </CardContent>
     </Card>
   );

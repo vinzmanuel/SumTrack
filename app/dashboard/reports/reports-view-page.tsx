@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRef } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { formatStoredDateTimeForManila } from "@/app/dashboard/datetime";
 import {
   canExportCsv,
   exportReportCsv,
@@ -47,18 +48,13 @@ function formatDate(value: string | null) {
 }
 
 function formatDateTime(value: string) {
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return value;
-  }
-
-  return new Intl.DateTimeFormat("en-PH", {
+  return formatStoredDateTimeForManila(value, {
     month: "long",
     day: "numeric",
     year: "numeric",
     hour: "numeric",
     minute: "2-digit",
-  }).format(parsed);
+  });
 }
 
 function formatSummaryValue(item: ReportsSnapshotSummaryItem) {

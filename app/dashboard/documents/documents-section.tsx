@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatStoredDateTimeForManila } from "@/app/dashboard/datetime";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -85,22 +86,13 @@ type CachedSignedUrl = {
 };
 
 function formatTimestamp(value: string | null) {
-  if (!value) {
-    return "N/A";
-  }
-
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return value;
-  }
-
-  return new Intl.DateTimeFormat("en-PH", {
+  return formatStoredDateTimeForManila(value, {
     year: "numeric",
     month: "short",
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
-  }).format(parsed);
+  });
 }
 
 function formatBytes(value: number) {

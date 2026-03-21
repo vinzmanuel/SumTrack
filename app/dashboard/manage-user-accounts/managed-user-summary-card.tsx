@@ -1,21 +1,13 @@
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { formatStoredDateForManila } from "@/app/dashboard/datetime";
 
 function formatDate(value: string | null) {
-  if (!value) {
-    return "N/A";
-  }
-
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return value;
-  }
-
-  return new Intl.DateTimeFormat("en-PH", {
+  return formatStoredDateForManila(value, {
     year: "numeric",
     month: "long",
     day: "numeric",
-  }).format(parsed);
+  });
 }
 
 function DetailItem({

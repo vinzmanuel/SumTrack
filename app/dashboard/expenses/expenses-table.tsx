@@ -1,5 +1,6 @@
 import { formatMoney } from "@/app/dashboard/expenses/format";
 import type { ExpenseListRow } from "@/app/dashboard/expenses/types";
+import { formatStoredDateTimeForManila } from "@/app/dashboard/datetime";
 
 export function ExpensesTable({ expenses }: { expenses: ExpenseListRow[] }) {
   if (expenses.length === 0) {
@@ -31,7 +32,7 @@ export function ExpensesTable({ expenses }: { expenses: ExpenseListRow[] }) {
               <td className="px-2 py-2">{formatMoney(row.amount)}</td>
               <td className="px-2 py-2">{row.expenseDate}</td>
               <td className="px-2 py-2">{row.recordedByCompanyId || row.recordedByUsername || "N/A"}</td>
-              <td className="px-2 py-2">{row.recordedAt || "N/A"}</td>
+              <td className="px-2 py-2">{formatStoredDateTimeForManila(row.recordedAt)}</td>
             </tr>
           ))}
         </tbody>

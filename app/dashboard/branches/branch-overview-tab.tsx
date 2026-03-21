@@ -1,6 +1,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CollectionsAreaChart } from "@/app/dashboard/collections/collections-area-chart";
+import { formatStoredDateForManila } from "@/app/dashboard/datetime";
 import type { BranchDetailOverviewData } from "@/app/dashboard/branches/types";
 
 function formatCurrency(value: number) {
@@ -12,20 +13,11 @@ function formatCurrency(value: number) {
 }
 
 function formatDate(value: string | null) {
-  if (!value) {
-    return "N/A";
-  }
-
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return value;
-  }
-
-  return new Intl.DateTimeFormat("en-PH", {
+  return formatStoredDateForManila(value, {
     year: "numeric",
     month: "long",
     day: "numeric",
-  }).format(parsed);
+  });
 }
 
 function DetailItem({

@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { formatStoredDateForManila } from "@/app/dashboard/datetime";
 import { updateSelfAccountDetailsAction } from "@/app/dashboard/settings/actions";
 import { initialSettingsFormState } from "@/app/dashboard/settings/state";
 import type { SelfProfileDetail } from "@/app/dashboard/settings/types";
@@ -35,6 +36,16 @@ function formatDate(value: string | null) {
     month: "long",
     day: "numeric",
   }).format(parsed);
+}
+
+function formatStoredProfileDate(value: string | null) {
+  const formatted = formatStoredDateForManila(value, {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
+  return formatted === "N/A" ? "—" : formatted;
 }
 
 export function AccountDetailsForm({
@@ -111,7 +122,7 @@ export function AccountDetailsForm({
               <label className="text-sm font-medium" htmlFor="profile-date-created">
                 Date Created
               </label>
-              <Input id="profile-date-created" readOnly value={formatDate(profile.dateCreated)} />
+              <Input id="profile-date-created" readOnly value={formatStoredProfileDate(profile.dateCreated)} />
             </div>
           </div>
 

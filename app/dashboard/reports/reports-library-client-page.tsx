@@ -6,6 +6,7 @@ import { FileStack, FolderOpenDot } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatStoredDateTimeForManila } from "@/app/dashboard/datetime";
 import { getReportsDatePresetLabel } from "@/app/dashboard/reports/date-range-presets";
 import {
   buildReportsLibraryHref,
@@ -22,18 +23,13 @@ import type {
 } from "@/app/dashboard/reports/types";
 
 function formatGeneratedAt(value: string) {
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return value;
-  }
-
-  return new Intl.DateTimeFormat("en-PH", {
+  return formatStoredDateTimeForManila(value, {
     month: "short",
     day: "numeric",
     year: "numeric",
     hour: "numeric",
     minute: "2-digit",
-  }).format(parsed);
+  });
 }
 
 function buildReportsLibraryDataUrl(filters: ReportsLibraryFilterState) {

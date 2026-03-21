@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { formatStoredDateForManila } from "@/app/dashboard/datetime";
 import type { BranchAreasTabData } from "@/app/dashboard/branches/types";
 
 const PAGE_SIZE = 8;
@@ -23,20 +24,11 @@ function formatCurrency(value: number) {
 }
 
 function formatDate(value: string | null) {
-  if (!value) {
-    return "N/A";
-  }
-
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return value;
-  }
-
-  return new Intl.DateTimeFormat("en-PH", {
+  return formatStoredDateForManila(value, {
     year: "numeric",
     month: "short",
     day: "numeric",
-  }).format(parsed);
+  });
 }
 
 function descriptionLabel(value: string | null) {
