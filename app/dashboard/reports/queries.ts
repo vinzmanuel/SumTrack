@@ -25,17 +25,19 @@ import {
   buildBranchCollectionsComparisonSnapshot,
   buildBranchLoansComparisonSnapshot,
   buildBranchPerformanceComparisonSnapshot,
+  buildBranchPerformanceOverviewSnapshot,
   buildBorrowerSummarySnapshot,
   buildBorrowersWithOverdueLoansSnapshot,
   buildBorrowerLoanScheduleSnapshot,
   buildClosedLoansReportSnapshot,
   buildCollectionReceiptSnapshot,
+  buildCollectionsSummarySnapshot,
   buildCollectorLeaderboardReportSnapshot,
   buildCollectorPerformanceReportSnapshot,
   buildCollectionsByCollectorSnapshot,
   buildFinancialOverviewSnapshot,
   buildLoanReceiptSummarySnapshot,
-  buildMonthlyCollectionsSummarySnapshot,
+  buildLoansSummarySnapshot,
   buildOverdueLoansReportSnapshot,
   buildReleasedLoansReportSnapshot,
 } from "@/app/dashboard/reports/snapshot-builders";
@@ -45,6 +47,7 @@ import {
   buildOperationalDocumentTemplateOptions,
   getAnalyticsTemplateDefinition,
   getOperationalDocumentTemplateDefinition,
+  normalizeReportTemplateKey,
   resolveReportTemplateCategory,
   resolveReportTemplateLabel,
 } from "@/app/dashboard/reports/templates";
@@ -69,8 +72,6 @@ import {
   collections,
   employee_info,
   expenses,
-  incentive_payout_batches,
-  incentive_payout_history,
   loan_records,
   reports,
   roles,
@@ -121,7 +122,7 @@ function isLoanReceiptSummaryEligible(status: string, outstandingBalance: number
   return (status === "Completed" || status === "Archived") && outstandingBalance <= 0.01;
 }
 
-type DateBucketMode = "day" | "month";
+type DateBucketMode = "day" | "week" | "month";
 
 function countInclusiveDays(dateFrom: string, dateTo: string) {
   const start = new Date(`${dateFrom}T00:00:00Z`);
@@ -137,8 +138,42 @@ function resolveDateBucketMode(dateFrom: string, dateTo: string): DateBucketMode
   return countInclusiveDays(dateFrom, dateTo) <= 45 ? "day" : "month";
 }
 
+function resolveAdaptiveRangeBucketMode(dateFrom: string, dateTo: string): DateBucketMode {
+  const inclusiveDays = countInclusiveDays(dateFrom, dateTo);
+
+  if (inclusiveDays <= 31) {
+    return "day";
+  }
+
+  if (inclusiveDays <= 180) {
+    return "week";
+  }
+
+  return "month";
+}
+
+function startOfIsoWeek(dateValue: string) {
+  const parsed = new Date(`${dateValue}T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime())) {
+    return dateValue;
+  }
+
+  const dayOfWeek = parsed.getUTCDay();
+  const offset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  parsed.setUTCDate(parsed.getUTCDate() + offset);
+  return parsed.toISOString().slice(0, 10);
+}
+
 function bucketKeyForIsoDate(date: string, mode: DateBucketMode) {
-  return mode === "day" ? date : date.slice(0, 7);
+  if (mode === "day") {
+    return date;
+  }
+
+  if (mode === "week") {
+    return startOfIsoWeek(date);
+  }
+
+  return date.slice(0, 7);
 }
 
 function bucketLabelFromKey(bucketKey: string, mode: DateBucketMode) {
@@ -155,6 +190,29 @@ function bucketLabelFromKey(bucketKey: string, mode: DateBucketMode) {
     }).format(parsed);
   }
 
+  if (mode === "week") {
+    const parsed = new Date(`${bucketKey}T00:00:00Z`);
+    if (Number.isNaN(parsed.getTime())) {
+      return bucketKey;
+    }
+
+    const end = new Date(parsed);
+    end.setUTCDate(end.getUTCDate() + 6);
+
+    const startLabel = new Intl.DateTimeFormat("en-PH", {
+      month: "short",
+      day: "2-digit",
+      timeZone: "UTC",
+    }).format(parsed);
+    const endLabel = new Intl.DateTimeFormat("en-PH", {
+      month: "short",
+      day: "2-digit",
+      timeZone: "UTC",
+    }).format(end);
+
+    return `${startLabel} - ${endLabel}`;
+  }
+
   const parsed = new Date(`${bucketKey}-01T00:00:00Z`);
   if (Number.isNaN(parsed.getTime())) {
     return bucketKey;
@@ -168,7 +226,8 @@ function bucketLabelFromKey(bucketKey: string, mode: DateBucketMode) {
 }
 
 function enumerateBucketLabels(dateFrom: string, dateTo: string, mode: DateBucketMode) {
-  const start = new Date(`${dateFrom}T00:00:00Z`);
+  const startKey = mode === "week" ? startOfIsoWeek(dateFrom) : dateFrom;
+  const start = new Date(`${startKey}T00:00:00Z`);
   const end = new Date(`${dateTo}T00:00:00Z`);
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) {
     return [] as Array<{ key: string; label: string }>;
@@ -181,7 +240,12 @@ function enumerateBucketLabels(dateFrom: string, dateTo: string, mode: DateBucke
     const year = cursor.getUTCFullYear();
     const month = String(cursor.getUTCMonth() + 1).padStart(2, "0");
     const day = String(cursor.getUTCDate()).padStart(2, "0");
-    const key = mode === "day" ? `${year}-${month}-${day}` : `${year}-${month}`;
+    const key =
+      mode === "day"
+        ? `${year}-${month}-${day}`
+        : mode === "week"
+          ? `${year}-${month}-${day}`
+          : `${year}-${month}`;
 
     if (!rows.some((row) => row.key === key)) {
       rows.push({
@@ -192,6 +256,8 @@ function enumerateBucketLabels(dateFrom: string, dateTo: string, mode: DateBucke
 
     if (mode === "day") {
       cursor.setUTCDate(cursor.getUTCDate() + 1);
+    } else if (mode === "week") {
+      cursor.setUTCDate(cursor.getUTCDate() + 7);
     } else {
       cursor.setUTCMonth(cursor.getUTCMonth() + 1, 1);
     }
@@ -388,7 +454,8 @@ function buildReportsLibraryRow(row: {
   sourceEntityType: "loan" | "collection" | null;
   sourceEntityId: number | null;
 }): ReportsLibraryRow {
-  const templateCategory = resolveReportTemplateCategory(row.templateKey);
+  const normalizedTemplateKey = normalizeReportTemplateKey(row.templateKey);
+  const templateCategory = resolveReportTemplateCategory(normalizedTemplateKey);
 
   return {
     reportId: row.reportId,
@@ -398,8 +465,8 @@ function buildReportsLibraryRow(row: {
       templateCategory?.key ?? (row.reportCategory === "document" ? "documents" : "financials"),
     templateCategoryLabel:
       templateCategory?.label ?? (row.reportCategory === "document" ? "Documents" : "Financials"),
-    templateKey: row.templateKey,
-    templateLabel: resolveReportTemplateLabel(row.templateKey),
+    templateKey: normalizedTemplateKey,
+    templateLabel: resolveReportTemplateLabel(normalizedTemplateKey),
     generatedType: row.generatedType,
     generatedAt: row.generatedAt,
     status: row.status,
@@ -594,18 +661,6 @@ function bucketKeyToCollectorPeriodLabel(bucketKey: string, mode: "day" | "week"
   return `${startLabel} - ${endLabel}`;
 }
 
-function startOfIsoWeek(dateValue: string) {
-  const parsed = new Date(`${dateValue}T00:00:00Z`);
-  if (Number.isNaN(parsed.getTime())) {
-    return dateValue;
-  }
-
-  const dayOfWeek = parsed.getUTCDay();
-  const offset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-  parsed.setUTCDate(parsed.getUTCDate() + offset);
-  return parsed.toISOString().slice(0, 10);
-}
-
 function enumerateCollectorBucketDefinitions(
   dateFrom: string,
   dateTo: string,
@@ -740,18 +795,13 @@ async function loadFinancialOverviewData(
   const liveLoanMetrics = await loadLiveLoanBranchMetrics(branchIds);
   const collectionConditions: SQL[] = [inArray(loan_records.branch_id, branchIds)];
   const expenseConditions: SQL[] = [inArray(expenses.branch_id, branchIds)];
-  const incentiveConditions: SQL[] = [inArray(incentive_payout_batches.branch_id, branchIds)];
 
   if (dateFrom && dateTo) {
     collectionConditions.push(gte(collections.collection_date, dateFrom), lte(collections.collection_date, dateTo));
     expenseConditions.push(gte(expenses.expense_date, dateFrom), lte(expenses.expense_date, dateTo));
-    incentiveConditions.push(
-      gte(incentive_payout_batches.period_end, dateFrom),
-      lte(incentive_payout_batches.period_end, dateTo),
-    );
   }
 
-  const [collectionRows, expenseRows, incentiveRows] = await Promise.all([
+  const [collectionRows, expenseRows] = await Promise.all([
     db
       .select({
         branchId: loan_records.branch_id,
@@ -773,28 +823,12 @@ async function loadFinancialOverviewData(
       .where(and(...expenseConditions))
       .groupBy(expenses.branch_id, expenses.expense_date)
       .catch(() => []),
-    db
-      .select({
-        branchId: incentive_payout_batches.branch_id,
-        activityDate: incentive_payout_batches.period_end,
-        totalAmount: sql<number>`coalesce(sum(${incentive_payout_history.computed_incentive}), 0)`,
-      })
-      .from(incentive_payout_history)
-      .innerJoin(
-        incentive_payout_batches,
-        eq(incentive_payout_batches.batch_id, incentive_payout_history.batch_id),
-      )
-      .where(and(...incentiveConditions))
-      .groupBy(incentive_payout_batches.branch_id, incentive_payout_batches.period_end)
-      .catch(() => []),
   ]);
 
   const collectionTotals = new Map<number, number>();
   const expenseTotals = new Map<number, number>();
-  const incentiveTotals = new Map<number, number>();
   const bucketCollectionTotals = new Map<string, number>();
   const bucketExpenseTotals = new Map<string, number>();
-  const bucketIncentiveTotals = new Map<string, number>();
   const activityDates = new Set<string>();
 
   for (const row of collectionRows) {
@@ -802,10 +836,6 @@ async function loadFinancialOverviewData(
   }
 
   for (const row of expenseRows) {
-    activityDates.add(row.activityDate);
-  }
-
-  for (const row of incentiveRows) {
     activityDates.add(row.activityDate);
   }
 
@@ -829,17 +859,9 @@ async function loadFinancialOverviewData(
     bucketExpenseTotals.set(bucketKey, (bucketExpenseTotals.get(bucketKey) ?? 0) + amount);
   }
 
-  for (const row of incentiveRows) {
-    const amount = toNumber(row.totalAmount);
-    incentiveTotals.set(row.branchId, (incentiveTotals.get(row.branchId) ?? 0) + amount);
-    const bucketKey = bucketKeyForIsoDate(row.activityDate, bucketMode);
-    bucketIncentiveTotals.set(bucketKey, (bucketIncentiveTotals.get(bucketKey) ?? 0) + amount);
-  }
-
   const branchSummaryRows = branchRows.map((row) => {
     const collectionsAmount = collectionTotals.get(row.branchId) ?? 0;
     const expensesAmount = expenseTotals.get(row.branchId) ?? 0;
-    const incentivesAmount = incentiveTotals.get(row.branchId) ?? 0;
     const loanMetrics = liveLoanMetrics.get(row.branchId) ?? {
       activeLoans: 0,
       overdueLoans: 0,
@@ -852,8 +874,7 @@ async function loadFinancialOverviewData(
       branchName: row.branchName,
       collectionsAmount,
       expensesAmount,
-      incentivesAmount,
-      netAmount: collectionsAmount - expensesAmount - incentivesAmount,
+      netAmount: collectionsAmount - expensesAmount,
       activeLoans: loanMetrics.activeLoans,
       overdueLoans: loanMetrics.overdueLoans,
       outstandingBalance: loanMetrics.outstandingBalance,
@@ -863,14 +884,12 @@ async function loadFinancialOverviewData(
   const periodRows = bucketLabels.map((bucket) => {
     const collectionsAmount = bucketCollectionTotals.get(bucket.key) ?? 0;
     const expensesAmount = bucketExpenseTotals.get(bucket.key) ?? 0;
-    const incentivesAmount = bucketIncentiveTotals.get(bucket.key) ?? 0;
 
     return {
       bucket: bucket.label,
       collectionsAmount,
       expensesAmount,
-      incentivesAmount,
-      netAmount: collectionsAmount - expensesAmount - incentivesAmount,
+      netAmount: collectionsAmount - expensesAmount,
     };
   });
 
@@ -878,13 +897,11 @@ async function loadFinancialOverviewData(
     (totals, row) => ({
       collectionsTotal: totals.collectionsTotal + row.collectionsAmount,
       expensesTotal: totals.expensesTotal + row.expensesAmount,
-      incentivesTotal: totals.incentivesTotal + row.incentivesAmount,
       netTotal: totals.netTotal + row.netAmount,
     }),
     {
       collectionsTotal: 0,
       expensesTotal: 0,
-      incentivesTotal: 0,
       netTotal: 0,
     },
   );
@@ -896,7 +913,7 @@ async function loadFinancialOverviewData(
   };
 }
 
-async function loadMonthlyCollectionsSummaryData(
+async function loadCollectionsSummaryData(
   branchRows: Array<{ branchId: number; branchName: string }>,
   dateFrom: string | null,
   dateTo: string | null,
@@ -922,7 +939,7 @@ async function loadMonthlyCollectionsSummaryData(
     db
       .select({
         branchId: loan_records.branch_id,
-        bucket: collections.collection_date,
+        activityDate: collections.collection_date,
         totalAmount: sql<number>`coalesce(sum(${collections.amount}), 0)`,
       })
       .from(collections)
@@ -946,12 +963,13 @@ async function loadMonthlyCollectionsSummaryData(
   ]);
 
   const summaryRow = summaryRows[0];
-  const sortedTrendDates = Array.from(new Set(trendRows.map((row) => row.bucket))).sort((left, right) =>
+  const sortedTrendDates = Array.from(new Set(trendRows.map((row) => row.activityDate))).sort((left, right) =>
     left.localeCompare(right),
   );
   const effectiveDateFrom = dateFrom ?? sortedTrendDates[0] ?? currentManilaIsoDate();
   const effectiveDateTo = dateTo ?? sortedTrendDates.at(-1) ?? currentManilaIsoDate();
-  const dayLabels = enumerateBucketLabels(effectiveDateFrom, effectiveDateTo, "day");
+  const bucketMode = resolveAdaptiveRangeBucketMode(effectiveDateFrom, effectiveDateTo);
+  const bucketLabels = enumerateBucketLabels(effectiveDateFrom, effectiveDateTo, bucketMode);
   const branchNameMap = new Map(branchRows.map((row) => [row.branchId, row.branchName]));
   const branchSeries = branchRows.map((row, index) => ({
     key: `branch_${row.branchId}`,
@@ -959,7 +977,7 @@ async function loadMonthlyCollectionsSummaryData(
     color: getReportSeriesColor(index),
   }));
   const rawColumns: Array<{ key: string; label: string; format?: "currency" | "number" | "text" }> = [
-    { key: "bucket", label: "Date" },
+    { key: "bucket", label: bucketMode === "day" ? "Date" : "Period" },
     ...branchSeries.map((series) => ({
       key: series.key,
       label: series.label,
@@ -970,18 +988,18 @@ async function loadMonthlyCollectionsSummaryData(
   const trendLookup = new Map<string, Record<string, number>>();
 
   for (const row of trendRows) {
-    const bucketKey = row.bucket;
+    const bucketKey = bucketKeyForIsoDate(row.activityDate, bucketMode);
     const branchKey = `branch_${row.branchId}`;
     const existing = trendLookup.get(bucketKey) ?? {};
-    existing[branchKey] = toNumber(row.totalAmount);
+    existing[branchKey] = (existing[branchKey] ?? 0) + toNumber(row.totalAmount);
     trendLookup.set(bucketKey, existing);
   }
 
   let highestBucketLabel = "N/A";
   let highestBucketAmount = 0;
 
-  const normalizedTrendRows = dayLabels.map((dayLabel) => {
-    const values = trendLookup.get(dayLabel.key) ?? {};
+  const normalizedTrendRows = bucketLabels.map((bucket) => {
+    const values = trendLookup.get(bucket.key) ?? {};
     let totalAmount = 0;
 
     for (const series of branchSeries) {
@@ -990,11 +1008,11 @@ async function loadMonthlyCollectionsSummaryData(
 
     if (totalAmount > highestBucketAmount) {
       highestBucketAmount = totalAmount;
-      highestBucketLabel = `${dayLabel.label} (${formatMoney(totalAmount)})`;
+      highestBucketLabel = `${bucket.label} (${formatMoney(totalAmount)})`;
     }
 
     return {
-      bucket: dayLabel.label,
+      bucket: bucket.label,
       values: branchSeries.length > 1 ? values : { collections: totalAmount },
     };
   });
@@ -1004,7 +1022,7 @@ async function loadMonthlyCollectionsSummaryData(
       totalAmount: toNumber(summaryRow?.totalAmount),
       totalEntries: toNumber(summaryRow?.totalEntries),
       averagePerDay:
-        dayLabels.length > 0 ? toNumber(summaryRow?.totalAmount) / dayLabels.length : 0,
+        bucketLabels.length > 0 ? toNumber(summaryRow?.totalAmount) / bucketLabels.length : 0,
       highestCollectionDay: highestBucketLabel,
     },
     chartSeries:
@@ -1013,11 +1031,11 @@ async function loadMonthlyCollectionsSummaryData(
         : [{ key: "collections", label: "Collections", color: "#16a34a" }],
     trendRows: normalizedTrendRows,
     rawColumns,
-    rawRows: dayLabels.map((dayLabel) => {
-      const values = trendLookup.get(dayLabel.key) ?? {};
+    rawRows: bucketLabels.map((bucket) => {
+      const values = trendLookup.get(bucket.key) ?? {};
 
       return {
-        bucket: dayLabel.key,
+        bucket: bucket.label,
         ...Object.fromEntries(branchSeries.map((series) => [series.key, values[series.key] ?? 0])),
         totalAmount: branchSeries.reduce((sum, series) => sum + (values[series.key] ?? 0), 0),
       };
@@ -1030,6 +1048,7 @@ async function loadMonthlyCollectionsSummaryData(
         averageAmount: toNumber(row.averageAmount),
       }))
       .sort((left, right) => left.branchName.localeCompare(right.branchName)),
+    bucketMode,
   };
 }
 
@@ -1155,6 +1174,159 @@ async function loadActiveLoansSummaryData(branchRows: Array<{ branchId: number; 
         0,
       ),
     })),
+  };
+}
+
+async function loadLoansSummaryData(
+  branchRows: Array<{ branchId: number; branchName: string }>,
+  dateFrom: string | null,
+  dateTo: string | null,
+) {
+  const branchIds = branchRows.map((row) => row.branchId);
+  const effectiveDateFrom = dateFrom ?? "1900-01-01";
+  const effectiveDateTo = dateTo ?? currentManilaIsoDate();
+  const loanRows = await db
+    .select({
+      loanId: loan_records.loan_id,
+      branchId: loan_records.branch_id,
+      startDate: loan_records.start_date,
+      dueDate: loan_records.due_date,
+      principal: loan_records.principal,
+      interest: loan_records.interest,
+      status: loan_records.status,
+    })
+    .from(loan_records)
+  .where(
+      and(
+        inArray(loan_records.branch_id, branchIds),
+        lte(loan_records.start_date, effectiveDateTo),
+      ),
+    )
+    .catch(() => []);
+
+  if (loanRows.length === 0) {
+    return {
+      summary: {
+        activeLoansAtPeriodEnd: 0,
+        loansThatBecameOverdue: 0,
+        closedLoansInPeriod: 0,
+        outstandingBalanceAtPeriodEnd: 0,
+      },
+      chartRows: [
+        {
+          bucket: "Selected Scope",
+          values: {
+            activeLoans: 0,
+            becameOverdue: 0,
+            closedLoans: 0,
+          },
+        },
+      ],
+      rawRows: [
+        { metric: "Active Loans at Period End", value: 0 },
+        { metric: "Loans that Became Overdue in Period", value: 0 },
+        { metric: "Closed Loans in Period", value: 0 },
+        { metric: "Outstanding Balance at Period End", value: 0 },
+      ],
+    };
+  }
+
+  const paymentRows = await db
+    .select({
+      loanId: collections.loan_id,
+      totalPaidThroughEnd: sql<number>`coalesce(sum(${collections.amount}), 0)`,
+      completionDate: sql<string | null>`max(${collections.collection_date})`,
+    })
+    .from(collections)
+    .where(
+      and(
+        inArray(collections.loan_id, loanRows.map((row) => row.loanId)),
+        lte(collections.collection_date, effectiveDateTo),
+      ),
+    )
+    .groupBy(collections.loan_id)
+    .catch(() => []);
+
+  const paymentMap = new Map(
+    paymentRows.map((row) => [
+      row.loanId,
+      {
+        totalPaidThroughEnd: toNumber(row.totalPaidThroughEnd),
+        completionDate: row.completionDate,
+      },
+    ]),
+  );
+
+  let activeLoansAtPeriodEnd = 0;
+  let loansThatBecameOverdue = 0;
+  let closedLoansInPeriod = 0;
+  let outstandingBalanceAtPeriodEnd = 0;
+
+  for (const row of loanRows) {
+    const paymentSummary = paymentMap.get(row.loanId);
+    const principal = toNumber(row.principal);
+    const interestRate = toNumber(row.interest);
+    const totalPayable = principal + (principal * interestRate) / 100;
+    const totalPaidThroughEnd = paymentSummary?.totalPaidThroughEnd ?? 0;
+    const completionDate = paymentSummary?.completionDate ?? null;
+    const isClosedByPeriodEnd =
+      totalPaidThroughEnd >= totalPayable - 0.01 ||
+      ((row.status === "Completed" || row.status === "Archived") &&
+        Boolean(completionDate && completionDate <= effectiveDateTo));
+
+    if (!isClosedByPeriodEnd) {
+      const outstandingBalance = Math.max(totalPayable - totalPaidThroughEnd, 0);
+      outstandingBalanceAtPeriodEnd += outstandingBalance;
+
+      if (row.dueDate < effectiveDateTo) {
+        if (row.dueDate >= effectiveDateFrom) {
+          loansThatBecameOverdue += 1;
+        }
+      } else {
+        activeLoansAtPeriodEnd += 1;
+      }
+    }
+
+    if (completionDate && completionDate >= effectiveDateFrom && completionDate <= effectiveDateTo) {
+      closedLoansInPeriod += 1;
+    }
+  }
+
+  return {
+    summary: {
+      activeLoansAtPeriodEnd,
+      loansThatBecameOverdue,
+      closedLoansInPeriod,
+      outstandingBalanceAtPeriodEnd,
+    },
+    chartRows: [
+      {
+        bucket: "Selected Scope",
+        values: {
+          activeLoans: activeLoansAtPeriodEnd,
+          becameOverdue: loansThatBecameOverdue,
+          closedLoans: closedLoansInPeriod,
+        },
+      },
+    ],
+    rawRows: [
+      {
+        metric: "Active Loans at Period End",
+        value: activeLoansAtPeriodEnd,
+      },
+      {
+        metric: "Loans that Became Overdue in Period",
+        value: loansThatBecameOverdue,
+      },
+      {
+        metric: "Closed Loans in Period",
+        value: closedLoansInPeriod,
+      },
+      {
+        metric: "Outstanding Balance at Period End",
+        value: outstandingBalanceAtPeriodEnd,
+      },
+    ],
   };
 }
 
@@ -1668,15 +1840,12 @@ async function loadBranchPerformanceComparisonData(
   const branchIds = branchRows.map((row) => row.branchId);
   const collectionConditions: SQL[] = [inArray(loan_records.branch_id, branchIds)];
   const expenseConditions: SQL[] = [inArray(expenses.branch_id, branchIds)];
-  const incentiveConditions: SQL[] = [inArray(incentive_payout_batches.branch_id, branchIds)];
 
   if (dateFrom && dateTo) {
     collectionConditions.push(gte(collections.collection_date, dateFrom));
     collectionConditions.push(lte(collections.collection_date, dateTo));
     expenseConditions.push(gte(expenses.expense_date, dateFrom));
     expenseConditions.push(lte(expenses.expense_date, dateTo));
-    incentiveConditions.push(gte(incentive_payout_batches.period_end, dateFrom));
-    incentiveConditions.push(lte(incentive_payout_batches.period_end, dateTo));
   }
 
   const [
@@ -1684,7 +1853,6 @@ async function loadBranchPerformanceComparisonData(
     loanCountRows,
     collectionRows,
     expenseRows,
-    incentiveRows,
   ] = await Promise.all([
     db
       .select({
@@ -1727,19 +1895,6 @@ async function loadBranchPerformanceComparisonData(
       .where(and(...expenseConditions))
       .groupBy(expenses.branch_id)
       .catch(() => []),
-    db
-      .select({
-        branchId: incentive_payout_batches.branch_id,
-        incentivesAmount: sql<number>`coalesce(sum(${incentive_payout_history.computed_incentive}), 0)`,
-      })
-      .from(incentive_payout_history)
-      .innerJoin(
-        incentive_payout_batches,
-        eq(incentive_payout_batches.batch_id, incentive_payout_history.batch_id),
-      )
-      .where(and(...incentiveConditions))
-      .groupBy(incentive_payout_batches.branch_id)
-      .catch(() => []),
   ]);
 
   const borrowerMap = new Map(borrowerCountRows.map((row) => [row.branchId, toNumber(row.borrowerCount)]));
@@ -1755,20 +1910,17 @@ async function loadBranchPerformanceComparisonData(
   );
   const collectionMap = new Map(collectionRows.map((row) => [row.branchId, toNumber(row.collectionsThisMonth)]));
   const expenseMap = new Map(expenseRows.map((row) => [row.branchId, toNumber(row.expensesAmount)]));
-  const incentiveMap = new Map(incentiveRows.map((row) => [row.branchId, toNumber(row.incentivesAmount)]));
 
   const comparisonRows = branchRows.map((row) => {
     const collectionsAmount = collectionMap.get(row.branchId) ?? 0;
     const expensesAmount = expenseMap.get(row.branchId) ?? 0;
-    const incentivesAmount = incentiveMap.get(row.branchId) ?? 0;
 
     return {
       branchName: row.branchName,
       borrowerCount: borrowerMap.get(row.branchId) ?? 0,
       collectionsAmount,
       expensesAmount,
-      incentivesAmount,
-      netAmount: collectionsAmount - expensesAmount - incentivesAmount,
+      netAmount: collectionsAmount - expensesAmount,
       activeLoanCount: loanMap.get(row.branchId)?.activeLoanCount ?? 0,
       overdueLoanCount: loanMap.get(row.branchId)?.overdueLoanCount ?? 0,
       completedLoanCount: loanMap.get(row.branchId)?.completedLoanCount ?? 0,
@@ -1781,13 +1933,157 @@ async function loadBranchPerformanceComparisonData(
       totalBorrowers: comparisonRows.reduce((sum, row) => sum + row.borrowerCount, 0),
       totalCollections: comparisonRows.reduce((sum, row) => sum + row.collectionsAmount, 0),
       totalExpenses: comparisonRows.reduce((sum, row) => sum + row.expensesAmount, 0),
-      totalIncentives: comparisonRows.reduce((sum, row) => sum + row.incentivesAmount, 0),
       totalNet: comparisonRows.reduce((sum, row) => sum + row.netAmount, 0),
       totalActiveLoans: comparisonRows.reduce((sum, row) => sum + row.activeLoanCount, 0),
       totalOverdueLoans: comparisonRows.reduce((sum, row) => sum + row.overdueLoanCount, 0),
       totalCompletedLoans: comparisonRows.reduce((sum, row) => sum + row.completedLoanCount, 0),
     },
     branchRows: comparisonRows,
+  };
+}
+
+async function loadBranchPerformanceOverviewData(
+  branchRow: { branchId: number; branchName: string },
+  dateFrom: string | null,
+  dateTo: string | null,
+) {
+  const branchIds = [branchRow.branchId];
+  const collectionConditions: SQL[] = [inArray(loan_records.branch_id, branchIds)];
+  const expenseConditions: SQL[] = [eq(expenses.branch_id, branchRow.branchId)];
+
+  if (dateFrom && dateTo) {
+    collectionConditions.push(gte(collections.collection_date, dateFrom));
+    collectionConditions.push(lte(collections.collection_date, dateTo));
+    expenseConditions.push(gte(expenses.expense_date, dateFrom));
+    expenseConditions.push(lte(expenses.expense_date, dateTo));
+  }
+
+  const [
+    collectionRows,
+    expenseRows,
+    borrowerLoanRows,
+    closedLoanRows,
+  ] = await Promise.all([
+    db
+      .select({
+        activityDate: collections.collection_date,
+        totalAmount: sql<number>`coalesce(sum(${collections.amount}), 0)`,
+      })
+      .from(collections)
+      .innerJoin(loan_records, eq(loan_records.loan_id, collections.loan_id))
+      .where(and(...collectionConditions))
+      .groupBy(collections.collection_date)
+      .orderBy(asc(collections.collection_date))
+      .catch(() => []),
+    db
+      .select({
+        activityDate: expenses.expense_date,
+        totalAmount: sql<number>`coalesce(sum(${expenses.amount}), 0)`,
+      })
+      .from(expenses)
+      .where(and(...expenseConditions))
+      .groupBy(expenses.expense_date)
+      .orderBy(asc(expenses.expense_date))
+      .catch(() => []),
+    db
+      .select({
+        borrowerId: loan_records.borrower_id,
+        status: loan_records.status,
+      })
+      .from(loan_records)
+      .where(eq(loan_records.branch_id, branchRow.branchId))
+      .catch(() => []),
+    db
+      .select({
+        loanId: loan_records.loan_id,
+        principal: loan_records.principal,
+        interest: loan_records.interest,
+        status: loan_records.status,
+        dueDate: loan_records.due_date,
+      })
+      .from(loan_records)
+      .where(
+        and(
+          eq(loan_records.branch_id, branchRow.branchId),
+          inArray(loan_records.status, ["Completed", "Archived"]),
+        ),
+      )
+      .catch(() => []),
+  ]);
+
+  const borrowerWithActiveLoans = new Set<string>();
+  const borrowerWithOverdueLoans = new Set<string>();
+  let activeLoans = 0;
+  let overdueLoans = 0;
+
+  for (const row of borrowerLoanRows) {
+    if (row.status === "Active") {
+      activeLoans += 1;
+      borrowerWithActiveLoans.add(row.borrowerId);
+    }
+
+    if (row.status === "Overdue") {
+      overdueLoans += 1;
+      borrowerWithOverdueLoans.add(row.borrowerId);
+    }
+  }
+
+  const closedPaymentSummaryMap = await loadLoanPaymentSummary(closedLoanRows.map((row) => row.loanId));
+  const closedLoans = closedLoanRows.filter((row) => {
+    const completionDate = closedPaymentSummaryMap.get(row.loanId)?.completionDate ?? row.dueDate;
+    if (!dateFrom || !dateTo) {
+      return true;
+    }
+
+    return completionDate >= dateFrom && completionDate <= dateTo;
+  }).length;
+
+  const totalCollections = collectionRows.reduce((sum, row) => sum + toNumber(row.totalAmount), 0);
+  const totalExpenses = expenseRows.reduce((sum, row) => sum + toNumber(row.totalAmount), 0);
+
+  return {
+    summary: {
+      collections: totalCollections,
+      expenses: totalExpenses,
+      net: totalCollections - totalExpenses,
+      borrowersWithActiveLoans: borrowerWithActiveLoans.size,
+      borrowersWithOverdueLoans: borrowerWithOverdueLoans.size,
+      activeLoans,
+      overdueLoans,
+      closedLoans,
+    },
+    financialChartRows: [
+      {
+        bucket: branchRow.branchName,
+        values: {
+          collections: totalCollections,
+          expenses: totalExpenses,
+          net: totalCollections - totalExpenses,
+        },
+      },
+    ],
+    operationalChartRows: [
+      {
+        bucket: branchRow.branchName,
+        values: {
+          borrowersWithActiveLoans: borrowerWithActiveLoans.size,
+          borrowersWithOverdueLoans: borrowerWithOverdueLoans.size,
+          activeLoans,
+          overdueLoans,
+          closedLoans,
+        },
+      },
+    ],
+    rawRows: [
+      { metric: "Collections", value: totalCollections, valueFormat: "currency" as const },
+      { metric: "Expenses", value: totalExpenses, valueFormat: "currency" as const },
+      { metric: "Net", value: totalCollections - totalExpenses, valueFormat: "currency" as const },
+      { metric: "Borrowers with Active Loans", value: borrowerWithActiveLoans.size, valueFormat: "number" as const },
+      { metric: "Borrowers with Overdue Loans", value: borrowerWithOverdueLoans.size, valueFormat: "number" as const },
+      { metric: "Active Loans", value: activeLoans, valueFormat: "number" as const },
+      { metric: "Overdue Loans", value: overdueLoans, valueFormat: "number" as const },
+      { metric: "Closed Loans", value: closedLoans, valueFormat: "number" as const },
+    ],
   };
 }
 
@@ -2483,16 +2779,20 @@ export async function loadReportsPageData(access: ReportsReadyAccessState): Prom
     loadVisibleBranchOptions(access),
     loadVisibleCollectorOptions(access),
   ]);
+  const analyticsTemplates = buildAnalyticsTemplateOptions(
+    branchOptions.length,
+    access.roleName,
+    access.canAccessAnalytics,
+  );
+  const analyticsTemplateCategories = buildAnalyticsTemplateCategoryOptions().filter((category) =>
+    analyticsTemplates.some((template) => template.category === category.key),
+  );
 
   return {
     branchOptions,
     collectorOptions,
-    analyticsTemplates: buildAnalyticsTemplateOptions(
-      branchOptions.length,
-      access.roleName,
-      access.canAccessAnalytics,
-    ),
-    analyticsTemplateCategories: buildAnalyticsTemplateCategoryOptions(),
+    analyticsTemplates,
+    analyticsTemplateCategories,
     operationalDocumentTemplates: buildOperationalDocumentTemplateOptions(access.roleName),
   };
 }
@@ -2806,7 +3106,7 @@ export async function loadReportViewerData(
       reportId: reportRow.reportId,
       title: reportRow.title,
       reportCategory: reportRow.reportCategory,
-      templateKey: reportRow.templateKey,
+      templateKey: normalizeReportTemplateKey(reportRow.templateKey),
       templateLabel: resolveReportTemplateLabel(reportRow.templateKey),
       generatedType: reportRow.generatedType,
       generatedAt: reportRow.generatedAt,
@@ -2962,6 +3262,16 @@ export async function generateAnalyticsReport(
     };
   }
 
+  if (template.maxBranchCount !== null && normalizedBranchIds.length > template.maxBranchCount) {
+    return {
+      ok: false as const,
+      message:
+        template.maxBranchCount === 1
+          ? `${template.label} requires exactly one selected branch.`
+          : `${template.label} supports at most ${template.maxBranchCount} selected branches.`,
+    };
+  }
+
   const selectedBranchRows = await loadSelectedBranchRows(normalizedBranchIds);
   if (selectedBranchRows.length !== normalizedBranchIds.length) {
     return {
@@ -3064,9 +3374,9 @@ export async function generateAnalyticsReport(
       periodRows: reportData.periodRows,
       branchRows: reportData.branchRows,
     });
-  } else if (template.key === "monthly_collections_summary") {
-    const reportData = await loadMonthlyCollectionsSummaryData(selectedBranchRows, dateFrom, dateTo);
-    snapshot = buildMonthlyCollectionsSummarySnapshot({
+  } else if (template.key === "collections_summary") {
+    const reportData = await loadCollectionsSummaryData(selectedBranchRows, dateFrom, dateTo);
+    snapshot = buildCollectionsSummarySnapshot({
       title: resolvedTitle,
       generatedLabel,
       scopeLabel,
@@ -3076,6 +3386,7 @@ export async function generateAnalyticsReport(
       rawColumns: reportData.rawColumns,
       rawRows: reportData.rawRows,
       branchRows: reportData.branchRows,
+      bucketMode: reportData.bucketMode,
     });
   } else if (template.key === "active_loans_summary") {
     const reportData = await loadActiveLoansSummaryData(selectedBranchRows);
@@ -3087,6 +3398,16 @@ export async function generateAnalyticsReport(
       chartRows: reportData.chartRows,
       branchRows: reportData.branchRows,
       collectorRows: reportData.collectorRows,
+    });
+  } else if (template.key === "loans_summary") {
+    const reportData = await loadLoansSummaryData(selectedBranchRows, dateFrom, dateTo);
+    snapshot = buildLoansSummarySnapshot({
+      title: resolvedTitle,
+      generatedLabel,
+      scopeLabel,
+      summary: reportData.summary,
+      chartRows: reportData.chartRows,
+      rawRows: reportData.rawRows,
     });
   } else if (template.key === "overdue_loans_report") {
     const reportData = await loadOverdueLoansReportData(selectedBranchRows, dateFrom, dateTo);
@@ -3206,6 +3527,18 @@ export async function generateAnalyticsReport(
       scopeLabel,
       summary: reportData.summary,
       chartRows: reportData.chartRows,
+      rawRows: reportData.rawRows,
+    });
+  } else if (template.key === "branch_performance_overview") {
+    const reportData = await loadBranchPerformanceOverviewData(selectedBranchRows[0]!, dateFrom, dateTo);
+    snapshot = buildBranchPerformanceOverviewSnapshot({
+      title: resolvedTitle,
+      generatedLabel,
+      scopeLabel,
+      branchName: selectedBranchRows[0]!.branchName,
+      summary: reportData.summary,
+      financialChartRows: reportData.financialChartRows,
+      operationalChartRows: reportData.operationalChartRows,
       rawRows: reportData.rawRows,
     });
   } else {

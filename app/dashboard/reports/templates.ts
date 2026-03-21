@@ -15,6 +15,12 @@ type AnalyticsTemplateDefinition = Omit<
 
 type OperationalDocumentTemplateDefinition = ReportsOperationalDocumentTemplateOption;
 
+const LEGACY_ANALYTICS_TEMPLATE_KEY_ALIASES: Partial<
+  Record<AnalyticsReportTemplateKey | string, AnalyticsReportTemplateKey>
+> = {
+  monthly_collections_summary: "collections_summary",
+};
+
 export const REPORT_TEMPLATE_CATEGORIES: ReportsTemplateCategoryDefinition[] = [
   {
     key: "financials",
@@ -67,24 +73,26 @@ export const ANALYTICS_REPORT_TEMPLATES: AnalyticsTemplateDefinition[] = [
     category: "financials",
     reportCategory: "analytics",
     description:
-      "Flexible financial reporting template for collections, expenses, incentives, and net totals across the selected date range.",
+      "Flexible financial reporting template for collections, expenses, and net totals across the selected date range.",
     allowedRoles: ["Admin", "Auditor", "Branch Manager"],
     generationMode: "manual",
     dateMode: "range",
     minBranchCount: 1,
+    maxBranchCount: null,
     implemented: true,
   },
   {
-    key: "monthly_collections_summary",
-    label: "Monthly Collections Summary",
+    key: "collections_summary",
+    label: "Collections Summary",
     category: "collections",
     reportCategory: "analytics",
     description:
-      "Monthly collection totals, daily activity trend, and missed-payment signals across the selected branches.",
+      "Collection totals, adaptive trend bucketing, and branch activity across the selected reporting period.",
     allowedRoles: ["Admin", "Auditor", "Branch Manager"],
     generationMode: "manual",
     dateMode: "range",
     minBranchCount: 1,
+    maxBranchCount: null,
     implemented: true,
   },
   {
@@ -98,6 +106,7 @@ export const ANALYTICS_REPORT_TEMPLATES: AnalyticsTemplateDefinition[] = [
     generationMode: "manual",
     dateMode: "range",
     minBranchCount: 1,
+    maxBranchCount: null,
     implemented: true,
   },
   {
@@ -111,6 +120,21 @@ export const ANALYTICS_REPORT_TEMPLATES: AnalyticsTemplateDefinition[] = [
     generationMode: "manual",
     dateMode: "none",
     minBranchCount: 1,
+    maxBranchCount: null,
+    implemented: true,
+  },
+  {
+    key: "loans_summary",
+    label: "Loans Summary",
+    category: "loans",
+    reportCategory: "analytics",
+    description:
+      "Period-based loan overview covering active loans at period end, overdue movement, closed loans, and outstanding balance.",
+    allowedRoles: ["Admin", "Auditor", "Branch Manager"],
+    generationMode: "manual",
+    dateMode: "range",
+    minBranchCount: 1,
+    maxBranchCount: null,
     implemented: true,
   },
   {
@@ -124,6 +148,7 @@ export const ANALYTICS_REPORT_TEMPLATES: AnalyticsTemplateDefinition[] = [
     generationMode: "manual",
     dateMode: "range",
     minBranchCount: 1,
+    maxBranchCount: null,
     implemented: true,
   },
   {
@@ -137,6 +162,7 @@ export const ANALYTICS_REPORT_TEMPLATES: AnalyticsTemplateDefinition[] = [
     generationMode: "manual",
     dateMode: "range",
     minBranchCount: 1,
+    maxBranchCount: null,
     implemented: true,
   },
   {
@@ -150,6 +176,7 @@ export const ANALYTICS_REPORT_TEMPLATES: AnalyticsTemplateDefinition[] = [
     generationMode: "manual",
     dateMode: "range",
     minBranchCount: 1,
+    maxBranchCount: null,
     implemented: true,
   },
   {
@@ -163,6 +190,7 @@ export const ANALYTICS_REPORT_TEMPLATES: AnalyticsTemplateDefinition[] = [
     generationMode: "manual",
     dateMode: "range",
     minBranchCount: 1,
+    maxBranchCount: null,
     implemented: true,
   },
   {
@@ -176,6 +204,21 @@ export const ANALYTICS_REPORT_TEMPLATES: AnalyticsTemplateDefinition[] = [
     generationMode: "manual",
     dateMode: "range",
     minBranchCount: 1,
+    maxBranchCount: null,
+    implemented: true,
+  },
+  {
+    key: "branch_performance_overview",
+    label: "Branch Performance Overview",
+    category: "branches",
+    reportCategory: "analytics",
+    description:
+      "Single-branch overview of financial movement and current branch portfolio metrics across the selected reporting period.",
+    allowedRoles: ["Admin", "Auditor", "Branch Manager"],
+    generationMode: "manual",
+    dateMode: "range",
+    minBranchCount: 1,
+    maxBranchCount: 1,
     implemented: true,
   },
   {
@@ -185,10 +228,11 @@ export const ANALYTICS_REPORT_TEMPLATES: AnalyticsTemplateDefinition[] = [
     reportCategory: "analytics",
     description:
       "Selected-branch comparison of borrowers, collectors, active loans, overdue loans, and monthly collections.",
-    allowedRoles: ["Admin", "Auditor", "Branch Manager"],
+    allowedRoles: ["Admin", "Auditor"],
     generationMode: "manual",
     dateMode: "range",
     minBranchCount: 2,
+    maxBranchCount: null,
     implemented: true,
   },
   {
@@ -202,6 +246,7 @@ export const ANALYTICS_REPORT_TEMPLATES: AnalyticsTemplateDefinition[] = [
     generationMode: "manual",
     dateMode: "range",
     minBranchCount: 1,
+    maxBranchCount: null,
     implemented: true,
   },
   {
@@ -215,6 +260,7 @@ export const ANALYTICS_REPORT_TEMPLATES: AnalyticsTemplateDefinition[] = [
     generationMode: "manual",
     dateMode: "range",
     minBranchCount: 1,
+    maxBranchCount: null,
     implemented: true,
   },
   {
@@ -228,6 +274,7 @@ export const ANALYTICS_REPORT_TEMPLATES: AnalyticsTemplateDefinition[] = [
     generationMode: "manual",
     dateMode: "range",
     minBranchCount: 1,
+    maxBranchCount: null,
     implemented: true,
   },
   {
@@ -241,6 +288,7 @@ export const ANALYTICS_REPORT_TEMPLATES: AnalyticsTemplateDefinition[] = [
     generationMode: "manual",
     dateMode: "range",
     minBranchCount: 1,
+    maxBranchCount: null,
     implemented: true,
   },
 ];
@@ -291,12 +339,17 @@ function getTemplateCategoryLabel(category: ReportsTemplateCategoryKey) {
   return REPORT_TEMPLATE_CATEGORIES.find((item) => item.key === category)?.label ?? category;
 }
 
+export function normalizeReportTemplateKey(templateKey: string) {
+  return LEGACY_ANALYTICS_TEMPLATE_KEY_ALIASES[templateKey] ?? templateKey;
+}
+
 function isRoleAllowed(allowedRoles: ReportsRoleName[], roleName: ReportsRoleName) {
   return allowedRoles.includes(roleName);
 }
 
 export function getAnalyticsTemplateDefinition(key: AnalyticsReportTemplateKey) {
-  return ANALYTICS_REPORT_TEMPLATES.find((template) => template.key === key) ?? null;
+  const normalizedKey = normalizeReportTemplateKey(key) as AnalyticsReportTemplateKey;
+  return ANALYTICS_REPORT_TEMPLATES.find((template) => template.key === normalizedKey) ?? null;
 }
 
 export function getOperationalDocumentTemplateDefinition(
@@ -310,7 +363,8 @@ export function getTemplateCategoryDefinition(category: ReportsTemplateCategoryK
 }
 
 export function resolveReportTemplateLabel(templateKey: string) {
-  const analyticsTemplate = ANALYTICS_REPORT_TEMPLATES.find((template) => template.key === templateKey);
+  const normalizedKey = normalizeReportTemplateKey(templateKey);
+  const analyticsTemplate = ANALYTICS_REPORT_TEMPLATES.find((template) => template.key === normalizedKey);
   if (analyticsTemplate) {
     return analyticsTemplate.label;
   }
@@ -324,7 +378,8 @@ export function resolveReportTemplateLabel(templateKey: string) {
 }
 
 export function resolveReportTemplateCategory(templateKey: string) {
-  const analyticsTemplate = ANALYTICS_REPORT_TEMPLATES.find((template) => template.key === templateKey);
+  const normalizedKey = normalizeReportTemplateKey(templateKey);
+  const analyticsTemplate = ANALYTICS_REPORT_TEMPLATES.find((template) => template.key === normalizedKey);
   if (analyticsTemplate) {
     return {
       key: analyticsTemplate.category,
@@ -346,9 +401,7 @@ export function resolveReportTemplateCategory(templateKey: string) {
 }
 
 export function buildAnalyticsTemplateCategoryOptions(): ReportsTemplateCategoryDefinition[] {
-  const categoriesInUse = new Set(
-    ANALYTICS_REPORT_TEMPLATES.map((template) => template.category),
-  );
+  const categoriesInUse = new Set(ANALYTICS_REPORT_TEMPLATES.map((template) => template.category));
 
   return REPORT_TEMPLATE_CATEGORIES.filter(
     (category) => category.reportCategory === "analytics" && categoriesInUse.has(category.key),
@@ -360,19 +413,19 @@ export function buildAnalyticsTemplateOptions(
   roleName: ReportsRoleName,
   canAccessAnalytics: boolean,
 ): ReportsAnalyticsTemplateOption[] {
-  return ANALYTICS_REPORT_TEMPLATES.map((template) => {
-    const roleAllowed = isRoleAllowed(template.allowedRoles, roleName);
+  return ANALYTICS_REPORT_TEMPLATES.filter((template) =>
+    isRoleAllowed(template.allowedRoles, roleName),
+  ).map((template) => {
     const implemented = template.implemented;
     const available =
       implemented &&
       canAccessAnalytics &&
-      roleAllowed &&
       branchCount >= template.minBranchCount;
 
     let availabilityNote: string | null = null;
     if (!implemented) {
       availabilityNote = "This template is planned but not implemented yet.";
-    } else if (!canAccessAnalytics || !roleAllowed) {
+    } else if (!canAccessAnalytics) {
       availabilityNote = "Analytical report generation is not available for your current role.";
     } else if (branchCount < template.minBranchCount) {
       availabilityNote =

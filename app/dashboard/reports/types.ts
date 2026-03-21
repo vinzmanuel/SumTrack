@@ -9,8 +9,11 @@ export type ReportsRoleName =
 export type AnalyticsReportTemplateKey =
   | "financial_overview"
   | "monthly_collections_summary"
+  | "collections_summary"
   | "active_loans_summary"
+  | "loans_summary"
   | "branch_performance_comparison"
+  | "branch_performance_overview"
   | "collections_by_collector"
   | "overdue_loans_report"
   | "released_loans_report"
@@ -56,6 +59,7 @@ export type ReportsAnalyticsTemplateOption = {
   generationMode: "manual";
   dateMode: "none" | "month" | "range";
   minBranchCount: number;
+  maxBranchCount: number | null;
   implemented: boolean;
   available: boolean;
   availabilityNote: string | null;

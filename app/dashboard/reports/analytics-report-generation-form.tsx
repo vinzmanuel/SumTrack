@@ -156,6 +156,15 @@ export function AnalyticsReportGenerationForm(props: {
   )
     ? collectorId
     : filteredCollectorOptions[0]?.collectorId ?? "";
+  const selectedBranchCount = effectiveSelectedBranchIds.length;
+  const branchSelectionError =
+    selectedTemplate?.maxBranchCount === 1 && selectedBranchCount !== 1
+      ? "This template requires exactly one selected branch."
+      : selectedTemplate?.minBranchCount && selectedBranchCount < selectedTemplate.minBranchCount
+        ? selectedTemplate.minBranchCount > 1
+          ? "This template requires at least two selected branches."
+          : "Select a valid branch for this template."
+        : null;
   const selectedCategoryDefinition =
     props.analyticsTemplateCategories.find(
       (category) => category.key === effectiveSelectedCategory,
@@ -327,10 +336,25 @@ export function AnalyticsReportGenerationForm(props: {
                 {state.fieldErrors?.branch_ids ? (
                 <p className="text-sm text-destructive">{state.fieldErrors.branch_ids}</p>
               ) : null}
-              {selectedTemplate?.category === "branches" ? (
+              {selectedTemplate?.key === "branch_performance_overview" ? (
+                <p className="text-xs text-muted-foreground">
+                  This template is the single-branch branch snapshot. Select exactly one branch.
+                </p>
+              ) : null}
+              {selectedTemplate?.key === "branch_performance_comparison" ? (
+                <p className="text-xs text-muted-foreground">
+                  This template is the cross-branch comparison report. Select two or more branches.
+                </p>
+              ) : null}
+              {selectedTemplate?.category === "branches" &&
+              selectedTemplate.key !== "branch_performance_overview" &&
+              selectedTemplate.key !== "branch_performance_comparison" ? (
                 <p className="text-xs text-muted-foreground">
                   These branch comparison templates use the exact branches you choose here. Single-branch output is allowed, but 2 or more selected branches make the comparison much more useful.
                 </p>
+              ) : null}
+              {branchSelectionError ? (
+                <p className="text-sm text-destructive">{branchSelectionError}</p>
               ) : null}
             </div>
 
@@ -455,7 +479,7 @@ export function AnalyticsReportGenerationForm(props: {
               <p className="text-sm text-destructive">{state.message}</p>
             ) : null}
 
-            <SubmitButton disabled={!hasAvailableTemplates} />
+            <SubmitButton disabled={!hasAvailableTemplates || branchSelectionError !== null} />
           </form>
       </CardContent>
     </Card>

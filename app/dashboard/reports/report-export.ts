@@ -36,8 +36,9 @@ function resolveCsvTable(report: ReportsViewerPageData): ReportsSnapshotTableSec
     );
   }
 
-  if (report.templateKey === "monthly_collections_summary") {
+  if (report.templateKey === "collections_summary" || report.templateKey === "monthly_collections_summary") {
     return (
+      tableSections.find((section) => section.key === "collectionsRawData") ??
       tableSections.find((section) => section.key === "dailyRawData") ??
       tableSections.find((section) => section.key === "branchBreakdown") ??
       null
@@ -46,6 +47,10 @@ function resolveCsvTable(report: ReportsViewerPageData): ReportsSnapshotTableSec
 
   if (report.templateKey === "active_loans_summary") {
     return tableSections.find((section) => section.key === "branchLiveLoans") ?? null;
+  }
+
+  if (report.templateKey === "loans_summary") {
+    return tableSections.find((section) => section.key === "loansSummaryRawData") ?? null;
   }
 
   if (report.templateKey === "overdue_loans_report") {
@@ -66,6 +71,10 @@ function resolveCsvTable(report: ReportsViewerPageData): ReportsSnapshotTableSec
 
   if (report.templateKey === "branch_performance_comparison") {
     return tableSections.find((section) => section.key === "branchComparison") ?? null;
+  }
+
+  if (report.templateKey === "branch_performance_overview") {
+    return tableSections.find((section) => section.key === "branchPerformanceOverviewMetrics") ?? null;
   }
 
   if (report.templateKey === "branch_collections_comparison") {

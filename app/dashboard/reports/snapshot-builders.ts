@@ -58,21 +58,18 @@ export function buildFinancialOverviewSnapshot(params: {
   summary: {
     collectionsTotal: number;
     expensesTotal: number;
-    incentivesTotal: number;
     netTotal: number;
   };
   periodRows: Array<{
     bucket: string;
     collectionsAmount: number;
     expensesAmount: number;
-    incentivesAmount: number;
     netAmount: number;
   }>;
   branchRows: Array<{
     branchName: string;
     collectionsAmount: number;
     expensesAmount: number;
-    incentivesAmount: number;
     netAmount: number;
     activeLoans: number;
     overdueLoans: number;
@@ -87,7 +84,6 @@ export function buildFinancialOverviewSnapshot(params: {
     summaryCards: [
       { key: "collections", label: "Collections", value: params.summary.collectionsTotal, format: "currency" },
       { key: "expenses", label: "Expenses", value: params.summary.expensesTotal, format: "currency" },
-      { key: "incentives", label: "Incentives", value: params.summary.incentivesTotal, format: "currency" },
       { key: "net", label: "Net", value: params.summary.netTotal, format: "currency" },
     ],
     sections: [
@@ -100,7 +96,6 @@ export function buildFinancialOverviewSnapshot(params: {
         series: [
           { key: "collections", label: "Collections", color: "#16a34a", type: "bar" },
           { key: "expenses", label: "Expenses", color: "#f59e0b", type: "bar" },
-          { key: "incentives", label: "Incentives", color: "#6366f1", type: "bar" },
           { key: "net", label: "Net", color: "#0f172a", type: "line" },
         ],
         rows: params.periodRows.map((row) => ({
@@ -108,7 +103,6 @@ export function buildFinancialOverviewSnapshot(params: {
           values: {
             collections: row.collectionsAmount,
             expenses: row.expensesAmount,
-            incentives: row.incentivesAmount,
             net: row.netAmount,
           },
         })),
@@ -121,7 +115,6 @@ export function buildFinancialOverviewSnapshot(params: {
           { key: "bucket", label: "Period Bucket" },
           { key: "collectionsAmount", label: "Collections", format: "currency" },
           { key: "expensesAmount", label: "Expenses", format: "currency" },
-          { key: "incentivesAmount", label: "Incentives", format: "currency" },
           { key: "netAmount", label: "Net", format: "currency" },
         ],
         rows: params.periodRows,
@@ -134,7 +127,6 @@ export function buildFinancialOverviewSnapshot(params: {
           { key: "branchName", label: "Branch" },
           { key: "collectionsAmount", label: "Collections", format: "currency" },
           { key: "expensesAmount", label: "Expenses", format: "currency" },
-          { key: "incentivesAmount", label: "Incentives", format: "currency" },
           { key: "netAmount", label: "Net", format: "currency" },
           { key: "activeLoans", label: "Active Loans", format: "number" },
           { key: "overdueLoans", label: "Overdue Loans", format: "number" },
@@ -150,7 +142,7 @@ export function buildFinancialOverviewSnapshot(params: {
   });
 }
 
-export function buildMonthlyCollectionsSummarySnapshot(params: {
+export function buildCollectionsSummarySnapshot(params: {
   title: string;
   generatedLabel: string;
   scopeLabel: string;
@@ -165,22 +157,48 @@ export function buildMonthlyCollectionsSummarySnapshot(params: {
   rawColumns: Array<{ key: string; label: string; format?: "currency" | "number" | "text" }>;
   rawRows: Array<Record<string, number | string>>;
   branchRows: Array<Record<string, number | string>>;
+  bucketMode: "day" | "week" | "month";
 }) {
   return buildBaseSnapshot({
-    templateKey: "monthly_collections_summary",
+    templateKey: "collections_summary",
     title: params.title,
     generatedLabel: params.generatedLabel,
     scopeLabel: params.scopeLabel,
     summaryCards: [
       { key: "totalAmount", label: "Total Collections", value: params.summary.totalAmount, format: "currency" },
       { key: "totalEntries", label: "Collection Entries", value: params.summary.totalEntries, format: "number" },
-      { key: "averagePerDay", label: "Average per Day", value: params.summary.averagePerDay, format: "currency" },
-      { key: "highestCollectionDay", label: "Highest Collection Day", value: params.summary.highestCollectionDay, format: "text" },
+      {
+        key: "averagePerDay",
+        label:
+          params.bucketMode === "day"
+            ? "Average per Day"
+            : params.bucketMode === "week"
+              ? "Average per Week"
+              : "Average per Month",
+        value: params.summary.averagePerDay,
+        format: "currency",
+      },
+      {
+        key: "highestCollectionDay",
+        label:
+          params.bucketMode === "day"
+            ? "Highest Collection Day"
+            : params.bucketMode === "week"
+              ? "Highest Collection Week"
+              : "Highest Collection Month",
+        value: params.summary.highestCollectionDay,
+        format: "text",
+      },
     ],
     sections: [
       {
-        key: "dailyTrend",
-        title: "Daily Collections Trend",
+        key: "collectionsTrend",
+        title:
+          params.bucketMode === "day"
+            ? "Daily Collections Trend"
+            : params.bucketMode === "week"
+              ? "Weekly Collections Trend"
+              : "Monthly Collections Trend",
         type: "chart",
         chartType: "line",
         valueFormat: "currency",
@@ -188,8 +206,13 @@ export function buildMonthlyCollectionsSummarySnapshot(params: {
         rows: params.trendRows,
       },
       {
-        key: "dailyRawData",
-        title: "Daily Collections Raw Data",
+        key: "collectionsRawData",
+        title:
+          params.bucketMode === "day"
+            ? "Daily Collections Raw Data"
+            : params.bucketMode === "week"
+              ? "Weekly Collections Raw Data"
+              : "Monthly Collections Raw Data",
         type: "table",
         columns: params.rawColumns,
         rows: params.rawRows,
@@ -210,6 +233,7 @@ export function buildMonthlyCollectionsSummarySnapshot(params: {
     meta: {
       branchCount: params.branchRows.length,
       bucketCount: params.trendRows.length,
+      bucketMode: params.bucketMode,
     },
   });
 }
@@ -320,7 +344,6 @@ export function buildBranchPerformanceComparisonSnapshot(params: {
     totalBorrowers: number;
     totalCollections: number;
     totalExpenses: number;
-    totalIncentives: number;
     totalNet: number;
     totalActiveLoans: number;
     totalOverdueLoans: number;
@@ -331,7 +354,6 @@ export function buildBranchPerformanceComparisonSnapshot(params: {
     borrowerCount: number;
     collectionsAmount: number;
     expensesAmount: number;
-    incentivesAmount: number;
     netAmount: number;
     activeLoanCount: number;
     overdueLoanCount: number;
@@ -348,7 +370,6 @@ export function buildBranchPerformanceComparisonSnapshot(params: {
       { key: "totalBorrowers", label: "Borrowers", value: params.summary.totalBorrowers, format: "number" },
       { key: "totalCollections", label: "Collections", value: params.summary.totalCollections, format: "currency" },
       { key: "totalExpenses", label: "Expenses", value: params.summary.totalExpenses, format: "currency" },
-      { key: "totalIncentives", label: "Incentives", value: params.summary.totalIncentives, format: "currency" },
       { key: "totalNet", label: "Net", value: params.summary.totalNet, format: "currency" },
       { key: "totalActiveLoans", label: "Active Loans", value: params.summary.totalActiveLoans, format: "number" },
       { key: "totalOverdueLoans", label: "Overdue Loans", value: params.summary.totalOverdueLoans, format: "number" },
@@ -364,7 +385,6 @@ export function buildBranchPerformanceComparisonSnapshot(params: {
         series: [
           { key: "collections", label: "Collections", color: "#16a34a", type: "bar" },
           { key: "expenses", label: "Expenses", color: "#f59e0b", type: "bar" },
-          { key: "incentives", label: "Incentives", color: "#6366f1", type: "bar" },
           { key: "net", label: "Net", color: "#0f172a", type: "bar" },
         ],
         rows: params.branchRows.map((row) => ({
@@ -372,7 +392,6 @@ export function buildBranchPerformanceComparisonSnapshot(params: {
           values: {
             collections: row.collectionsAmount,
             expenses: row.expensesAmount,
-            incentives: row.incentivesAmount,
             net: row.netAmount,
           },
         })),
@@ -407,7 +426,6 @@ export function buildBranchPerformanceComparisonSnapshot(params: {
           { key: "branchName", label: "Branch" },
           { key: "collectionsAmount", label: "Collections", format: "currency" },
           { key: "expensesAmount", label: "Expenses", format: "currency" },
-          { key: "incentivesAmount", label: "Incentives", format: "currency" },
           { key: "netAmount", label: "Net", format: "currency" },
           { key: "borrowerCount", label: "Borrowers", format: "number" },
           { key: "activeLoanCount", label: "Active Loans", format: "number" },
@@ -419,6 +437,160 @@ export function buildBranchPerformanceComparisonSnapshot(params: {
     ],
     meta: {
       branchCount: params.branchRows.length,
+    },
+  });
+}
+
+export function buildLoansSummarySnapshot(params: {
+  title: string;
+  generatedLabel: string;
+  scopeLabel: string;
+  summary: {
+    activeLoansAtPeriodEnd: number;
+    loansThatBecameOverdue: number;
+    closedLoansInPeriod: number;
+    outstandingBalanceAtPeriodEnd: number;
+  };
+  chartRows: Array<{ bucket: string; values: Record<string, number> }>;
+  rawRows: Array<{ metric: string; value: number }>;
+}) {
+  return buildBaseSnapshot({
+    templateKey: "loans_summary",
+    title: params.title,
+    generatedLabel: params.generatedLabel,
+    scopeLabel: params.scopeLabel,
+    summaryCards: [
+      { key: "activeLoansAtPeriodEnd", label: "Active Loans at Period End", value: params.summary.activeLoansAtPeriodEnd, format: "number" },
+      { key: "loansThatBecameOverdue", label: "Became Overdue", value: params.summary.loansThatBecameOverdue, format: "number" },
+      { key: "closedLoansInPeriod", label: "Closed Loans", value: params.summary.closedLoansInPeriod, format: "number" },
+      { key: "outstandingBalanceAtPeriodEnd", label: "Outstanding Balance", value: params.summary.outstandingBalanceAtPeriodEnd, format: "currency" },
+    ],
+    sections: [
+      {
+        key: "loansSummaryChart",
+        title: "Loan-State Summary",
+        type: "chart",
+        chartType: "bar",
+        valueFormat: "number",
+        series: [
+          { key: "activeLoans", label: "Active Loans", color: "#16a34a", type: "bar" },
+          { key: "becameOverdue", label: "Became Overdue", color: "#f59e0b", type: "bar" },
+          { key: "closedLoans", label: "Closed Loans", color: "#0ea5e9", type: "bar" },
+        ],
+        rows: params.chartRows,
+      },
+      {
+        key: "loansSummaryRawData",
+        title: "Loan Summary Metrics",
+        type: "table",
+        columns: [
+          { key: "metric", label: "Metric" },
+          { key: "value", label: "Value", format: "text" },
+        ],
+        rows: params.rawRows.map((row) => ({
+          metric: row.metric,
+          value:
+            row.metric === "Outstanding Balance at Period End"
+              ? `₱${row.value.toLocaleString("en-PH", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}`
+              : row.value.toLocaleString("en-PH"),
+        })),
+      },
+    ],
+    meta: {
+      metricCount: params.rawRows.length,
+    },
+  });
+}
+
+export function buildBranchPerformanceOverviewSnapshot(params: {
+  title: string;
+  generatedLabel: string;
+  scopeLabel: string;
+  branchName: string;
+  summary: {
+    collections: number;
+    expenses: number;
+    net: number;
+    borrowersWithActiveLoans: number;
+    borrowersWithOverdueLoans: number;
+    activeLoans: number;
+    overdueLoans: number;
+    closedLoans: number;
+  };
+  financialChartRows: Array<{ bucket: string; values: Record<string, number> }>;
+  operationalChartRows: Array<{ bucket: string; values: Record<string, number> }>;
+  rawRows: Array<{ metric: string; value: number; valueFormat: "currency" | "number" }>;
+}) {
+  return buildBaseSnapshot({
+    templateKey: "branch_performance_overview",
+    title: params.title,
+    generatedLabel: params.generatedLabel,
+    scopeLabel: params.scopeLabel,
+    summaryCards: [
+      { key: "collections", label: "Collections", value: params.summary.collections, format: "currency" },
+      { key: "expenses", label: "Expenses", value: params.summary.expenses, format: "currency" },
+      { key: "net", label: "Net", value: params.summary.net, format: "currency" },
+      { key: "borrowersWithActiveLoans", label: "Borrowers with Active Loans", value: params.summary.borrowersWithActiveLoans, format: "number" },
+      { key: "borrowersWithOverdueLoans", label: "Borrowers with Overdue Loans", value: params.summary.borrowersWithOverdueLoans, format: "number" },
+      { key: "activeLoans", label: "Active Loans", value: params.summary.activeLoans, format: "number" },
+      { key: "overdueLoans", label: "Overdue Loans", value: params.summary.overdueLoans, format: "number" },
+      { key: "closedLoans", label: "Closed Loans", value: params.summary.closedLoans, format: "number" },
+    ],
+    sections: [
+      {
+        key: "branchPerformanceOverviewFinancial",
+        title: "Financial Overview",
+        type: "chart",
+        chartType: "bar",
+        valueFormat: "currency",
+        series: [
+          { key: "collections", label: "Collections", color: "#16a34a", type: "bar" },
+          { key: "expenses", label: "Expenses", color: "#f59e0b", type: "bar" },
+          { key: "net", label: "Net", color: "#0f172a", type: "bar" },
+        ],
+        rows: params.financialChartRows,
+      },
+      {
+        key: "branchPerformanceOverviewOperational",
+        title: "Operational Overview",
+        type: "chart",
+        chartType: "bar",
+        valueFormat: "number",
+        series: [
+          { key: "borrowersWithActiveLoans", label: "Borrowers with Active Loans", color: "#16a34a", type: "bar" },
+          { key: "borrowersWithOverdueLoans", label: "Borrowers with Overdue Loans", color: "#0ea5e9", type: "bar" },
+          { key: "activeLoans", label: "Active Loans", color: "#f59e0b", type: "bar" },
+          { key: "overdueLoans", label: "Overdue Loans", color: "#ef4444", type: "bar" },
+          { key: "closedLoans", label: "Closed Loans", color: "#64748b", type: "bar" },
+        ],
+        rows: params.operationalChartRows,
+      },
+      {
+        key: "branchPerformanceOverviewMetrics",
+        title: "Branch Performance Metrics",
+        type: "table",
+        columns: [
+          { key: "metric", label: "Metric" },
+          { key: "value", label: "Value" },
+        ],
+        rows: params.rawRows.map((row) => ({
+          metric: row.metric,
+          value:
+            row.valueFormat === "currency"
+              ? `₱${row.value.toLocaleString("en-PH", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}`
+              : row.value.toLocaleString("en-PH"),
+        })),
+      },
+    ],
+    meta: {
+      branchName: params.branchName,
+      metricCount: params.rawRows.length,
     },
   });
 }

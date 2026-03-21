@@ -206,6 +206,14 @@ function deriveFinancialOverviewChart(snapshot: SavedReportSnapshot): ReportsSna
   }
 
   const hasSavedIncentives = branchTable.rows.some((row) => typeof row["incentivesAmount"] === "number");
+  const series = [
+    { key: "collections", label: "Collections", color: "#16a34a", type: "bar" as const },
+    { key: "expenses", label: "Expenses", color: "#f59e0b", type: "bar" as const },
+    ...(hasSavedIncentives
+      ? [{ key: "incentives", label: "Incentives", color: "#6366f1", type: "bar" as const }]
+      : []),
+    { key: "net", label: "Net", color: "#0f172a", type: "line" as const },
+  ];
 
   return {
     key: "financialTrendFallback",
@@ -215,24 +223,21 @@ function deriveFinancialOverviewChart(snapshot: SavedReportSnapshot): ReportsSna
     valueFormat: "currency",
     note: hasSavedIncentives
       ? "This saved report did not include period buckets, so the chart is using branch totals."
-      : "This older saved report did not capture incentive buckets. The chart is using available branch totals.",
-    series: [
-      { key: "collections", label: "Collections", color: "#16a34a", type: "bar" },
-      { key: "expenses", label: "Expenses", color: "#f59e0b", type: "bar" },
-      { key: "incentives", label: "Incentives", color: "#6366f1", type: "bar" },
-      { key: "net", label: "Net", color: "#0f172a", type: "line" },
-    ],
+      : "This saved report uses the current simplified financial view, so the chart is using Collections, Expenses, and Net only.",
+    series,
     rows: branchTable.rows.map((row) => ({
       bucket: getRowString(row, "branchName"),
       values: {
         collections: getRowNumber(row, "collectionsAmount"),
         expenses: getRowNumber(row, "expensesAmount"),
-        incentives: getRowNumber(row, "incentivesAmount"),
         net: typeof row["netAmount"] === "number"
           ? getRowNumber(row, "netAmount")
           : getRowNumber(row, "collectionsAmount") -
             getRowNumber(row, "expensesAmount") -
-            getRowNumber(row, "incentivesAmount"),
+            (hasSavedIncentives ? getRowNumber(row, "incentivesAmount") : 0),
+        ...(hasSavedIncentives
+          ? { incentives: getRowNumber(row, "incentivesAmount") }
+          : {}),
       },
     })),
   };
@@ -268,6 +273,14 @@ function deriveBranchPerformanceFinancialChart(snapshot: SavedReportSnapshot): R
 
   const hasExpenses = comparisonTable.rows.some((row) => typeof row["expensesAmount"] === "number");
   const hasIncentives = comparisonTable.rows.some((row) => typeof row["incentivesAmount"] === "number");
+  const series = [
+    { key: "collections", label: "Collections", color: "#16a34a", type: "bar" as const },
+    { key: "expenses", label: "Expenses", color: "#f59e0b", type: "bar" as const },
+    ...(hasIncentives
+      ? [{ key: "incentives", label: "Incentives", color: "#6366f1", type: "bar" as const }]
+      : []),
+    { key: "net", label: "Net", color: "#0f172a", type: "bar" as const },
+  ];
 
   return {
     key: "branchFinancialFallback",
@@ -278,13 +291,10 @@ function deriveBranchPerformanceFinancialChart(snapshot: SavedReportSnapshot): R
     note:
       hasExpenses && hasIncentives
         ? undefined
-        : "This older saved comparison does not include all financial metrics, so missing values are shown as zero.",
-    series: [
-      { key: "collections", label: "Collections", color: "#16a34a", type: "bar" },
-      { key: "expenses", label: "Expenses", color: "#f59e0b", type: "bar" },
-      { key: "incentives", label: "Incentives", color: "#6366f1", type: "bar" },
-      { key: "net", label: "Net", color: "#0f172a", type: "bar" },
-    ],
+        : hasIncentives
+          ? "This older saved comparison does not include all financial metrics, so missing values are shown as zero."
+          : "This saved comparison uses the current simplified financial view, so the chart is using Collections, Expenses, and Net only.",
+    series,
     rows: comparisonTable.rows.map((row) => ({
       bucket: getRowString(row, "branchName"),
       values: {
@@ -293,7 +303,6 @@ function deriveBranchPerformanceFinancialChart(snapshot: SavedReportSnapshot): R
             ? getRowNumber(row, "collectionsAmount")
             : getRowNumber(row, "collectionsThisMonth"),
         expenses: getRowNumber(row, "expensesAmount"),
-        incentives: getRowNumber(row, "incentivesAmount"),
         net:
           typeof row["netAmount"] === "number"
             ? getRowNumber(row, "netAmount")
@@ -301,7 +310,10 @@ function deriveBranchPerformanceFinancialChart(snapshot: SavedReportSnapshot): R
                 ? getRowNumber(row, "collectionsAmount")
                 : getRowNumber(row, "collectionsThisMonth")) -
               getRowNumber(row, "expensesAmount") -
-              getRowNumber(row, "incentivesAmount"),
+              (hasIncentives ? getRowNumber(row, "incentivesAmount") : 0),
+        ...(hasIncentives
+          ? { incentives: getRowNumber(row, "incentivesAmount") }
+          : {}),
       },
     })),
   };
@@ -466,8 +478,10 @@ function renderFinancialOverview(report: ReportsViewerPageData) {
   );
 }
 
-function renderMonthlyCollectionsSummary(report: ReportsViewerPageData) {
-  const chart = findChartSection(report.snapshot, "dailyTrend");
+function renderCollectionsSummary(report: ReportsViewerPageData) {
+  const chart =
+    findChartSection(report.snapshot, "collectionsTrend") ??
+    findChartSection(report.snapshot, "dailyTrend");
   const rawTables = getTableSections(report.snapshot);
 
   return (
@@ -548,6 +562,45 @@ function renderBranchPerformanceComparison(report: ReportsViewerPageData) {
       {comparisonTable ? (
         <ReportSection title="Raw Comparison Table">
           <ReportsViewerDataTable section={comparisonTable} />
+        </ReportSection>
+      ) : null}
+    </div>
+  );
+}
+
+function renderLoansSummary(report: ReportsViewerPageData) {
+  return renderAnalyticsChartAndTableReport(report, {
+    chartKey: "loansSummaryChart",
+    chartTitle: "Loan-State Summary",
+    tableKey: "loansSummaryRawData",
+    tableTitle: "Loan Summary Metrics",
+  });
+}
+
+function renderBranchPerformanceOverview(report: ReportsViewerPageData) {
+  const financialChart = findChartSection(report.snapshot, "branchPerformanceOverviewFinancial");
+  const operationalChart = findChartSection(report.snapshot, "branchPerformanceOverviewOperational");
+  const metricsTable = findTableSection(report.snapshot, "branchPerformanceOverviewMetrics");
+
+  return (
+    <div className="space-y-8">
+      <CompactSummary items={report.snapshot.summaryCards} title="Summary" />
+      <p className="text-sm text-muted-foreground">
+        Selected branch: {report.branchScopeNames[0] ?? report.snapshot.scopeLabel}
+      </p>
+      {financialChart ? (
+        <ReportSection title="Financial Overview">
+          <ReportsViewerChart chart={financialChart} />
+        </ReportSection>
+      ) : null}
+      {operationalChart ? (
+        <ReportSection title="Operational Overview">
+          <ReportsViewerChart chart={operationalChart} />
+        </ReportSection>
+      ) : null}
+      {metricsTable ? (
+        <ReportSection title="Supporting Metrics">
+          <ReportsViewerDataTable section={metricsTable} />
         </ReportSection>
       ) : null}
     </div>
@@ -788,12 +841,16 @@ function renderReportBody(report: ReportsViewerPageData) {
     return renderFinancialOverview(report);
   }
 
-  if (report.templateKey === "monthly_collections_summary") {
-    return renderMonthlyCollectionsSummary(report);
+  if (report.templateKey === "collections_summary" || report.templateKey === "monthly_collections_summary") {
+    return renderCollectionsSummary(report);
   }
 
   if (report.templateKey === "active_loans_summary") {
     return renderActiveLoansSummary(report);
+  }
+
+  if (report.templateKey === "loans_summary") {
+    return renderLoansSummary(report);
   }
 
   if (report.templateKey === "overdue_loans_report") {
@@ -814,6 +871,10 @@ function renderReportBody(report: ReportsViewerPageData) {
 
   if (report.templateKey === "branch_performance_comparison") {
     return renderBranchPerformanceComparison(report);
+  }
+
+  if (report.templateKey === "branch_performance_overview") {
+    return renderBranchPerformanceOverview(report);
   }
 
   if (report.templateKey === "branch_collections_comparison") {
