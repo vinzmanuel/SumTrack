@@ -182,12 +182,13 @@ export type ReportsLibraryCategoryTab = "all" | "analytics" | "documents";
 export type ReportsLibraryStatusTab = "active" | "archived";
 export type ReportsCreateTab = "analytics" | "documents";
 export type ReportsLibraryGeneratedTypeFilter = "all" | "user" | "system";
-export type ReportsLibraryGeneratedDatePreset =
-  | "all"
-  | "today"
+export type ReportsDateRangePreset =
   | "this_week"
   | "this_month"
+  | "past_30_days"
+  | "past_6_months"
   | "this_year"
+  | "lifetime"
   | "custom";
 
 export type ReportsLibraryFilterState = {
@@ -200,9 +201,10 @@ export type ReportsLibraryFilterState = {
   generatedByRoleName: string | null;
   generatedByUserId: string | null;
   branchIds: number[];
-  generatedDatePreset: ReportsLibraryGeneratedDatePreset;
+  generatedDatePreset: ReportsDateRangePreset;
   generatedDateFrom: string | null;
   generatedDateTo: string | null;
+  coverageDatePreset: ReportsDateRangePreset;
   coverageDateFrom: string | null;
   coverageDateTo: string | null;
 };
@@ -220,6 +222,7 @@ export type ReportsLibraryRow = {
   status: "active" | "archived";
   generatedByUserId: string;
   generatedByName: string;
+  generatedByCompanyId: string | null;
   generatedByRoleName: string | null;
   branchScope: number[];
   dateFrom: string | null;

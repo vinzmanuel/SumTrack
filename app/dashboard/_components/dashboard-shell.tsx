@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import {
   BarChart3,
@@ -184,6 +184,42 @@ export function DashboardShell({ roleName, companyId, navItems, children }: Dash
   const [isCollapsed, setIsCollapsed] = useState(false);
   const normalizedItems = useMemo(() => navItems, [navItems]);
   const pathname = usePathname();
+
+  useEffect(() => {
+    const html = document.documentElement;
+    const body = document.body;
+    const previousHtmlOverflow = html.style.overflow;
+    const previousBodyOverflow = body.style.overflow;
+    const previousHtmlHeight = html.style.height;
+    const previousBodyHeight = body.style.height;
+    const mediaQuery = window.matchMedia("(min-width: 768px)");
+
+    const syncDesktopScrollLock = () => {
+      if (mediaQuery.matches) {
+        html.style.overflow = "hidden";
+        body.style.overflow = "hidden";
+        html.style.height = "100%";
+        body.style.height = "100%";
+      } else {
+        html.style.overflow = previousHtmlOverflow;
+        body.style.overflow = previousBodyOverflow;
+        html.style.height = previousHtmlHeight;
+        body.style.height = previousBodyHeight;
+      }
+    };
+
+    syncDesktopScrollLock();
+    mediaQuery.addEventListener("change", syncDesktopScrollLock);
+
+    return () => {
+      mediaQuery.removeEventListener("change", syncDesktopScrollLock);
+      html.style.overflow = previousHtmlOverflow;
+      body.style.overflow = previousBodyOverflow;
+      html.style.height = previousHtmlHeight;
+      body.style.height = previousBodyHeight;
+    };
+  }, []);
+
   const currentPageLabel = useMemo(() => {
     if (/^\/dashboard\/collectors\/[^/]+$/.test(pathname)) {
       return "Collector Details";
@@ -209,7 +245,7 @@ export function DashboardShell({ roleName, companyId, navItems, children }: Dash
         </Button>
       </header>
 
-      <div className="flex w-full md:h-screen">
+      <div className="flex w-full min-h-0 md:h-screen">
         <aside
           className={`sticky top-0 hidden h-screen shrink-0 border-r border-zinc-800 md:block ${
             isCollapsed ? "w-14" : "w-64"
@@ -224,7 +260,7 @@ export function DashboardShell({ roleName, companyId, navItems, children }: Dash
             />
           </div>
         </aside>
-        <main className="min-w-0 flex-1 bg-zinc-50/60 md:h-screen md:overflow-y-auto">
+        <main className="min-h-0 min-w-0 flex-1 bg-zinc-50/60 md:h-screen md:overflow-y-auto">
           <DashboardPageHeader
             isCollapsed={isCollapsed}
             onToggleCollapse={() => setIsCollapsed((prev) => !prev)}

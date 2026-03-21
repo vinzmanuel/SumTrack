@@ -34,13 +34,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  REPORTS_DATE_RANGE_PRESET_OPTIONS,
+  isReportsCustomDatePreset,
+  resolveReportsDatePresetRange,
+} from "@/app/dashboard/reports/date-range-presets";
 import { createDefaultReportsLibraryFilters } from "@/app/dashboard/reports/filters";
 import type {
   ReportsBranchOption,
+  ReportsDateRangePreset,
   ReportsLibraryFilterState,
   ReportsLibraryGeneratedByFilterOption,
   ReportsLibraryGeneratedByRoleFilterOption,
-  ReportsLibraryGeneratedDatePreset,
   ReportsLibraryTemplateCategoryFilterOption,
   ReportsLibraryTemplateFilterOption,
   ReportsTemplateCategoryKey,
@@ -70,59 +75,6 @@ function FilterSection(props: {
       {props.children}
     </section>
   );
-}
-
-function formatLocalDate(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-
-  return `${year}-${month}-${day}`;
-}
-
-function resolveGeneratedDatePresetRange(
-  preset: Exclude<ReportsLibraryGeneratedDatePreset, "all" | "custom">,
-) {
-  const today = new Date();
-  const start = new Date(today);
-  const end = new Date(today);
-
-  if (preset === "today") {
-    return {
-      generatedDateFrom: formatLocalDate(start),
-      generatedDateTo: formatLocalDate(end),
-    };
-  }
-
-  if (preset === "this_week") {
-    const day = start.getDay();
-    const mondayOffset = day === 0 ? -6 : 1 - day;
-    start.setDate(start.getDate() + mondayOffset);
-    end.setDate(start.getDate() + 6);
-
-    return {
-      generatedDateFrom: formatLocalDate(start),
-      generatedDateTo: formatLocalDate(end),
-    };
-  }
-
-  if (preset === "this_month") {
-    start.setDate(1);
-    end.setMonth(end.getMonth() + 1, 0);
-
-    return {
-      generatedDateFrom: formatLocalDate(start),
-      generatedDateTo: formatLocalDate(end),
-    };
-  }
-
-  start.setMonth(0, 1);
-  end.setMonth(11, 31);
-
-  return {
-    generatedDateFrom: formatLocalDate(start),
-    generatedDateTo: formatLocalDate(end),
-  };
 }
 
 function BranchMultiCombobox(props: {
@@ -230,22 +182,22 @@ function GeneratedByCombobox(props: {
   );
 }
 
-function GeneratedDatePresetSelect(props: {
-  value: ReportsLibraryGeneratedDatePreset;
-  onChange: (value: ReportsLibraryGeneratedDatePreset) => void;
+function DatePresetSelect(props: {
+  value: ReportsDateRangePreset;
+  onChange: (value: ReportsDateRangePreset) => void;
+  triggerId: string;
 }) {
   return (
-    <Select onValueChange={(value) => props.onChange(value as ReportsLibraryGeneratedDatePreset)} value={props.value}>
-      <SelectTrigger id="reports-filter-generated-date-preset">
+    <Select onValueChange={(value) => props.onChange(value as ReportsDateRangePreset)} value={props.value}>
+      <SelectTrigger id={props.triggerId}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value="all">All generated dates</SelectItem>
-        <SelectItem value="today">Today</SelectItem>
-        <SelectItem value="this_week">This week</SelectItem>
-        <SelectItem value="this_month">This month</SelectItem>
-        <SelectItem value="this_year">This year</SelectItem>
-        <SelectItem value="custom">Custom</SelectItem>
+        {REPORTS_DATE_RANGE_PRESET_OPTIONS.map((option) => (
+          <SelectItem key={option.value} value={option.value}>
+            {option.label}
+          </SelectItem>
+        ))}
       </SelectContent>
     </Select>
   );
@@ -519,36 +471,24 @@ export function ReportsLibraryFilterSheet(props: {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="reports-filter-generated-date-preset">Range</Label>
-                      <GeneratedDatePresetSelect
+                      <DatePresetSelect
                         onChange={(value) =>
                           setDraftFilters((current) => {
-                            if (value === "all") {
-                              return {
-                                ...current,
-                                generatedDatePreset: "all",
-                                generatedDateFrom: null,
-                                generatedDateTo: null,
-                              };
-                            }
-
-                            if (value === "custom") {
-                              return {
-                                ...current,
-                                generatedDatePreset: "custom",
-                              };
-                            }
+                            const resolved = resolveReportsDatePresetRange(value);
 
                             return {
                               ...current,
                               generatedDatePreset: value,
-                              ...resolveGeneratedDatePresetRange(value),
+                              generatedDateFrom: resolved.dateFrom,
+                              generatedDateTo: resolved.dateTo,
                             };
                           })
                         }
+                        triggerId="reports-filter-generated-date-preset"
                         value={draftFilters.generatedDatePreset}
                       />
                     </div>
-                    {draftFilters.generatedDatePreset === "custom" ? (
+                    {isReportsCustomDatePreset(draftFilters.generatedDatePreset) ? (
                       <div className="grid gap-4 sm:grid-cols-2">
                         <div className="space-y-2">
                           <Label htmlFor="reports-filter-generated-from">From</Label>
@@ -589,36 +529,57 @@ export function ReportsLibraryFilterSheet(props: {
                         Applies to saved `date_from` and `date_to` coverage on report rows.
                       </p>
                     </div>
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label htmlFor="reports-filter-coverage-from">From</Label>
-                        <Input
-                          id="reports-filter-coverage-from"
-                          onChange={(event) =>
-                            setDraftFilters((current) => ({
+                    <div className="space-y-2">
+                      <Label htmlFor="reports-filter-coverage-date-preset">Range</Label>
+                      <DatePresetSelect
+                        onChange={(value) =>
+                          setDraftFilters((current) => {
+                            const resolved = resolveReportsDatePresetRange(value);
+
+                            return {
                               ...current,
-                              coverageDateFrom: event.target.value || null,
-                            }))
-                          }
-                          type="date"
-                          value={draftFilters.coverageDateFrom ?? ""}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="reports-filter-coverage-to">To</Label>
-                        <Input
-                          id="reports-filter-coverage-to"
-                          onChange={(event) =>
-                            setDraftFilters((current) => ({
-                              ...current,
-                              coverageDateTo: event.target.value || null,
-                            }))
-                          }
-                          type="date"
-                          value={draftFilters.coverageDateTo ?? ""}
-                        />
-                      </div>
+                              coverageDatePreset: value,
+                              coverageDateFrom: resolved.dateFrom,
+                              coverageDateTo: resolved.dateTo,
+                            };
+                          })
+                        }
+                        triggerId="reports-filter-coverage-date-preset"
+                        value={draftFilters.coverageDatePreset}
+                      />
                     </div>
+                    {isReportsCustomDatePreset(draftFilters.coverageDatePreset) ? (
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label htmlFor="reports-filter-coverage-from">From</Label>
+                          <Input
+                            id="reports-filter-coverage-from"
+                            onChange={(event) =>
+                              setDraftFilters((current) => ({
+                                ...current,
+                                coverageDateFrom: event.target.value || null,
+                              }))
+                            }
+                            type="date"
+                            value={draftFilters.coverageDateFrom ?? ""}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="reports-filter-coverage-to">To</Label>
+                          <Input
+                            id="reports-filter-coverage-to"
+                            onChange={(event) =>
+                              setDraftFilters((current) => ({
+                                ...current,
+                                coverageDateTo: event.target.value || null,
+                              }))
+                            }
+                            type="date"
+                            value={draftFilters.coverageDateTo ?? ""}
+                          />
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               </FilterSection>

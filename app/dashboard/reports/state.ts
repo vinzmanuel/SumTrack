@@ -8,6 +8,7 @@ type AnalyticsReportFieldName =
   | "template_key"
   | "branch_ids"
   | "collector_id"
+  | "date_preset"
   | "month"
   | "date_from"
   | "date_to";

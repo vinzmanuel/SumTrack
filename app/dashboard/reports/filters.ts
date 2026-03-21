@@ -1,7 +1,10 @@
+import {
+  parseReportsDateRangePreset,
+  resolveReportsDatePresetRange,
+} from "@/app/dashboard/reports/date-range-presets";
 import type {
   ReportsCreateTab,
   ReportsLibraryGeneratedTypeFilter,
-  ReportsLibraryGeneratedDatePreset,
   ReportsLibraryCategoryTab,
   ReportsLibraryFilterState,
   ReportsLibraryStatusTab,
@@ -43,24 +46,6 @@ function parseGeneratedType(
   return nextValue === "user" || nextValue === "system" ? nextValue : "all";
 }
 
-function parseGeneratedDatePreset(
-  value: string | string[] | undefined,
-): ReportsLibraryGeneratedDatePreset {
-  const nextValue = firstValue(value);
-
-  if (
-    nextValue === "today" ||
-    nextValue === "this_week" ||
-    nextValue === "this_month" ||
-    nextValue === "this_year" ||
-    nextValue === "custom"
-  ) {
-    return nextValue;
-  }
-
-  return "all";
-}
-
 function parseNullableString(value: string | string[] | undefined) {
   const nextValue = firstValue(value)?.trim() ?? "";
   return nextValue.length > 0 ? nextValue : null;
@@ -97,9 +82,10 @@ export function createDefaultReportsLibraryFilters(): ReportsLibraryFilterState 
     generatedByRoleName: null,
     generatedByUserId: null,
     branchIds: [],
-    generatedDatePreset: "all",
+    generatedDatePreset: "lifetime",
     generatedDateFrom: null,
     generatedDateTo: null,
+    coverageDatePreset: "lifetime",
     coverageDateFrom: null,
     coverageDateTo: null,
   };
@@ -126,7 +112,24 @@ export function parseReportsLibraryStatusTab(
 export function parseReportsLibraryFilters(searchParams: Record<string, string | string[] | undefined>) {
   const generatedDateFrom = parseNullableDate(searchParams.generatedFrom);
   const generatedDateTo = parseNullableDate(searchParams.generatedTo);
-  const generatedDatePreset = parseGeneratedDatePreset(searchParams.generatedPreset);
+  const generatedDatePresetRaw = parseReportsDateRangePreset(searchParams.generatedPreset);
+  const generatedDatePreset =
+    generatedDatePresetRaw ??
+    (generatedDateFrom || generatedDateTo ? "custom" : "lifetime");
+  const resolvedGeneratedDates =
+    generatedDatePreset !== "custom"
+      ? resolveReportsDatePresetRange(generatedDatePreset)
+      : { dateFrom: generatedDateFrom, dateTo: generatedDateTo };
+  const coverageDateFrom = parseNullableDate(searchParams.coverageFrom);
+  const coverageDateTo = parseNullableDate(searchParams.coverageTo);
+  const coverageDatePresetRaw = parseReportsDateRangePreset(searchParams.coveragePreset);
+  const coverageDatePreset =
+    coverageDatePresetRaw ??
+    (coverageDateFrom || coverageDateTo ? "custom" : "lifetime");
+  const resolvedCoverageDates =
+    coverageDatePreset !== "custom"
+      ? resolveReportsDatePresetRange(coverageDatePreset)
+      : { dateFrom: coverageDateFrom, dateTo: coverageDateTo };
 
   return {
     category: parseReportsLibraryCategoryTab(searchParams.category),
@@ -138,16 +141,12 @@ export function parseReportsLibraryFilters(searchParams: Record<string, string |
     generatedByRoleName: parseNullableString(searchParams.generatedByRole),
     generatedByUserId: parseNullableString(searchParams.generatedBy),
     branchIds: parseIntegerArray(searchParams.branch),
-    generatedDatePreset:
-      generatedDatePreset !== "all"
-        ? generatedDatePreset
-        : generatedDateFrom || generatedDateTo
-          ? "custom"
-          : "all",
-    generatedDateFrom,
-    generatedDateTo,
-    coverageDateFrom: parseNullableDate(searchParams.coverageFrom),
-    coverageDateTo: parseNullableDate(searchParams.coverageTo),
+    generatedDatePreset,
+    generatedDateFrom: resolvedGeneratedDates.dateFrom,
+    generatedDateTo: resolvedGeneratedDates.dateTo,
+    coverageDatePreset,
+    coverageDateFrom: resolvedCoverageDates.dateFrom,
+    coverageDateTo: resolvedCoverageDates.dateTo,
   } satisfies ReportsLibraryFilterState;
 }
 
@@ -190,23 +189,27 @@ export function buildReportsLibraryHref(filters: ReportsLibraryFilterState) {
     search.append("branch", String(branchId));
   }
 
-  if (filters.generatedDatePreset !== "all" && filters.generatedDatePreset !== "custom") {
+  if (filters.generatedDatePreset !== "custom") {
     search.set("generatedPreset", filters.generatedDatePreset);
   }
 
-  if (filters.generatedDateFrom) {
+  if (filters.generatedDatePreset === "custom" && filters.generatedDateFrom) {
     search.set("generatedFrom", filters.generatedDateFrom);
   }
 
-  if (filters.generatedDateTo) {
+  if (filters.generatedDatePreset === "custom" && filters.generatedDateTo) {
     search.set("generatedTo", filters.generatedDateTo);
   }
 
-  if (filters.coverageDateFrom) {
+  if (filters.coverageDatePreset !== "custom") {
+    search.set("coveragePreset", filters.coverageDatePreset);
+  }
+
+  if (filters.coverageDatePreset === "custom" && filters.coverageDateFrom) {
     search.set("coverageFrom", filters.coverageDateFrom);
   }
 
-  if (filters.coverageDateTo) {
+  if (filters.coverageDatePreset === "custom" && filters.coverageDateTo) {
     search.set("coverageTo", filters.coverageDateTo);
   }
 

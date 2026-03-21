@@ -16,11 +16,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { generateAnalyticsReportAction } from "@/app/dashboard/reports/actions";
+import {
+  REPORTS_DATE_RANGE_PRESET_OPTIONS,
+  isReportsCustomDatePreset,
+} from "@/app/dashboard/reports/date-range-presets";
 import { initialGenerateAnalyticsReportState } from "@/app/dashboard/reports/state";
 import type {
   ReportsAnalyticsTemplateOption,
   ReportsBranchOption,
   ReportsCollectorOption,
+  ReportsDateRangePreset,
   ReportsReadyAccessState,
   ReportsTemplateCategoryDefinition,
   ReportsTemplateCategoryKey,
@@ -34,13 +39,6 @@ function SubmitButton(props: { disabled?: boolean }) {
       {pending ? "Generating..." : "Generate and Save Report"}
     </Button>
   );
-}
-
-function currentMonthValue() {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  return `${year}-${month}`;
 }
 
 function currentMonthStart() {
@@ -118,7 +116,7 @@ export function AnalyticsReportGenerationForm(props: {
     props.access.fixedBranchId !== null ? [String(props.access.fixedBranchId)] : [],
   );
   const [collectorId, setCollectorId] = useState("");
-  const [month, setMonth] = useState(currentMonthValue());
+  const [datePreset, setDatePreset] = useState<ReportsDateRangePreset>("this_month");
   const [dateFrom, setDateFrom] = useState(currentMonthStart());
   const [dateTo, setDateTo] = useState(currentDateValue());
 
@@ -350,51 +348,62 @@ export function AnalyticsReportGenerationForm(props: {
               </div>
             ) : null}
 
-            {dateMode === "month" ? (
-              <div className="space-y-2">
-                <Label htmlFor="month">Month</Label>
-                <Input
-                  id="month"
-                  name="month"
-                  onChange={(event) => setMonth(event.target.value)}
-                  type="month"
-                  value={month}
-                />
-                {state.fieldErrors?.month ? (
-                  <p className="text-sm text-destructive">{state.fieldErrors.month}</p>
-                ) : null}
-              </div>
-            ) : null}
-
             {dateMode === "range" ? (
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="date_from">Start Date</Label>
-                  <Input
-                    id="date_from"
-                    name="date_from"
-                    onChange={(event) => setDateFrom(event.target.value)}
-                    type="date"
-                    value={dateFrom}
-                  />
-                  {state.fieldErrors?.date_from ? (
-                    <p className="text-sm text-destructive">{state.fieldErrors.date_from}</p>
+                  <Label htmlFor="date_preset">Date Range</Label>
+                  <Select
+                    onValueChange={(value) => setDatePreset(value as ReportsDateRangePreset)}
+                    value={datePreset}
+                  >
+                    <SelectTrigger className="w-full" id="date_preset">
+                      <SelectValue placeholder="Select date range" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {REPORTS_DATE_RANGE_PRESET_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <input name="date_preset" type="hidden" value={datePreset} />
+                  {state.fieldErrors?.date_preset ? (
+                    <p className="text-sm text-destructive">{state.fieldErrors.date_preset}</p>
                   ) : null}
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="date_to">End Date</Label>
-                  <Input
-                    id="date_to"
-                    name="date_to"
-                    onChange={(event) => setDateTo(event.target.value)}
-                    type="date"
-                    value={dateTo}
-                  />
-                  {state.fieldErrors?.date_to ? (
-                    <p className="text-sm text-destructive">{state.fieldErrors.date_to}</p>
-                  ) : null}
-                </div>
+                {isReportsCustomDatePreset(datePreset) ? (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="date_from">Start Date</Label>
+                      <Input
+                        id="date_from"
+                        name="date_from"
+                        onChange={(event) => setDateFrom(event.target.value)}
+                        type="date"
+                        value={dateFrom}
+                      />
+                      {state.fieldErrors?.date_from ? (
+                        <p className="text-sm text-destructive">{state.fieldErrors.date_from}</p>
+                      ) : null}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="date_to">End Date</Label>
+                      <Input
+                        id="date_to"
+                        name="date_to"
+                        onChange={(event) => setDateTo(event.target.value)}
+                        type="date"
+                        value={dateTo}
+                      />
+                      {state.fieldErrors?.date_to ? (
+                        <p className="text-sm text-destructive">{state.fieldErrors.date_to}</p>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             ) : null}
 

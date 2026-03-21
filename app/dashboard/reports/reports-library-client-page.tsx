@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { FileStack, FolderOpenDot, ScrollText } from "lucide-react";
+import { FileStack, FolderOpenDot } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { getReportsDatePresetLabel } from "@/app/dashboard/reports/date-range-presets";
 import {
   buildReportsLibraryHref,
   createDefaultReportsLibraryFilters,
@@ -38,6 +39,10 @@ function formatGeneratedAt(value: string) {
 function buildReportsLibraryDataUrl(filters: ReportsLibraryFilterState) {
   const href = buildReportsLibraryHref(filters);
   return href.replace("/dashboard/reports", "/dashboard/reports/data");
+}
+
+function buildReportStatusUrl(reportId: number) {
+  return `/dashboard/reports/${reportId}/status`;
 }
 
 function templateCategoryMatchesLibraryTab(
@@ -155,9 +160,9 @@ function resolveEmptyState(filters: ReportsLibraryFilterState, counts: ReportsLi
 
   if (filters.status === "archived") {
     return {
-      title: "No archived reports are available yet.",
+      title: "No archived reports matched the current filters.",
       description:
-        "Archived reports will appear here in a later pass once archive actions are enabled.",
+        "Restore an archived report to move it back into the active library, or adjust the current filters to see other archived entries.",
     };
   }
 
@@ -191,6 +196,43 @@ function ActiveFilterChip(props: { label: string; onRemove: () => void }) {
         {props.label} x
       </Badge>
     </button>
+  );
+}
+
+function roleBadgeClass(roleName: string | null) {
+  if (roleName === "Admin") return "border-red-200 bg-red-50 text-red-700";
+  if (roleName === "Auditor") return "border-blue-200 bg-blue-50 text-blue-700";
+  if (roleName === "Branch Manager") return "border-amber-200 bg-amber-50 text-amber-700";
+  if (roleName === "Secretary") return "border-violet-200 bg-violet-50 text-violet-700";
+  if (roleName === "Collector") return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  return "border-zinc-200 bg-zinc-50 text-zinc-700";
+}
+
+function GeneratedByCell(props: {
+  generatedType: "user" | "system";
+  generatedByName: string;
+  generatedByCompanyId: string | null;
+  generatedByRoleName: string | null;
+}) {
+  if (props.generatedType === "system") {
+    return (
+      <Badge className="border-indigo-600 bg-indigo-600 px-3 py-1 text-white hover:bg-indigo-600">
+        System-generated
+      </Badge>
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      {props.generatedByRoleName ? (
+        <Badge className={roleBadgeClass(props.generatedByRoleName)} variant="outline">
+          {props.generatedByRoleName}
+        </Badge>
+      ) : null}
+      <p className="font-medium text-foreground">
+        {props.generatedByName} ({props.generatedByCompanyId?.trim() || "N/A"})
+      </p>
+    </div>
   );
 }
 
@@ -284,39 +326,26 @@ function buildActiveFilterChipData(
     });
   }
 
-  if (filters.generatedDateFrom) {
-    const generatedDateLabelMap = {
-      today: "Generated Date: Today",
-      this_week: "Generated Date: This Week",
-      this_month: "Generated Date: This Month",
-      this_year: "Generated Date: This Year",
-    } as const;
-
-    if (
-      filters.generatedDatePreset !== "all" &&
-      filters.generatedDatePreset !== "custom"
-    ) {
-      chips.push({
-        key: "generatedDatePreset",
-        label: generatedDateLabelMap[filters.generatedDatePreset],
-        nextFilters: {
-          ...filters,
-          generatedDatePreset: "all",
-          generatedDateFrom: null,
-          generatedDateTo: null,
-        },
-      });
-    } else {
-      chips.push({
-        key: "generatedDateFrom",
-        label: `Generated From: ${filters.generatedDateFrom}`,
-        nextFilters: {
-          ...filters,
-          generatedDatePreset: filters.generatedDateTo ? "custom" : "all",
-          generatedDateFrom: null,
-        },
-      });
-    }
+  if (filters.generatedDatePreset !== "lifetime" && filters.generatedDatePreset !== "custom") {
+    chips.push({
+      key: "generatedDatePreset",
+      label: `Generated Date: ${getReportsDatePresetLabel(filters.generatedDatePreset)}`,
+      nextFilters: {
+        ...filters,
+        generatedDatePreset: "lifetime",
+        generatedDateFrom: null,
+        generatedDateTo: null,
+      },
+    });
+  } else if (filters.generatedDateFrom) {
+    chips.push({
+      key: "generatedDateFrom",
+      label: `Generated From: ${filters.generatedDateFrom}`,
+      nextFilters: {
+        ...filters,
+        generatedDateFrom: null,
+      },
+    });
   }
 
   if (filters.generatedDateTo && filters.generatedDatePreset === "custom") {
@@ -330,7 +359,18 @@ function buildActiveFilterChipData(
     });
   }
 
-  if (filters.coverageDateFrom) {
+  if (filters.coverageDatePreset !== "lifetime" && filters.coverageDatePreset !== "custom") {
+    chips.push({
+      key: "coverageDatePreset",
+      label: `Coverage Date: ${getReportsDatePresetLabel(filters.coverageDatePreset)}`,
+      nextFilters: {
+        ...filters,
+        coverageDatePreset: "lifetime",
+        coverageDateFrom: null,
+        coverageDateTo: null,
+      },
+    });
+  } else if (filters.coverageDateFrom) {
     chips.push({
       key: "coverageDateFrom",
       label: `Coverage From: ${filters.coverageDateFrom}`,
@@ -341,7 +381,7 @@ function buildActiveFilterChipData(
     });
   }
 
-  if (filters.coverageDateTo) {
+  if (filters.coverageDateTo && filters.coverageDatePreset === "custom") {
     chips.push({
       key: "coverageDateTo",
       label: `Coverage To: ${filters.coverageDateTo}`,
@@ -366,6 +406,7 @@ export function ReportsLibraryClientPage({
   const [results, setResults] = useState(pageData);
   const [filters, setFilters] = useState(initialFilters);
   const [isPending, setIsPending] = useState(false);
+  const [statusActionReportId, setStatusActionReportId] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const requestIdRef = useRef(0);
@@ -452,6 +493,38 @@ export function ReportsLibraryClientPage({
       );
     },
     [applyFilters],
+  );
+
+  const updateReportStatus = useCallback(
+    async (reportId: number, status: "active" | "archived") => {
+      setStatusActionReportId(reportId);
+      setErrorMessage(null);
+
+      try {
+        const response = await fetch(buildReportStatusUrl(reportId), {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "same-origin",
+          body: JSON.stringify({ status }),
+        });
+
+        if (!response.ok) {
+          const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+          throw new Error(payload?.message || "Unable to update the saved report status.");
+        }
+
+        await loadResults(filtersRef.current);
+      } catch (error) {
+        setErrorMessage(
+          error instanceof Error ? error.message : "Unable to update the saved report status.",
+        );
+      } finally {
+        setStatusActionReportId(null);
+      }
+    },
+    [loadResults],
   );
 
   const emptyState = resolveEmptyState(filters, results.counts);
@@ -669,65 +742,91 @@ export function ReportsLibraryClientPage({
                     <thead className="bg-muted/20">
                       <tr className="text-left text-sm text-muted-foreground">
                         <th className="px-4 py-3 font-medium">Title</th>
-                        <th className="px-4 py-3 font-medium">Category</th>
-                        <th className="px-4 py-3 font-medium">Template</th>
-                        <th className="px-4 py-3 font-medium">Generated Type</th>
+                        <th className="px-4 py-3 font-medium">Generated By</th>
                         <th className="px-4 py-3 font-medium">Generated At</th>
                         <th className="px-4 py-3 font-medium">Status</th>
-                        <th className="px-4 py-3 font-medium">Action</th>
+                        <th className="px-4 py-3 font-medium">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border/60 bg-background">
-                      {results.rows.map((row) => (
-                        <tr className="align-top text-sm" key={row.reportId}>
-                          <td className="px-4 py-4">
-                            <div className="space-y-1">
-                              <p className="font-medium text-foreground">{row.title}</p>
-                              {row.sourceEntityType && row.sourceEntityId ? (
-                                <p className="text-xs text-muted-foreground">
-                                  Linked to {row.sourceEntityType} #{row.sourceEntityId}
-                                </p>
-                              ) : null}
-                            </div>
-                          </td>
-                          <td className="px-4 py-4 text-muted-foreground">
-                            {row.reportCategory === "analytics" ? "Analytics" : "Document"}
-                          </td>
-                          <td className="px-4 py-4">
-                            <div className="space-y-1">
-                              <p className="text-foreground">{row.templateLabel}</p>
-                              <p className="text-xs text-muted-foreground">{row.templateKey}</p>
-                            </div>
-                          </td>
-                          <td className="px-4 py-4 text-muted-foreground">
-                            <span className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-muted/20 px-2.5 py-1 text-xs font-medium">
-                              <ScrollText className="h-3.5 w-3.5" />
-                              {row.generatedType === "user" ? "User" : "System"}
-                            </span>
-                          </td>
-                          <td className="px-4 py-4 text-muted-foreground">
-                            {formatGeneratedAt(row.generatedAt)}
-                          </td>
-                          <td className="px-4 py-4">
-                            <Badge
-                              className={
-                                row.status === "active"
-                                  ? "rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-emerald-800 hover:bg-emerald-50"
-                                  : "rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-zinc-700 hover:bg-zinc-50"
-                              }
-                            >
-                              {row.status === "active" ? "Active" : "Archived"}
-                            </Badge>
-                          </td>
-                          <td className="px-4 py-4">
-                            <Link href={`/dashboard/reports/${row.reportId}`}>
-                              <Button size="sm" type="button" variant="outline">
-                                View
-                              </Button>
-                            </Link>
-                          </td>
-                        </tr>
-                      ))}
+                      {results.rows.map((row) => {
+                        const canChangeStatus =
+                          row.generatedType === "user" &&
+                          (access.roleName === "Admin" || row.generatedByUserId === access.userId);
+
+                        return (
+                          <tr className="align-top text-sm" key={row.reportId}>
+                            <td className="px-4 py-4">
+                              <div className="space-y-1">
+                                <p className="font-medium text-foreground">{row.title}</p>
+                                {row.sourceEntityType && row.sourceEntityId ? (
+                                  <p className="text-xs text-muted-foreground">
+                                    Linked to {row.sourceEntityType} #{row.sourceEntityId}
+                                  </p>
+                                ) : null}
+                              </div>
+                            </td>
+                            <td className="px-4 py-4">
+                              <GeneratedByCell
+                                generatedByCompanyId={row.generatedByCompanyId}
+                                generatedByName={row.generatedByName}
+                                generatedByRoleName={row.generatedByRoleName}
+                                generatedType={row.generatedType}
+                              />
+                            </td>
+                            <td className="px-4 py-4 text-muted-foreground">
+                              {formatGeneratedAt(row.generatedAt)}
+                            </td>
+                            <td className="px-4 py-4">
+                              <Badge
+                                className={
+                                  row.status === "active"
+                                    ? "rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-emerald-800 hover:bg-emerald-50"
+                                    : "rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-zinc-700 hover:bg-zinc-50"
+                                }
+                              >
+                                {row.status === "active" ? "Active" : "Archived"}
+                              </Badge>
+                            </td>
+                            <td className="px-4 py-4">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <Link href={`/dashboard/reports/${row.reportId}`}>
+                                  <Button size="sm" type="button" variant="outline">
+                                    View
+                                  </Button>
+                                </Link>
+                                {canChangeStatus ? (
+                                  <Button
+                                    className={
+                                      row.status === "active"
+                                        ? "bg-amber-500 text-white hover:bg-amber-600 hover:text-white"
+                                        : undefined
+                                    }
+                                    disabled={isPending || statusActionReportId === row.reportId}
+                                    onClick={() =>
+                                      void updateReportStatus(
+                                        row.reportId,
+                                        row.status === "active" ? "archived" : "active",
+                                      )
+                                    }
+                                    size="sm"
+                                    type="button"
+                                    variant={row.status === "active" ? "outline" : "default"}
+                                  >
+                                    {statusActionReportId === row.reportId
+                                      ? row.status === "active"
+                                        ? "Archiving..."
+                                        : "Restoring..."
+                                      : row.status === "active"
+                                        ? "Archive"
+                                        : "Restore"}
+                                  </Button>
+                                ) : null}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

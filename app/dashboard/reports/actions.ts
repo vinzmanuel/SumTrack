@@ -3,6 +3,10 @@
 import { getDashboardAuthContext } from "@/app/dashboard/auth";
 import { resolveReportsPageAccess } from "@/app/dashboard/reports/access";
 import {
+  parseReportsDateRangePreset,
+  resolveReportsDatePresetRange,
+} from "@/app/dashboard/reports/date-range-presets";
+import {
   generateAnalyticsReport,
   generateOperationalDocument,
 } from "@/app/dashboard/reports/queries";
@@ -23,7 +27,7 @@ import type {
 
 type FieldErrors = Partial<
   Record<
-    "title" | "template_key" | "branch_ids" | "collector_id" | "month" | "date_from" | "date_to",
+    "title" | "template_key" | "branch_ids" | "collector_id" | "date_preset" | "month" | "date_from" | "date_to",
     string
   >
 >;
@@ -48,6 +52,7 @@ export async function generateAnalyticsReportAction(
 
   const title = getTrimmed(formData, "title");
   const templateKeyRaw = getTrimmed(formData, "template_key");
+  const datePreset = parseReportsDateRangePreset(getTrimmed(formData, "date_preset"));
   const month = getTrimmed(formData, "month");
   const dateFrom = getTrimmed(formData, "date_from");
   const dateTo = getTrimmed(formData, "date_to");
@@ -72,21 +77,21 @@ export async function generateAnalyticsReportAction(
     fieldErrors.collector_id = "Select a collector for this report.";
   }
 
-  if (template?.dateMode === "month" && !month) {
-    fieldErrors.month = "Select a month for this report.";
-  }
-
   if (template?.dateMode === "range") {
-    if (!dateFrom) {
-      fieldErrors.date_from = "Start date is required.";
-    }
+    if (!datePreset) {
+      fieldErrors.date_preset = "Select a date range preset.";
+    } else if (datePreset === "custom") {
+      if (!dateFrom) {
+        fieldErrors.date_from = "Start date is required.";
+      }
 
-    if (!dateTo) {
-      fieldErrors.date_to = "End date is required.";
-    }
+      if (!dateTo) {
+        fieldErrors.date_to = "End date is required.";
+      }
 
-    if (dateFrom && dateTo && dateTo < dateFrom) {
-      fieldErrors.date_to = "End date cannot be earlier than start date.";
+      if (dateFrom && dateTo && dateTo < dateFrom) {
+        fieldErrors.date_to = "End date cannot be earlier than start date.";
+      }
     }
   }
 
@@ -121,14 +126,33 @@ export async function generateAnalyticsReportAction(
     };
   }
 
+  const resolvedPresetRange =
+    template?.dateMode === "range" && datePreset && datePreset !== "custom"
+      ? resolveReportsDatePresetRange(datePreset)
+      : null;
+
   const result = await generateAnalyticsReport(access, {
     title,
     templateKey: template.key,
     branchIds,
     collectorId: collectorId || null,
+    datePreset:
+      template.dateMode === "range" && datePreset
+        ? datePreset
+        : null,
     month: month || null,
-    dateFrom: dateFrom || null,
-    dateTo: dateTo || null,
+    dateFrom:
+      template.dateMode === "range"
+        ? datePreset === "custom"
+          ? dateFrom || null
+          : resolvedPresetRange?.dateFrom ?? null
+        : null,
+    dateTo:
+      template.dateMode === "range"
+        ? datePreset === "custom"
+          ? dateTo || null
+          : resolvedPresetRange?.dateTo ?? null
+        : null,
   });
 
   if (!result.ok) {
