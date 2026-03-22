@@ -44,6 +44,20 @@ export function LoansFilters({
   onStatusChange,
   action,
 }: LoansFiltersProps) {
+  const statusOptions =
+    selectedTab === "archived"
+      ? [
+          { value: "all", label: "All archived statuses" },
+          { value: "Archived", label: "Archived" },
+          { value: "Abandoned", label: "Abandoned" },
+        ]
+      : [
+          { value: "all", label: "All active statuses" },
+          { value: "Active", label: "Active" },
+          { value: "Overdue", label: "Overdue" },
+          { value: "Completed", label: "Completed" },
+        ];
+
   return (
     <div className="space-y-2.5">
       {onTabChange ? (
@@ -112,12 +126,11 @@ export function LoansFilters({
                 onChange={(event) => onStatusChange(event.target.value as LoanStatusFilter)}
                 value={selectedStatus ?? "all"}
               >
-                <option value="all">All visible statuses</option>
-                <option value="Active">Active</option>
-                <option value="Overdue">Overdue</option>
-                <option value="Completed">Completed</option>
-                <option value="Archived">Archived</option>
-                <option value="Abandoned">Abandoned</option>
+                {statusOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
               </select>
             </div>
           ) : null}

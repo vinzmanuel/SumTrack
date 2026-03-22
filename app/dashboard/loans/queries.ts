@@ -20,7 +20,12 @@ import {
   getManilaTodayDateString,
   resolveArchiveTargetStatus,
 } from "@/app/dashboard/loans/loan-state";
-import type { LoanListRow, StaffLoansPageData, StaffLoansScope } from "@/app/dashboard/loans/types";
+import type {
+  LoanListRow,
+  LoanStatusFilter,
+  StaffLoansPageData,
+  StaffLoansScope,
+} from "@/app/dashboard/loans/types";
 
 const borrowerUsers = alias(users, "borrower_users");
 const collectorUsers = alias(users, "collector_users");
@@ -191,12 +196,20 @@ function toLoanListRow(
   };
 }
 
+function matchesVisibleStatusFilter(visibleStatus: LoanListRow["visibleStatus"], statusFilter: LoanStatusFilter) {
+  if (statusFilter === "all") {
+    return true;
+  }
+
+  return visibleStatus === statusFilter;
+}
+
 export async function loadStaffLoansPageData(scope: StaffLoansScope): Promise<StaffLoansPageData> {
   const whereCondition = whereFrom(buildLoansFilters(scope));
   const branchOptionsWhere = buildBranchOptionsWhere(scope);
   const requestedPage = Math.max(scope.page, 1);
 
-  const [branchOptions, totalCount] = await Promise.all([
+  const branchOptions = await (
     scope.canChooseBranchFilter
       ? db
           .select({
@@ -207,25 +220,10 @@ export async function loadStaffLoansPageData(scope: StaffLoansScope): Promise<St
           .where(branchOptionsWhere)
           .orderBy(asc(branch.branch_name))
           .catch(() => [])
-      : Promise.resolve([]),
-    db
-      .select({ value: sql<number>`count(*)` })
-      .from(loan_records)
-      .innerJoin(branch, eq(branch.branch_id, loan_records.branch_id))
-      .innerJoin(borrowerUsers, eq(borrowerUsers.user_id, loan_records.borrower_id))
-      .leftJoin(borrower_info, eq(borrower_info.user_id, loan_records.borrower_id))
-      .leftJoin(collectorUsers, eq(collectorUsers.user_id, loan_records.collector_id))
-      .leftJoin(employee_info, eq(employee_info.user_id, collectorUsers.user_id))
-      .where(whereCondition)
-      .then((rows) => Number(rows[0]?.value) || 0)
-      .catch(() => 0),
-  ]);
+      : Promise.resolve([])
+  );
 
-  const totalPages = Math.max(Math.ceil(totalCount / STAFF_LOANS_PAGE_SIZE), 1);
-  const page = Math.min(requestedPage, totalPages);
-  const offset = (page - 1) * STAFF_LOANS_PAGE_SIZE;
-
-  const loanRows = await db
+  const allLoanRows = await db
     .select({
       loan_id: loan_records.loan_id,
       loan_code: loan_records.loan_code,
@@ -254,18 +252,21 @@ export async function loadStaffLoansPageData(scope: StaffLoansScope): Promise<St
     .leftJoin(employee_info, eq(employee_info.user_id, collectorUsers.user_id))
     .where(whereCondition)
     .orderBy(desc(loan_records.loan_id))
-    .limit(STAFF_LOANS_PAGE_SIZE)
-    .offset(offset)
     .catch(() => []);
 
-  const collectionStatsMap = await loadLoanCollectionStatsMap(loanRows.map((row) => row.loan_id));
+  const collectionStatsMap = await loadLoanCollectionStatsMap(allLoanRows.map((row) => row.loan_id));
   const currentDate = getManilaTodayDateString();
+  const filteredLoans = allLoanRows
+    .map((row) => toLoanListRow(row, scope, collectionStatsMap.get(row.loan_id), currentDate))
+    .filter((row) => matchesVisibleStatusFilter(row.visibleStatus, scope.status));
+  const totalCount = filteredLoans.length;
+  const totalPages = Math.max(Math.ceil(totalCount / STAFF_LOANS_PAGE_SIZE), 1);
+  const page = Math.min(requestedPage, totalPages);
+  const offset = (page - 1) * STAFF_LOANS_PAGE_SIZE;
 
   return {
     branchOptions,
-    loans: loanRows.map((row) =>
-      toLoanListRow(row, scope, collectionStatsMap.get(row.loan_id), currentDate),
-    ),
+    loans: filteredLoans.slice(offset, offset + STAFF_LOANS_PAGE_SIZE),
     page,
     pageSize: STAFF_LOANS_PAGE_SIZE,
     totalCount,

@@ -14,6 +14,7 @@ export type LoansPageProps = {
 export type LoansListFilters = {
   requestedBranchId: number | null;
   tab: LoanListTab;
+  status: LoanStatusFilter;
   searchQuery: string;
   page: number;
 };
@@ -57,6 +58,7 @@ export type StaffLoansScope = {
   canChooseBranchFilter: boolean;
   canCreateLoan: boolean;
   tab: LoanListTab;
+  status: LoanStatusFilter;
   searchQuery: string;
   page: number;
 };

@@ -5,7 +5,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { LoanRecordsModule } from "@/app/dashboard/loans/loan-records-module";
 import { LoansFilters } from "@/app/dashboard/loans/loans-filters";
-import type { LoanBranchOption, LoanListTab, StaffLoansPageData, StaffLoansScope } from "@/app/dashboard/loans/types";
+import type {
+  LoanBranchOption,
+  LoanListTab,
+  LoanStatusFilter,
+  StaffLoansPageData,
+  StaffLoansScope,
+} from "@/app/dashboard/loans/types";
 
 type LoansClientPageProps = {
   initialData: StaffLoansPageData;
@@ -16,6 +22,7 @@ type LoansClientPageProps = {
 type LoanResultFilters = {
   branchId: number | null;
   tab: LoanListTab;
+  status: LoanStatusFilter;
   query: string;
   page: number;
 };
@@ -32,6 +39,9 @@ function buildResultsUrl(filters: LoanResultFilters) {
   }
 
   params.set("tab", filters.tab);
+  if (filters.status !== "all") {
+    params.set("status", filters.status);
+  }
 
   if (filters.page > 1) {
     params.set("page", String(filters.page));
@@ -54,6 +64,9 @@ function buildDataUrl(filters: LoanResultFilters) {
   }
 
   params.set("tab", filters.tab);
+  if (filters.status !== "all") {
+    params.set("status", filters.status);
+  }
 
   if (filters.page > 1) {
     params.set("page", String(filters.page));
@@ -72,10 +85,11 @@ export function LoansClientPage({
     () => ({
       branchId: initialScope.selectedBranchId,
       tab: initialScope.tab,
+      status: initialScope.status,
       query: initialScope.searchQuery,
       page: initialData.page,
     }),
-    [initialData.page, initialScope.searchQuery, initialScope.selectedBranchId, initialScope.tab],
+    [initialData.page, initialScope.searchQuery, initialScope.selectedBranchId, initialScope.status, initialScope.tab],
   );
   const [results, setResults] = useState(initialData);
   const [filters, setFilters] = useState<LoanResultFilters>(initialFilters);
@@ -123,12 +137,14 @@ export function LoansClientPage({
       setAppliedFilters({
         branchId: nextFilters.branchId,
         tab: nextFilters.tab,
+        status: nextFilters.status,
         query: nextFilters.query,
         page: nextData.page,
       });
       updateHistory({
         branchId: nextFilters.branchId,
         tab: nextFilters.tab,
+        status: nextFilters.status,
         query: nextFilters.query,
         page: nextData.page,
       });
@@ -150,7 +166,8 @@ export function LoansClientPage({
   useEffect(() => {
     if (
       filters.branchId === appliedFilters.branchId &&
-      filters.tab === appliedFilters.tab
+      filters.tab === appliedFilters.tab &&
+      filters.status === appliedFilters.status
     ) {
       return;
     }
@@ -158,10 +175,20 @@ export function LoansClientPage({
     void loadResults({
       branchId: filters.branchId,
       tab: filters.tab,
+      status: filters.status,
       query: filters.query,
       page: 1,
     });
-  }, [appliedFilters.branchId, appliedFilters.tab, filters.branchId, filters.query, filters.tab, loadResults]);
+  }, [
+    appliedFilters.branchId,
+    appliedFilters.status,
+    appliedFilters.tab,
+    filters.branchId,
+    filters.query,
+    filters.status,
+    filters.tab,
+    loadResults,
+  ]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -172,6 +199,7 @@ export function LoansClientPage({
       void loadResults({
         branchId: filtersRef.current.branchId,
         tab: filtersRef.current.tab,
+        status: filtersRef.current.status,
         query: filtersRef.current.query,
         page: 1,
       });
@@ -188,10 +216,11 @@ export function LoansClientPage({
     void loadResults({
       branchId: filters.branchId,
       tab: filters.tab,
+      status: filters.status,
       query: filters.query,
       page,
     });
-  }, [filters.branchId, filters.query, filters.tab, loadResults]);
+  }, [filters.branchId, filters.query, filters.status, filters.tab, loadResults]);
 
   const handleBranchChange = useCallback((branchId: number | null) => {
     setFilters((previous) => ({
@@ -205,6 +234,15 @@ export function LoansClientPage({
     setFilters((previous) => ({
       ...previous,
       tab,
+      status: "all",
+      page: 1,
+    }));
+  }, []);
+
+  const handleStatusChange = useCallback((status: LoanStatusFilter) => {
+    setFilters((previous) => ({
+      ...previous,
+      status,
       page: 1,
     }));
   }, []);
@@ -235,9 +273,11 @@ export function LoansClientPage({
           isPending={isPending}
           onBranchChange={handleBranchChange}
           onSearchChange={handleSearchChange}
+          onStatusChange={handleStatusChange}
           onTabChange={handleTabChange}
           selectedBranchId={filters.branchId}
           selectedSearchQuery={filters.query}
+          selectedStatus={filters.status}
           selectedTab={filters.tab}
         />
       )}

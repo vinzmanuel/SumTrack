@@ -1,6 +1,7 @@
 import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import { asc, desc, eq, inArray } from "drizzle-orm";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireDashboardAuth } from "@/app/dashboard/auth";
 import { LoanDocumentsSection } from "@/app/dashboard/loans/[loanId]/documents/loan-documents-section";
 import { LoanDetailForm } from "@/app/dashboard/loans/[loanId]/loan-digital-passbook";
@@ -16,9 +17,7 @@ import {
 import type { CollectionHistoryRow } from "@/app/dashboard/loans/[loanId]/state";
 import { db } from "@/db";
 import {
-  areas,
   borrower_info,
-  branch,
   collections,
   employee_info,
   loan_docs,
@@ -159,7 +158,7 @@ export default async function LoanDetailPage({ params, searchParams }: PageProps
   const canManageLoan = isAdmin || isBranchManager || isSecretary;
   const canGenerateOperationalDocuments = canManageDocs;
 
-  const [borrowerInfo, borrowerUser, branchRow, collectionRows, loanDocRows, assignedCollector] = await Promise.all([
+  const [borrowerInfo, borrowerUser, collectionRows, loanDocRows, assignedCollector] = await Promise.all([
     db
       .select({
         user_id: borrower_info.user_id,
@@ -183,17 +182,6 @@ export default async function LoanDetailPage({ params, searchParams }: PageProps
       })
       .from(users)
       .where(eq(users.user_id, loan.borrower_id))
-      .limit(1)
-      .then((rows) => rows[0] ?? null)
-      .catch(() => null),
-    db
-      .select({
-        branch_id: branch.branch_id,
-        branch_name: branch.branch_name,
-        branch_address: branch.branch_address,
-      })
-      .from(branch)
-      .where(eq(branch.branch_id, loan.branch_id))
       .limit(1)
       .then((rows) => rows[0] ?? null)
       .catch(() => null),
@@ -256,16 +244,6 @@ export default async function LoanDetailPage({ params, searchParams }: PageProps
           .catch(() => null)
       : Promise.resolve(null),
   ]);
-
-  const borrowerArea = borrowerInfo?.area_id
-    ? await db
-        .select({ area_code: areas.area_code })
-        .from(areas)
-        .where(eq(areas.area_id, borrowerInfo.area_id))
-        .limit(1)
-        .then((rows) => rows[0] ?? null)
-        .catch(() => null)
-    : null;
 
   const encoderIds = Array.from(new Set(collectionRows.map((row) => row.encoded_by).filter(Boolean)));
   const encoderRows =
@@ -367,29 +345,24 @@ export default async function LoanDetailPage({ params, searchParams }: PageProps
           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
             <div className="space-y-3">
               <div className="space-y-1">
-                <Link className="inline-flex text-sm text-muted-foreground underline underline-offset-4" href="/dashboard/loans">
+                <Link
+                  className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                  href="/dashboard/loans"
+                >
+                  <ArrowLeft className="h-4 w-4" />
                   Back to Loans
                 </Link>
                 <h1 className="text-3xl font-semibold tracking-tight text-foreground">{loan.loan_code}</h1>
                 <p className="text-sm text-muted-foreground">
-                  Borrower: <span className="font-medium text-foreground">{customerName}</span>
+                  Borrower:{" "}
+                  <span className="font-medium text-foreground">
+                    {customerName} ({borrowerCompanyId})
+                  </span>
                 </p>
               </div>
 
               <div className="flex flex-wrap items-center gap-2 text-xs font-medium">
                 <LoanVisibleStatusBadge status={computedState.visibleStatus} />
-                <span className="rounded-full border border-border/70 bg-background px-3 py-1 text-foreground">
-                  Branch: {branchRow?.branch_name || "N/A"}
-                </span>
-                <span className="rounded-full border border-border/70 bg-background px-3 py-1 text-foreground">
-                  Release Date: {loan.start_date}
-                </span>
-                <span className="rounded-full border border-border/70 bg-background px-3 py-1 text-foreground">
-                  Due Date: {loan.due_date}
-                </span>
-                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-emerald-800">
-                  Remaining Balance: {formatMoney(computedState.remainingBalance)}
-                </span>
               </div>
             </div>
 
@@ -426,21 +399,54 @@ export default async function LoanDetailPage({ params, searchParams }: PageProps
           <Card>
             <CardHeader>
               <CardTitle>Loan Summary</CardTitle>
-              <CardDescription>Compact operational overview for this individual loan record.</CardDescription>
             </CardHeader>
-            <CardContent className="grid gap-3 text-sm md:grid-cols-2 xl:grid-cols-3">
-              <p><span className="font-medium">Borrower:</span> {customerName}</p>
-              <p><span className="font-medium">Borrower Company ID:</span> {borrowerCompanyId}</p>
-              <p><span className="font-medium">Address:</span> {borrowerAddress}</p>
-              <p><span className="font-medium">Branch:</span> {branchRow?.branch_name || "N/A"}</p>
-              <p><span className="font-medium">Area:</span> {borrowerArea?.area_code || "N/A"}</p>
-              <p><span className="font-medium">Collector:</span> {assignedCollectorLabel}</p>
-              <p><span className="font-medium">Principal:</span> {formatMoney(principal)}</p>
-              <p><span className="font-medium">Interest:</span> {interest}%</p>
-              <p><span className="font-medium">Total Payable:</span> {formatMoney(computedState.totalPayable)}</p>
-              <p><span className="font-medium">Collected to Date:</span> {formatMoney(computedState.totalCollected)}</p>
-              <p><span className="font-medium">Remaining Balance:</span> {formatMoney(computedState.remainingBalance)}</p>
-              <p><span className="font-medium">Visible Status:</span> {computedState.visibleStatus}</p>
+            <CardContent className="space-y-5">
+              <div className="grid gap-3 text-sm md:grid-cols-3">
+                <div className="space-y-2">
+                  <p>
+                    <span className="font-medium">Borrower:</span> {customerName} ({borrowerCompanyId})
+                  </p>
+                  <p>
+                    <span className="font-medium">Address:</span> {borrowerAddress}
+                  </p>
+                  <p>
+                    <span className="font-medium">Loan Code:</span> {loan.loan_code}
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <p>
+                    <span className="font-medium">Principal:</span> {formatMoney(principal)}
+                  </p>
+                  <p>
+                    <span className="font-medium">Interest:</span> {interest}%
+                  </p>
+                  <p>
+                    <span className="font-medium">Total Payable:</span> {formatMoney(computedState.totalPayable)}
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <p>
+                    <span className="font-medium">Start Date:</span> {loan.start_date}
+                  </p>
+                  <p>
+                    <span className="font-medium">Due Date:</span> {loan.due_date}
+                  </p>
+                  <p>
+                    <span className="font-medium">Assigned Collector:</span> {assignedCollectorLabel}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid gap-3 text-sm md:grid-cols-2">
+                <div className="rounded-lg border border-border/70 bg-muted/20 px-4 py-3">
+                  <p className="text-muted-foreground text-xs uppercase tracking-wide">Total Collected So Far</p>
+                  <p className="mt-1 font-medium">{formatMoney(computedState.totalCollected)}</p>
+                </div>
+                <div className="rounded-lg border border-border/70 bg-muted/20 px-4 py-3">
+                  <p className="text-muted-foreground text-xs uppercase tracking-wide">Remaining Balance</p>
+                  <p className="mt-1 font-medium">{formatMoney(computedState.remainingBalance)}</p>
+                </div>
+              </div>
             </CardContent>
           </Card>
 

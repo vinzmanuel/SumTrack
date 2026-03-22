@@ -1,5 +1,10 @@
 import type { DashboardAuthContext } from "@/app/dashboard/auth";
-import type { LoanListTab, LoansListFilters, LoansPageAccessState } from "@/app/dashboard/loans/types";
+import type {
+  LoanListTab,
+  LoanStatusFilter,
+  LoansListFilters,
+  LoansPageAccessState,
+} from "@/app/dashboard/loans/types";
 
 function toPositiveInt(value: string | undefined) {
   return /^\d+$/.test(String(value ?? "")) ? Number(value) : null;
@@ -19,10 +24,26 @@ function normalizeTab(value: string | undefined, legacyStatusValue: string | und
   return "active";
 }
 
+function normalizeStatus(value: string | undefined, tab: LoanListTab): LoanStatusFilter {
+  const rawValue = String(value ?? "").trim();
+  const activeStatuses: LoanStatusFilter[] = ["all", "Active", "Overdue", "Completed"];
+  const archivedStatuses: LoanStatusFilter[] = ["all", "Archived", "Abandoned"];
+  const allowed = tab === "archived" ? archivedStatuses : activeStatuses;
+
+  if (allowed.includes(rawValue as LoanStatusFilter)) {
+    return rawValue as LoanStatusFilter;
+  }
+
+  return "all";
+}
+
 export function parseLoansListFilters(params: Awaited<LoansPageProps["searchParams"]>): LoansListFilters {
+  const tab = normalizeTab((params as { tab?: string } | undefined)?.tab, params?.status);
+
   return {
     requestedBranchId: toPositiveInt(params?.branchId),
-    tab: normalizeTab((params as { tab?: string } | undefined)?.tab, params?.status),
+    tab,
+    status: normalizeStatus(params?.status, tab),
     searchQuery: normalizeSearchQuery(params?.query),
     page: Math.max(toPositiveInt(params?.page) ?? 1, 1),
   };
@@ -86,6 +107,7 @@ export function resolveLoansPageAccess(
     canChooseBranchFilter: isAdmin || isAuditor,
     canCreateLoan: isAdmin || role === "Branch Manager" || role === "Secretary",
     tab: filters.tab,
+    status: filters.status,
     searchQuery: filters.searchQuery,
     page: filters.page,
   };

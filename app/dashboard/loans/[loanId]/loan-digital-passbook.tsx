@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useActionState, useMemo, useRef, useState, type FormEvent } from "react";
-import { ChevronDown, ChevronUp, Loader2 } from "lucide-react";
+import { ChevronDown, ChevronUp, Loader2, Plus } from "lucide-react";
 import { useFormStatus } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -150,12 +150,6 @@ export function LoanDetailForm({
 
     return accumulator.rows;
   }, [historyRows, totalPayable]);
-
-  const totalCollected = useMemo(
-    () => historyRows.reduce((sum, row) => sum + row.amount, 0),
-    [historyRows],
-  );
-  const remainingBalance = Math.max(totalPayable - totalCollected, 0);
 
   const noteFieldError =
     localNoteError || (missedPayment && !note.trim() ? "Note is required for missed payment." : "") || "";
@@ -377,49 +371,38 @@ export function LoanDetailForm({
           <CardAction>
             {canRecordCollections ? (
               <Button
-                className="active:scale-[0.98]"
+                className="bg-emerald-600 text-white hover:bg-emerald-700 active:scale-[0.98]"
                 onClick={openCollectionForm}
                 size="sm"
                 type="button"
               >
+                <Plus className="h-4 w-4" />
                 Record Collection
               </Button>
             ) : null}
           </CardAction>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-3 text-sm md:grid-cols-3">
-            <div className="rounded-lg border border-border/70 bg-muted/20 px-4 py-3">
-              <p className="text-muted-foreground text-xs uppercase tracking-wide">Principal + Interest</p>
-              <p className="mt-1 font-medium">{formatMoney(totalPayable)}</p>
-            </div>
-            <div className="rounded-lg border border-border/70 bg-muted/20 px-4 py-3">
-              <p className="text-muted-foreground text-xs uppercase tracking-wide">Collected to Date</p>
-              <p className="mt-1 font-medium">{formatMoney(totalCollected)}</p>
-            </div>
-            <div className="rounded-lg border border-border/70 bg-muted/20 px-4 py-3">
-              <p className="text-muted-foreground text-xs uppercase tracking-wide">Remaining Balance</p>
-              <p className="mt-1 font-medium">{formatMoney(remainingBalance)}</p>
-            </div>
-          </div>
-
           {historyWithBalance.length === 0 ? (
             <p className="text-sm text-muted-foreground">No collections recorded yet.</p>
           ) : (
-            <div className="overflow-auto">
+            <div className="overflow-hidden rounded-lg border border-border/70">
+              <div className="overflow-auto">
               <table className="w-full min-w-190 text-sm">
                 <thead>
                   <tr className="border-b text-left">
-                    <th className="px-2 py-2.5 font-medium">Date</th>
-                    <th className="px-2 py-2.5 font-medium">Principal + Interest</th>
-                    <th className="px-2 py-2.5 font-medium">Outstanding Balance</th>
-                    <th className="px-2 py-2.5 font-medium">Amount</th>
-                    <th className="px-2 py-2.5 font-medium">Note</th>
+                    <th className="border-r border-border/70 px-3 py-2.5 font-medium">Date</th>
+                    <th className="border-r border-border/70 px-3 py-2.5 font-medium">Principal + Interest</th>
+                    <th className="border-r border-border/70 px-3 py-2.5 font-medium">Outstanding Balance</th>
+                    <th className="border-r border-border/70 px-3 py-2.5 font-medium">Amount</th>
+                    <th className="border-r border-border/70 px-3 py-2.5 font-medium">Note</th>
+                    <th className="w-28 px-3 py-2.5 font-medium" />
                   </tr>
                 </thead>
                 <tbody>
                   {historyWithBalance.map((row) => {
                     const isExpanded = expandedCollectionId === row.collectionId;
+                    const isMissedPaymentNote = row.amount === 0 && Boolean(row.note?.trim());
 
                     return (
                       <Fragment key={row.collectionId}>
@@ -432,30 +415,32 @@ export function LoanDetailForm({
                             )
                           }
                         >
-                          <td className="px-2 py-3">{row.collectionDate}</td>
-                          <td className="px-2 py-3">{formatMoney(totalPayable)}</td>
-                          <td className="px-2 py-3">{formatMoney(row.outstandingBalance)}</td>
-                          <td className="px-2 py-3">{formatMoney(row.amount)}</td>
-                          <td className="px-2 py-3">
-                            <div className="flex items-center justify-between gap-3">
-                              <span>{row.note || "-"}</span>
-                              <span className="text-muted-foreground inline-flex items-center gap-1 text-xs">
-                                {isExpanded ? (
-                                  <>
-                                    Hide details <ChevronUp className="h-3.5 w-3.5" />
-                                  </>
-                                ) : (
-                                  <>
-                                    View details <ChevronDown className="h-3.5 w-3.5" />
-                                  </>
-                                )}
-                              </span>
-                            </div>
+                          <td className="border-r border-border/70 px-3 py-3">{row.collectionDate}</td>
+                          <td className="border-r border-border/70 px-3 py-3">{formatMoney(totalPayable)}</td>
+                          <td className="border-r border-border/70 px-3 py-3">{formatMoney(row.outstandingBalance)}</td>
+                          <td className="border-r border-border/70 px-3 py-3">{formatMoney(row.amount)}</td>
+                          <td className="border-r border-border/70 px-3 py-3">
+                            <span className={isMissedPaymentNote ? "font-medium text-destructive" : ""}>
+                              {row.note || "-"}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3">
+                            <span className="text-muted-foreground inline-flex items-center gap-1 text-xs">
+                              {isExpanded ? (
+                                <>
+                                  Hide details <ChevronUp className="h-3.5 w-3.5" />
+                                </>
+                              ) : (
+                                <>
+                                  View details <ChevronDown className="h-3.5 w-3.5" />
+                                </>
+                              )}
+                            </span>
                           </td>
                         </tr>
                         {isExpanded ? (
                           <tr className="border-b bg-muted/15">
-                            <td className="px-3 py-3 text-sm text-muted-foreground" colSpan={5}>
+                            <td className="px-3 py-3 text-sm text-muted-foreground" colSpan={6}>
                               <div className="grid gap-2 md:grid-cols-3">
                                 <p>
                                   <span className="font-medium text-foreground">Collection Code:</span>{" "}
@@ -478,6 +463,7 @@ export function LoanDetailForm({
                   })}
                 </tbody>
               </table>
+              </div>
             </div>
           )}
         </CardContent>
