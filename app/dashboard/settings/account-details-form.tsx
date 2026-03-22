@@ -21,23 +21,6 @@ function SaveDetailsButton() {
   );
 }
 
-function formatDate(value: string | null) {
-  if (!value) {
-    return "—";
-  }
-
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return value;
-  }
-
-  return new Intl.DateTimeFormat("en-PH", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  }).format(parsed);
-}
-
 function formatStoredProfileDate(value: string | null) {
   const formatted = formatStoredDateForManila(value, {
     year: "numeric",
@@ -45,7 +28,7 @@ function formatStoredProfileDate(value: string | null) {
     day: "numeric",
   });
 
-  return formatted === "N/A" ? "—" : formatted;
+  return formatted === "N/A" ? "-" : formatted;
 }
 
 export function AccountDetailsForm({

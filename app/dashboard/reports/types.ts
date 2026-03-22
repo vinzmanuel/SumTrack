@@ -6,6 +6,11 @@ export type ReportsRoleName =
   | "Branch Manager"
   | "Secretary";
 
+export type ReportsSystemRecipientRole = Extract<
+  ReportsRoleName,
+  "Admin" | "Auditor" | "Branch Manager"
+>;
+
 export type AnalyticsReportTemplateKey =
   | "financial_overview"
   | "monthly_collections_summary"
@@ -24,6 +29,13 @@ export type AnalyticsReportTemplateKey =
   | "branch_loans_comparison"
   | "collector_performance_report"
   | "collector_leaderboard_report";
+
+export type ReportsSystemGeneratedAnalyticsTemplateKey =
+  | "financial_overview"
+  | "borrower_summary"
+  | "loans_summary"
+  | "branch_performance_comparison"
+  | "branch_performance_overview";
 
 export type OperationalDocumentTemplateKey =
   | "borrower_loan_schedule"

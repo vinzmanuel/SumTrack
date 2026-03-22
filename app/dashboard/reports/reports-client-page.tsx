@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { ArrowLeft, BarChart3, FileText, FolderKanban, Lock, Sparkles } from "lucide-react";
+import { ArrowLeft, BarChart3, FileText, Lock, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AnalyticsReportGenerationForm } from "@/app/dashboard/reports/analytics-report-generation-form";
 import { buildReportsCreateHref } from "@/app/dashboard/reports/filters";
+import { ReportsSystemMonthlyTriggerCard } from "@/app/dashboard/reports/reports-system-monthly-trigger-card";
 import type {
   ReportsCreateTab,
   ReportsPageAccessState,
@@ -165,20 +166,6 @@ export function ReportsCreateClientPage({
                 </Badge>
               </div>
             </div>
-
-            <div className="rounded-2xl border border-border/70 bg-background/85 px-4 py-3 shadow-sm">
-              <div className="flex items-start gap-3">
-                <div className="rounded-xl bg-muted p-2 text-muted-foreground">
-                  <FolderKanban className="h-4 w-4" />
-                </div>
-                <div className="space-y-1">
-                  <p className="text-sm font-medium text-foreground">PASS 4</p>
-                  <p className="max-w-sm text-sm text-muted-foreground">
-                    {access.scopeDetail}
-                  </p>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
 
@@ -203,13 +190,16 @@ export function ReportsCreateClientPage({
           lockedDescription="Your current role is limited to operational document workflows. Broad analytical reporting is not enabled here."
           lockedTitle="Analytical reports are not available for this role"
           generationSlot={
-            <AnalyticsReportGenerationForm
-              access={access}
-              analyticsTemplates={pageData.analyticsTemplates}
-              analyticsTemplateCategories={pageData.analyticsTemplateCategories}
-              branchOptions={pageData.branchOptions}
-              collectorOptions={pageData.collectorOptions}
-            />
+            <div className="space-y-4">
+              {access.roleName === "Admin" ? <ReportsSystemMonthlyTriggerCard /> : null}
+              <AnalyticsReportGenerationForm
+                access={access}
+                analyticsTemplates={pageData.analyticsTemplates}
+                analyticsTemplateCategories={pageData.analyticsTemplateCategories}
+                branchOptions={pageData.branchOptions}
+                collectorOptions={pageData.collectorOptions}
+              />
+            </div>
           }
           title="Analytical Reports"
         />

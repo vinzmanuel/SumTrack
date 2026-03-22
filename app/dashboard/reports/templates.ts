@@ -4,6 +4,8 @@ import type {
   ReportsAnalyticsTemplateOption,
   ReportsOperationalDocumentTemplateOption,
   ReportsRoleName,
+  ReportsSystemGeneratedAnalyticsTemplateKey,
+  ReportsSystemRecipientRole,
   ReportsTemplateCategoryDefinition,
   ReportsTemplateCategoryKey,
 } from "@/app/dashboard/reports/types";
@@ -19,6 +21,30 @@ const LEGACY_ANALYTICS_TEMPLATE_KEY_ALIASES: Partial<
   Record<AnalyticsReportTemplateKey | string, AnalyticsReportTemplateKey>
 > = {
   monthly_collections_summary: "collections_summary",
+};
+
+const SYSTEM_GENERATED_ANALYTICS_TEMPLATES_BY_ROLE: Record<
+  ReportsSystemRecipientRole,
+  readonly ReportsSystemGeneratedAnalyticsTemplateKey[]
+> = {
+  Admin: [
+    "financial_overview",
+    "borrower_summary",
+    "loans_summary",
+    "branch_performance_comparison",
+  ],
+  Auditor: [
+    "financial_overview",
+    "borrower_summary",
+    "loans_summary",
+    "branch_performance_comparison",
+  ],
+  "Branch Manager": [
+    "financial_overview",
+    "borrower_summary",
+    "loans_summary",
+    "branch_performance_overview",
+  ],
 };
 
 export const REPORT_TEMPLATE_CATEGORIES: ReportsTemplateCategoryDefinition[] = [
@@ -449,4 +475,22 @@ export function buildOperationalDocumentTemplateOptions(
   return OPERATIONAL_DOCUMENT_TEMPLATES.filter((template) =>
     isRoleAllowed(template.allowedRoles, roleName),
   );
+}
+
+export function getSystemGeneratedTemplateKeysForRole(roleName: ReportsRoleName) {
+  if (roleName === "Secretary") {
+    return [] as ReportsSystemGeneratedAnalyticsTemplateKey[];
+  }
+
+  return [...SYSTEM_GENERATED_ANALYTICS_TEMPLATES_BY_ROLE[roleName]];
+}
+
+export function isSystemGeneratedTemplateAllowedForRole(
+  templateKey: string,
+  roleName: ReportsRoleName,
+) {
+  const normalizedTemplateKey = normalizeReportTemplateKey(templateKey);
+  const allowedKeys = getSystemGeneratedTemplateKeysForRole(roleName);
+
+  return allowedKeys.includes(normalizedTemplateKey as ReportsSystemGeneratedAnalyticsTemplateKey);
 }

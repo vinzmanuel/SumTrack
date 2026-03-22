@@ -339,6 +339,7 @@ export function buildBranchPerformanceComparisonSnapshot(params: {
   title: string;
   generatedLabel: string;
   scopeLabel: string;
+  comparisonNote?: string | null;
   summary: {
     branchesCompared: number;
     totalBorrowers: number;
@@ -382,6 +383,7 @@ export function buildBranchPerformanceComparisonSnapshot(params: {
         type: "chart",
         chartType: "bar",
         valueFormat: "currency",
+        note: params.comparisonNote ?? undefined,
         series: [
           { key: "collections", label: "Collections", color: "#16a34a", type: "bar" },
           { key: "expenses", label: "Expenses", color: "#f59e0b", type: "bar" },
@@ -402,6 +404,7 @@ export function buildBranchPerformanceComparisonSnapshot(params: {
         type: "chart",
         chartType: "bar",
         valueFormat: "number",
+        note: params.comparisonNote ?? undefined,
         series: [
           { key: "borrowers", label: "Borrowers", color: "#16a34a", type: "bar" },
           { key: "activeLoans", label: "Active Loans", color: "#0ea5e9", type: "bar" },

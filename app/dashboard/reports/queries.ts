@@ -9,6 +9,7 @@ import {
   inArray,
   isNull,
   lte,
+  ne,
   or,
   sql,
   type SQL,
@@ -47,6 +48,8 @@ import {
   buildOperationalDocumentTemplateOptions,
   getAnalyticsTemplateDefinition,
   getOperationalDocumentTemplateDefinition,
+  getSystemGeneratedTemplateKeysForRole,
+  isSystemGeneratedTemplateAllowedForRole,
   normalizeReportTemplateKey,
   resolveReportTemplateCategory,
   resolveReportTemplateLabel,
@@ -61,6 +64,7 @@ import type {
   ReportsLibraryRow,
   ReportsPageData,
   ReportsReadyAccessState,
+  ReportsSystemRecipientRole,
   ReportsViewerPageData,
   SavedReportSnapshot,
 } from "@/app/dashboard/reports/types";
@@ -70,6 +74,7 @@ import {
   borrower_info,
   branch,
   collections,
+  employee_branch_assignment,
   employee_info,
   expenses,
   loan_records,
@@ -99,6 +104,12 @@ type GenerateAnalyticsReportInput = {
 type GenerateOperationalDocumentInput = {
   templateKey: OperationalDocumentTemplateKey;
   sourceEntityId: number;
+};
+
+type GenerateAnalyticsReportOptions = {
+  generatedType?: "user" | "system";
+  generatedByUserId?: string;
+  additionalFilters?: Record<string, unknown>;
 };
 
 function toNumber(value: unknown) {
@@ -394,6 +405,217 @@ function buildDateRangeLabel(dateFrom: string, dateTo: string) {
   }
 
   return `${formatIsoDate(dateFrom)} to ${formatIsoDate(dateTo)}`;
+}
+
+function formatAssignedBranchScopeLabel(branchCount: number) {
+  if (branchCount <= 0) {
+    return "No branch scope";
+  }
+
+  if (branchCount === 1) {
+    return "1 assigned branch";
+  }
+
+  return `${branchCount} assigned branches`;
+}
+
+function resolvePreviousCompletedMonthWindow(referenceDate = currentManilaIsoDate()) {
+  const parsed = new Date(`${referenceDate}T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  const previousMonthDate = new Date(Date.UTC(parsed.getUTCFullYear(), parsed.getUTCMonth() - 1, 1));
+  const coverageMonth = `${previousMonthDate.getUTCFullYear()}-${String(
+    previousMonthDate.getUTCMonth() + 1,
+  ).padStart(2, "0")}`;
+
+  const monthWindow = resolveMonthWindow(coverageMonth);
+  if (!monthWindow) {
+    return null;
+  }
+
+  return {
+    coverageMonth,
+    coverageLabel: monthWindow.label,
+    dateFrom: monthWindow.start,
+    dateTo: monthWindow.end,
+  };
+}
+
+type ReportsSystemGeneratedMetadata = {
+  coverageMonth: string | null;
+  recipientRole: ReportsSystemRecipientRole | null;
+  recipientUserId: string | null;
+  scopeKey: string | null;
+};
+
+type ReportsSystemDuplicateLookupInput = {
+  templateKey: string;
+  coverageMonth: string;
+  branchScope: number[];
+  recipientRole: ReportsSystemRecipientRole;
+  recipientUserId?: string | null;
+};
+
+type ReportsSystemGeneratedVisibilityRow = {
+  templateKey: string;
+  generatedType: "user" | "system";
+  generatedByUserId?: string;
+  branchScope: number[];
+  filters: unknown;
+};
+
+type ReportsSystemUserLookupResult =
+  | {
+      ok: true;
+      user: {
+        userId: string;
+        username: string;
+        companyId: string | null;
+        roleName: string | null;
+        status: string;
+      };
+    }
+  | {
+      ok: false;
+      message: string;
+    };
+
+type ReportsSystemGenerationAccessState = Extract<ReportsReadyAccessState, { view: "ready" }>;
+
+type ReportsSystemGenerationRecipient = {
+  userId: string;
+  roleName: ReportsSystemRecipientRole;
+  scopeBranchIds: number[];
+  scopeLabel: string;
+  fixedBranchId: number | null;
+  fixedBranchName: string | null;
+};
+
+type ReportsSystemMonthlyGenerationItem = {
+  roleName: ReportsSystemRecipientRole;
+  recipientUserId: string;
+  scopeLabel: string;
+  templateKey: string;
+  outcome: "created" | "duplicate" | "skipped" | "error";
+  message: string;
+  reportId?: number;
+};
+
+type ReportsSystemMonthlyGenerationResult =
+  | {
+      ok: true;
+      coverageMonth: string;
+      coverageLabel: string;
+      dateFrom: string;
+      dateTo: string;
+      totals: {
+        recipients: number;
+        created: number;
+        duplicates: number;
+        skipped: number;
+        errors: number;
+      };
+      items: ReportsSystemMonthlyGenerationItem[];
+    }
+  | {
+      ok: false;
+      message: string;
+    };
+
+function isReportsSystemRecipientRole(value: unknown): value is ReportsSystemRecipientRole {
+  return value === "Admin" || value === "Auditor" || value === "Branch Manager";
+}
+
+function readStringRecordValue(record: Record<string, unknown>, key: string) {
+  const value = record[key];
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function buildSystemGeneratedScopeKey(branchScope: number[]) {
+  const normalizedScope = sortBranchIds(branchScope);
+  return normalizedScope.join(",");
+}
+
+function parseSystemGeneratedMetadata(filters: unknown): ReportsSystemGeneratedMetadata {
+  if (!filters || typeof filters !== "object" || Array.isArray(filters)) {
+    return {
+      coverageMonth: null,
+      recipientRole: null,
+      recipientUserId: null,
+      scopeKey: null,
+    };
+  }
+
+  const record = filters as Record<string, unknown>;
+  const recipientRoleValue = record["systemRecipientRole"];
+
+  return {
+    coverageMonth: readStringRecordValue(record, "systemCoverageMonth"),
+    recipientRole: isReportsSystemRecipientRole(recipientRoleValue) ? recipientRoleValue : null,
+    recipientUserId: readStringRecordValue(record, "systemRecipientUserId"),
+    scopeKey: readStringRecordValue(record, "systemScopeKey"),
+  };
+}
+
+function buildSystemGeneratedFiltersMetadata(input: ReportsSystemDuplicateLookupInput) {
+  return {
+    systemCoverageMonth: input.coverageMonth,
+    systemRecipientRole: input.recipientRole,
+    systemRecipientUserId: input.recipientUserId ?? null,
+    systemScopeKey: buildSystemGeneratedScopeKey(input.branchScope),
+  };
+}
+
+function isSystemGeneratedReportVisibleToAccess(
+  access: ReportsReadyAccessState,
+  row: ReportsSystemGeneratedVisibilityRow,
+) {
+  if (row.generatedType !== "system") {
+    return true;
+  }
+
+  if (!isSystemGeneratedTemplateAllowedForRole(row.templateKey, access.roleName)) {
+    return false;
+  }
+
+  if (access.roleName === "Secretary") {
+    return false;
+  }
+
+  const metadata = parseSystemGeneratedMetadata(row.filters);
+
+  if (metadata.recipientRole && metadata.recipientRole !== access.roleName) {
+    return false;
+  }
+
+  if (metadata.recipientUserId && metadata.recipientUserId !== access.userId) {
+    return false;
+  }
+
+  if (metadata.scopeKey) {
+    return metadata.scopeKey === buildSystemGeneratedScopeKey(row.branchScope);
+  }
+
+  return true;
+}
+
+function buildSystemRecipientAccessState(
+  recipient: ReportsSystemGenerationRecipient,
+): ReportsSystemGenerationAccessState {
+  return {
+    view: "ready",
+    userId: recipient.userId,
+    roleName: recipient.roleName,
+    canAccessAnalytics: true,
+    canAccessOperationalDocuments: recipient.roleName !== "Auditor",
+    scopeLabel: recipient.scopeLabel,
+    scopeDetail: "System-generated monthly reporting context.",
+    allowedBranchIds: recipient.scopeBranchIds,
+    fixedBranchId: recipient.fixedBranchId,
+    fixedBranchName: recipient.fixedBranchName,
+  };
 }
 
 function buildReportsLibraryScopeWhere(access: ReportsReadyAccessState) {
@@ -1836,6 +2058,7 @@ async function loadBranchPerformanceComparisonData(
   branchRows: Array<{ branchId: number; branchName: string }>,
   dateFrom: string | null,
   dateTo: string | null,
+  options?: { trimLargeComparisons?: boolean },
 ) {
   const branchIds = branchRows.map((row) => row.branchId);
   const collectionConditions: SQL[] = [inArray(loan_records.branch_id, branchIds)];
@@ -1927,6 +2150,34 @@ async function loadBranchPerformanceComparisonData(
     };
   });
 
+  let displayedBranchRows = comparisonRows;
+  let comparisonNote: string | null = null;
+
+  if (options?.trimLargeComparisons && comparisonRows.length > 10) {
+    const rankedRows = comparisonRows
+      .slice()
+      .sort((left, right) => {
+        if (right.collectionsAmount !== left.collectionsAmount) {
+          return right.collectionsAmount - left.collectionsAmount;
+        }
+
+        return left.branchName.localeCompare(right.branchName);
+      });
+    const topRows = rankedRows.slice(0, 5);
+    const bottomRows = rankedRows
+      .slice(-5)
+      .sort((left, right) => {
+        if (left.collectionsAmount !== right.collectionsAmount) {
+          return left.collectionsAmount - right.collectionsAmount;
+        }
+
+        return left.branchName.localeCompare(right.branchName);
+      });
+
+    displayedBranchRows = [...topRows, ...bottomRows];
+    comparisonNote = `This report covers ${comparisonRows.length} selected branches, so the comparison view is trimmed to the Top 5 and Bottom 5 branches by Total Collections for readability.`;
+  }
+
   return {
     summary: {
       branchesCompared: comparisonRows.length,
@@ -1938,7 +2189,8 @@ async function loadBranchPerformanceComparisonData(
       totalOverdueLoans: comparisonRows.reduce((sum, row) => sum + row.overdueLoanCount, 0),
       totalCompletedLoans: comparisonRows.reduce((sum, row) => sum + row.completedLoanCount, 0),
     },
-    branchRows: comparisonRows,
+    branchRows: displayedBranchRows,
+    comparisonNote,
   };
 }
 
@@ -2774,6 +3026,156 @@ function buildDefaultTitle(
   return `${baseLabel} - ${scopeLabel}`;
 }
 
+function buildSystemMonthlyDefaultTitle(
+  templateKey: AnalyticsReportTemplateKey,
+  scopeLabel: string,
+  coverageLabel: string,
+) {
+  const template = getAnalyticsTemplateDefinition(templateKey);
+  const baseLabel = template?.label ?? "System Report";
+
+  return `${baseLabel} - ${coverageLabel} - ${scopeLabel}`;
+}
+
+async function loadAllBranchRows() {
+  return db
+    .select({
+      branchId: branch.branch_id,
+      branchName: branch.branch_name,
+    })
+    .from(branch)
+    .orderBy(asc(branch.branch_name))
+    .catch(() => []);
+}
+
+async function loadSystemMonthlyGenerationRecipients(
+  systemUserId: string,
+): Promise<ReportsSystemGenerationRecipient[]> {
+  const [allBranchRows, adminUserRows, assignedUserRows] = await Promise.all([
+    loadAllBranchRows(),
+    db
+      .select({
+        userId: users.user_id,
+      })
+      .from(users)
+      .innerJoin(roles, eq(roles.role_id, users.role_id))
+      .where(
+        and(
+          eq(users.status, "active"),
+          eq(roles.role_name, "Admin"),
+          ne(users.user_id, systemUserId),
+        ),
+      )
+      .catch(() => []),
+    db
+      .select({
+        userId: users.user_id,
+        roleName: roles.role_name,
+        branchId: employee_branch_assignment.branch_id,
+        branchName: branch.branch_name,
+      })
+      .from(users)
+      .innerJoin(roles, eq(roles.role_id, users.role_id))
+      .innerJoin(
+        employee_branch_assignment,
+        and(
+          eq(employee_branch_assignment.employee_user_id, users.user_id),
+          isNull(employee_branch_assignment.end_date),
+        ),
+      )
+      .innerJoin(branch, eq(branch.branch_id, employee_branch_assignment.branch_id))
+      .where(
+        and(
+          eq(users.status, "active"),
+          inArray(roles.role_name, ["Auditor", "Branch Manager"]),
+          ne(users.user_id, systemUserId),
+        ),
+      )
+      .orderBy(asc(roles.role_name), asc(users.user_id), asc(branch.branch_name))
+      .catch(() => []),
+  ]);
+
+  const recipients: ReportsSystemGenerationRecipient[] = [];
+  const allBranchIds = allBranchRows.map((row) => row.branchId);
+
+  for (const row of adminUserRows) {
+    if (allBranchIds.length === 0) {
+      continue;
+    }
+
+    recipients.push({
+      userId: row.userId,
+      roleName: "Admin",
+      scopeBranchIds: allBranchIds,
+      scopeLabel: "Global Scope",
+      fixedBranchId: null,
+      fixedBranchName: null,
+    });
+  }
+
+  const assignmentsByUser = new Map<
+    string,
+    {
+      roleName: ReportsSystemRecipientRole;
+      branches: Array<{ branchId: number; branchName: string }>;
+    }
+  >();
+
+  for (const row of assignedUserRows) {
+    if (row.roleName !== "Auditor" && row.roleName !== "Branch Manager") {
+      continue;
+    }
+
+    const entry = assignmentsByUser.get(row.userId) ?? {
+      roleName: row.roleName,
+      branches: [],
+    };
+
+    entry.branches.push({
+      branchId: row.branchId,
+      branchName: row.branchName,
+    });
+    assignmentsByUser.set(row.userId, entry);
+  }
+
+  for (const [userId, entry] of assignmentsByUser.entries()) {
+    const dedupedBranches = Array.from(
+      new Map(entry.branches.map((branchRow) => [branchRow.branchId, branchRow])).values(),
+    ).sort((left, right) => left.branchName.localeCompare(right.branchName));
+
+    if (dedupedBranches.length === 0) {
+      continue;
+    }
+
+    if (entry.roleName === "Auditor") {
+      recipients.push({
+        userId,
+        roleName: "Auditor",
+        scopeBranchIds: dedupedBranches.map((branchRow) => branchRow.branchId),
+        scopeLabel: formatAssignedBranchScopeLabel(dedupedBranches.length),
+        fixedBranchId: null,
+        fixedBranchName: null,
+      });
+      continue;
+    }
+
+    if (dedupedBranches.length !== 1) {
+      continue;
+    }
+
+    recipients.push({
+      userId,
+      roleName: "Branch Manager",
+      scopeBranchIds: [dedupedBranches[0]!.branchId],
+      scopeLabel: dedupedBranches[0]!.branchName,
+      fixedBranchId: dedupedBranches[0]!.branchId,
+      fixedBranchName: dedupedBranches[0]!.branchName,
+    });
+  }
+
+  return recipients;
+}
+
 export async function loadReportsPageData(access: ReportsReadyAccessState): Promise<ReportsPageData> {
   const [branchOptions, collectorOptions] = await Promise.all([
     loadVisibleBranchOptions(access),
@@ -2808,6 +3210,7 @@ export async function loadReportsLibraryPageData(
           title: reports.title,
           reportCategory: reports.report_category,
           templateKey: reports.template_key,
+          filters: reports.filters,
           generatedType: reports.generated_type,
           generatedAt: reports.generated_at,
           status: reports.status,
@@ -2835,7 +3238,17 @@ export async function loadReportsLibraryPageData(
       loadVisibleLibraryBranchOptions(access),
     ]);
 
-  const visibleRows = rows.map((row) =>
+  const visibleSourceRows = rows.filter((row) =>
+    isSystemGeneratedReportVisibleToAccess(access, {
+      templateKey: row.templateKey,
+      generatedType: row.generatedType,
+      generatedByUserId: row.generatedByUserId,
+      branchScope: row.branchScope,
+      filters: row.filters,
+    }),
+  );
+
+  const visibleRows = visibleSourceRows.map((row) =>
     buildReportsLibraryRow({
       reportId: row.reportId,
       title: row.title,
@@ -2857,7 +3270,8 @@ export async function loadReportsLibraryPageData(
   );
   const generatedByRoles = Array.from(
     new Map(
-      rows
+      visibleSourceRows
+        .filter((row) => row.generatedType === "user")
         .filter((row) => Boolean(row.generatedByRoleName))
         .map((row) => [
           row.generatedByRoleName as string,
@@ -2870,7 +3284,8 @@ export async function loadReportsLibraryPageData(
   );
   const generatedByUsers = Array.from(
     new Map(
-      rows
+      visibleSourceRows
+        .filter((row) => row.generatedType === "user")
         .map((row) => [
           row.generatedByUserId,
           {
@@ -3041,6 +3456,7 @@ export async function loadReportViewerData(
       title: reports.title,
       reportCategory: reports.report_category,
       templateKey: reports.template_key,
+      filters: reports.filters,
       generatedType: reports.generated_type,
       generatedAt: reports.generated_at,
       status: reports.status,
@@ -3063,6 +3479,21 @@ export async function loadReportViewerData(
     .catch(() => null);
 
   if (!reportRow) {
+    return {
+      ok: false,
+      code: "not_found",
+      message: "This saved report is not available in your current reporting scope.",
+    };
+  }
+
+  if (
+    !isSystemGeneratedReportVisibleToAccess(access, {
+      templateKey: reportRow.templateKey,
+      generatedType: reportRow.generatedType,
+      branchScope: reportRow.branchScope,
+      filters: reportRow.filters,
+    })
+  ) {
     return {
       ok: false,
       code: "not_found",
@@ -3174,7 +3605,7 @@ export async function updateSavedReportStatus(
       status,
     };
   }
-
+  
   const updatedRow = await db
     .update(reports)
     .set({ status })
@@ -3201,9 +3632,123 @@ export async function updateSavedReportStatus(
   };
 }
 
-export async function generateAnalyticsReport(
+export async function resolveReportsSystemUser(): Promise<ReportsSystemUserLookupResult> {
+  const configuredUserId = process.env.REPORTS_SYSTEM_USER_ID?.trim();
+  const configuredUsername = process.env.REPORTS_SYSTEM_USERNAME?.trim();
+  const configuredCompanyId = process.env.REPORTS_SYSTEM_COMPANY_ID?.trim();
+
+  const selector =
+    configuredUserId
+      ? eq(users.user_id, configuredUserId)
+      : configuredUsername
+        ? eq(users.username, configuredUsername)
+        : configuredCompanyId
+          ? eq(users.company_id, configuredCompanyId)
+          : null;
+
+  if (!selector) {
+    return {
+      ok: false,
+      message:
+        "Set REPORTS_SYSTEM_USER_ID, REPORTS_SYSTEM_USERNAME, or REPORTS_SYSTEM_COMPANY_ID before creating system-generated reports.",
+    };
+  }
+
+  const userRow = await db
+    .select({
+      userId: users.user_id,
+      username: users.username,
+      companyId: users.company_id,
+      roleName: roles.role_name,
+      status: users.status,
+    })
+    .from(users)
+    .leftJoin(roles, eq(roles.role_id, users.role_id))
+    .where(selector)
+    .limit(1)
+    .then((rows) => rows[0] ?? null)
+    .catch(() => null);
+
+  if (!userRow) {
+    return {
+      ok: false,
+      message:
+        "The configured Reports system user could not be found. Check REPORTS_SYSTEM_USER_ID, REPORTS_SYSTEM_USERNAME, or REPORTS_SYSTEM_COMPANY_ID.",
+    };
+  }
+
+  return {
+    ok: true,
+    user: userRow,
+  };
+}
+
+export function buildSystemGeneratedReportFilters(input: ReportsSystemDuplicateLookupInput) {
+  return buildSystemGeneratedFiltersMetadata(input);
+}
+
+export async function findExistingSystemGeneratedReportDuplicate(
+  input: ReportsSystemDuplicateLookupInput,
+) {
+  const normalizedTemplateKey = normalizeReportTemplateKey(input.templateKey);
+  const normalizedBranchScope = sortBranchIds(input.branchScope);
+  const expectedScopeKey = buildSystemGeneratedScopeKey(normalizedBranchScope);
+  const candidateRows = await db
+    .select({
+      reportId: reports.report_id,
+      title: reports.title,
+      generatedAt: reports.generated_at,
+      status: reports.status,
+      templateKey: reports.template_key,
+      branchScope: reports.branch_scope,
+      filters: reports.filters,
+    })
+    .from(reports)
+    .where(
+      and(
+        eq(reports.generated_type, "system"),
+        eq(reports.template_key, normalizedTemplateKey),
+      ),
+    )
+    .orderBy(desc(reports.generated_at), desc(reports.report_id))
+    .catch(() => []);
+
+  const matchingRow =
+    candidateRows.find((row) => {
+      if (buildSystemGeneratedScopeKey(row.branchScope) !== expectedScopeKey) {
+        return false;
+      }
+
+      const metadata = parseSystemGeneratedMetadata(row.filters);
+      const resolvedScopeKey = metadata.scopeKey ?? buildSystemGeneratedScopeKey(row.branchScope);
+
+      return (
+        metadata.coverageMonth === input.coverageMonth &&
+        metadata.recipientRole === input.recipientRole &&
+        (metadata.recipientUserId ?? null) === (input.recipientUserId ?? null) &&
+        resolvedScopeKey === expectedScopeKey
+      );
+    }) ?? null;
+
+  if (!matchingRow) {
+    return {
+      exists: false as const,
+    };
+  }
+
+  return {
+    exists: true as const,
+    reportId: matchingRow.reportId,
+    title: matchingRow.title,
+    generatedAt: matchingRow.generatedAt,
+    status: matchingRow.status,
+  };
+}
+
+async function generateAnalyticsReportInternal(
   access: ReportsReadyAccessState,
   input: GenerateAnalyticsReportInput,
+  options: GenerateAnalyticsReportOptions = {},
 ) {
   if (!access.canAccessAnalytics) {
     return {
@@ -3542,13 +4087,16 @@ export async function generateAnalyticsReport(
       rawRows: reportData.rawRows,
     });
   } else {
-    const reportData = await loadBranchPerformanceComparisonData(selectedBranchRows, dateFrom, dateTo);
+    const reportData = await loadBranchPerformanceComparisonData(selectedBranchRows, dateFrom, dateTo, {
+      trimLargeComparisons: options.generatedType === "system",
+    });
     snapshot = buildBranchPerformanceComparisonSnapshot({
       title: resolvedTitle,
       generatedLabel,
       scopeLabel,
       summary: reportData.summary,
       branchRows: reportData.branchRows,
+      comparisonNote: reportData.comparisonNote,
     });
   }
 
@@ -3558,8 +4106,8 @@ export async function generateAnalyticsReport(
       title: resolvedTitle,
       report_category: "analytics",
       template_key: template.key,
-      generated_type: "user",
-      generated_by: access.userId,
+      generated_type: options.generatedType ?? "user",
+      generated_by: options.generatedByUserId ?? access.userId,
       filters: {
         branchIds: normalizedBranchIds,
         collectorId: input.collectorId,
@@ -3567,6 +4115,7 @@ export async function generateAnalyticsReport(
         month: input.month,
         dateFrom,
         dateTo,
+        ...(options.additionalFilters ?? {}),
       },
       branch_scope: normalizedBranchIds,
       date_from: dateFrom,
@@ -3599,6 +4148,171 @@ export async function generateAnalyticsReport(
     branchCount: normalizedBranchIds.length,
     dateFrom,
     dateTo,
+  };
+}
+
+export async function generateAnalyticsReport(
+  access: ReportsReadyAccessState,
+  input: GenerateAnalyticsReportInput,
+) {
+  return generateAnalyticsReportInternal(access, input);
+}
+
+export async function generatePreviousMonthSystemReports(
+  triggeredBy: ReportsReadyAccessState,
+): Promise<ReportsSystemMonthlyGenerationResult> {
+  if (triggeredBy.roleName !== "Admin") {
+    return {
+      ok: false,
+      message: "Only Admin users can trigger monthly system-generated reports.",
+    };
+  }
+
+  const coverageWindow = resolvePreviousCompletedMonthWindow();
+  if (!coverageWindow) {
+    return {
+      ok: false,
+      message: "Unable to resolve the previous completed calendar month.",
+    };
+  }
+
+  const systemUserResult = await resolveReportsSystemUser();
+  if (!systemUserResult.ok) {
+    return {
+      ok: false,
+      message: systemUserResult.message,
+    };
+  }
+
+  if (systemUserResult.user.status !== "active") {
+    return {
+      ok: false,
+      message: "The configured Reports system user must be active before monthly system reports can be generated.",
+    };
+  }
+
+  const recipients = await loadSystemMonthlyGenerationRecipients(systemUserResult.user.userId);
+  if (recipients.length === 0) {
+    return {
+      ok: false,
+      message: "No eligible Admin, Auditor, or Branch Manager recipients were found for monthly system report generation.",
+    };
+  }
+
+  const items: ReportsSystemMonthlyGenerationItem[] = [];
+  let created = 0;
+  let duplicates = 0;
+  let skipped = 0;
+  let errors = 0;
+
+  for (const recipient of recipients) {
+    const access = buildSystemRecipientAccessState(recipient);
+    const templateKeys = getSystemGeneratedTemplateKeysForRole(recipient.roleName);
+
+    for (const templateKey of templateKeys) {
+      const duplicateResult = await findExistingSystemGeneratedReportDuplicate({
+        templateKey,
+        coverageMonth: coverageWindow.coverageMonth,
+        branchScope: recipient.scopeBranchIds,
+        recipientRole: recipient.roleName,
+        recipientUserId: recipient.userId,
+      });
+
+      if (duplicateResult.exists) {
+        duplicates += 1;
+        items.push({
+          roleName: recipient.roleName,
+          recipientUserId: recipient.userId,
+          scopeLabel: recipient.scopeLabel,
+          templateKey,
+          outcome: "duplicate",
+          reportId: duplicateResult.reportId,
+          message: "Skipped because a system-generated report for this month, scope, and recipient already exists.",
+        });
+        continue;
+      }
+
+      const generationResult = await generateAnalyticsReportInternal(
+        access,
+        {
+          title: buildSystemMonthlyDefaultTitle(
+            templateKey,
+            recipient.scopeLabel,
+            coverageWindow.coverageLabel,
+          ),
+          templateKey,
+          branchIds: recipient.scopeBranchIds,
+          collectorId: null,
+          datePreset: "custom",
+          month: coverageWindow.coverageMonth,
+          dateFrom: coverageWindow.dateFrom,
+          dateTo: coverageWindow.dateTo,
+        },
+        {
+          generatedType: "system",
+          generatedByUserId: systemUserResult.user.userId,
+          additionalFilters: buildSystemGeneratedReportFilters({
+            templateKey,
+            coverageMonth: coverageWindow.coverageMonth,
+            branchScope: recipient.scopeBranchIds,
+            recipientRole: recipient.roleName,
+            recipientUserId: recipient.userId,
+          }),
+        },
+      );
+
+      if (!generationResult.ok) {
+        const outcome =
+          generationResult.message.includes("requires") ||
+          generationResult.message.includes("outside your reporting scope") ||
+          generationResult.message.includes("Unable to resolve the selected branch scope")
+            ? "skipped"
+            : "error";
+
+        if (outcome === "skipped") {
+          skipped += 1;
+        } else {
+          errors += 1;
+        }
+
+        items.push({
+          roleName: recipient.roleName,
+          recipientUserId: recipient.userId,
+          scopeLabel: recipient.scopeLabel,
+          templateKey,
+          outcome,
+          message: generationResult.message,
+        });
+        continue;
+      }
+
+      created += 1;
+      items.push({
+        roleName: recipient.roleName,
+        recipientUserId: recipient.userId,
+        scopeLabel: recipient.scopeLabel,
+        templateKey,
+        outcome: "created",
+        reportId: generationResult.reportId,
+        message: "System-generated monthly report created.",
+      });
+    }
+  }
+
+  return {
+    ok: true,
+    coverageMonth: coverageWindow.coverageMonth,
+    coverageLabel: coverageWindow.coverageLabel,
+    dateFrom: coverageWindow.dateFrom,
+    dateTo: coverageWindow.dateTo,
+    totals: {
+      recipients: recipients.length,
+      created,
+      duplicates,
+      skipped,
+      errors,
+    },
+    items,
   };
 }
 
