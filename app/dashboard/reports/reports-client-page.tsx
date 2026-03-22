@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AnalyticsReportGenerationForm } from "@/app/dashboard/reports/analytics-report-generation-form";
 import { buildReportsCreateHref } from "@/app/dashboard/reports/filters";
-import { ReportsSystemMonthlyTriggerCard } from "@/app/dashboard/reports/reports-system-monthly-trigger-card";
 import type {
   ReportsCreateTab,
   ReportsPageAccessState,
@@ -190,16 +189,13 @@ export function ReportsCreateClientPage({
           lockedDescription="Your current role is limited to operational document workflows. Broad analytical reporting is not enabled here."
           lockedTitle="Analytical reports are not available for this role"
           generationSlot={
-            <div className="space-y-4">
-              {access.roleName === "Admin" ? <ReportsSystemMonthlyTriggerCard /> : null}
-              <AnalyticsReportGenerationForm
-                access={access}
-                analyticsTemplates={pageData.analyticsTemplates}
-                analyticsTemplateCategories={pageData.analyticsTemplateCategories}
-                branchOptions={pageData.branchOptions}
-                collectorOptions={pageData.collectorOptions}
-              />
-            </div>
+            <AnalyticsReportGenerationForm
+              access={access}
+              analyticsTemplates={pageData.analyticsTemplates}
+              analyticsTemplateCategories={pageData.analyticsTemplateCategories}
+              branchOptions={pageData.branchOptions}
+              collectorOptions={pageData.collectorOptions}
+            />
           }
           title="Analytical Reports"
         />
