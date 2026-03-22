@@ -4158,16 +4158,7 @@ export async function generateAnalyticsReport(
   return generateAnalyticsReportInternal(access, input);
 }
 
-export async function generatePreviousMonthSystemReports(
-  triggeredBy: ReportsReadyAccessState,
-): Promise<ReportsSystemMonthlyGenerationResult> {
-  if (triggeredBy.roleName !== "Admin") {
-    return {
-      ok: false,
-      message: "Only Admin users can trigger monthly system-generated reports.",
-    };
-  }
-
+async function generatePreviousMonthSystemReportsCore(): Promise<ReportsSystemMonthlyGenerationResult> {
   const coverageWindow = resolvePreviousCompletedMonthWindow();
   if (!coverageWindow) {
     return {
@@ -4314,6 +4305,23 @@ export async function generatePreviousMonthSystemReports(
     },
     items,
   };
+}
+
+export async function generatePreviousMonthSystemReports(
+  triggeredBy: ReportsReadyAccessState,
+): Promise<ReportsSystemMonthlyGenerationResult> {
+  if (triggeredBy.roleName !== "Admin") {
+    return {
+      ok: false,
+      message: "Only Admin users can trigger monthly system-generated reports.",
+    };
+  }
+
+  return generatePreviousMonthSystemReportsCore();
+}
+
+export async function runScheduledPreviousMonthSystemReports(): Promise<ReportsSystemMonthlyGenerationResult> {
+  return generatePreviousMonthSystemReportsCore();
 }
 
 async function loadUserDisplayRows(userIds: string[]) {

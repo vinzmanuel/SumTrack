@@ -139,7 +139,7 @@ export function ReportsCreateClientPage({
   return (
     <div className="space-y-6">
       <Card className="overflow-hidden p-0">
-        <div className="bg-gradient-to-r from-slate-50 via-white to-emerald-50/60 px-6 py-6">
+        <div className="bg-linear-to-r from-slate-50 via-white to-emerald-50/60 px-6 py-6">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
             <div className="space-y-3">
               <Link href="/dashboard/reports">
