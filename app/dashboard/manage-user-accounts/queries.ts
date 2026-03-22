@@ -40,6 +40,7 @@ import {
 } from "@/app/dashboard/manage-user-accounts/types";
 import { deleteAuthUserSafely } from "@/app/dashboard/create-account/action-identifiers";
 import { ACTIVE_LOAN_STATUSES } from "@/app/dashboard/loans/active-statuses";
+import { resolveReportsSystemUser } from "@/app/dashboard/reports/queries";
 
 const MANAGE_USERS_PAGE_SIZE = 20;
 const EDITABLE_EMPLOYEE_ROLE_NAMES = [
@@ -214,6 +215,12 @@ function buildManageUsersFilters(scope: ManageUserAccountsScope, scopedUserIds: 
   }
 
   return filters;
+}
+
+async function loadHiddenManagedUserIds() {
+  const systemUserResult = await resolveReportsSystemUser();
+
+  return systemUserResult.ok ? [systemUserResult.user.userId] : [];
 }
 
 function buildManageUsersStatusCountsFilters(
@@ -931,11 +938,19 @@ async function findConflictingAuditorAssignments(params: {
 }
 
 async function loadBaseManageUsersRows(scope: ManageUserAccountsScope) {
-  const scopedUserIds = await loadScopedUserIds(scope);
+  const [scopedUserIds, hiddenUserIds] = await Promise.all([
+    loadScopedUserIds(scope),
+    loadHiddenManagedUserIds(),
+  ]);
   const filters = buildManageUsersFilters(scope, scopedUserIds);
   const statusCountFilters = buildManageUsersStatusCountsFilters(scope, scopedUserIds);
   const requestedPage = Math.max(scope.page, 1);
   const sortOrder = buildManageUserSortOrder(scope.selectedSort);
+
+  if (hiddenUserIds.length > 0) {
+    filters.push(ne(users.user_id, hiddenUserIds[0]!));
+    statusCountFilters.push(ne(users.user_id, hiddenUserIds[0]!));
+  }
 
   const [totalCount, statusCountsRows] = await Promise.all([
     db
@@ -1104,6 +1119,11 @@ export async function loadManagedUserDetail(
   scope: ManageUserAccountsScope,
   userId: string,
 ): Promise<ManagedUserDetail | null> {
+  const hiddenUserIds = await loadHiddenManagedUserIds();
+  if (hiddenUserIds.includes(userId)) {
+    return null;
+  }
+
   const scopedUserIds = await loadScopedUserIds(scope);
   if (scopedUserIds !== null && !scopedUserIds.includes(userId)) {
     return null;
