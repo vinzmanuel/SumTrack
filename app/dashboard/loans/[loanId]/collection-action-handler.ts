@@ -22,6 +22,7 @@ function buildCollectionHistoryRow(params: {
   amount: number;
   note: string | null;
   collectorName: string;
+  encodedByName: string;
 }): CollectionHistoryRow {
   return {
     collectionId: String(params.collectionId),
@@ -30,6 +31,7 @@ function buildCollectionHistoryRow(params: {
     amount: params.amount,
     note: params.note,
     collectorName: params.collectorName,
+    encodedByName: params.encodedByName,
   };
 }
 
@@ -57,6 +59,16 @@ export async function createCollectionAction(
   );
   if (!loanContext.ok) {
     return loanContext.state;
+  }
+
+  if (!input.missedPayment && input.amount > loanContext.data.remainingBalance) {
+    return buildCollectionErrorState(
+      stateFactory,
+      "Collection amount cannot exceed the remaining balance.",
+      {
+        amount: `Maximum allowed collection is ${loanContext.data.remainingBalance.toFixed(2)}.`,
+      },
+    );
   }
 
   const nextCollectionCode = await generateNextCollectionCode(
@@ -94,6 +106,7 @@ export async function createCollectionAction(
       amount: insertedCollection.amount,
       note: insertedCollection.note,
       collectorName: loanContext.data.collectorName,
+      encodedByName: creatorAccess.data.displayName,
     });
     const appendedRows = [...stateFactory.appendedRows, newRow];
 

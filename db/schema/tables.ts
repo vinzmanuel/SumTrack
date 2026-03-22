@@ -278,12 +278,9 @@ export const loan_records = pgTable(
     principal: numeric({ precision: 10, scale: 2 }).notNull(),
     interest: numeric({ precision: 10, scale: 2 }).notNull(),
     collector_id: uuid(),
-
     start_date: date().notNull(),
     due_date: date().notNull(),
-
     term_days: integer(),
-
     branch_id: integer().notNull(),
     status: varchar({ length: 50 }).notNull(),
   },

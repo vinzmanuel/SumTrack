@@ -16,7 +16,8 @@ function normalizeStatus(value: string | undefined): LoanStatusFilter {
   return value === "Active" ||
     value === "Overdue" ||
     value === "Completed" ||
-    value === "Archived"
+    value === "Archived" ||
+    value === "Abandoned"
     ? value
     : "all";
 }

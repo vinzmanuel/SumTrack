@@ -1,5 +1,6 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { getDashboardAuthContext } from "@/app/dashboard/auth";
+import { buildLoanComputedState, canRecordCollectionForLoan } from "@/app/dashboard/loans/loan-state";
 import type {
   CollectionActionResolution,
   CollectionCreatorAccess,
@@ -8,7 +9,7 @@ import type {
 } from "@/app/dashboard/loans/[loanId]/collection-action-types";
 import { buildCollectionErrorState } from "@/app/dashboard/loans/[loanId]/collection-action-validation";
 import { db } from "@/db";
-import { employee_info, loan_records, roles, users } from "@/db/schema";
+import { collections, employee_info, loan_records, roles, users } from "@/db/schema";
 
 function toLoanId(value: string) {
   return /^\d+$/.test(value) ? Number(value) : null;
@@ -52,12 +53,34 @@ export async function resolveCollectionCreatorAccess(
     };
   }
 
+  const currentUser = await db
+    .select({
+      userId: users.user_id,
+      username: users.username,
+      firstName: employee_info.first_name,
+      lastName: employee_info.last_name,
+    })
+    .from(users)
+    .leftJoin(employee_info, eq(employee_info.user_id, users.user_id))
+    .where(eq(users.user_id, auth.userId))
+    .limit(1)
+    .then((rows) => rows[0] ?? null)
+    .catch(() => null);
+
+  const displayName =
+    currentUser
+      ? [currentUser.firstName, currentUser.lastName].filter(Boolean).join(" ") ||
+        currentUser.username ||
+        currentUser.userId
+      : auth.userId;
+
   return {
     ok: true,
     data: {
       userId: auth.userId,
       isAdmin,
       allowedBranchId: isAdmin ? null : auth.activeBranchId,
+      displayName,
     },
   };
 }
@@ -80,7 +103,16 @@ export async function resolveLoanCollectionContext(
       loan_id: loan_records.loan_id,
       loan_code: loan_records.loan_code,
       branch_id: loan_records.branch_id,
+      principal: loan_records.principal,
+      interest: loan_records.interest,
+      due_date: loan_records.due_date,
+      stored_status: loan_records.status,
       collector_id: loan_records.collector_id,
+      total_collected: sql<number>`(
+        select coalesce(sum(${collections.amount}), 0)
+        from ${collections}
+        where ${collections.loan_id} = ${loan_records.loan_id}
+      )`,
       collector_user_id: users.user_id,
       collector_username: users.username,
       collector_role_name: roles.role_name,
@@ -134,6 +166,35 @@ export async function resolveLoanCollectionContext(
     };
   }
 
+  const computedState = buildLoanComputedState({
+    principal: Number(loan.principal) || 0,
+    interest: Number(loan.interest) || 0,
+    totalCollected: Number(loan.total_collected) || 0,
+    dueDate: loan.due_date,
+    storedStatus: loan.stored_status,
+  });
+
+  if (
+    !canRecordCollectionForLoan({
+      storedStatus: computedState.storedStatus,
+      remainingBalance: computedState.remainingBalance,
+    })
+  ) {
+    return {
+      ok: false,
+      state: buildCollectionErrorState(
+        factory,
+        computedState.visibleStatus === "Completed"
+          ? "Completed loans cannot receive new collections."
+          : computedState.visibleStatus === "Archived"
+            ? "Archived loans cannot receive new collections."
+            : computedState.visibleStatus === "Abandoned"
+              ? "Abandoned loans cannot receive new collections."
+              : "This loan can no longer receive new collections.",
+      ),
+    };
+  }
+
   const collectorName =
     [loan.collector_first_name, loan.collector_last_name].filter(Boolean).join(" ") ||
     loan.collector_username ||
@@ -147,6 +208,11 @@ export async function resolveLoanCollectionContext(
       branchId: loan.branch_id,
       collectorId: loan.collector_id,
       collectorName,
+      storedStatus: computedState.storedStatus,
+      visibleStatus: computedState.visibleStatus,
+      totalPayable: computedState.totalPayable,
+      totalCollected: computedState.totalCollected,
+      remainingBalance: computedState.remainingBalance,
     },
   };
 }

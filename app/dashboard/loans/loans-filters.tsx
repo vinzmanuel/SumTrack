@@ -1,37 +1,74 @@
 "use client";
 
 import type { ReactNode } from "react";
-import type { LoanBranchOption, LoanStatusFilter } from "@/app/dashboard/loans/types";
+import type { LoanBranchOption, LoanListTab, LoanStatusFilter } from "@/app/dashboard/loans/types";
 
 type LoansFiltersProps = {
   canChooseBranchFilter: boolean;
   selectedBranchId: number | null;
-  selectedStatus: LoanStatusFilter;
+  selectedTab?: LoanListTab;
   selectedSearchQuery: string;
   branches: LoanBranchOption[];
   isPending: boolean;
   onBranchChange: (branchId: number | null) => void;
-  onStatusChange: (status: LoanStatusFilter) => void;
+  onTabChange?: (tab: LoanListTab) => void;
   onSearchChange: (query: string) => void;
+  selectedStatus?: LoanStatusFilter;
+  onStatusChange?: (status: LoanStatusFilter) => void;
   action?: ReactNode;
 };
+
+function TabButton({ active, label }: { active: boolean; label: string }) {
+  return (
+    <span
+      className={`inline-flex rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+        active ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+      }`}
+    >
+      {label}
+    </span>
+  );
+}
 
 export function LoansFilters({
   canChooseBranchFilter,
   selectedBranchId,
-  selectedStatus,
+  selectedTab,
   selectedSearchQuery,
   branches,
   isPending,
   onBranchChange,
-  onStatusChange,
+  onTabChange,
   onSearchChange,
+  selectedStatus,
+  onStatusChange,
   action,
 }: LoansFiltersProps) {
   return (
     <div className="space-y-2.5">
+      {onTabChange ? (
+        <div className="inline-flex flex-wrap gap-2 rounded-xl border border-border/70 bg-muted/30 p-1">
+          <button onClick={() => onTabChange("active")} type="button">
+            <TabButton active={selectedTab === "active"} label="Active" />
+          </button>
+          <button onClick={() => onTabChange("archived")} type="button">
+            <TabButton active={selectedTab === "archived"} label="Archived" />
+          </button>
+        </div>
+      ) : null}
+
       <div className="flex flex-col gap-3 xl:flex-row xl:items-end">
-        <div className={`grid flex-1 gap-3 ${canChooseBranchFilter ? "md:grid-cols-4" : "md:grid-cols-3"}`}>
+        <div
+          className={`grid flex-1 gap-3 ${
+            canChooseBranchFilter && onStatusChange
+              ? "md:grid-cols-4"
+              : canChooseBranchFilter
+                ? "md:grid-cols-3"
+                : onStatusChange
+                  ? "md:grid-cols-3"
+                  : "md:grid-cols-2"
+          }`}
+        >
           <div className="space-y-1 md:col-span-2">
             <label className="text-sm font-medium" htmlFor="loanSearch">
               Search
@@ -64,24 +101,26 @@ export function LoansFilters({
               </select>
             </div>
           ) : null}
-
-          <div className="space-y-1">
-            <label className="text-sm font-medium" htmlFor="status">
-              Status
-            </label>
-            <select
-              className="border-input focus-visible:border-ring focus-visible:ring-ring/50 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-[3px]"
-              id="status"
-              onChange={(event) => onStatusChange(event.target.value as LoanStatusFilter)}
-              value={selectedStatus}
-            >
-              <option value="all">All statuses</option>
-              <option value="Active">Active</option>
-              <option value="Overdue">Overdue</option>
-              <option value="Completed">Completed</option>
-              <option value="Archived">Archived</option>
-            </select>
-          </div>
+          {onStatusChange ? (
+            <div className="space-y-1">
+              <label className="text-sm font-medium" htmlFor="loanStatus">
+                Status
+              </label>
+              <select
+                className="border-input focus-visible:border-ring focus-visible:ring-ring/50 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-[3px]"
+                id="loanStatus"
+                onChange={(event) => onStatusChange(event.target.value as LoanStatusFilter)}
+                value={selectedStatus ?? "all"}
+              >
+                <option value="all">All visible statuses</option>
+                <option value="Active">Active</option>
+                <option value="Overdue">Overdue</option>
+                <option value="Completed">Completed</option>
+                <option value="Archived">Archived</option>
+                <option value="Abandoned">Abandoned</option>
+              </select>
+            </div>
+          ) : null}
         </div>
 
         {action ? <div className="shrink-0 xl:pb-px xl:self-end">{action}</div> : null}

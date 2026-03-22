@@ -1,8 +1,10 @@
 import type { DashboardAuthContext } from "@/app/dashboard/auth";
+import type { StoredLoanStatus, VisibleLoanStatus } from "@/app/dashboard/loans/loan-state";
 
 export type LoansPageProps = {
   searchParams?: Promise<{
     branchId?: string;
+    tab?: string;
     status?: string;
     query?: string;
     page?: string;
@@ -11,12 +13,13 @@ export type LoansPageProps = {
 
 export type LoansListFilters = {
   requestedBranchId: number | null;
-  status: LoanStatusFilter;
+  tab: LoanListTab;
   searchQuery: string;
   page: number;
 };
 
-export type LoanStatusFilter = "all" | "Active" | "Overdue" | "Completed" | "Archived";
+export type LoanListTab = "active" | "archived";
+export type LoanStatusFilter = "all" | "Active" | "Overdue" | "Completed" | "Archived" | "Abandoned";
 
 export type LoanBranchOption = {
   branch_id: number;
@@ -36,7 +39,14 @@ export type LoanListRow = {
   interest: number;
   startDate: string;
   dueDate: string;
-  status: string;
+  storedStatus: StoredLoanStatus;
+  visibleStatus: VisibleLoanStatus;
+  totalPayable: number;
+  totalCollected: number;
+  remainingBalance: number;
+  collectionCount: number;
+  canArchive: boolean;
+  canDelete: boolean;
 };
 
 export type StaffLoansScope = {
@@ -46,7 +56,7 @@ export type StaffLoansScope = {
   allowedBranchIds: number[];
   canChooseBranchFilter: boolean;
   canCreateLoan: boolean;
-  status: LoanStatusFilter;
+  tab: LoanListTab;
   searchQuery: string;
   page: number;
 };

@@ -1,5 +1,8 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { LoanArchiveButton } from "@/app/dashboard/loans/loan-archive-button";
+import { LoanDeleteButton } from "@/app/dashboard/loans/loan-delete-button";
+import { LoanVisibleStatusBadge } from "@/app/dashboard/loans/loan-visible-status-badge";
 import type { LoanListRow } from "@/app/dashboard/loans/types";
 
 function formatMoney(value: number) {
@@ -27,8 +30,9 @@ export function LoansTable({ loans }: { loans: LoanListRow[] }) {
             <th className="px-2 py-2.5 font-medium">Interest</th>
             <th className="px-2 py-2.5 font-medium">Start Date</th>
             <th className="px-2 py-2.5 font-medium">Due Date</th>
+            <th className="px-2 py-2.5 font-medium">Remaining Balance</th>
             <th className="px-2 py-2.5 font-medium">Status</th>
-            <th className="px-2 py-2.5 font-medium">Action</th>
+            <th className="px-2 py-2.5 font-medium">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -42,13 +46,28 @@ export function LoansTable({ loans }: { loans: LoanListRow[] }) {
               <td className="px-2 py-3">{loan.interest}%</td>
               <td className="px-2 py-3">{loan.startDate}</td>
               <td className="px-2 py-3">{loan.dueDate}</td>
-              <td className="px-2 py-3">{loan.status}</td>
+              <td className="px-2 py-3">{formatMoney(loan.remainingBalance)}</td>
               <td className="px-2 py-3">
-                <Link href={`/dashboard/loans/${loan.loanId}`}>
-                  <Button size="sm" type="button" variant="outline">
-                    View
-                  </Button>
-                </Link>
+                <LoanVisibleStatusBadge status={loan.visibleStatus} />
+              </td>
+              <td className="px-2 py-3">
+                <div className="flex flex-wrap gap-2">
+                  <Link href={`/dashboard/loans/${loan.loanId}`}>
+                    <Button size="sm" type="button" variant="outline">
+                      View
+                    </Button>
+                  </Link>
+                  {loan.canArchive ? (
+                    <LoanArchiveButton
+                      loanCode={loan.loanCode}
+                      loanId={loan.loanId}
+                      visibleStatus={loan.visibleStatus}
+                    />
+                  ) : null}
+                  {loan.canDelete ? (
+                    <LoanDeleteButton loanCode={loan.loanCode} loanId={loan.loanId} />
+                  ) : null}
+                </div>
               </td>
             </tr>
           ))}

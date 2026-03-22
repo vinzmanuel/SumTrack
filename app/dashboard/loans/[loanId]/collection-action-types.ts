@@ -1,3 +1,4 @@
+import type { StoredLoanStatus, VisibleLoanStatus } from "@/app/dashboard/loans/loan-state";
 import type { CollectionHistoryRow, LoanDetailState } from "@/app/dashboard/loans/[loanId]/state";
 
 export type CollectionFormFields = {
@@ -23,6 +24,7 @@ export type CollectionCreatorAccess = {
   userId: string;
   isAdmin: boolean;
   allowedBranchId: number | null;
+  displayName: string;
 };
 
 export type LoanCollectionContext = {
@@ -31,6 +33,11 @@ export type LoanCollectionContext = {
   branchId: number;
   collectorId: string;
   collectorName: string;
+  storedStatus: StoredLoanStatus;
+  visibleStatus: VisibleLoanStatus;
+  totalPayable: number;
+  totalCollected: number;
+  remainingBalance: number;
 };
 
 export type InsertedCollectionRecord = {

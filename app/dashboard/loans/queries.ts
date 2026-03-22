@@ -1,14 +1,31 @@
 import "server-only";
 
-import { and, asc, desc, eq, ilike, inArray, or, sql, type SQL } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  notInArray,
+  or,
+  sql,
+  type SQL,
+} from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
-import { borrower_info, branch, employee_info, loan_records, users } from "@/db/schema";
+import { borrower_info, branch, collections, employee_info, loan_records, users } from "@/db/schema";
+import {
+  buildLoanComputedState,
+  getManilaTodayDateString,
+  resolveArchiveTargetStatus,
+} from "@/app/dashboard/loans/loan-state";
 import type { LoanListRow, StaffLoansPageData, StaffLoansScope } from "@/app/dashboard/loans/types";
 
 const borrowerUsers = alias(users, "borrower_users");
 const collectorUsers = alias(users, "collector_users");
 const STAFF_LOANS_PAGE_SIZE = 20;
+const ARCHIVED_BUCKET_STORED_VALUES = ["archived", "Archived", "abandoned", "Abandoned"] as const;
 
 function buildLoansFilters(scope: StaffLoansScope): SQL[] {
   const filters: SQL[] = [];
@@ -25,8 +42,10 @@ function buildLoansFilters(scope: StaffLoansScope): SQL[] {
     filters.push(eq(loan_records.loan_id, -1));
   }
 
-  if (scope.status !== "all") {
-    filters.push(eq(loan_records.status, scope.status));
+  if (scope.tab === "archived") {
+    filters.push(inArray(loan_records.status, ARCHIVED_BUCKET_STORED_VALUES as unknown as string[]));
+  } else {
+    filters.push(notInArray(loan_records.status, ARCHIVED_BUCKET_STORED_VALUES as unknown as string[]));
   }
 
   if (scope.searchQuery) {
@@ -68,26 +87,58 @@ function whereFrom(filters: SQL[]) {
   return and(...filters);
 }
 
-function toLoanListRow(row: {
-  loan_id: number;
-  loan_code: string;
-  borrower_id: string;
-  branch_id: number;
-  collector_id: string | null;
-  principal: string;
-  interest: string;
-  start_date: string;
-  due_date: string;
-  status: string;
-  borrower_first_name: string | null;
-  borrower_last_name: string | null;
-  borrower_company_id: string | null;
-  borrower_username: string | null;
-  branch_name: string;
-  collector_first_name: string | null;
-  collector_last_name: string | null;
-  collector_username: string | null;
-}): LoanListRow {
+async function loadLoanCollectionStatsMap(loanIds: number[]) {
+  if (loanIds.length === 0) {
+    return new Map<number, { totalCollected: number; collectionCount: number }>();
+  }
+
+  const rows = await db
+    .select({
+      loanId: collections.loan_id,
+      totalCollected: sql<number>`coalesce(sum(${collections.amount}), 0)`,
+      collectionCount: sql<number>`count(*)`,
+    })
+    .from(collections)
+    .where(inArray(collections.loan_id, loanIds))
+    .groupBy(collections.loan_id)
+    .catch(() => []);
+
+  const map = new Map<number, { totalCollected: number; collectionCount: number }>();
+  for (const row of rows) {
+    map.set(row.loanId, {
+      totalCollected: Number(row.totalCollected) || 0,
+      collectionCount: Number(row.collectionCount) || 0,
+    });
+  }
+
+  return map;
+}
+
+function toLoanListRow(
+  row: {
+    loan_id: number;
+    loan_code: string;
+    borrower_id: string;
+    branch_id: number;
+    collector_id: string | null;
+    principal: string;
+    interest: string;
+    start_date: string;
+    due_date: string;
+    status: string;
+    borrower_first_name: string | null;
+    borrower_last_name: string | null;
+    borrower_company_id: string | null;
+    borrower_username: string | null;
+    branch_name: string;
+    collector_first_name: string | null;
+    collector_last_name: string | null;
+    collector_username: string | null;
+  },
+  scope: StaffLoansScope,
+  collectionStats: { totalCollected: number; collectionCount: number } | undefined,
+  currentDate: string,
+): LoanListRow {
   const borrowerName =
     [row.borrower_first_name, row.borrower_last_name].filter(Boolean).join(" ") ||
     row.borrower_company_id ||
@@ -98,6 +149,18 @@ function toLoanListRow(row: {
       row.collector_username ||
       row.collector_id
     : "N/A";
+
+  const computedState = buildLoanComputedState({
+    principal: Number(row.principal) || 0,
+    interest: Number(row.interest) || 0,
+    totalCollected: collectionStats?.totalCollected ?? 0,
+    dueDate: row.due_date,
+    storedStatus: row.status,
+    currentDate,
+  });
+
+  const canManageLoanLifecycle =
+    scope.roleName === "Admin" || scope.roleName === "Branch Manager" || scope.roleName === "Secretary";
 
   return {
     loanId: row.loan_id,
@@ -112,7 +175,19 @@ function toLoanListRow(row: {
     interest: Number(row.interest) || 0,
     startDate: row.start_date,
     dueDate: row.due_date,
-    status: row.status,
+    storedStatus: computedState.storedStatus,
+    visibleStatus: computedState.visibleStatus,
+    totalPayable: computedState.totalPayable,
+    totalCollected: computedState.totalCollected,
+    remainingBalance: computedState.remainingBalance,
+    collectionCount: collectionStats?.collectionCount ?? 0,
+    canArchive: canManageLoanLifecycle
+      ? resolveArchiveTargetStatus({
+          storedStatus: computedState.storedStatus,
+          visibleStatus: computedState.visibleStatus,
+        }) !== null
+      : false,
+    canDelete: scope.roleName === "Admin" && (collectionStats?.collectionCount ?? 0) === 0,
   };
 }
 
@@ -150,7 +225,7 @@ export async function loadStaffLoansPageData(scope: StaffLoansScope): Promise<St
   const page = Math.min(requestedPage, totalPages);
   const offset = (page - 1) * STAFF_LOANS_PAGE_SIZE;
 
-  const loansRows = await db
+  const loanRows = await db
     .select({
       loan_id: loan_records.loan_id,
       loan_code: loan_records.loan_code,
@@ -183,9 +258,14 @@ export async function loadStaffLoansPageData(scope: StaffLoansScope): Promise<St
     .offset(offset)
     .catch(() => []);
 
+  const collectionStatsMap = await loadLoanCollectionStatsMap(loanRows.map((row) => row.loan_id));
+  const currentDate = getManilaTodayDateString();
+
   return {
     branchOptions,
-    loans: loansRows.map(toLoanListRow),
+    loans: loanRows.map((row) =>
+      toLoanListRow(row, scope, collectionStatsMap.get(row.loan_id), currentDate),
+    ),
     page,
     pageSize: STAFF_LOANS_PAGE_SIZE,
     totalCount,

@@ -1,13 +1,14 @@
 import "server-only";
 
-import { and, asc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { resolveCreateLoanAccess } from "@/app/dashboard/create-loan/access";
-import { ACTIVE_LOAN_STATUSES } from "@/app/dashboard/loans/active-statuses";
+import { buildLoanComputedState, getManilaTodayDateString } from "@/app/dashboard/loans/loan-state";
 import { db } from "@/db";
 import {
   areas,
   borrower_info,
   branch,
+  collections,
   employee_area_assignment,
   employee_info,
   loan_records,
@@ -121,7 +122,7 @@ export async function loadCreateLoanPageData(
   const loanBranchFilter =
     access.fixedBranchId !== null ? eq(loan_records.branch_id, access.fixedBranchId) : undefined;
 
-  const [branchRows, areaRows, borrowerRows, collectorRows, activeLoanRows] = await Promise.all([
+  const [branchRows, areaRows, borrowerRows, collectorRows, loanRows] = await Promise.all([
     db
       .select({
         branch_id: branch.branch_id,
@@ -193,15 +194,23 @@ export async function loadCreateLoanPageData(
     db
       .select({
         borrower_id: loan_records.borrower_id,
+        principal: loan_records.principal,
+        interest: loan_records.interest,
+        due_date: loan_records.due_date,
+        status: loan_records.status,
+        totalCollected: sql<number>`coalesce(sum(${collections.amount}), 0)`,
       })
       .from(loan_records)
-      .where(
-        and(
-          loanBranchFilter,
-          inArray(loan_records.status, [...ACTIVE_LOAN_STATUSES]),
-        ),
+      .leftJoin(collections, eq(collections.loan_id, loan_records.loan_id))
+      .where(loanBranchFilter)
+      .groupBy(
+        loan_records.borrower_id,
+        loan_records.loan_id,
+        loan_records.principal,
+        loan_records.interest,
+        loan_records.due_date,
+        loan_records.status,
       )
-      .groupBy(loan_records.borrower_id)
       .catch(() => []),
   ]);
 
@@ -242,6 +251,25 @@ export async function loadCreateLoanPageData(
 
   const areaById = new Map(areasData.map((item) => [String(item.area_id), item]));
 
+  const activeLoanBorrowerIds = Array.from(
+    new Set(
+      loanRows
+        .filter((loan) => {
+          const computedState = buildLoanComputedState({
+            principal: Number(loan.principal) || 0,
+            interest: Number(loan.interest) || 0,
+            totalCollected: Number(loan.totalCollected) || 0,
+            dueDate: loan.due_date,
+            storedStatus: loan.status,
+            currentDate: getManilaTodayDateString(),
+          });
+
+          return computedState.visibleStatus === "Active" || computedState.visibleStatus === "Overdue";
+        })
+        .map((loan) => loan.borrower_id),
+    ),
+  );
+
   return {
     status: "ready",
     isAdmin: access.isAdmin,
@@ -249,7 +277,7 @@ export async function loadCreateLoanPageData(
     areas: areasData,
     borrowers,
     collectors,
-    activeLoanBorrowerIds: activeLoanRows.map((item) => item.borrower_id),
+    activeLoanBorrowerIds,
     prefilledBorrower: resolvePrefilledBorrower(requestedBorrowerId, borrowers, areaById),
   };
 }

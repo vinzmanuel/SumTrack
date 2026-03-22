@@ -14,6 +14,7 @@ import {
   sql,
   type SQL,
 } from "drizzle-orm";
+import { buildLoanComputedState, getManilaTodayDateString } from "@/app/dashboard/loans/loan-state";
 import { db } from "@/db";
 import {
   areas,
@@ -146,6 +147,7 @@ function toCollectorLoanListRow(row: {
   start_date: string;
   due_date: string;
   status: string;
+  total_collected: number;
   borrower_first_name: string | null;
   borrower_last_name: string | null;
   borrower_company_id: string | null;
@@ -165,6 +167,14 @@ function toCollectorLoanListRow(row: {
       row.collector_username ||
       row.collector_id
     : "N/A";
+  const computedState = buildLoanComputedState({
+    principal: Number(row.principal) || 0,
+    interest: Number(row.interest) || 0,
+    totalCollected: Number(row.total_collected) || 0,
+    dueDate: row.due_date,
+    storedStatus: row.status,
+    currentDate: getManilaTodayDateString(),
+  });
 
   return {
     loanId: row.loan_id,
@@ -179,7 +189,14 @@ function toCollectorLoanListRow(row: {
     interest: Number(row.interest) || 0,
     startDate: row.start_date,
     dueDate: row.due_date,
-    status: row.status,
+    storedStatus: computedState.storedStatus,
+    visibleStatus: computedState.visibleStatus,
+    totalPayable: computedState.totalPayable,
+    totalCollected: computedState.totalCollected,
+    remainingBalance: computedState.remainingBalance,
+    collectionCount: 0,
+    canArchive: false,
+    canDelete: false,
   };
 }
 
@@ -238,10 +255,6 @@ function buildCollectorAssignedLoansFilters(
   filters: CollectorAssignedLoansFilters,
 ) {
   const conditions = buildLoanScopeFilters(access, [collectorId]);
-
-  if (filters.status !== "all") {
-    conditions.push(eq(loan_records.status, filters.status));
-  }
 
   if (filters.query) {
     const pattern = `%${filters.query}%`;
@@ -1394,22 +1407,6 @@ export async function loadCollectorAssignedLoansData(
 ): Promise<CollectorAssignedLoansData> {
   const whereCondition = whereFrom(buildCollectorAssignedLoansFilters(access, collectorId, filters));
   const requestedPage = Math.max(filters.page, 1);
-
-  const totalCount = await db
-    .select({ value: sql<number>`count(*)` })
-    .from(loan_records)
-    .innerJoin(branch, eq(branch.branch_id, loan_records.branch_id))
-    .innerJoin(borrowerUsers, eq(borrowerUsers.user_id, loan_records.borrower_id))
-    .leftJoin(borrower_info, eq(borrower_info.user_id, loan_records.borrower_id))
-    .leftJoin(employee_info, eq(employee_info.user_id, loan_records.collector_id))
-    .where(whereCondition)
-    .then((rows) => Number(rows[0]?.value) || 0)
-    .catch(() => 0);
-
-  const totalPages = Math.max(Math.ceil(totalCount / COLLECTOR_ASSIGNED_LOANS_PAGE_SIZE), 1);
-  const page = Math.min(requestedPage, totalPages);
-  const offset = (page - 1) * COLLECTOR_ASSIGNED_LOANS_PAGE_SIZE;
-
   const rows = await db
     .select({
       loan_id: loan_records.loan_id,
@@ -1422,6 +1419,7 @@ export async function loadCollectorAssignedLoansData(
       start_date: loan_records.start_date,
       due_date: loan_records.due_date,
       status: loan_records.status,
+      total_collected: sql<number>`coalesce(sum(${collections.amount}), 0)`,
       borrower_first_name: borrower_info.first_name,
       borrower_last_name: borrower_info.last_name,
       borrower_company_id: borrowerUsers.company_id,
@@ -1437,14 +1435,46 @@ export async function loadCollectorAssignedLoansData(
     .leftJoin(borrower_info, eq(borrower_info.user_id, loan_records.borrower_id))
     .leftJoin(users, eq(users.user_id, loan_records.collector_id))
     .leftJoin(employee_info, eq(employee_info.user_id, loan_records.collector_id))
+    .leftJoin(collections, eq(collections.loan_id, loan_records.loan_id))
     .where(whereCondition)
+    .groupBy(
+      loan_records.loan_id,
+      loan_records.loan_code,
+      loan_records.borrower_id,
+      loan_records.branch_id,
+      loan_records.collector_id,
+      loan_records.principal,
+      loan_records.interest,
+      loan_records.start_date,
+      loan_records.due_date,
+      loan_records.status,
+      borrower_info.first_name,
+      borrower_info.last_name,
+      borrowerUsers.company_id,
+      borrowerUsers.username,
+      branch.branch_name,
+      employee_info.first_name,
+      employee_info.last_name,
+      users.username,
+    )
     .orderBy(desc(loan_records.loan_id))
-    .limit(COLLECTOR_ASSIGNED_LOANS_PAGE_SIZE)
-    .offset(offset)
     .catch(() => []);
 
+  const visibleRows = rows.map(toCollectorLoanListRow);
+  const filteredRows =
+    filters.status === "all"
+      ? visibleRows
+      : visibleRows.filter((row) => row.visibleStatus === filters.status);
+  const totalCount = filteredRows.length;
+  const totalPages = Math.max(Math.ceil(totalCount / COLLECTOR_ASSIGNED_LOANS_PAGE_SIZE), 1);
+  const page = Math.min(requestedPage, totalPages);
+  const pagedRows = filteredRows.slice(
+    (page - 1) * COLLECTOR_ASSIGNED_LOANS_PAGE_SIZE,
+    page * COLLECTOR_ASSIGNED_LOANS_PAGE_SIZE,
+  );
+
   return {
-    loans: rows.map(toCollectorLoanListRow),
+    loans: pagedRows,
     page,
     pageSize: COLLECTOR_ASSIGNED_LOANS_PAGE_SIZE,
     totalCount,

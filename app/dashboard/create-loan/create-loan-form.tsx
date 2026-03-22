@@ -523,7 +523,7 @@ export function CreateLoanForm({
                 <Label htmlFor="principal">Principal</Label>
                 <div className="relative">
                   <span className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-sm">
-                    ₱
+                    {"\u20B1"}
                   </span>
                   <Input
                     className="pl-7"
@@ -650,7 +650,7 @@ export function CreateLoanForm({
                   <span className="font-medium">Principal:</span> {principalDisplay || "N/A"}
                 </p>
                 <p>
-                  <span className="font-medium">Interest:</span> {interest || "N/A"}
+                  <span className="font-medium">Interest:</span> {interest ? `${interest}%` : "N/A"}
                 </p>
                 <p>
                   <span className="font-medium">Start Date:</span> {startDate || "N/A"}
@@ -706,10 +706,10 @@ export function CreateLoanForm({
               <span className="font-medium">Collector:</span> {state.result.collectorName}
             </p>
             <p>
-              <span className="font-medium">Principal:</span> {state.result.principal}
+              <span className="font-medium">Principal:</span> {formatMoney(state.result.principal)}
             </p>
             <p>
-              <span className="font-medium">Interest:</span> {state.result.interest}
+              <span className="font-medium">Interest:</span> {state.result.interest}%
             </p>
             <p>
               <span className="font-medium">Start Date:</span> {state.result.startDate}

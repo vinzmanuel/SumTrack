@@ -1,5 +1,5 @@
 import type { DashboardAuthContext } from "@/app/dashboard/auth";
-import type { LoanStatusFilter, LoansListFilters, LoansPageAccessState } from "@/app/dashboard/loans/types";
+import type { LoanListTab, LoansListFilters, LoansPageAccessState } from "@/app/dashboard/loans/types";
 
 function toPositiveInt(value: string | undefined) {
   return /^\d+$/.test(String(value ?? "")) ? Number(value) : null;
@@ -9,16 +9,20 @@ function normalizeSearchQuery(value: string | undefined) {
   return String(value ?? "").trim().slice(0, 100);
 }
 
-function normalizeStatus(value: string | undefined): LoanStatusFilter {
-  return ["Active", "Overdue", "Completed", "Archived"].includes(String(value))
-    ? (value as LoanStatusFilter)
-    : "all";
+function normalizeTab(value: string | undefined, legacyStatusValue: string | undefined): LoanListTab {
+  const rawValue = String(value ?? legacyStatusValue ?? "").trim();
+
+  if (rawValue === "archived" || rawValue === "Archived") {
+    return "archived";
+  }
+
+  return "active";
 }
 
 export function parseLoansListFilters(params: Awaited<LoansPageProps["searchParams"]>): LoansListFilters {
   return {
     requestedBranchId: toPositiveInt(params?.branchId),
-    status: normalizeStatus(params?.status),
+    tab: normalizeTab((params as { tab?: string } | undefined)?.tab, params?.status),
     searchQuery: normalizeSearchQuery(params?.query),
     page: Math.max(toPositiveInt(params?.page) ?? 1, 1),
   };
@@ -27,6 +31,7 @@ export function parseLoansListFilters(params: Awaited<LoansPageProps["searchPara
 type LoansPageProps = {
   searchParams?: Promise<{
     branchId?: string;
+    tab?: string;
     status?: string;
     query?: string;
     page?: string;
@@ -80,7 +85,7 @@ export function resolveLoansPageAccess(
     allowedBranchIds,
     canChooseBranchFilter: isAdmin || isAuditor,
     canCreateLoan: isAdmin || role === "Branch Manager" || role === "Secretary",
-    status: filters.status,
+    tab: filters.tab,
     searchQuery: filters.searchQuery,
     page: filters.page,
   };

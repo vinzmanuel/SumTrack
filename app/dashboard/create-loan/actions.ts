@@ -1,11 +1,12 @@
 "use server";
 
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   areas,
   borrower_info,
   branch,
+  collections,
   employee_area_assignment,
   employee_info,
   loan_records,
@@ -13,7 +14,7 @@ import {
   users,
 } from "@/db/schema";
 import { resolveCreateLoanAccess } from "@/app/dashboard/create-loan/access";
-import { ACTIVE_LOAN_STATUSES } from "@/app/dashboard/loans/active-statuses";
+import { buildLoanComputedState, getManilaTodayDateString } from "@/app/dashboard/loans/loan-state";
 import type { CreateLoanState } from "@/app/dashboard/create-loan/state";
 
 type FormFields = {
@@ -30,7 +31,7 @@ type FormFields = {
 
 type ActionFieldErrors = Partial<Record<keyof FormFields, string>>;
 
-const NEW_LOAN_STATUS = "Active";
+const NEW_LOAN_STATUS = "active";
 
 function getTrimmed(formData: FormData, key: keyof FormFields) {
   return String(formData.get(key) ?? "").trim();
@@ -355,20 +356,42 @@ export async function createLoanAction(
     };
   }
 
-  const activeLoanCount = await db
-    .select({ value: loan_records.loan_id })
+  const existingLoans = await db
+    .select({
+      loan_id: loan_records.loan_id,
+      principal: loan_records.principal,
+      interest: loan_records.interest,
+      due_date: loan_records.due_date,
+      status: loan_records.status,
+      totalCollected: sql<number>`coalesce(sum(${collections.amount}), 0)`,
+    })
     .from(loan_records)
-    .where(
-      and(
-        eq(loan_records.borrower_id, borrowerInfo.user_id),
-        inArray(loan_records.status, [...ACTIVE_LOAN_STATUSES]),
-      ),
+    .leftJoin(collections, eq(collections.loan_id, loan_records.loan_id))
+    .where(eq(loan_records.borrower_id, borrowerInfo.user_id))
+    .groupBy(
+      loan_records.loan_id,
+      loan_records.principal,
+      loan_records.interest,
+      loan_records.due_date,
+      loan_records.status,
     )
-    .limit(1)
-    .then((rows) => rows.length)
-    .catch(() => 0);
+    .then((rows) => rows)
+    .catch(() => []);
 
-  if (activeLoanCount > 0) {
+  const hasExistingActiveLoan = existingLoans.some((row) => {
+    const computedState = buildLoanComputedState({
+      principal: Number(row.principal) || 0,
+      interest: Number(row.interest) || 0,
+      totalCollected: Number(row.totalCollected) || 0,
+      dueDate: row.due_date,
+      storedStatus: row.status,
+      currentDate: getManilaTodayDateString(),
+    });
+
+    return computedState.visibleStatus === "Active" || computedState.visibleStatus === "Overdue";
+  });
+
+  if (hasExistingActiveLoan) {
     return {
       status: "error",
       message: "This borrower already has an active loan. Only one active loan is allowed.",
@@ -477,7 +500,7 @@ export async function createLoanAction(
       startDate,
       dueDate,
       termDays,
-      status: NEW_LOAN_STATUS,
+      status: "Active",
     },
   };
 }

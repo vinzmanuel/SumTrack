@@ -5,6 +5,7 @@ export type CollectionHistoryRow = {
   amount: number;
   note: string | null;
   collectorName: string;
+  encodedByName: string;
 };
 
 export type LoanDetailState = {

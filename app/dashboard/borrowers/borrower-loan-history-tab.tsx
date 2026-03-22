@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { LoanVisibleStatusBadge } from "@/app/dashboard/loans/loan-visible-status-badge";
+import type { VisibleLoanStatus } from "@/app/dashboard/loans/loan-state";
 
 function formatMoney(value: number) {
   return `\u20B1${value.toLocaleString("en-PH", {
@@ -19,7 +21,7 @@ export function BorrowerLoanHistoryTab({
     interest: number;
     startDate: string;
     dueDate: string;
-    status: string;
+    visibleStatus: VisibleLoanStatus;
   }>;
 }) {
   return (
@@ -52,7 +54,9 @@ export function BorrowerLoanHistoryTab({
                     <td className="px-2 py-3">{loan.interest}%</td>
                     <td className="px-2 py-3">{loan.startDate}</td>
                     <td className="px-2 py-3">{loan.dueDate}</td>
-                    <td className="px-2 py-3">{loan.status}</td>
+                    <td className="px-2 py-3">
+                      <LoanVisibleStatusBadge status={loan.visibleStatus} />
+                    </td>
                     <td className="px-2 py-3">
                       <Link href={`/dashboard/loans/${loan.loanId}`}>
                         <Button size="sm" type="button" variant="outline">
