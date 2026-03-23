@@ -554,6 +554,13 @@ function buildSystemGeneratedScopeKey(branchScope: number[]) {
   return normalizedScope.join(",");
 }
 
+function buildIntegerArraySql(values: number[]) {
+  return sql`array[${sql.join(
+    values.map((value) => sql`${value}`),
+    sql`, `,
+  )}]::integer[]`;
+}
+
 function parseSystemGeneratedMetadata(filters: unknown): ReportsSystemGeneratedMetadata {
   if (!filters || typeof filters !== "object" || Array.isArray(filters)) {
     return {
@@ -650,19 +657,9 @@ function buildReportsLibraryScopeWhere(access: ReportsReadyAccessState) {
   }
 
   if (access.fixedBranchId !== null) {
-    conditions.push(sql`array_position(${reports.branch_scope}, ${access.fixedBranchId}) is not null`);
+    conditions.push(sql`${reports.branch_scope} && ${buildIntegerArraySql([access.fixedBranchId])}`);
   } else if (access.allowedBranchIds.length > 0) {
-    const branchScopeConditions = access.allowedBranchIds.map((branchId) =>
-      sql`array_position(${reports.branch_scope}, ${branchId}) is not null`,
-    );
-    const branchScopeWhere =
-      branchScopeConditions.length === 1
-        ? branchScopeConditions[0]
-        : or(...branchScopeConditions);
-
-    if (branchScopeWhere) {
-      conditions.push(branchScopeWhere);
-    }
+    conditions.push(buildReportsBranchScopeOverlapWhere(access.allowedBranchIds)!);
   } else {
     conditions.push(eq(reports.report_id, -1));
   }
@@ -679,13 +676,7 @@ function buildReportsBranchScopeOverlapWhere(branchIds: number[]) {
     return undefined;
   }
 
-  const branchScopeConditions = branchIds.map((branchId) =>
-    sql`array_position(${reports.branch_scope}, ${branchId}) is not null`,
-  );
-
-  return branchScopeConditions.length === 1
-    ? branchScopeConditions[0]
-    : or(...branchScopeConditions);
+  return sql`${reports.branch_scope} && ${buildIntegerArraySql(branchIds)}`;
 }
 
 function buildReportsSystemVisibilityWhere(access: ReportsReadyAccessState) {
@@ -3844,42 +3835,28 @@ export async function findExistingSystemGeneratedReportDuplicate(
   const normalizedTemplateKey = normalizeReportTemplateKey(input.templateKey);
   const normalizedBranchScope = sortBranchIds(input.branchScope);
   const expectedScopeKey = buildSystemGeneratedScopeKey(normalizedBranchScope);
-  const candidateRows = await db
+  const matchingRow = await db
     .select({
       reportId: reports.report_id,
       title: reports.title,
       generatedAt: reports.generated_at,
       status: reports.status,
-      templateKey: reports.template_key,
-      branchScope: reports.branch_scope,
-      filters: reports.filters,
     })
     .from(reports)
     .where(
       and(
         eq(reports.generated_type, "system"),
         eq(reports.template_key, normalizedTemplateKey),
+        sql`coalesce(${reports.filters} ->> 'systemCoverageMonth', '') = ${input.coverageMonth}`,
+        sql`coalesce(${reports.filters} ->> 'systemRecipientRole', '') = ${input.recipientRole}`,
+        sql`coalesce(${reports.filters} ->> 'systemRecipientUserId', '') = ${input.recipientUserId ?? ""}`,
+        sql`coalesce(${reports.filters} ->> 'systemScopeKey', array_to_string(${reports.branch_scope}, ',')) = ${expectedScopeKey}`,
       ),
     )
     .orderBy(desc(reports.generated_at), desc(reports.report_id))
-    .catch(() => []);
-
-  const matchingRow =
-    candidateRows.find((row) => {
-      if (buildSystemGeneratedScopeKey(row.branchScope) !== expectedScopeKey) {
-        return false;
-      }
-
-      const metadata = parseSystemGeneratedMetadata(row.filters);
-      const resolvedScopeKey = metadata.scopeKey ?? buildSystemGeneratedScopeKey(row.branchScope);
-
-      return (
-        metadata.coverageMonth === input.coverageMonth &&
-        metadata.recipientRole === input.recipientRole &&
-        (metadata.recipientUserId ?? null) === (input.recipientUserId ?? null) &&
-        resolvedScopeKey === expectedScopeKey
-      );
-    }) ?? null;
+    .limit(1)
+    .then((rows) => rows[0] ?? null)
+    .catch(() => null);
 
   if (!matchingRow) {
     return {

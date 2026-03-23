@@ -188,6 +188,7 @@ export const borrower_info = pgTable(
       foreignColumns: [users.user_id],
       name: "borrower_info_user_id_fkey",
     }),
+    index("borrower_info_area_id_idx").on(table.area_id),
   ],
 );
 
@@ -221,6 +222,7 @@ export const employee_branch_assignment = pgTable(
       foreignColumns: [employee_info.user_id],
       name: "employee_branch_assignment_employee_user_id_fkey",
     }),
+    index("employee_branch_assignment_branch_id_idx").on(table.branch_id),
     check(
       "chk_employee_branch_assignment_dates",
       sql`(end_date IS NULL) OR (end_date >= start_date)`,
@@ -258,6 +260,7 @@ export const employee_area_assignment = pgTable(
       foreignColumns: [employee_info.user_id],
       name: "employee_area_assignment_employee_user_id_fkey",
     }),
+    index("employee_area_assignment_area_id_idx").on(table.area_id),
     check("chk_employee_area_assignment_dates", sql`(end_date IS NULL) OR (end_date >= start_date)`),
   ],
 );
@@ -301,6 +304,9 @@ export const loan_records = pgTable(
       name: "loan_records_branch_id_fkey",
     }),
     unique("loan_records_loan_code_key").on(table.loan_code),
+    index("loan_records_borrower_id_idx").on(table.borrower_id),
+    index("loan_records_collector_id_idx").on(table.collector_id),
+    index("loan_records_branch_id_idx").on(table.branch_id),
     check("chk_loan_records_interest_nonnegative", sql`interest >= (0)::numeric`),
     check("chk_loan_records_principal_nonnegative", sql`principal >= (0)::numeric`),
 
@@ -348,7 +354,13 @@ export const collections = pgTable(
     }).onDelete("set null"),
     unique("collections_collection_code_key").on(table.collection_code),
     check("chk_collections_amount_nonnegative", sql`amount >= (0)::numeric`),
+    index("collections_loan_id_collection_date_idx").on(
+      table.loan_id,
+      table.collection_date
+    ),
     index("collections_collector_id_idx").on(table.collector_id),
+    index("collections_collection_date_idx").on(table.collection_date),
+    index("collections_encoded_by_idx").on(table.encoded_by),
   ],
 );
 
@@ -395,6 +407,11 @@ export const expenses = pgTable(
         'Miscellaneous'
       )`,
     ),
+    index("expenses_branch_id_expense_date_idx").on(
+      table.branch_id,
+      table.expense_date
+    ),
+    index("expenses_recorded_by_idx").on(table.recorded_by),
   ],
 );
 
@@ -634,6 +651,21 @@ export const reports = pgTable(
       table.source_entity_type,
       table.source_entity_id
     ),
+    index("reports_date_from_idx").on(table.date_from),
+    index("reports_date_to_idx").on(table.date_to),
+    index("reports_branch_scope_gin_idx").using("gin", table.branch_scope),
+    index("reports_system_recipient_role_idx")
+      .on(sql`((filters ->> 'systemRecipientRole'))`)
+      .where(sql`${table.generated_type} = 'system'`),
+    index("reports_system_recipient_user_idx")
+      .on(sql`((filters ->> 'systemRecipientUserId'))`)
+      .where(sql`${table.generated_type} = 'system'`),
+    index("reports_system_scope_key_idx")
+      .on(sql`((filters ->> 'systemScopeKey'))`)
+      .where(sql`${table.generated_type} = 'system'`),
+    index("reports_system_coverage_month_idx")
+      .on(sql`((filters ->> 'systemCoverageMonth'))`)
+      .where(sql`${table.generated_type} = 'system'`),
   ]
 );
 
