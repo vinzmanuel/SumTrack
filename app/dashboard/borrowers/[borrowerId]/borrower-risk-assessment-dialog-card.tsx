@@ -1,11 +1,21 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { AlertCircle, Loader2, ShieldAlert, ShieldCheck, ShieldQuestion, Sparkles } from "lucide-react";
+import {
+  AlertCircle,
+  Loader2,
+  Sparkles,
+} from "lucide-react";
 import { formatStoredDateForManila } from "@/app/dashboard/datetime";
 import type { BorrowerRiskAssessmentResult, BorrowerRiskLabel } from "@/app/dashboard/borrowers/types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
@@ -34,6 +44,11 @@ function formatRiskDate(value: string | null) {
   return value ? formatStoredDateForManila(value) : "N/A";
 }
 
+function formatAssessmentScore(value: number) {
+  const normalized = Math.max(0, Math.min(100, value));
+  return ((100 - normalized) / 10).toFixed(1);
+}
+
 function getAiStatusLabel(result: BorrowerRiskAssessmentResult["aiAnalysis"]) {
   if (result.status === "success") {
     return "Available";
@@ -49,24 +64,18 @@ function getAiStatusLabel(result: BorrowerRiskAssessmentResult["aiAnalysis"]) {
 function getLabelPresentation(label: BorrowerRiskLabel) {
   if (label === "Okay") {
     return {
-      icon: ShieldCheck,
       badgeClassName: "border-emerald-200 bg-emerald-50 text-emerald-700",
-      accentClassName: "text-emerald-700",
     };
   }
 
   if (label === "Warning") {
     return {
-      icon: ShieldQuestion,
       badgeClassName: "border-amber-200 bg-amber-50 text-amber-700",
-      accentClassName: "text-amber-700",
     };
   }
 
   return {
-    icon: ShieldAlert,
     badgeClassName: "border-red-200 bg-red-50 text-red-700",
-    accentClassName: "text-red-700",
   };
 }
 
@@ -78,7 +87,7 @@ function MetricItem({
   value: string;
 }) {
   return (
-    <div className="rounded-lg border border-border/70 bg-muted/20 px-3 py-3">
+    <div className="rounded-lg border border-border/60 bg-muted/15 px-3 py-3">
       <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
         {label}
       </p>
@@ -89,153 +98,187 @@ function MetricItem({
 
 function RiskResultContent({ result }: { result: BorrowerRiskAssessmentResult }) {
   const presentation = getLabelPresentation(result.label);
-  const Icon = presentation.icon;
+  const assessmentScore = formatAssessmentScore(result.score);
+  const aiSummary =
+    result.aiAnalysis.status === "success"
+      ? result.aiAnalysis.summary
+      : result.aiAnalysis.status === "skipped_no_notes"
+        ? "No missed-payment notes were available for AI review."
+        : "AI note analysis was unavailable, so this result uses rule-based scoring only.";
 
   return (
     <div className="space-y-5">
-      <div className="rounded-xl border border-border/70 bg-muted/20 p-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <div
-            className={`rounded-full border border-current/15 bg-background/80 p-2 ${presentation.accentClassName}`}
-          >
-            <Icon className="h-5 w-5" />
-          </div>
-          <div className="space-y-1">
-            <Badge className={presentation.badgeClassName} variant="outline">
-              {result.label}
-            </Badge>
-            <p className="text-sm font-medium text-foreground">Assessment score: {result.score} / 100</p>
-          </div>
-        </div>
-
-        <p className="mt-4 text-sm leading-6 text-foreground">{result.explanation}</p>
-      </div>
-
-      <section className="space-y-3">
-        <h3 className="text-sm font-semibold text-foreground">Supporting Metrics</h3>
-        <div className="grid gap-3 md:grid-cols-2">
-          <MetricItem label="Total Loans" value={String(result.metrics.totalLoans)} />
-          <MetricItem label="Collection Entries" value={String(result.metrics.totalCollectionEntries)} />
-          <MetricItem label="Normal Payments" value={String(result.metrics.totalNormalPayments)} />
-          <MetricItem label="Missed Payments" value={String(result.metrics.totalMissedPayments)} />
-          <MetricItem label="Missed-Payment Ratio" value={formatRiskRatio(result.metrics.missedPaymentRatio)} />
-          <MetricItem label="Loans With Missed Payments" value={String(result.metrics.loansWithMissedPayments)} />
-          <MetricItem
-            label="Most Recent Missed Payment"
-            value={formatRiskDate(result.metrics.mostRecentMissedPaymentDate)}
-          />
-          <MetricItem
-            label="Missed Payments in Last 30 Days"
-            value={String(result.metrics.missedPaymentsLast30Days)}
-          />
-          <MetricItem
-            label="Missed Payments in Last 90 Days"
-            value={String(result.metrics.missedPaymentsLast90Days)}
-          />
-        </div>
-      </section>
-
-      <section className="space-y-3">
-        <h3 className="text-sm font-semibold text-foreground">Current Loan Mix</h3>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-          <MetricItem label="Active" value={String(result.metrics.currentLoanMix.active)} />
-          <MetricItem label="Overdue" value={String(result.metrics.currentLoanMix.overdue)} />
-          <MetricItem label="Completed" value={String(result.metrics.currentLoanMix.completed)} />
-          <MetricItem label="Archived" value={String(result.metrics.currentLoanMix.archived)} />
-          <MetricItem label="Abandoned" value={String(result.metrics.currentLoanMix.abandoned)} />
-        </div>
-      </section>
-
-      <section className="space-y-3">
-        <h3 className="text-sm font-semibold text-foreground">Score Breakdown</h3>
-        <div className="grid gap-3 md:grid-cols-2">
-          <MetricItem
-            label="Missed Payment Count Weight"
-            value={String(result.scoreBreakdown.missedPaymentCount)}
-          />
-          <MetricItem
-            label="Missed Payment Ratio Weight"
-            value={String(result.scoreBreakdown.missedPaymentRatio)}
-          />
-          <MetricItem label="Recency Weight" value={String(result.scoreBreakdown.recency)} />
-          <MetricItem label="Loan Distress Weight" value={String(result.scoreBreakdown.loanDistress)} />
-          <MetricItem
-            label="AI Note Severity Weight"
-            value={String(result.scoreBreakdown.aiNoteSeverity)}
-          />
-          <MetricItem label="Total Score" value={String(result.scoreBreakdown.total)} />
-        </div>
-      </section>
-
-      <section className="space-y-3">
-        <h3 className="text-sm font-semibold text-foreground">AI Note Sentiment and Context</h3>
-        <div className="rounded-xl border border-border/70 bg-muted/20 p-4 text-sm">
-          <div className="grid gap-3 md:grid-cols-2">
-            <MetricItem label="AI Status" value={getAiStatusLabel(result.aiAnalysis)} />
-            <MetricItem label="Notes Analyzed" value={String(result.aiAnalysis.notesAnalyzedCount)} />
-            <MetricItem
-              label="Tone"
-              value={result.aiAnalysis.overallTone ? result.aiAnalysis.overallTone.replace("_", " ") : "N/A"}
-            />
-            <MetricItem label="Confidence" value={result.aiAnalysis.confidence ?? "N/A"} />
-            <MetricItem
-              label="Severity Score"
-              value={
-                result.aiAnalysis.severityScore !== null
-                  ? `${result.aiAnalysis.severityScore} / 10`
-                  : "N/A"
-              }
-            />
-            <MetricItem
-              label="AI Summary"
-              value={result.aiAnalysis.summary || "AI note analysis was unavailable for this assessment."}
-            />
+      <section className="rounded-2xl border border-border/70 bg-muted/10 p-5">
+        <div className="grid gap-5 lg:grid-cols-[220px_minmax(0,1fr)] lg:items-start">
+          <div className="rounded-2xl border border-border/60 bg-background px-5 py-5 shadow-sm">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
+              Assessment Score
+            </p>
+            <div className="mt-4">
+              <Badge className={`${presentation.badgeClassName} px-3 py-1 text-sm`} variant="outline">
+                {result.label}
+              </Badge>
+            </div>
+            <div className="mt-4 flex items-end gap-2">
+              <span className="text-5xl font-semibold tracking-tight text-foreground">{assessmentScore}</span>
+              <span className="pb-1 text-base text-muted-foreground">/ 10</span>
+            </div>
+            <p className="mt-3 text-sm text-muted-foreground">
+              Higher = Better
+            </p>
           </div>
 
-          {result.aiAnalysis.message ? (
-            <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-900">
-                AI Status Detail
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-muted-foreground">Borrower reapproval assessment</p>
+              <p className="max-w-2xl text-base leading-7 text-foreground">{result.explanation}</p>
+            </div>
+
+            <div className="max-w-xl space-y-2 rounded-xl border border-border/60 bg-background/85 px-4 py-4">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                AI note summary
               </p>
-              <p className="mt-1 text-sm text-amber-800">{result.aiAnalysis.message}</p>
+              <p className="text-sm leading-6 text-foreground">{aiSummary}</p>
+              {result.aiAnalysis.message ? (
+                <p className="text-xs text-amber-700">{result.aiAnalysis.message}</p>
+              ) : null}
             </div>
-          ) : null}
-
-          {result.aiAnalysis.riskSignals.length > 0 ? (
-            <div className="mt-4 space-y-2">
-              <p className="font-medium text-foreground">Risk signals</p>
-              <ul className="space-y-2 text-muted-foreground">
-                {result.aiAnalysis.riskSignals.map((signal) => (
-                  <li
-                    key={`${signal.signal}-${signal.evidence}`}
-                    className="rounded-lg border border-border/60 bg-background px-3 py-2"
-                  >
-                    <span className="font-medium capitalize text-foreground">
-                      {signal.signal.replace(/_/g, " ")}:
-                    </span>{" "}
-                    {signal.evidence}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-
-          {result.aiAnalysis.mitigatingSignals.length > 0 ? (
-            <div className="mt-4 space-y-2">
-              <p className="font-medium text-foreground">Mitigating signals</p>
-              <ul className="space-y-2 text-muted-foreground">
-                {result.aiAnalysis.mitigatingSignals.map((signal) => (
-                  <li key={signal} className="rounded-lg border border-border/60 bg-background px-3 py-2">
-                    {signal}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
+          </div>
         </div>
       </section>
 
-      <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+      <Accordion className="rounded-xl border border-border/70 bg-background px-4" type="multiple">
+        <AccordionItem value="supporting-metrics">
+          <AccordionTrigger>Supporting Metrics</AccordionTrigger>
+          <AccordionContent>
+            <div className="grid gap-3 md:grid-cols-2">
+              <MetricItem label="Total Loans" value={String(result.metrics.totalLoans)} />
+              <MetricItem label="Collection Entries" value={String(result.metrics.totalCollectionEntries)} />
+              <MetricItem label="Normal Payments" value={String(result.metrics.totalNormalPayments)} />
+              <MetricItem label="Missed Payments" value={String(result.metrics.totalMissedPayments)} />
+              <MetricItem label="Missed-Payment Ratio" value={formatRiskRatio(result.metrics.missedPaymentRatio)} />
+              <MetricItem label="Loans With Missed Payments" value={String(result.metrics.loansWithMissedPayments)} />
+              <MetricItem
+                label="Most Recent Missed Payment"
+                value={formatRiskDate(result.metrics.mostRecentMissedPaymentDate)}
+              />
+              <MetricItem
+                label="Missed Payments in Last 30 Days"
+                value={String(result.metrics.missedPaymentsLast30Days)}
+              />
+              <MetricItem
+                label="Missed Payments in Last 90 Days"
+                value={String(result.metrics.missedPaymentsLast90Days)}
+              />
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+
+        <AccordionItem value="score-breakdown">
+          <AccordionTrigger>Score Breakdown</AccordionTrigger>
+          <AccordionContent>
+            <div className="grid gap-3 md:grid-cols-2">
+              <MetricItem
+                label="Missed Payment Count Weight"
+                value={String(result.scoreBreakdown.missedPaymentCount)}
+              />
+              <MetricItem
+                label="Missed Payment Ratio Weight"
+                value={String(result.scoreBreakdown.missedPaymentRatio)}
+              />
+              <MetricItem label="Recency Weight" value={String(result.scoreBreakdown.recency)} />
+              <MetricItem label="Loan Distress Weight" value={String(result.scoreBreakdown.loanDistress)} />
+              <MetricItem
+                label="AI Note Severity Weight"
+                value={String(result.scoreBreakdown.aiNoteSeverity)}
+              />
+              <MetricItem label="Total Score" value={String(result.scoreBreakdown.total)} />
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+
+        <AccordionItem value="current-loan-mix">
+          <AccordionTrigger>Current Loan Mix</AccordionTrigger>
+          <AccordionContent>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+              <MetricItem label="Active" value={String(result.metrics.currentLoanMix.active)} />
+              <MetricItem label="Overdue" value={String(result.metrics.currentLoanMix.overdue)} />
+              <MetricItem label="Completed" value={String(result.metrics.currentLoanMix.completed)} />
+              <MetricItem label="Archived" value={String(result.metrics.currentLoanMix.archived)} />
+              <MetricItem label="Abandoned" value={String(result.metrics.currentLoanMix.abandoned)} />
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+
+        <AccordionItem value="ai-note-context">
+          <AccordionTrigger>AI Note Sentiment and Context</AccordionTrigger>
+          <AccordionContent>
+            <div className="space-y-4">
+              <div className="grid gap-3 md:grid-cols-2">
+                <MetricItem label="AI Status" value={getAiStatusLabel(result.aiAnalysis)} />
+                <MetricItem label="Notes Analyzed" value={String(result.aiAnalysis.notesAnalyzedCount)} />
+                <MetricItem
+                  label="Tone"
+                  value={result.aiAnalysis.overallTone ? result.aiAnalysis.overallTone.replace("_", " ") : "N/A"}
+                />
+                <MetricItem label="Confidence" value={result.aiAnalysis.confidence ?? "N/A"} />
+                <MetricItem
+                  label="Severity Score"
+                  value={
+                    result.aiAnalysis.severityScore !== null
+                      ? `${result.aiAnalysis.severityScore} / 10`
+                      : "N/A"
+                  }
+                />
+                <MetricItem label="AI Summary" value={aiSummary} />
+              </div>
+
+              {result.aiAnalysis.message ? (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-900">
+                    AI Status Detail
+                  </p>
+                  <p className="mt-1 text-sm text-amber-800">{result.aiAnalysis.message}</p>
+                </div>
+              ) : null}
+
+              {result.aiAnalysis.riskSignals.length > 0 ? (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-foreground">Risk signals</p>
+                  <ul className="space-y-2 text-sm text-muted-foreground">
+                    {result.aiAnalysis.riskSignals.map((signal) => (
+                      <li
+                        key={`${signal.signal}-${signal.evidence}`}
+                        className="rounded-lg border border-border/60 bg-muted/15 px-3 py-2"
+                      >
+                        <span className="font-medium capitalize text-foreground">
+                          {signal.signal.replace(/_/g, " ")}:
+                        </span>{" "}
+                        {signal.evidence}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              {result.aiAnalysis.mitigatingSignals.length > 0 ? (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-foreground">Mitigating signals</p>
+                  <ul className="space-y-2 text-sm text-muted-foreground">
+                    {result.aiAnalysis.mitigatingSignals.map((signal) => (
+                      <li key={signal} className="rounded-lg border border-border/60 bg-muted/15 px-3 py-2">
+                        {signal}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+      </Accordion>
+
+      <div className="rounded-lg border border-blue-200/80 bg-blue-50/70 px-4 py-3 text-sm text-blue-900">
         {result.disclaimer}
       </div>
     </div>
@@ -340,10 +383,17 @@ export function BorrowerRiskAssessmentCard({ borrowerId }: BorrowerRiskAssessmen
         <DialogContent className="max-h-[calc(100vh-2rem)] overflow-hidden p-0 sm:max-w-3xl">
           <div className="flex max-h-[calc(100vh-2rem)] flex-col">
             <DialogHeader className="border-b px-6 py-5">
-              <DialogTitle>Borrower Reapproval Risk Assessment</DialogTitle>
-              <DialogDescription>
-                AI-assisted missed-payment review for borrower-level reapproval guidance.
-              </DialogDescription>
+              <div className="flex items-start gap-4">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full border border-emerald-200 bg-emerald-50 text-emerald-600 shadow-sm">
+                  <Sparkles className="h-7 w-7" />
+                </div>
+                <div className="space-y-1">
+                  <DialogTitle>Borrower Reapproval Risk Assessment</DialogTitle>
+                  <DialogDescription>
+                    AI-assisted missed-payment review for borrower-level reapproval guidance.
+                  </DialogDescription>
+                </div>
+              </div>
             </DialogHeader>
 
             <div className="overflow-y-auto px-6 py-5">
