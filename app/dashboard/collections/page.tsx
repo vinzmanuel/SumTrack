@@ -3,7 +3,7 @@ import { requireDashboardAuth } from "@/app/dashboard/auth";
 import { resolveCollectionsPageAccess } from "@/app/dashboard/collections/access";
 import { CollectionsClientPage } from "@/app/dashboard/collections/collections-client-page";
 import { parseCollectionsFilters } from "@/app/dashboard/collections/filters";
-import { loadCollectionsBranchOptions } from "@/app/dashboard/collections/queries";
+import { loadCollectionsAnalyticsData, loadCollectionsBranchOptions } from "@/app/dashboard/collections/queries";
 import type { CollectionsPageProps } from "@/app/dashboard/collections/types";
 
 export default async function CollectionsPage({ searchParams }: CollectionsPageProps) {
@@ -37,7 +37,10 @@ export default async function CollectionsPage({ searchParams }: CollectionsPageP
     );
   }
 
-  const branchOptions = await loadCollectionsBranchOptions(access);
+  const [branchOptions, initialData] = await Promise.all([
+    loadCollectionsBranchOptions(access),
+    loadCollectionsAnalyticsData(access, filters),
+  ]);
 
   return (
     <CollectionsClientPage
@@ -45,6 +48,7 @@ export default async function CollectionsPage({ searchParams }: CollectionsPageP
       branchOptions={branchOptions}
       canChooseBranch={access.canChooseBranch}
       fixedBranchName={access.fixedBranchName}
+      initialData={initialData}
       initialFilters={{
         selectedBranchRaw: access.selectedBranchId ? String(access.selectedBranchId) : "all",
         selectedRange: filters.selectedRange,

@@ -3,7 +3,7 @@ import { requireDashboardAuth } from "@/app/dashboard/auth";
 import { resolveCollectorsPageAccess } from "@/app/dashboard/collectors/access";
 import { CollectorsClientPage } from "@/app/dashboard/collectors/collectors-client-page";
 import { parseCollectorsFilters } from "@/app/dashboard/collectors/filters";
-import { loadCollectorsBranchOptions } from "@/app/dashboard/collectors/queries";
+import { loadCollectorsAnalyticsData, loadCollectorsBranchOptions } from "@/app/dashboard/collectors/queries";
 import type { CollectorsPageProps } from "@/app/dashboard/collectors/types";
 
 export default async function CollectorsPage({ searchParams }: CollectorsPageProps) {
@@ -37,7 +37,10 @@ export default async function CollectorsPage({ searchParams }: CollectorsPagePro
     );
   }
 
-  const branchOptions = await loadCollectorsBranchOptions(access);
+  const [branchOptions, initialData] = await Promise.all([
+    loadCollectorsBranchOptions(access),
+    loadCollectorsAnalyticsData(access, filters),
+  ]);
 
   return (
     <CollectorsClientPage
@@ -45,6 +48,7 @@ export default async function CollectorsPage({ searchParams }: CollectorsPagePro
       branchOptions={branchOptions}
       canChooseBranch={access.canChooseBranch}
       fixedBranchName={access.fixedBranchName}
+      initialData={initialData}
       initialFilters={{
         selectedBranchRaw: access.selectedBranchId ? String(access.selectedBranchId) : "all",
         selectedRange: filters.selectedRange,

@@ -67,12 +67,14 @@ export function CollectorsClientPage({
   branchOptions,
   canChooseBranch,
   fixedBranchName,
+  initialData,
   initialFilters,
 }: {
   branchFilterLabel: string;
   branchOptions: CollectorsBranchOption[];
   canChooseBranch: boolean;
   fixedBranchName: string | null;
+  initialData: CollectorsAnalyticsData;
   initialFilters: CollectorsFilterState;
 }) {
   const normalizedInitialFilters = useMemo<CollectorsFilterInput>(
@@ -94,10 +96,10 @@ export function CollectorsClientPage({
     ],
   );
 
-  const [results, setResults] = useState<CollectorsAnalyticsData | null>(null);
+  const [results, setResults] = useState<CollectorsAnalyticsData | null>(initialData);
   const [filters, setFilters] = useState<CollectorsFilterInput>(normalizedInitialFilters);
   const [appliedFilters, setAppliedFilters] = useState<CollectorsFilterInput>(normalizedInitialFilters);
-  const [isPending, setIsPending] = useState(true);
+  const [isPending, setIsPending] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const filtersRef = useRef<CollectorsFilterInput>(normalizedInitialFilters);
@@ -141,10 +143,11 @@ export function CollectorsClientPage({
   useEffect(() => {
     setFilters(normalizedInitialFilters);
     setAppliedFilters(normalizedInitialFilters);
-    setResults(null);
-    void loadResults(normalizedInitialFilters);
+    setResults(initialData);
+    setIsPending(false);
+    setErrorMessage(null);
     return () => abortRef.current?.abort();
-  }, [loadResults, normalizedInitialFilters]);
+  }, [initialData, normalizedInitialFilters]);
 
   useEffect(() => {
     filtersRef.current = filters;

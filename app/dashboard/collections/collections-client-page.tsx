@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { TremorCard, TremorDescription } from "@/components/tremor/raw/metric-card";
 import { CollectionsFilters } from "@/app/dashboard/collections/collections-filters";
 import { CollectionsResultsSection } from "@/app/dashboard/collections/collections-results-section";
@@ -61,26 +61,18 @@ export function CollectionsClientPage({
   branchOptions,
   canChooseBranch,
   fixedBranchName,
+  initialData,
   initialFilters,
 }: {
   branchFilterLabel: string;
   branchOptions: CollectionsBranchOption[];
   canChooseBranch: boolean;
   fixedBranchName: string | null;
+  initialData: CollectionsAnalyticsData;
   initialFilters: CollectionsFilterState;
 }) {
-  const normalizedInitialFilters = useMemo<CollectionsFilterInput>(
-    () => ({
-      branch: initialFilters.selectedBranchRaw || "all",
-      range: initialFilters.selectedRange,
-      from: initialFilters.fromRaw,
-      to: initialFilters.toRaw,
-    }),
-    [initialFilters.fromRaw, initialFilters.selectedBranchRaw, initialFilters.selectedRange, initialFilters.toRaw],
-  );
-
-  const [results, setResults] = useState<CollectionsAnalyticsData | null>(null);
-  const [isPending, setIsPending] = useState(true);
+  const [results, setResults] = useState<CollectionsAnalyticsData | null>(initialData);
+  const [isPending, setIsPending] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -119,9 +111,11 @@ export function CollectionsClientPage({
   }, []);
 
   useEffect(() => {
-    void loadResults(normalizedInitialFilters);
+    setResults(initialData);
+    setIsPending(false);
+    setErrorMessage(null);
     return () => abortRef.current?.abort();
-  }, [loadResults, normalizedInitialFilters]);
+  }, [initialData]);
 
   return (
     <div className="space-y-6">

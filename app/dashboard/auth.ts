@@ -1,5 +1,6 @@
 import "server-only";
 
+import { cache } from "react";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
@@ -41,17 +42,7 @@ export type DashboardAuthContext = {
 
 export type DashboardAuthResult = AuthFailure | DashboardAuthContext;
 
-async function resolveRoleName(roleId: number) {
-  return db
-    .select({ role_name: roles.role_name })
-    .from(roles)
-    .where(eq(roles.role_id, roleId))
-    .limit(1)
-    .then((rows) => rows[0]?.role_name ?? null)
-    .catch(() => null);
-}
-
-export async function getDashboardAuthContext(): Promise<DashboardAuthResult> {
+export const getDashboardAuthContext = cache(async (): Promise<DashboardAuthResult> => {
   const supabase = await createClient();
   const {
     data: { user },
@@ -64,10 +55,11 @@ export async function getDashboardAuthContext(): Promise<DashboardAuthResult> {
   const appUser = await db
     .select({
       user_id: users.user_id,
-      role_id: users.role_id,
       company_id: users.company_id,
+      role_name: roles.role_name,
     })
     .from(users)
+    .innerJoin(roles, eq(roles.role_id, users.role_id))
     .where(eq(users.user_id, user.id))
     .limit(1)
     .then((rows) => rows[0] ?? null)
@@ -77,7 +69,7 @@ export async function getDashboardAuthContext(): Promise<DashboardAuthResult> {
     return { ok: false, reason: "missing_app_user", message: "No application user profile found." };
   }
 
-  const roleName = await resolveRoleName(appUser.role_id);
+  const roleName = appUser.role_name;
   if (!roleName) {
     return { ok: false, reason: "missing_role", message: "Unable to resolve your application role." };
   }
@@ -171,7 +163,7 @@ export async function getDashboardAuthContext(): Promise<DashboardAuthResult> {
     activeBranchName,
     borrowerId,
   };
-}
+});
 
 export async function requireDashboardAuth(allowedRoles?: RoleName[]) {
   const auth = await getDashboardAuthContext();
@@ -206,4 +198,3 @@ export async function resolveBranchNames(branchIds: number[]) {
     .catch(() => []);
   return new Map(rows.map((row) => [row.branch_id, row.branch_name]));
 }
-
