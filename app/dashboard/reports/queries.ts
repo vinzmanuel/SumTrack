@@ -48,9 +48,11 @@ import {
   buildOperationalDocumentTemplateOptions,
   getAnalyticsTemplateDefinition,
   getOperationalDocumentTemplateDefinition,
+  getReportTemplateKeysForCategory,
   getSystemGeneratedTemplateKeysForRole,
   isSystemGeneratedTemplateAllowedForRole,
   normalizeReportTemplateKey,
+  resolveReportTemplateFilterKeys,
   resolveReportTemplateCategory,
   resolveReportTemplateLabel,
 } from "@/app/dashboard/reports/templates";
@@ -115,6 +117,20 @@ type GenerateAnalyticsReportOptions = {
 function toNumber(value: unknown) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function whereFrom(conditions: Array<SQL | undefined>) {
+  const resolvedConditions = conditions.filter((value): value is SQL => Boolean(value));
+
+  if (resolvedConditions.length === 0) {
+    return undefined;
+  }
+
+  if (resolvedConditions.length === 1) {
+    return resolvedConditions[0];
+  }
+
+  return and(...resolvedConditions);
 }
 
 function calculateLoanDurationDays(startDate: string, dueDate: string) {
@@ -656,6 +672,123 @@ function buildReportsLibraryScopeWhere(access: ReportsReadyAccessState) {
   }
 
   return conditions.length === 1 ? conditions[0] : and(...conditions);
+}
+
+function buildReportsBranchScopeOverlapWhere(branchIds: number[]) {
+  if (branchIds.length === 0) {
+    return undefined;
+  }
+
+  const branchScopeConditions = branchIds.map((branchId) =>
+    sql`array_position(${reports.branch_scope}, ${branchId}) is not null`,
+  );
+
+  return branchScopeConditions.length === 1
+    ? branchScopeConditions[0]
+    : or(...branchScopeConditions);
+}
+
+function buildReportsSystemVisibilityWhere(access: ReportsReadyAccessState) {
+  if (access.roleName === "Secretary") {
+    return eq(reports.generated_type, "user");
+  }
+
+  const allowedSystemTemplateKeys = getSystemGeneratedTemplateKeysForRole(access.roleName);
+  const systemTemplateWhere =
+    allowedSystemTemplateKeys.length === 0
+      ? eq(reports.report_id, -1)
+      : inArray(reports.template_key, [...allowedSystemTemplateKeys]);
+  const scopeKeyExpression = sql<string>`array_to_string(${reports.branch_scope}, ',')`;
+
+  return or(
+    ne(reports.generated_type, "system"),
+    and(
+      eq(reports.generated_type, "system"),
+      systemTemplateWhere,
+      sql`((${reports.filters} ->> 'systemRecipientRole') is null or (${reports.filters} ->> 'systemRecipientRole') = ${access.roleName})`,
+      sql`((${reports.filters} ->> 'systemRecipientUserId') is null or (${reports.filters} ->> 'systemRecipientUserId') = ${access.userId})`,
+      sql`((${reports.filters} ->> 'systemScopeKey') is null or (${reports.filters} ->> 'systemScopeKey') = ${scopeKeyExpression})`,
+    ),
+  );
+}
+
+function buildReportsLibraryAdvancedWhere(filters: ReportsLibraryFilterState) {
+  const conditions: SQL[] = [];
+
+  if (filters.templateCategory) {
+    if (filters.templateCategory === "documents") {
+      conditions.push(eq(reports.report_category, "document"));
+    } else {
+      const templateKeys = getReportTemplateKeysForCategory(filters.templateCategory);
+      conditions.push(
+        templateKeys.length > 0
+          ? inArray(reports.template_key, templateKeys)
+          : eq(reports.report_id, -1),
+      );
+    }
+  }
+
+  if (filters.templateKey) {
+    const templateKeys = resolveReportTemplateFilterKeys(filters.templateKey);
+    conditions.push(
+      templateKeys.length > 0 ? inArray(reports.template_key, templateKeys) : eq(reports.report_id, -1),
+    );
+  }
+
+  if (filters.generatedType !== "all") {
+    conditions.push(eq(reports.generated_type, filters.generatedType));
+  }
+
+  if (filters.generatedByRoleName) {
+    conditions.push(eq(roles.role_name, filters.generatedByRoleName));
+  }
+
+  if (filters.generatedByUserId) {
+    conditions.push(eq(reports.generated_by, filters.generatedByUserId));
+  }
+
+  const branchScopeWhere = buildReportsBranchScopeOverlapWhere(filters.branchIds);
+  if (branchScopeWhere) {
+    conditions.push(branchScopeWhere);
+  }
+
+  if (filters.generatedDateFrom) {
+    conditions.push(sql`date(${reports.generated_at}) >= ${filters.generatedDateFrom}`);
+  }
+
+  if (filters.generatedDateTo) {
+    conditions.push(sql`date(${reports.generated_at}) <= ${filters.generatedDateTo}`);
+  }
+
+  if (filters.coverageDateFrom) {
+    conditions.push(gte(reports.date_to, filters.coverageDateFrom));
+  }
+
+  if (filters.coverageDateTo) {
+    conditions.push(lte(reports.date_from, filters.coverageDateTo));
+  }
+
+  return whereFrom(conditions);
+}
+
+function buildReportsLibraryCategoryWhere(category: ReportsLibraryFilterState["category"]) {
+  if (category === "all") {
+    return undefined;
+  }
+
+  return eq(reports.report_category, category === "documents" ? "document" : "analytics");
+}
+
+async function countReportsForLibrary(whereCondition: SQL | undefined) {
+  return db
+    .select({ value: sql<number>`count(*)` })
+    .from(reports)
+    .innerJoin(users, eq(users.user_id, reports.generated_by))
+    .leftJoin(employee_info, eq(employee_info.user_id, users.user_id))
+    .leftJoin(roles, eq(roles.role_id, users.role_id))
+    .where(whereCondition)
+    .then((rows) => Number(rows[0]?.value) || 0)
+    .catch(() => 0);
 }
 
 function buildReportsLibraryRow(row: {
@@ -3203,52 +3336,197 @@ export async function loadReportsLibraryPageData(
   access: ReportsReadyAccessState,
   filters: ReportsLibraryFilterState,
 ): Promise<ReportsLibraryPageData> {
-  const [rows, visibleBranchOptions] = await Promise.all([
-      db
-        .select({
-          reportId: reports.report_id,
-          title: reports.title,
-          reportCategory: reports.report_category,
-          templateKey: reports.template_key,
-          filters: reports.filters,
-          generatedType: reports.generated_type,
-          generatedAt: reports.generated_at,
-          status: reports.status,
-          generatedByUserId: reports.generated_by,
-          generatedByName: sql<string>`coalesce(nullif(trim(concat_ws(' ', ${employee_info.first_name}, ${employee_info.middle_name}, ${employee_info.last_name})), ''), ${users.username})`,
-          generatedByFirstName: employee_info.first_name,
-          generatedByMiddleName: employee_info.middle_name,
-          generatedByLastName: employee_info.last_name,
-          generatedByUsername: users.username,
-          generatedByCompanyId: users.company_id,
-          generatedByRoleName: roles.role_name,
-          branchScope: reports.branch_scope,
-          dateFrom: reports.date_from,
-          dateTo: reports.date_to,
-          sourceEntityType: reports.source_entity_type,
-          sourceEntityId: reports.source_entity_id,
-        })
-        .from(reports)
-        .innerJoin(users, eq(users.user_id, reports.generated_by))
-        .leftJoin(employee_info, eq(employee_info.user_id, users.user_id))
-        .leftJoin(roles, eq(roles.role_id, users.role_id))
-        .where(buildReportsLibraryScopeWhere(access))
-        .orderBy(desc(reports.generated_at), desc(reports.report_id))
-        .catch(() => []),
-      loadVisibleLibraryBranchOptions(access),
-    ]);
-
-  const visibleSourceRows = rows.filter((row) =>
-    isSystemGeneratedReportVisibleToAccess(access, {
-      templateKey: row.templateKey,
-      generatedType: row.generatedType,
-      generatedByUserId: row.generatedByUserId,
-      branchScope: row.branchScope,
-      filters: row.filters,
-    }),
+  const scopeWhere = buildReportsLibraryScopeWhere(access);
+  const visibilityWhere = buildReportsSystemVisibilityWhere(access);
+  const visibleScopedWhere = whereFrom(
+    [scopeWhere, visibilityWhere].filter((value): value is SQL => Boolean(value)),
+  );
+  const advancedWhere = buildReportsLibraryAdvancedWhere(filters);
+  const advancedScopedWhere = whereFrom(
+    [visibleScopedWhere, advancedWhere].filter((value): value is SQL => Boolean(value)),
+  );
+  const categoryWhere = buildReportsLibraryCategoryWhere(filters.category);
+  const categoryScopedWhere = whereFrom(
+    [advancedScopedWhere, categoryWhere].filter((value): value is SQL => Boolean(value)),
+  );
+  const finalWhere = whereFrom(
+    [categoryScopedWhere, eq(reports.status, filters.status)].filter((value): value is SQL => Boolean(value)),
   );
 
-  const visibleRows = visibleSourceRows.map((row) =>
+  const [
+    visibleBranchOptions,
+    templateSourceRows,
+    generatedByRoleRows,
+    generatedByUserSourceRows,
+    allCount,
+    analyticsCount,
+    documentsCount,
+    activeCount,
+    archivedCount,
+    totalCount,
+  ] = await Promise.all([
+    loadVisibleLibraryBranchOptions(access),
+    db
+      .selectDistinct({
+        templateKey: reports.template_key,
+        reportCategory: reports.report_category,
+      })
+      .from(reports)
+      .where(visibleScopedWhere)
+      .catch(() => []),
+    db
+      .selectDistinct({
+        roleName: roles.role_name,
+      })
+      .from(reports)
+      .innerJoin(users, eq(users.user_id, reports.generated_by))
+      .leftJoin(roles, eq(roles.role_id, users.role_id))
+      .where(
+        whereFrom([
+          visibleScopedWhere,
+          eq(reports.generated_type, "user"),
+          sql`${roles.role_name} is not null`,
+        ].filter((value): value is SQL => Boolean(value))),
+      )
+      .catch(() => []),
+    db
+      .select({
+        generatedByUserId: reports.generated_by,
+        generatedByFirstName: employee_info.first_name,
+        generatedByMiddleName: employee_info.middle_name,
+        generatedByLastName: employee_info.last_name,
+        generatedByUsername: users.username,
+        generatedByCompanyId: users.company_id,
+        generatedByRoleName: roles.role_name,
+      })
+      .from(reports)
+      .innerJoin(users, eq(users.user_id, reports.generated_by))
+      .leftJoin(employee_info, eq(employee_info.user_id, users.user_id))
+      .leftJoin(roles, eq(roles.role_id, users.role_id))
+      .where(
+        whereFrom([
+          visibleScopedWhere,
+          eq(reports.generated_type, "user"),
+        ].filter((value): value is SQL => Boolean(value))),
+      )
+      .orderBy(asc(users.username))
+      .catch(() => []),
+    countReportsForLibrary(advancedScopedWhere),
+    countReportsForLibrary(
+      whereFrom([advancedScopedWhere, eq(reports.report_category, "analytics")].filter((value): value is SQL => Boolean(value))),
+    ),
+    countReportsForLibrary(
+      whereFrom([advancedScopedWhere, eq(reports.report_category, "document")].filter((value): value is SQL => Boolean(value))),
+    ),
+    countReportsForLibrary(
+      whereFrom([categoryScopedWhere, eq(reports.status, "active")].filter((value): value is SQL => Boolean(value))),
+    ),
+    countReportsForLibrary(
+      whereFrom([categoryScopedWhere, eq(reports.status, "archived")].filter((value): value is SQL => Boolean(value))),
+    ),
+    countReportsForLibrary(finalWhere),
+  ]);
+
+  const templates = Array.from(
+    new Map(
+      templateSourceRows
+        .map((row) => {
+          const normalizedTemplateKey = normalizeReportTemplateKey(row.templateKey);
+          const templateCategory = resolveReportTemplateCategory(normalizedTemplateKey);
+
+          return [
+            normalizedTemplateKey,
+            {
+              templateKey: normalizedTemplateKey,
+              label: resolveReportTemplateLabel(normalizedTemplateKey),
+              templateCategory:
+                templateCategory?.key ?? (row.reportCategory === "document" ? "documents" : "financials"),
+            },
+          ] as const;
+        })
+        .sort((left, right) => left[1].label.localeCompare(right[1].label)),
+    ).values(),
+  );
+
+  const templateCategories = Array.from(
+    new Map(
+      templates
+        .map((row) => {
+          const templateCategory = resolveReportTemplateCategory(row.templateKey);
+
+          return [
+            row.templateCategory,
+            {
+              key: row.templateCategory,
+              label: templateCategory?.label ?? (row.templateCategory === "documents" ? "Documents" : "Financials"),
+              reportCategory: templateCategory?.reportCategory ?? (row.templateCategory === "documents" ? "document" : "analytics"),
+            },
+          ] as const;
+        })
+        .sort((left, right) => left[1].label.localeCompare(right[1].label)),
+    ).values(),
+  );
+
+  const generatedByRoles = generatedByRoleRows
+    .filter((row) => Boolean(row.roleName))
+    .map((row) => ({
+      roleName: row.roleName as string,
+    }))
+    .sort((left, right) => left.roleName.localeCompare(right.roleName));
+
+  const generatedByUsers = Array.from(
+    new Map(
+      generatedByUserSourceRows
+        .map((row) => [
+          row.generatedByUserId,
+          {
+            userId: row.generatedByUserId,
+            displayName: buildReportUserOptionLabel({
+              firstName: row.generatedByFirstName,
+              middleName: row.generatedByMiddleName,
+              lastName: row.generatedByLastName,
+              companyId: row.generatedByCompanyId,
+              username: row.generatedByUsername,
+            }),
+            roleName: row.generatedByRoleName,
+          },
+        ] as const)
+        .sort((left, right) => left[1].displayName.localeCompare(right[1].displayName)),
+    ).values(),
+  );
+
+  const totalPages = Math.max(Math.ceil(totalCount / REPORTS_LIBRARY_PAGE_SIZE), 1);
+  const safePage = Math.min(Math.max(filters.page, 1), totalPages);
+  const paginatedRowsSource = await db
+    .select({
+      reportId: reports.report_id,
+      title: reports.title,
+      reportCategory: reports.report_category,
+      templateKey: reports.template_key,
+      generatedType: reports.generated_type,
+      generatedAt: reports.generated_at,
+      status: reports.status,
+      generatedByUserId: reports.generated_by,
+      generatedByName: sql<string>`coalesce(nullif(trim(concat_ws(' ', ${employee_info.first_name}, ${employee_info.middle_name}, ${employee_info.last_name})), ''), ${users.username})`,
+      generatedByCompanyId: users.company_id,
+      generatedByRoleName: roles.role_name,
+      branchScope: reports.branch_scope,
+      dateFrom: reports.date_from,
+      dateTo: reports.date_to,
+      sourceEntityType: reports.source_entity_type,
+      sourceEntityId: reports.source_entity_id,
+    })
+    .from(reports)
+    .innerJoin(users, eq(users.user_id, reports.generated_by))
+    .leftJoin(employee_info, eq(employee_info.user_id, users.user_id))
+    .leftJoin(roles, eq(roles.role_id, users.role_id))
+    .where(finalWhere)
+    .orderBy(desc(reports.generated_at), desc(reports.report_id))
+    .limit(REPORTS_LIBRARY_PAGE_SIZE)
+    .offset((safePage - 1) * REPORTS_LIBRARY_PAGE_SIZE)
+    .catch(() => []);
+
+  const paginatedRows = paginatedRowsSource.map((row) =>
     buildReportsLibraryRow({
       reportId: row.reportId,
       title: row.title,
@@ -3268,133 +3546,6 @@ export async function loadReportsLibraryPageData(
       sourceEntityId: row.sourceEntityId,
     }),
   );
-  const generatedByRoles = Array.from(
-    new Map(
-      visibleSourceRows
-        .filter((row) => row.generatedType === "user")
-        .filter((row) => Boolean(row.generatedByRoleName))
-        .map((row) => [
-          row.generatedByRoleName as string,
-          {
-            roleName: row.generatedByRoleName as string,
-          },
-        ] as const)
-        .sort((left, right) => left[1].roleName.localeCompare(right[1].roleName)),
-    ).values(),
-  );
-  const generatedByUsers = Array.from(
-    new Map(
-      visibleSourceRows
-        .filter((row) => row.generatedType === "user")
-        .map((row) => [
-          row.generatedByUserId,
-          {
-            userId: row.generatedByUserId,
-            displayName: buildReportUserOptionLabel({
-              firstName: row.generatedByFirstName,
-              middleName: row.generatedByMiddleName,
-              lastName: row.generatedByLastName,
-              companyId: row.generatedByCompanyId,
-              username: row.generatedByUsername,
-            }),
-            roleName: row.generatedByRoleName,
-          },
-        ] as const)
-        .sort((left, right) => left[1].displayName.localeCompare(right[1].displayName)),
-    ).values(),
-  );
-  const templates = Array.from(
-    new Map(
-      visibleRows
-        .map((row) => [
-          row.templateKey,
-          {
-            templateKey: row.templateKey,
-            label: row.templateLabel,
-            templateCategory: row.templateCategory,
-          },
-        ] as const)
-        .sort((left, right) => left[1].label.localeCompare(right[1].label)),
-    ).values(),
-  );
-  const templateCategories = Array.from(
-    new Map(
-      visibleRows
-        .map((row) => [
-          row.templateCategory,
-          {
-            key: row.templateCategory,
-            label: row.templateCategoryLabel,
-            reportCategory: row.reportCategory,
-          },
-        ] as const)
-        .sort((left, right) => left[1].label.localeCompare(right[1].label)),
-    ).values(),
-  );
-
-  const advancedFilteredRows = visibleRows.filter((row) => {
-    if (filters.templateCategory && row.templateCategory !== filters.templateCategory) {
-      return false;
-    }
-
-    if (filters.templateKey && row.templateKey !== filters.templateKey) {
-      return false;
-    }
-
-      if (filters.generatedType !== "all" && row.generatedType !== filters.generatedType) {
-        return false;
-      }
-
-      if (filters.generatedByRoleName && row.generatedByRoleName !== filters.generatedByRoleName) {
-        return false;
-      }
-
-      if (filters.generatedByUserId && row.generatedByUserId !== filters.generatedByUserId) {
-        return false;
-      }
-
-    if (
-      filters.branchIds.length > 0 &&
-      !filters.branchIds.some((branchId) => row.branchScope.includes(branchId))
-    ) {
-      return false;
-    }
-
-    if (filters.generatedDateFrom && row.generatedAt.slice(0, 10) < filters.generatedDateFrom) {
-      return false;
-    }
-
-    if (filters.generatedDateTo && row.generatedAt.slice(0, 10) > filters.generatedDateTo) {
-      return false;
-    }
-
-    if (filters.coverageDateFrom && (!row.dateTo || row.dateTo < filters.coverageDateFrom)) {
-      return false;
-    }
-
-    if (filters.coverageDateTo && (!row.dateFrom || row.dateFrom > filters.coverageDateTo)) {
-      return false;
-    }
-
-    return true;
-  });
-
-  const categoryScopedRows = advancedFilteredRows.filter((row) =>
-    filters.category === "all"
-      ? true
-      : filters.category === "documents"
-        ? row.reportCategory === "document"
-        : row.reportCategory === "analytics",
-  );
-
-  const filteredRows = categoryScopedRows.filter((row) => row.status === filters.status);
-  const totalCount = filteredRows.length;
-  const totalPages = Math.max(Math.ceil(totalCount / REPORTS_LIBRARY_PAGE_SIZE), 1);
-  const safePage = Math.min(Math.max(filters.page, 1), totalPages);
-  const paginatedRows = filteredRows.slice(
-    (safePage - 1) * REPORTS_LIBRARY_PAGE_SIZE,
-    safePage * REPORTS_LIBRARY_PAGE_SIZE,
-  );
 
   return {
     filters: {
@@ -3406,11 +3557,11 @@ export async function loadReportsLibraryPageData(
     pageSize: REPORTS_LIBRARY_PAGE_SIZE,
     totalCount,
     counts: {
-      all: advancedFilteredRows.length,
-      analytics: advancedFilteredRows.filter((row) => row.reportCategory === "analytics").length,
-      documents: advancedFilteredRows.filter((row) => row.reportCategory === "document").length,
-      active: categoryScopedRows.filter((row) => row.status === "active").length,
-      archived: categoryScopedRows.filter((row) => row.status === "archived").length,
+      all: allCount,
+      analytics: analyticsCount,
+      documents: documentsCount,
+      active: activeCount,
+      archived: archivedCount,
     },
     filterOptions: {
       templateCategories,

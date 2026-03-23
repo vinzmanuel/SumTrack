@@ -32,6 +32,16 @@ const collectorUsers = alias(users, "collector_users");
 const STAFF_LOANS_PAGE_SIZE = 20;
 const ARCHIVED_BUCKET_STORED_VALUES = ["archived", "Archived", "abandoned", "Abandoned"] as const;
 
+const loanCollectionStats = db
+  .select({
+    loanId: collections.loan_id,
+    totalCollected: sql<number>`coalesce(sum(${collections.amount}), 0)`.as("total_collected"),
+    collectionCount: sql<number>`count(*)`.as("collection_count"),
+  })
+  .from(collections)
+  .groupBy(collections.loan_id)
+  .as("loan_collection_stats");
+
 function buildLoansFilters(scope: StaffLoansScope): SQL[] {
   const filters: SQL[] = [];
 
@@ -92,31 +102,37 @@ function whereFrom(filters: SQL[]) {
   return and(...filters);
 }
 
-async function loadLoanCollectionStatsMap(loanIds: number[]) {
-  if (loanIds.length === 0) {
-    return new Map<number, { totalCollected: number; collectionCount: number }>();
+function buildLoanTotalPayableSql() {
+  return sql<number>`(${loan_records.principal} + (${loan_records.principal} * ${loan_records.interest} / 100))`;
+}
+
+function buildLoanRemainingBalanceSql() {
+  const totalPayable = buildLoanTotalPayableSql();
+  return sql<number>`greatest(${totalPayable} - coalesce(${loanCollectionStats.totalCollected}, 0), 0)`;
+}
+
+function buildVisibleStatusSql(currentDate: string) {
+  const remainingBalance = buildLoanRemainingBalanceSql();
+
+  return sql<string>`case
+    when lower(${loan_records.status}) = 'archived' then 'Archived'
+    when lower(${loan_records.status}) = 'abandoned' then 'Abandoned'
+    when ${remainingBalance} <= 0 then 'Completed'
+    when ${loan_records.due_date} < ${currentDate} and ${remainingBalance} > 0 then 'Overdue'
+    else 'Active'
+  end`;
+}
+
+function buildVisibleStatusWhere(
+  statusFilter: LoanStatusFilter,
+  currentDate: string,
+) {
+  if (statusFilter === "all") {
+    return undefined;
   }
 
-  const rows = await db
-    .select({
-      loanId: collections.loan_id,
-      totalCollected: sql<number>`coalesce(sum(${collections.amount}), 0)`,
-      collectionCount: sql<number>`count(*)`,
-    })
-    .from(collections)
-    .where(inArray(collections.loan_id, loanIds))
-    .groupBy(collections.loan_id)
-    .catch(() => []);
-
-  const map = new Map<number, { totalCollected: number; collectionCount: number }>();
-  for (const row of rows) {
-    map.set(row.loanId, {
-      totalCollected: Number(row.totalCollected) || 0,
-      collectionCount: Number(row.collectionCount) || 0,
-    });
-  }
-
-  return map;
+  const visibleStatus = buildVisibleStatusSql(currentDate);
+  return sql`${visibleStatus} = ${statusFilter}`;
 }
 
 function toLoanListRow(
@@ -139,9 +155,10 @@ function toLoanListRow(
     collector_first_name: string | null;
     collector_last_name: string | null;
     collector_username: string | null;
+    total_collected: number;
+    collection_count: number;
   },
   scope: StaffLoansScope,
-  collectionStats: { totalCollected: number; collectionCount: number } | undefined,
   currentDate: string,
 ): LoanListRow {
   const borrowerName =
@@ -158,7 +175,7 @@ function toLoanListRow(
   const computedState = buildLoanComputedState({
     principal: Number(row.principal) || 0,
     interest: Number(row.interest) || 0,
-    totalCollected: collectionStats?.totalCollected ?? 0,
+    totalCollected: Number(row.total_collected) || 0,
     dueDate: row.due_date,
     storedStatus: row.status,
     currentDate,
@@ -185,27 +202,25 @@ function toLoanListRow(
     totalPayable: computedState.totalPayable,
     totalCollected: computedState.totalCollected,
     remainingBalance: computedState.remainingBalance,
-    collectionCount: collectionStats?.collectionCount ?? 0,
+    collectionCount: Number(row.collection_count) || 0,
     canArchive: canManageLoanLifecycle
       ? resolveArchiveTargetStatus({
           storedStatus: computedState.storedStatus,
           visibleStatus: computedState.visibleStatus,
         }) !== null
       : false,
-    canDelete: scope.roleName === "Admin" && (collectionStats?.collectionCount ?? 0) === 0,
+    canDelete: scope.roleName === "Admin" && (Number(row.collection_count) || 0) === 0,
   };
 }
 
-function matchesVisibleStatusFilter(visibleStatus: LoanListRow["visibleStatus"], statusFilter: LoanStatusFilter) {
-  if (statusFilter === "all") {
-    return true;
-  }
-
-  return visibleStatus === statusFilter;
-}
-
 export async function loadStaffLoansPageData(scope: StaffLoansScope): Promise<StaffLoansPageData> {
-  const whereCondition = whereFrom(buildLoansFilters(scope));
+  const currentDate = getManilaTodayDateString();
+  const loanFilters = buildLoansFilters(scope);
+  const visibleStatusWhere = buildVisibleStatusWhere(scope.status, currentDate);
+  if (visibleStatusWhere) {
+    loanFilters.push(visibleStatusWhere);
+  }
+  const whereCondition = whereFrom(loanFilters);
   const branchOptionsWhere = buildBranchOptionsWhere(scope);
   const requestedPage = Math.max(scope.page, 1);
 
@@ -223,7 +238,22 @@ export async function loadStaffLoansPageData(scope: StaffLoansScope): Promise<St
       : Promise.resolve([])
   );
 
-  const allLoanRows = await db
+  const totalCount = await db
+    .select({ value: sql<number>`count(*)` })
+    .from(loan_records)
+    .innerJoin(branch, eq(branch.branch_id, loan_records.branch_id))
+    .innerJoin(borrowerUsers, eq(borrowerUsers.user_id, loan_records.borrower_id))
+    .leftJoin(borrower_info, eq(borrower_info.user_id, loan_records.borrower_id))
+    .leftJoin(loanCollectionStats, eq(loanCollectionStats.loanId, loan_records.loan_id))
+    .where(whereCondition)
+    .then((rows) => Number(rows[0]?.value) || 0)
+    .catch(() => 0);
+
+  const totalPages = Math.max(Math.ceil(totalCount / STAFF_LOANS_PAGE_SIZE), 1);
+  const page = Math.min(requestedPage, totalPages);
+  const offset = (page - 1) * STAFF_LOANS_PAGE_SIZE;
+
+  const pageLoanRows = await db
     .select({
       loan_id: loan_records.loan_id,
       loan_code: loan_records.loan_code,
@@ -243,30 +273,25 @@ export async function loadStaffLoansPageData(scope: StaffLoansScope): Promise<St
       collector_first_name: employee_info.first_name,
       collector_last_name: employee_info.last_name,
       collector_username: collectorUsers.username,
+      total_collected: sql<number>`coalesce(${loanCollectionStats.totalCollected}, 0)`,
+      collection_count: sql<number>`coalesce(${loanCollectionStats.collectionCount}, 0)`,
     })
     .from(loan_records)
     .innerJoin(branch, eq(branch.branch_id, loan_records.branch_id))
     .innerJoin(borrowerUsers, eq(borrowerUsers.user_id, loan_records.borrower_id))
     .leftJoin(borrower_info, eq(borrower_info.user_id, loan_records.borrower_id))
+    .leftJoin(loanCollectionStats, eq(loanCollectionStats.loanId, loan_records.loan_id))
     .leftJoin(collectorUsers, eq(collectorUsers.user_id, loan_records.collector_id))
     .leftJoin(employee_info, eq(employee_info.user_id, collectorUsers.user_id))
     .where(whereCondition)
     .orderBy(desc(loan_records.loan_id))
+    .limit(STAFF_LOANS_PAGE_SIZE)
+    .offset(offset)
     .catch(() => []);
-
-  const collectionStatsMap = await loadLoanCollectionStatsMap(allLoanRows.map((row) => row.loan_id));
-  const currentDate = getManilaTodayDateString();
-  const filteredLoans = allLoanRows
-    .map((row) => toLoanListRow(row, scope, collectionStatsMap.get(row.loan_id), currentDate))
-    .filter((row) => matchesVisibleStatusFilter(row.visibleStatus, scope.status));
-  const totalCount = filteredLoans.length;
-  const totalPages = Math.max(Math.ceil(totalCount / STAFF_LOANS_PAGE_SIZE), 1);
-  const page = Math.min(requestedPage, totalPages);
-  const offset = (page - 1) * STAFF_LOANS_PAGE_SIZE;
 
   return {
     branchOptions,
-    loans: filteredLoans.slice(offset, offset + STAFF_LOANS_PAGE_SIZE),
+    loans: pageLoanRows.map((row) => toLoanListRow(row, scope, currentDate)),
     page,
     pageSize: STAFF_LOANS_PAGE_SIZE,
     totalCount,

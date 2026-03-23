@@ -494,3 +494,22 @@ export function isSystemGeneratedTemplateAllowedForRole(
 
   return allowedKeys.includes(normalizedTemplateKey as ReportsSystemGeneratedAnalyticsTemplateKey);
 }
+
+export function resolveReportTemplateFilterKeys(templateKey: string) {
+  const normalizedTemplateKey = normalizeReportTemplateKey(templateKey);
+  const matchingLegacyKeys = Object.entries(LEGACY_ANALYTICS_TEMPLATE_KEY_ALIASES)
+    .filter(([, value]) => value === normalizedTemplateKey)
+    .map(([key]) => key);
+
+  return Array.from(new Set([normalizedTemplateKey, ...matchingLegacyKeys]));
+}
+
+export function getReportTemplateKeysForCategory(category: ReportsTemplateCategoryKey) {
+  if (category === "documents") {
+    return OPERATIONAL_DOCUMENT_TEMPLATES.map((template) => template.key);
+  }
+
+  return ANALYTICS_REPORT_TEMPLATES
+    .filter((template) => template.category === category)
+    .flatMap((template) => resolveReportTemplateFilterKeys(template.key));
+}
