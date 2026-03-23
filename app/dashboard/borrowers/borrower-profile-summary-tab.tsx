@@ -1,7 +1,9 @@
 import { ManagedUserSummaryCard } from "@/app/dashboard/manage-user-accounts/managed-user-summary-card";
+import { BorrowerRiskAssessmentCard } from "@/app/dashboard/borrowers/[borrowerId]/borrower-risk-assessment-dialog-card";
 
 export function BorrowerProfileSummaryTab({
   borrower,
+  borrowerId,
 }: {
   borrower: {
     fullName: string;
@@ -14,24 +16,29 @@ export function BorrowerProfileSummaryTab({
     address: string | null;
     dateCreated: string | null;
   };
+  borrowerId: string;
 }) {
   return (
-    <ManagedUserSummaryCard
-      companyId={borrower.companyId}
-      details={[
-        { label: "Full Name", value: borrower.fullName },
-        { label: "Contact No.", value: borrower.contactNumber || "N/A" },
-        { label: "Email", value: borrower.email || "N/A" },
-        { label: "Branch / Scope", value: borrower.branchLabel },
-        { label: "Area", value: borrower.areaCode },
-        { label: "Address", value: borrower.address || "N/A" },
-        { label: "Date Created", value: borrower.dateCreated || "N/A" },
-      ]}
-      eyebrow="Borrower Profile"
-      roleName="Borrower"
-      status={borrower.status}
-      subtitle="Read-only borrower account details within your allowed scope."
-      title={borrower.fullName}
-    />
+    <div className="space-y-6">
+      <ManagedUserSummaryCard
+        companyId={borrower.companyId}
+        details={[
+          { label: "Full Name", value: borrower.fullName },
+          { label: "Contact No.", value: borrower.contactNumber || "N/A" },
+          { label: "Email", value: borrower.email || "N/A" },
+          { label: "Branch / Scope", value: borrower.branchLabel },
+          { label: "Area", value: borrower.areaCode },
+          { label: "Address", value: borrower.address || "N/A" },
+          { label: "Date Created", value: borrower.dateCreated || "N/A" },
+        ]}
+        eyebrow="Borrower Profile"
+        roleName="Borrower"
+        status={borrower.status}
+        subtitle="Read-only borrower account details within your allowed scope."
+        title={borrower.fullName}
+      />
+
+      <BorrowerRiskAssessmentCard borrowerId={borrowerId} />
+    </div>
   );
 }

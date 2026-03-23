@@ -389,6 +389,7 @@ export default async function BorrowerProfilePage({ params, searchParams }: Page
             address: borrower.address,
             dateCreated: borrower.date_created,
           }}
+          borrowerId={borrower.user_id}
         />
       ) : activeTab === "loan-history" ? (
         <BorrowerLoanHistoryTab

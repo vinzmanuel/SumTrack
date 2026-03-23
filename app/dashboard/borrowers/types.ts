@@ -11,6 +11,75 @@ export type BorrowersPageProps = {
 
 export type BorrowerDetailTabKey = "profile" | "loan-history" | "documents";
 
+export type BorrowerRiskLabel = "Okay" | "Warning" | "Risky";
+export type BorrowerRiskAiTone = "neutral" | "mixed" | "concerning" | "severe";
+export type BorrowerRiskAiConfidence = "low" | "medium" | "high";
+export type BorrowerRiskSignalKind =
+  | "income_instability"
+  | "avoidance"
+  | "health_issue"
+  | "family_emergency"
+  | "work_disruption"
+  | "repeated_promises"
+  | "other";
+
+export type BorrowerRiskSignal = {
+  signal: BorrowerRiskSignalKind;
+  evidence: string;
+};
+
+export type BorrowerRiskLoanMix = {
+  active: number;
+  overdue: number;
+  completed: number;
+  archived: number;
+  abandoned: number;
+};
+
+export type BorrowerRiskMetrics = {
+  totalLoans: number;
+  totalCollectionEntries: number;
+  totalNormalPayments: number;
+  totalMissedPayments: number;
+  missedPaymentRatio: number;
+  loansWithMissedPayments: number;
+  mostRecentMissedPaymentDate: string | null;
+  missedPaymentsLast30Days: number;
+  missedPaymentsLast90Days: number;
+  currentLoanMix: BorrowerRiskLoanMix;
+};
+
+export type BorrowerRiskScoreBreakdown = {
+  missedPaymentCount: number;
+  missedPaymentRatio: number;
+  recency: number;
+  loanDistress: number;
+  aiNoteSeverity: number;
+  total: number;
+};
+
+export type BorrowerRiskAiResult = {
+  status: "success" | "skipped_no_notes" | "unavailable";
+  summary: string;
+  overallTone: BorrowerRiskAiTone | null;
+  severityScore: number | null;
+  confidence: BorrowerRiskAiConfidence | null;
+  riskSignals: BorrowerRiskSignal[];
+  mitigatingSignals: string[];
+  notesAnalyzedCount: number;
+  message: string | null;
+};
+
+export type BorrowerRiskAssessmentResult = {
+  label: BorrowerRiskLabel;
+  score: number;
+  explanation: string;
+  disclaimer: string;
+  metrics: BorrowerRiskMetrics;
+  scoreBreakdown: BorrowerRiskScoreBreakdown;
+  aiAnalysis: BorrowerRiskAiResult;
+};
+
 export type BorrowersListFilters = {
   requestedBranchId: number | null;
   requestedAreaId: number | null;
