@@ -1,9 +1,12 @@
 import Link from "next/link";
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  getDashboardAuthContext,
+  getSingleAssignedBranchId,
+} from "@/app/dashboard/auth";
 import { db } from "@/db";
-import { areas, branch, employee_branch_assignment, roles, users } from "@/db/schema";
-import { createClient } from "@/lib/supabase/server";
+import { areas, branch, roles } from "@/db/schema";
 import { CreateAccountForm } from "@/app/dashboard/create-account/create-account-form";
 
 type RoleRow = {
@@ -33,12 +36,9 @@ const ALLOWED_ROLE_NAMES = [
 ];
 
 export default async function CreateAccountPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const auth = await getDashboardAuthContext();
 
-  if (!user) {
+  if (!auth.ok) {
     return (
       <main className="mx-auto flex min-h-screen w-full max-w-4xl items-center justify-center p-6">
         <Card className="w-full max-w-md">
@@ -56,30 +56,9 @@ export default async function CreateAccountPage() {
     );
   }
 
-  const currentAppUser = await db
-    .select({ role_id: users.role_id })
-    .from(users)
-    .where(eq(users.user_id, user.id))
-    .limit(1)
-    .then((rows) => rows[0] ?? null)
-    .catch(() => null);
-
-  const currentRole = currentAppUser?.role_id
-    ? await db
-        .select({
-          role_id: roles.role_id,
-          role_name: roles.role_name,
-        })
-        .from(roles)
-        .where(eq(roles.role_id, currentAppUser.role_id))
-        .limit(1)
-        .then((rows) => rows[0] ?? null)
-        .catch(() => null)
-    : null;
-
-  const isAdmin = currentRole?.role_name === "Admin";
-  const isBranchManager = currentRole?.role_name === "Branch Manager";
-  const isSecretary = currentRole?.role_name === "Secretary";
+  const isAdmin = auth.roleName === "Admin";
+  const isBranchManager = auth.roleName === "Branch Manager";
+  const isSecretary = auth.roleName === "Secretary";
 
   if (!isAdmin && !isBranchManager && !isSecretary) {
     return (
@@ -103,19 +82,8 @@ export default async function CreateAccountPage() {
 
   let fixedBranchId: number | null = null;
   if (!isAdmin) {
-    const assignments = await db
-      .select({ branch_id: employee_branch_assignment.branch_id })
-      .from(employee_branch_assignment)
-      .where(
-        and(
-          eq(employee_branch_assignment.employee_user_id, user.id),
-          isNull(employee_branch_assignment.end_date),
-        ),
-      )
-      .catch(() => []);
-
-    const uniqueBranchIds = Array.from(new Set(assignments.map((item) => item.branch_id)));
-    if (uniqueBranchIds.length !== 1) {
+    fixedBranchId = getSingleAssignedBranchId(auth);
+    if (fixedBranchId === null) {
       return (
         <main className="mx-auto flex min-h-screen w-full max-w-4xl items-center justify-center p-6">
           <Card className="w-full max-w-md">
@@ -134,8 +102,6 @@ export default async function CreateAccountPage() {
         </main>
       );
     }
-
-    fixedBranchId = uniqueBranchIds[0];
   }
 
   const rolesData = await db

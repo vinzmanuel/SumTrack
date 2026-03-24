@@ -1,10 +1,13 @@
 "use server";
 
-import { and, asc, eq, gt, isNull } from "drizzle-orm";
+import { and, asc, eq, gt } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import {
+  getDashboardAuthContext,
+  getSingleAssignedBranchId,
+} from "@/app/dashboard/auth";
 import { db } from "@/db";
-import { branch, employee_branch_assignment, incentive_rules, roles, users } from "@/db/schema";
-import { createClient } from "@/lib/supabase/server";
+import { branch, incentive_rules, roles } from "@/db/schema";
 import type { IncentiveRuleFormState } from "@/app/dashboard/incentives/rules/state";
 import {
   getCurrentPayPeriod,
@@ -76,43 +79,17 @@ export async function upsertIncentiveRuleAction(
     fieldErrors.flat_amount = "Percent value and flat amount cannot both be 0.";
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user: currentAuthUser },
-  } = await supabase.auth.getUser();
+  const auth = await getDashboardAuthContext();
 
-  if (!currentAuthUser) {
+  if (!auth.ok) {
     return {
       status: "error",
       message: "You must be logged in.",
     };
   }
 
-  const currentAppUser = await db
-    .select({ role_id: users.role_id })
-    .from(users)
-    .where(eq(users.user_id, currentAuthUser.id))
-    .limit(1)
-    .then((rows) => rows[0] ?? null)
-    .catch(() => null);
-
-  if (!currentAppUser?.role_id) {
-    return {
-      status: "error",
-      message: "Unable to verify your app account.",
-    };
-  }
-
-  const currentRole = await db
-    .select({ role_name: roles.role_name })
-    .from(roles)
-    .where(eq(roles.role_id, currentAppUser.role_id))
-    .limit(1)
-    .then((rows) => rows[0] ?? null)
-    .catch(() => null);
-
-  const isAdmin = currentRole?.role_name === "Admin";
-  const isBranchManager = currentRole?.role_name === "Branch Manager";
+  const isAdmin = auth.roleName === "Admin";
+  const isBranchManager = auth.roleName === "Branch Manager";
 
   if (!isAdmin && !isBranchManager) {
     return {
@@ -132,36 +109,22 @@ export async function upsertIncentiveRuleAction(
   }
 
   if (isBranchManager) {
-    const activeAssignments = await db
-      .select({
-        branch_id: employee_branch_assignment.branch_id,
-      })
-      .from(employee_branch_assignment)
-      .where(
-        and(
-          eq(employee_branch_assignment.employee_user_id, currentAuthUser.id),
-          isNull(employee_branch_assignment.end_date),
-        ),
-      )
-      .catch(() => []);
-
-    if (activeAssignments.length === 0) {
+    if (auth.assignedBranchIds.length === 0) {
       return {
         status: "error",
         message: "No active branch assignment found for your account.",
       };
     }
 
-    const uniqueBranchIds = Array.from(new Set(activeAssignments.map((assignment) => assignment.branch_id)));
-
-    if (uniqueBranchIds.length !== 1) {
+    const fixedBranchId = getSingleAssignedBranchId(auth);
+    if (fixedBranchId === null) {
       return {
         status: "error",
         message: "Unable to resolve a single active branch assignment.",
       };
     }
 
-    resolvedBranchId = uniqueBranchIds[0];
+    resolvedBranchId = fixedBranchId;
 
     if (requestedBranchId !== null && requestedBranchId !== resolvedBranchId) {
       return {
@@ -296,7 +259,7 @@ export async function upsertIncentiveRuleAction(
             percent_value: String(percentValue!),
             flat_amount: String(flatAmount!),
             effective_end: null,
-            created_by: currentAuthUser.id,
+            created_by: auth.userId,
           })
           .where(eq(incentive_rules.rule_id, exactNextRule.rule_id));
         return;
@@ -327,7 +290,7 @@ export async function upsertIncentiveRuleAction(
             flat_amount: String(flatAmount!),
             effective_start: nextPayPeriod.periodStart,
             effective_end: null,
-            created_by: currentAuthUser.id,
+            created_by: auth.userId,
           })
           .where(eq(incentive_rules.rule_id, futureRule.rule_id));
         return;
@@ -340,7 +303,7 @@ export async function upsertIncentiveRuleAction(
         flat_amount: String(flatAmount!),
         effective_start: nextPayPeriod.periodStart,
         effective_end: null,
-        created_by: currentAuthUser.id,
+        created_by: auth.userId,
       });
     });
   } catch (error) {

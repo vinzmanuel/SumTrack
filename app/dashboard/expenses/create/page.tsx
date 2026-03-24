@@ -1,18 +1,15 @@
 import Link from "next/link";
-import { and, eq, isNull } from "drizzle-orm";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { db } from "@/db";
-import { branch, employee_branch_assignment, roles, users } from "@/db/schema";
-import { createClient } from "@/lib/supabase/server";
+import {
+  getDashboardAuthContext,
+  getSingleAssignedBranchId,
+} from "@/app/dashboard/auth";
 import { CreateExpenseForm } from "@/app/dashboard/expenses/create/create-expense-form";
 
 export default async function CreateExpensePage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const auth = await getDashboardAuthContext();
 
-  if (!user) {
+  if (!auth.ok) {
     return (
       <main className="mx-auto flex min-h-screen w-full max-w-4xl items-center justify-center p-6">
         <Card className="w-full max-w-md">
@@ -30,29 +27,7 @@ export default async function CreateExpensePage() {
     );
   }
 
-  const currentAppUser = await db
-    .select({
-      role_id: users.role_id,
-    })
-    .from(users)
-    .where(eq(users.user_id, user.id))
-    .limit(1)
-    .then((rows) => rows[0] ?? null)
-    .catch(() => null);
-
-  const currentRole = currentAppUser?.role_id
-    ? await db
-        .select({
-          role_name: roles.role_name,
-        })
-        .from(roles)
-        .where(eq(roles.role_id, currentAppUser.role_id))
-        .limit(1)
-        .then((rows) => rows[0] ?? null)
-        .catch(() => null)
-    : null;
-
-  if (currentRole?.role_name !== "Branch Manager") {
+  if (auth.roleName !== "Branch Manager") {
     return (
       <main className="mx-auto flex min-h-screen w-full max-w-4xl items-center justify-center p-6">
         <Card className="w-full max-w-md">
@@ -72,20 +47,7 @@ export default async function CreateExpensePage() {
     );
   }
 
-  const activeAssignments = await db
-    .select({
-      branch_id: employee_branch_assignment.branch_id,
-    })
-    .from(employee_branch_assignment)
-    .where(
-      and(
-        eq(employee_branch_assignment.employee_user_id, user.id),
-        isNull(employee_branch_assignment.end_date),
-      ),
-    )
-    .catch(() => []);
-
-  if (activeAssignments.length === 0) {
+  if (auth.assignedBranchIds.length === 0) {
     return (
       <main className="mx-auto min-h-screen w-full max-w-4xl p-6">
         <Card>
@@ -106,9 +68,8 @@ export default async function CreateExpensePage() {
     );
   }
 
-  const uniqueBranchIds = Array.from(new Set(activeAssignments.map((assignment) => assignment.branch_id)));
-
-  if (uniqueBranchIds.length !== 1) {
+  const branchId = getSingleAssignedBranchId(auth);
+  if (branchId === null) {
     return (
       <main className="mx-auto min-h-screen w-full max-w-4xl p-6">
         <Card>
@@ -129,18 +90,7 @@ export default async function CreateExpensePage() {
     );
   }
 
-  const branchRow = await db
-    .select({
-      branch_id: branch.branch_id,
-      branch_name: branch.branch_name,
-    })
-    .from(branch)
-    .where(eq(branch.branch_id, uniqueBranchIds[0]))
-    .limit(1)
-    .then((rows) => rows[0] ?? null)
-    .catch(() => null);
-
-  if (!branchRow) {
+  if (!auth.activeBranchName) {
     return (
       <main className="mx-auto min-h-screen w-full max-w-4xl p-6">
         <Card>
@@ -175,7 +125,7 @@ export default async function CreateExpensePage() {
         </CardContent>
       </Card>
 
-      <CreateExpenseForm branchName={branchRow.branch_name} />
+      <CreateExpenseForm branchName={auth.activeBranchName} />
     </main>
   );
 }

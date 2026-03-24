@@ -1,9 +1,10 @@
 "use server";
-
-import { and, eq, isNull } from "drizzle-orm";
+import {
+  getDashboardAuthContext,
+  getSingleAssignedBranchId,
+} from "@/app/dashboard/auth";
 import { db } from "@/db";
-import { branch, employee_branch_assignment, expenses, roles, users } from "@/db/schema";
-import { createClient } from "@/lib/supabase/server";
+import { expenses } from "@/db/schema";
 import type { CreateExpenseState } from "@/app/dashboard/expenses/create/state";
 
 type FormFields = {
@@ -78,95 +79,38 @@ export async function createExpenseAction(
     };
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user: currentAuthUser },
-  } = await supabase.auth.getUser();
+  const auth = await getDashboardAuthContext();
 
-  if (!currentAuthUser) {
+  if (!auth.ok) {
     return {
       status: "error",
       message: "You must be logged in.",
     };
   }
 
-  const currentAppUser = await db
-    .select({
-      role_id: users.role_id,
-    })
-    .from(users)
-    .where(eq(users.user_id, currentAuthUser.id))
-    .limit(1)
-    .then((rows) => rows[0] ?? null)
-    .catch(() => null);
-
-  if (!currentAppUser?.role_id) {
-    return {
-      status: "error",
-      message: "Unable to verify your app account.",
-    };
-  }
-
-  const currentRole = await db
-    .select({
-      role_name: roles.role_name,
-    })
-    .from(roles)
-    .where(eq(roles.role_id, currentAppUser.role_id))
-    .limit(1)
-    .then((rows) => rows[0] ?? null)
-    .catch(() => null);
-
-  if (currentRole?.role_name !== "Branch Manager") {
+  if (auth.roleName !== "Branch Manager") {
     return {
       status: "error",
       message: "Only Branch Manager users can record expenses.",
     };
   }
 
-  const activeAssignments = await db
-    .select({
-      branch_id: employee_branch_assignment.branch_id,
-    })
-    .from(employee_branch_assignment)
-    .where(
-      and(
-        eq(employee_branch_assignment.employee_user_id, currentAuthUser.id),
-        isNull(employee_branch_assignment.end_date),
-      ),
-    )
-    .catch(() => []);
-
-  if (activeAssignments.length === 0) {
+  if (auth.assignedBranchIds.length === 0) {
     return {
       status: "error",
       message: "No active branch assignment found for your account.",
     };
   }
 
-  const uniqueBranchIds = Array.from(new Set(activeAssignments.map((assignment) => assignment.branch_id)));
-
-  if (uniqueBranchIds.length !== 1) {
+  const branchId = getSingleAssignedBranchId(auth);
+  if (branchId === null) {
     return {
       status: "error",
       message: "Unable to resolve a single active branch assignment.",
     };
   }
 
-  const branchId = uniqueBranchIds[0];
-
-  const branchRow = await db
-    .select({
-      branch_id: branch.branch_id,
-      branch_name: branch.branch_name,
-    })
-    .from(branch)
-    .where(eq(branch.branch_id, branchId))
-    .limit(1)
-    .then((rows) => rows[0] ?? null)
-    .catch(() => null);
-
-  if (!branchRow) {
+  if (!auth.activeBranchName) {
     return {
       status: "error",
       message: "Active branch assignment points to an invalid branch.",
@@ -176,12 +120,12 @@ export async function createExpenseAction(
   const insertedExpense = await db
     .insert(expenses)
     .values({
-      branch_id: branchRow.branch_id,
+      branch_id: branchId,
       amount: String(amount),
       expense_category: expenseCategory,
       description: description || "",
       expense_date: expenseDate,
-      recorded_by: currentAuthUser.id,
+      recorded_by: auth.userId,
     })
     .returning({
       expense_id: expenses.expense_id,
@@ -205,7 +149,7 @@ export async function createExpenseAction(
     message: "Expense recorded successfully.",
     result: {
       expenseId: String(insertedExpense.expense_id),
-      branchName: branchRow.branch_name,
+      branchName: auth.activeBranchName,
       expenseCategory: insertedExpense.expense_category,
       description: insertedExpense.description,
       amount: Number(insertedExpense.amount),

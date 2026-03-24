@@ -1,8 +1,13 @@
 import Link from "next/link";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TremorCard, TremorDescription } from "@/components/tremor/raw/metric-card";
+import {
+  getDashboardAuthContext,
+  getSingleAssignedBranchId,
+  getUniqueAssignedBranchIds,
+} from "@/app/dashboard/auth";
 import { BorrowerDocumentsSection } from "@/app/dashboard/borrowers/[borrowerId]/documents/borrower-documents-section";
 import { BorrowerLoanHistoryTab } from "@/app/dashboard/borrowers/borrower-loan-history-tab";
 import { parseBorrowerDetailTab } from "@/app/dashboard/borrowers/detail-filters";
@@ -14,14 +19,11 @@ import {
   borrower_docs,
   borrower_info,
   branch,
-  employee_branch_assignment,
   employee_info,
   loan_records,
-  roles,
   users,
 } from "@/db/schema";
 import { getVisibleLoanStatusFromStoredStatus } from "@/app/dashboard/loans/loan-state";
-import { createClient } from "@/lib/supabase/server";
 
 type PageProps = {
   params: Promise<{
@@ -104,12 +106,9 @@ export default async function BorrowerProfilePage({ params, searchParams }: Page
   const activeTab = parseBorrowerDetailTab(tabParam);
   const source = sourceParam === "manage-users" ? "manage-users" : "borrowers";
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const auth = await getDashboardAuthContext();
 
-  if (!user) {
+  if (!auth.ok) {
     return renderMessageCard({
       href: "/login",
       label: "Go to login",
@@ -117,29 +116,11 @@ export default async function BorrowerProfilePage({ params, searchParams }: Page
     });
   }
 
-  const currentAppUser = await db
-    .select({ role_id: users.role_id })
-    .from(users)
-    .where(eq(users.user_id, user.id))
-    .limit(1)
-    .then((rows) => rows[0] ?? null)
-    .catch(() => null);
-
-  const currentRole = currentAppUser?.role_id
-    ? await db
-        .select({ role_name: roles.role_name })
-        .from(roles)
-        .where(eq(roles.role_id, currentAppUser.role_id))
-        .limit(1)
-        .then((rows) => rows[0] ?? null)
-        .catch(() => null)
-    : null;
-
-  const isAdmin = currentRole?.role_name === "Admin";
-  const isBranchManager = currentRole?.role_name === "Branch Manager";
-  const isSecretary = currentRole?.role_name === "Secretary";
-  const isAuditor = currentRole?.role_name === "Auditor";
-  const isCollector = currentRole?.role_name === "Collector";
+  const isAdmin = auth.roleName === "Admin";
+  const isBranchManager = auth.roleName === "Branch Manager";
+  const isSecretary = auth.roleName === "Secretary";
+  const isAuditor = auth.roleName === "Auditor";
+  const isCollector = auth.roleName === "Collector";
   const canManageDocs = isAdmin || isBranchManager || isSecretary;
   const canViewDocs = isAdmin || isBranchManager || isSecretary || isAuditor;
   const canCreateLoan = isAdmin || isBranchManager || isSecretary;
@@ -163,21 +144,8 @@ export default async function BorrowerProfilePage({ params, searchParams }: Page
 
   let allowedBranchIds: number[] = [];
   if (!isAdmin) {
-    const activeAssignments = await db
-      .select({
-        branch_id: employee_branch_assignment.branch_id,
-      })
-      .from(employee_branch_assignment)
-      .where(
-        and(
-          eq(employee_branch_assignment.employee_user_id, user.id),
-          isNull(employee_branch_assignment.end_date),
-        ),
-      )
-      .catch(() => []);
-
-    const uniqueBranchIds = Array.from(new Set(activeAssignments.map((item) => item.branch_id)));
     if (isAuditor) {
+      const uniqueBranchIds = getUniqueAssignedBranchIds(auth);
       if (uniqueBranchIds.length === 0) {
         return renderMessageCard({
           href: "/dashboard/borrowers",
@@ -186,14 +154,17 @@ export default async function BorrowerProfilePage({ params, searchParams }: Page
         });
       }
       allowedBranchIds = uniqueBranchIds;
-    } else if (uniqueBranchIds.length !== 1) {
-      return renderMessageCard({
-        href: "/dashboard/borrowers",
-        label: "Back to borrowers",
-        message: "Unable to resolve your active branch assignment.",
-      });
     } else {
-      allowedBranchIds = [uniqueBranchIds[0]];
+      const fixedBranchId = getSingleAssignedBranchId(auth);
+      if (fixedBranchId === null) {
+        return renderMessageCard({
+          href: "/dashboard/borrowers",
+          label: "Back to borrowers",
+          message: "Unable to resolve your active branch assignment.",
+        });
+      }
+
+      allowedBranchIds = [fixedBranchId];
     }
   }
 

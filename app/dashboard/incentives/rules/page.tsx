@@ -1,9 +1,12 @@
 import Link from "next/link";
-import { and, asc, eq, inArray, isNull } from "drizzle-orm";
+import { asc, inArray } from "drizzle-orm";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  getDashboardAuthContext,
+  getSingleAssignedBranchId,
+} from "@/app/dashboard/auth";
 import { db } from "@/db";
-import { branch, employee_branch_assignment, roles, users } from "@/db/schema";
-import { createClient } from "@/lib/supabase/server";
+import { branch, roles } from "@/db/schema";
 import { IncentiveRulesForm } from "@/app/dashboard/incentives/rules/incentive-rules-form";
 import {
   getCurrentPayPeriod,
@@ -15,12 +18,9 @@ const ADMIN_MANAGEABLE_ROLES = ["Branch Manager", "Secretary", "Collector"] as c
 const BRANCH_MANAGER_MANAGEABLE_ROLES = ["Secretary", "Collector"] as const;
 
 export default async function IncentiveRulesPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const auth = await getDashboardAuthContext();
 
-  if (!user) {
+  if (!auth.ok) {
     return (
       <main className="mx-auto flex min-h-screen w-full max-w-5xl items-center justify-center p-6">
         <Card className="w-full max-w-md">
@@ -38,26 +38,8 @@ export default async function IncentiveRulesPage() {
     );
   }
 
-  const currentAppUser = await db
-    .select({ role_id: users.role_id })
-    .from(users)
-    .where(eq(users.user_id, user.id))
-    .limit(1)
-    .then((rows) => rows[0] ?? null)
-    .catch(() => null);
-
-  const currentRole = currentAppUser?.role_id
-    ? await db
-        .select({ role_name: roles.role_name })
-        .from(roles)
-        .where(eq(roles.role_id, currentAppUser.role_id))
-        .limit(1)
-        .then((rows) => rows[0] ?? null)
-        .catch(() => null)
-    : null;
-
-  const isAdmin = currentRole?.role_name === "Admin";
-  const isBranchManager = currentRole?.role_name === "Branch Manager";
+  const isAdmin = auth.roleName === "Admin";
+  const isBranchManager = auth.roleName === "Branch Manager";
 
   if (!isAdmin && !isBranchManager) {
     return (
@@ -91,20 +73,7 @@ export default async function IncentiveRulesPage() {
   let fixedBranch: { branch_id: number; branch_name: string } | null = null;
 
   if (isBranchManager) {
-    const activeAssignments = await db
-      .select({
-        branch_id: employee_branch_assignment.branch_id,
-      })
-      .from(employee_branch_assignment)
-      .where(
-        and(
-          eq(employee_branch_assignment.employee_user_id, user.id),
-          isNull(employee_branch_assignment.end_date),
-        ),
-      )
-      .catch(() => []);
-
-    if (activeAssignments.length === 0) {
+    if (auth.assignedBranchIds.length === 0) {
       return (
         <main className="mx-auto min-h-screen w-full max-w-5xl p-6">
           <Card>
@@ -125,9 +94,8 @@ export default async function IncentiveRulesPage() {
       );
     }
 
-    const uniqueBranchIds = Array.from(new Set(activeAssignments.map((assignment) => assignment.branch_id)));
-
-    if (uniqueBranchIds.length !== 1) {
+    const fixedBranchId = getSingleAssignedBranchId(auth);
+    if (fixedBranchId === null) {
       return (
         <main className="mx-auto min-h-screen w-full max-w-5xl p-6">
           <Card>
@@ -148,18 +116,7 @@ export default async function IncentiveRulesPage() {
       );
     }
 
-    fixedBranch = await db
-      .select({
-        branch_id: branch.branch_id,
-        branch_name: branch.branch_name,
-      })
-      .from(branch)
-      .where(eq(branch.branch_id, uniqueBranchIds[0]))
-      .limit(1)
-      .then((rows) => rows[0] ?? null)
-      .catch(() => null);
-
-    if (!fixedBranch) {
+    if (!auth.activeBranchName) {
       return (
         <main className="mx-auto min-h-screen w-full max-w-5xl p-6">
           <Card>
@@ -179,6 +136,11 @@ export default async function IncentiveRulesPage() {
         </main>
       );
     }
+
+    fixedBranch = {
+      branch_id: fixedBranchId,
+      branch_name: auth.activeBranchName,
+    };
   }
 
   const manageableRoleNames = isAdmin ? ADMIN_MANAGEABLE_ROLES : BRANCH_MANAGER_MANAGEABLE_ROLES;

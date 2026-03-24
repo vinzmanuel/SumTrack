@@ -198,3 +198,20 @@ export async function resolveBranchNames(branchIds: number[]) {
     .catch(() => []);
   return new Map(rows.map((row) => [row.branch_id, row.branch_name]));
 }
+
+export function getUniqueAssignedBranchIds(
+  auth: Pick<DashboardAuthContext, "assignedBranchIds">,
+) {
+  return Array.from(
+    new Set(
+      auth.assignedBranchIds.filter((branchId): branchId is number => Number.isInteger(branchId)),
+    ),
+  );
+}
+
+export function getSingleAssignedBranchId(
+  auth: Pick<DashboardAuthContext, "assignedBranchIds">,
+) {
+  const branchIds = getUniqueAssignedBranchIds(auth);
+  return branchIds.length === 1 ? branchIds[0] : null;
+}
