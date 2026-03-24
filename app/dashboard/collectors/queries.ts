@@ -21,7 +21,11 @@ import {
   buildVisibleLoanStatusEqualsSql,
   buildVisibleLoanStatusInSql,
 } from "@/app/dashboard/loans/loan-derived-status-sql";
-import { buildLoanComputedState, getManilaTodayDateString } from "@/app/dashboard/loans/loan-state";
+import {
+  buildLoanComputedState,
+  getManilaTodayDateString,
+  type StoredLoanStatus,
+} from "@/app/dashboard/loans/loan-state";
 import { db } from "@/db";
 import {
   areas,
@@ -65,10 +69,8 @@ const COLLECTOR_ASSIGNED_LOANS_PAGE_SIZE = 12;
 const borrowerUsers = alias(users, "collector_detail_borrower_users");
 const COLLECTOR_ASSIGNED_LOAN_ARCHIVED_STORED_VALUES = [
   "archived",
-  "Archived",
   "abandoned",
-  "Abandoned",
-] as const;
+] as const satisfies readonly StoredLoanStatus[];
 const collectorAssignedLoanCollectionStats = db
   .select({
     loanId: collections.loan_id,
@@ -1474,7 +1476,7 @@ export async function loadCollectorAssignedLoansData(
   filterConditions.push(
     notInArray(
       loan_records.status,
-      COLLECTOR_ASSIGNED_LOAN_ARCHIVED_STORED_VALUES as unknown as string[],
+      [...COLLECTOR_ASSIGNED_LOAN_ARCHIVED_STORED_VALUES],
     ),
   );
   const visibleStatusWhere = buildCollectorAssignedLoanVisibleStatusWhere(filters.status, currentDate);

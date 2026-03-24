@@ -1,8 +1,7 @@
-export type StoredLoanStatus = "active" | "archived" | "abandoned";
+export type StoredLoanStatus = "active" | "overdue" | "completed" | "archived" | "abandoned";
 export type VisibleLoanStatus = "Active" | "Overdue" | "Completed" | "Archived" | "Abandoned";
 
-const ARCHIVED_STORED_VALUES = new Set(["archived", "Archived"]);
-const ABANDONED_STORED_VALUES = new Set(["abandoned", "Abandoned"]);
+const TERMINAL_STORED_LOAN_STATUS_SET = new Set<StoredLoanStatus>(["archived", "abandoned"]);
 
 function clampMoney(value: number) {
   return Number.isFinite(value) ? Math.max(value, 0) : 0;
@@ -22,12 +21,22 @@ export function normalizeStoredLoanStatus(status: string | null | undefined): St
     return "active";
   }
 
-  if (ARCHIVED_STORED_VALUES.has(status)) {
+  const normalized = status.trim().toLowerCase();
+
+  if (normalized === "archived") {
     return "archived";
   }
 
-  if (ABANDONED_STORED_VALUES.has(status)) {
+  if (normalized === "abandoned") {
     return "abandoned";
+  }
+
+  if (normalized === "completed") {
+    return "completed";
+  }
+
+  if (normalized === "overdue") {
+    return "overdue";
   }
 
   return "active";
@@ -43,32 +52,68 @@ export function calculateLoanRemainingBalance(totalPayable: number, totalCollect
   return clampMoney(totalPayable - clampMoney(totalCollected));
 }
 
+export function isTerminalStoredLoanStatus(status: string | null | undefined) {
+  return TERMINAL_STORED_LOAN_STATUS_SET.has(normalizeStoredLoanStatus(status));
+}
+
+export function resolveReconciledStoredLoanStatus(params: {
+  storedStatus: string | null | undefined;
+  dueDate: string;
+  remainingBalance: number;
+  currentDate?: string;
+}): StoredLoanStatus {
+  const normalizedStoredStatus = normalizeStoredLoanStatus(params.storedStatus);
+
+  if (isTerminalStoredLoanStatus(normalizedStoredStatus)) {
+    return normalizedStoredStatus;
+  }
+
+  if (params.remainingBalance <= 0.01) {
+    return "completed";
+  }
+
+  const currentDate = params.currentDate ?? getManilaTodayDateString();
+  if (currentDate > params.dueDate && params.remainingBalance > 0.01) {
+    return "overdue";
+  }
+
+  return "active";
+}
+
+function toVisibleLoanStatus(status: StoredLoanStatus): VisibleLoanStatus {
+  if (status === "archived") {
+    return "Archived";
+  }
+
+  if (status === "abandoned") {
+    return "Abandoned";
+  }
+
+  if (status === "completed") {
+    return "Completed";
+  }
+
+  if (status === "overdue") {
+    return "Overdue";
+  }
+
+  return "Active";
+}
+
 export function resolveVisibleLoanStatus(params: {
   storedStatus: string | null | undefined;
   dueDate: string;
   remainingBalance: number;
   currentDate?: string;
 }): VisibleLoanStatus {
-  const normalizedStoredStatus = normalizeStoredLoanStatus(params.storedStatus);
-
-  if (normalizedStoredStatus === "archived") {
-    return "Archived";
-  }
-
-  if (normalizedStoredStatus === "abandoned") {
-    return "Abandoned";
-  }
-
-  if (params.remainingBalance <= 0) {
-    return "Completed";
-  }
-
-  const currentDate = params.currentDate ?? getManilaTodayDateString();
-  if (currentDate > params.dueDate && params.remainingBalance > 0) {
-    return "Overdue";
-  }
-
-  return "Active";
+  return toVisibleLoanStatus(
+    resolveReconciledStoredLoanStatus({
+      storedStatus: params.storedStatus,
+      dueDate: params.dueDate,
+      remainingBalance: params.remainingBalance,
+      currentDate: params.currentDate,
+    }),
+  );
 }
 
 export function buildLoanComputedState(params: {
@@ -99,21 +144,18 @@ export function buildLoanComputedState(params: {
 }
 
 export function isLoanInArchivedBucket(storedStatus: string | null | undefined) {
-  const normalizedStoredStatus = normalizeStoredLoanStatus(storedStatus);
-  return normalizedStoredStatus === "archived" || normalizedStoredStatus === "abandoned";
+  return isTerminalStoredLoanStatus(storedStatus);
 }
 
 export function canRecordCollectionForLoan(params: {
   storedStatus: string | null | undefined;
   remainingBalance: number;
 }) {
-  const normalizedStoredStatus = normalizeStoredLoanStatus(params.storedStatus);
-
-  if (normalizedStoredStatus === "archived" || normalizedStoredStatus === "abandoned") {
+  if (isTerminalStoredLoanStatus(params.storedStatus)) {
     return false;
   }
 
-  return params.remainingBalance > 0;
+  return params.remainingBalance > 0.01;
 }
 
 export function resolveArchiveTargetStatus(params: {

@@ -285,7 +285,9 @@ export const loan_records = pgTable(
     due_date: date().notNull(),
     term_days: integer(),
     branch_id: integer().notNull(),
-    status: varchar({ length: 50 }).notNull(),
+    status: varchar({ length: 50 })
+      .$type<"active" | "overdue" | "completed" | "archived" | "abandoned">()
+      .notNull(),
   },
   (table) => [
     foreignKey({
@@ -309,6 +311,10 @@ export const loan_records = pgTable(
     index("loan_records_branch_id_idx").on(table.branch_id),
     check("chk_loan_records_interest_nonnegative", sql`interest >= (0)::numeric`),
     check("chk_loan_records_principal_nonnegative", sql`principal >= (0)::numeric`),
+    check(
+      "loan_records_status_check",
+      sql`${table.status} in ('active', 'overdue', 'completed', 'archived', 'abandoned')`
+    ),
 
     check(
       "chk_loan_records_term_days_positive",

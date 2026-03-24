@@ -19,6 +19,7 @@ import {
   buildLoanComputedState,
   getManilaTodayDateString,
   resolveArchiveTargetStatus,
+  type StoredLoanStatus,
 } from "@/app/dashboard/loans/loan-state";
 import type {
   LoanListRow,
@@ -30,7 +31,7 @@ import type {
 const borrowerUsers = alias(users, "borrower_users");
 const collectorUsers = alias(users, "collector_users");
 const STAFF_LOANS_PAGE_SIZE = 20;
-const ARCHIVED_BUCKET_STORED_VALUES = ["archived", "Archived", "abandoned", "Abandoned"] as const;
+const ARCHIVED_BUCKET_STORED_VALUES = ["archived", "abandoned"] as const satisfies readonly StoredLoanStatus[];
 
 const loanCollectionStats = db
   .select({
@@ -58,9 +59,9 @@ function buildLoansFilters(scope: StaffLoansScope): SQL[] {
   }
 
   if (scope.tab === "archived") {
-    filters.push(inArray(loan_records.status, ARCHIVED_BUCKET_STORED_VALUES as unknown as string[]));
+    filters.push(inArray(loan_records.status, [...ARCHIVED_BUCKET_STORED_VALUES]));
   } else {
-    filters.push(notInArray(loan_records.status, ARCHIVED_BUCKET_STORED_VALUES as unknown as string[]));
+    filters.push(notInArray(loan_records.status, [...ARCHIVED_BUCKET_STORED_VALUES]));
   }
 
   if (scope.searchQuery) {

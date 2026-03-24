@@ -1,5 +1,6 @@
 "use server";
 
+import { db } from "@/db";
 import type { LoanDetailState } from "@/app/dashboard/loans/[loanId]/state";
 import { resolveCollectionCreatorAccess, resolveLoanCollectionContext } from "@/app/dashboard/loans/[loanId]/collection-action-access";
 import { generateNextCollectionCode } from "@/app/dashboard/loans/[loanId]/collection-action-codegen";
@@ -7,6 +8,7 @@ import {
   insertMissedPaymentRecord,
   insertRecordedPayment,
 } from "@/app/dashboard/loans/[loanId]/collection-action-persistence";
+import { reconcilePersistedLoanStatus } from "@/app/dashboard/loans/loan-status-persistence";
 import type { CollectionHistoryRow } from "@/app/dashboard/loans/[loanId]/state";
 import {
   buildCollectionErrorState,
@@ -81,19 +83,34 @@ export async function createCollectionAction(
   }
 
   try {
-    const insertedCollection = input.missedPayment
-      ? await insertMissedPaymentRecord({
-          collectionCode: nextCollectionCode,
-          loanContext: loanContext.data,
-          encodedBy: creatorAccess.data.userId,
-          input,
-        })
-      : await insertRecordedPayment({
-          collectionCode: nextCollectionCode,
-          loanContext: loanContext.data,
-          encodedBy: creatorAccess.data.userId,
-          input,
-        });
+    const insertedCollection = await db.transaction(async (tx) => {
+      const persistedCollection = input.missedPayment
+        ? await insertMissedPaymentRecord({
+            collectionCode: nextCollectionCode,
+            loanContext: loanContext.data,
+            encodedBy: creatorAccess.data.userId,
+            input,
+            executor: tx,
+          })
+        : await insertRecordedPayment({
+            collectionCode: nextCollectionCode,
+            loanContext: loanContext.data,
+            encodedBy: creatorAccess.data.userId,
+            input,
+            executor: tx,
+          });
+
+      if (!persistedCollection) {
+        return null;
+      }
+
+      await reconcilePersistedLoanStatus({
+        loanId: loanContext.data.loanId,
+        executor: tx,
+      });
+
+      return persistedCollection;
+    });
 
     if (!insertedCollection) {
       return buildCollectionErrorState(stateFactory, "Failed to record collection: Unknown error.");

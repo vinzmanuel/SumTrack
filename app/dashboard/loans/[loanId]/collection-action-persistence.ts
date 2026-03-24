@@ -6,6 +6,8 @@ import type {
   ParsedCollectionInput,
 } from "@/app/dashboard/loans/[loanId]/collection-action-types";
 
+type CollectionMutationExecutor = Pick<typeof db, "insert">;
+
 async function insertCollectionRecord(params: {
   collectionCode: string;
   loanContext: LoanCollectionContext;
@@ -13,8 +15,11 @@ async function insertCollectionRecord(params: {
   amount: string;
   note: string | null;
   collectionDate: string;
+  executor?: CollectionMutationExecutor;
 }) {
-  return db
+  const executor = params.executor ?? db;
+
+  return executor
     .insert(collections)
     .values({
       collection_code: params.collectionCode,
@@ -40,6 +45,7 @@ export async function insertRecordedPayment(params: {
   loanContext: LoanCollectionContext;
   encodedBy: string;
   input: ParsedCollectionInput;
+  executor?: CollectionMutationExecutor;
 }): Promise<InsertedCollectionRecord | null> {
   const insertedCollection = await insertCollectionRecord({
     collectionCode: params.collectionCode,
@@ -48,6 +54,7 @@ export async function insertRecordedPayment(params: {
     amount: String(params.input.amount),
     note: params.input.note || null,
     collectionDate: params.input.collectionDate,
+    executor: params.executor,
   });
 
   if (!insertedCollection?.collection_id) {
@@ -68,6 +75,7 @@ export async function insertMissedPaymentRecord(params: {
   loanContext: LoanCollectionContext;
   encodedBy: string;
   input: ParsedCollectionInput;
+  executor?: CollectionMutationExecutor;
 }): Promise<InsertedCollectionRecord | null> {
   const insertedCollection = await insertCollectionRecord({
     collectionCode: params.collectionCode,
@@ -76,6 +84,7 @@ export async function insertMissedPaymentRecord(params: {
     amount: "0",
     note: params.input.note || null,
     collectionDate: params.input.collectionDate,
+    executor: params.executor,
   });
 
   if (!insertedCollection?.collection_id) {

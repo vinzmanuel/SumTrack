@@ -1048,32 +1048,87 @@ function enumerateCollectorBucketDefinitions(
   return rows;
 }
 
-async function loadLoanPaymentSummary(loanIds: number[]) {
+async function loadLoanPaymentSummary(
+  loanIds: number[],
+  options?: {
+    dateTo?: string | null;
+  },
+) {
   const safeLoanIds = Array.from(new Set(loanIds));
   if (safeLoanIds.length === 0) {
     return new Map<number, { totalPaid: number; completionDate: string | null }>();
   }
 
-  const paymentRows = await db
-    .select({
-      loanId: collections.loan_id,
-      totalPaid: sql<number>`coalesce(sum(${collections.amount}), 0)`,
-      completionDate: sql<string | null>`max(${collections.collection_date})`,
-    })
-    .from(collections)
-    .where(inArray(collections.loan_id, safeLoanIds))
-    .groupBy(collections.loan_id)
-    .catch(() => []);
+  const [loanRows, collectionRows] = await Promise.all([
+    db
+      .select({
+        loanId: loan_records.loan_id,
+        principal: loan_records.principal,
+        interest: loan_records.interest,
+      })
+      .from(loan_records)
+      .where(inArray(loan_records.loan_id, safeLoanIds))
+      .catch(() => []),
+    db
+      .select({
+        loanId: collections.loan_id,
+        collectionId: collections.collection_id,
+        collectionDate: collections.collection_date,
+        amount: collections.amount,
+      })
+      .from(collections)
+      .where(
+        options?.dateTo
+          ? and(
+              inArray(collections.loan_id, safeLoanIds),
+              lte(collections.collection_date, options.dateTo),
+            )
+          : inArray(collections.loan_id, safeLoanIds),
+      )
+      .orderBy(asc(collections.loan_id), asc(collections.collection_date), asc(collections.collection_id))
+      .catch(() => []),
+  ]);
 
-  return new Map(
-    paymentRows.map((row) => [
-      row.loanId,
-      {
-        totalPaid: toNumber(row.totalPaid),
-        completionDate: row.completionDate,
-      },
-    ]),
+  const totalPayableByLoanId = new Map(
+    loanRows.map((row) => {
+      const principal = toNumber(row.principal);
+      const interestRate = toNumber(row.interest);
+
+      return [row.loanId, principal + (principal * interestRate) / 100] as const;
+    }),
   );
+
+  const paymentSummaryByLoanId = new Map<number, { totalPaid: number; completionDate: string | null }>();
+
+  for (const loanId of safeLoanIds) {
+    paymentSummaryByLoanId.set(loanId, {
+      totalPaid: 0,
+      completionDate: null,
+    });
+  }
+
+  // Completion happens on the first collection that reduces the remaining balance to zero.
+  for (const row of collectionRows) {
+    const paymentSummary = paymentSummaryByLoanId.get(row.loanId) ?? {
+      totalPaid: 0,
+      completionDate: null,
+    };
+    const totalPayable = totalPayableByLoanId.get(row.loanId) ?? 0;
+
+    paymentSummary.totalPaid += toNumber(row.amount);
+
+    if (paymentSummary.completionDate === null) {
+      const remainingBalance = Math.max(totalPayable - paymentSummary.totalPaid, 0);
+
+      if (remainingBalance <= 0.01) {
+        paymentSummary.completionDate = row.collectionDate;
+      }
+    }
+
+    paymentSummaryByLoanId.set(row.loanId, paymentSummary);
+  }
+
+  return paymentSummaryByLoanId;
 }
 
 async function loadLiveLoanBranchMetrics(branchIds: number[]) {
@@ -1567,30 +1622,11 @@ async function loadLoansSummaryData(
     };
   }
 
-  const paymentRows = await db
-    .select({
-      loanId: collections.loan_id,
-      totalPaidThroughEnd: sql<number>`coalesce(sum(${collections.amount}), 0)`,
-      completionDate: sql<string | null>`max(${collections.collection_date})`,
-    })
-    .from(collections)
-    .where(
-      and(
-        inArray(collections.loan_id, loanRows.map((row) => row.loanId)),
-        lte(collections.collection_date, effectiveDateTo),
-      ),
-    )
-    .groupBy(collections.loan_id)
-    .catch(() => []);
-
-  const paymentMap = new Map(
-    paymentRows.map((row) => [
-      row.loanId,
-      {
-        totalPaidThroughEnd: toNumber(row.totalPaidThroughEnd),
-        completionDate: row.completionDate,
-      },
-    ]),
+  const paymentMap = await loadLoanPaymentSummary(
+    loanRows.map((row) => row.loanId),
+    {
+      dateTo: effectiveDateTo,
+    },
   );
 
   let activeLoansAtPeriodEnd = 0;
@@ -1602,7 +1638,7 @@ async function loadLoansSummaryData(
     const paymentSummary = paymentMap.get(row.loanId);
     const principal = toNumber(row.principal);
     const interestRate = toNumber(row.interest);
-    const totalPaidThroughEnd = paymentSummary?.totalPaidThroughEnd ?? 0;
+    const totalPaidThroughEnd = paymentSummary?.totalPaid ?? 0;
     const completionDate = paymentSummary?.completionDate ?? null;
     const computedState = buildLoanComputedState({
       principal,
@@ -1613,23 +1649,28 @@ async function loadLoansSummaryData(
       currentDate: effectiveDateTo,
     });
     const isClosedByPeriodEnd =
-      (computedState.visibleStatus === "Completed" || computedState.visibleStatus === "Archived") &&
+      computedState.remainingBalance <= 0.01 &&
       Boolean(completionDate && completionDate <= effectiveDateTo);
 
-    if (!isClosedByPeriodEnd) {
-      outstandingBalanceAtPeriodEnd += computedState.remainingBalance;
-
-      if (row.dueDate < effectiveDateTo) {
-        if (row.dueDate >= effectiveDateFrom) {
-          loansThatBecameOverdue += 1;
-        }
-      } else {
-        activeLoansAtPeriodEnd += 1;
+    if (isClosedByPeriodEnd) {
+      if (completionDate && completionDate >= effectiveDateFrom && completionDate <= effectiveDateTo) {
+        closedLoansInPeriod += 1;
       }
+      continue;
     }
 
-    if (completionDate && completionDate >= effectiveDateFrom && completionDate <= effectiveDateTo) {
-      closedLoansInPeriod += 1;
+    if (computedState.visibleStatus === "Overdue") {
+      outstandingBalanceAtPeriodEnd += computedState.remainingBalance;
+
+      if (row.dueDate >= effectiveDateFrom && row.dueDate < effectiveDateTo) {
+        loansThatBecameOverdue += 1;
+      }
+      continue;
+    }
+
+    if (computedState.visibleStatus === "Active") {
+      outstandingBalanceAtPeriodEnd += computedState.remainingBalance;
+      activeLoansAtPeriodEnd += 1;
     }
   }
 
@@ -2111,7 +2152,7 @@ async function loadClosedLoansReportData(
   const filteredRows = closedLoanRows
     .map((row) => {
       const paymentSummary = paymentSummaryMap.get(row.loanId);
-      const completionDate = paymentSummary?.completionDate ?? row.dueDate;
+      const completionDate = paymentSummary?.completionDate ?? null;
       const totalPaid = paymentSummary?.totalPaid ?? toNumber(row.totalPaid);
 
       return {
@@ -2141,13 +2182,21 @@ async function loadClosedLoansReportData(
       };
     })
     .filter((row) => {
+      if (!row.completionDate) {
+        return false;
+      }
+
       if (!dateFrom || !dateTo) {
         return true;
       }
 
       return row.completionDate >= dateFrom && row.completionDate <= dateTo;
     })
-    .sort((left, right) => right.completionDate.localeCompare(left.completionDate));
+    .map((row) => ({
+      ...row,
+      completionDate: row.completionDate!,
+    }))
+    .sort((left, right) => right.completionDate!.localeCompare(left.completionDate!));
 
   for (const row of filteredRows) {
     branchCountMap.set(row.branchName, (branchCountMap.get(row.branchName) ?? 0) + 1);
@@ -2412,7 +2461,11 @@ async function loadBranchPerformanceOverviewData(
 
   const closedPaymentSummaryMap = await loadLoanPaymentSummary(closedLoanRows.map((row) => row.loanId));
   const closedLoans = closedLoanRows.filter((row) => {
-    const completionDate = closedPaymentSummaryMap.get(row.loanId)?.completionDate ?? row.dueDate;
+    const completionDate = closedPaymentSummaryMap.get(row.loanId)?.completionDate ?? null;
+    if (!completionDate) {
+      return false;
+    }
+
     if (!dateFrom || !dateTo) {
       return true;
     }
