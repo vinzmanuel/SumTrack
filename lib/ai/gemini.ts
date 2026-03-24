@@ -18,7 +18,7 @@ type GeminiRiskPayload = {
 };
 
 const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta";
-const DEFAULT_GEMINI_MODEL = "gemini-1.5-flash";
+const DEFAULT_GEMINI_MODEL = "gemini-3-flash-preview";
 const ALLOWED_TONES = new Set<BorrowerRiskAiTone>(["neutral", "mixed", "concerning", "severe"]);
 const ALLOWED_CONFIDENCE = new Set<BorrowerRiskAiConfidence>(["low", "medium", "high"]);
 const ALLOWED_SIGNALS = new Set<BorrowerRiskSignalKind>([
