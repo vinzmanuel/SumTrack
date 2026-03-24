@@ -1,11 +1,14 @@
 import "server-only";
 
 import { eq, sql, type SQL, type SQLWrapper } from "drizzle-orm";
+import type { StoredLoanStatus } from "@/app/dashboard/loans/loan-state";
 import { db } from "@/db";
 import { collections, loan_records } from "@/db/schema";
 
 export const LIVE_VISIBLE_LOAN_STATUSES = ["Active", "Overdue"] as const;
 export const CLOSED_VISIBLE_LOAN_STATUSES = ["Completed", "Archived"] as const;
+export const LIVE_STORED_LOAN_STATUSES = ["active", "overdue"] as const satisfies readonly StoredLoanStatus[];
+export const CLOSED_STORED_LOAN_STATUSES = ["completed", "archived"] as const satisfies readonly StoredLoanStatus[];
 
 function buildStatusListSql(statuses: readonly string[]) {
   return sql.join(
@@ -63,6 +66,17 @@ export function buildVisibleLoanStatusEqualsSql(visibleStatus: SQLWrapper, statu
 
 export function buildVisibleLoanStatusInSql(visibleStatus: SQLWrapper, statuses: readonly string[]) {
   return sql<boolean>`${visibleStatus} in (${buildStatusListSql(statuses)})`;
+}
+
+export function buildStoredLoanStatusEqualsSql(storedStatus: SQLWrapper, status: StoredLoanStatus) {
+  return sql<boolean>`lower(${storedStatus}) = ${status}`;
+}
+
+export function buildStoredLoanStatusInSql(
+  storedStatus: SQLWrapper,
+  statuses: readonly StoredLoanStatus[],
+) {
+  return sql<boolean>`lower(${storedStatus}) in (${buildStatusListSql(statuses)})`;
 }
 
 export function buildLoanDerivedMetricsSubquery(params: {

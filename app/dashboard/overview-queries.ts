@@ -2,12 +2,13 @@ import "server-only";
 
 import { and, desc, eq, gte, inArray, lte, sql, type SQL } from "drizzle-orm";
 import {
-  LIVE_VISIBLE_LOAN_STATUSES,
   buildLoanDerivedMetricsSubquery,
-  buildVisibleLoanStatusEqualsSql,
-  buildVisibleLoanStatusInSql,
+  LIVE_STORED_LOAN_STATUSES,
+  buildStoredLoanStatusEqualsSql,
+  buildStoredLoanStatusInSql,
 } from "@/app/dashboard/loans/loan-derived-status-sql";
 import { firstDayOfMonth, toNumber, todayInManila } from "@/app/dashboard/overview-format";
+import { getVisibleLoanStatusFromStoredStatus } from "@/app/dashboard/loans/loan-state";
 import type {
   BorrowerOverview,
   CollectorMetrics,
@@ -115,10 +116,10 @@ async function getOverviewMetrics(scope: DashboardScope): Promise<OverviewMetric
       .catch(() => 0),
     db
       .select({
-        activeLoans: sql<number>`coalesce(sum(case when ${buildVisibleLoanStatusEqualsSql(loanMetrics.visibleStatus, "Active")} then 1 else 0 end), 0)`,
-        overdueLoans: sql<number>`coalesce(sum(case when ${buildVisibleLoanStatusEqualsSql(loanMetrics.visibleStatus, "Overdue")} then 1 else 0 end), 0)`,
-        totalPayableActive: sql<number>`coalesce(sum(case when ${buildVisibleLoanStatusInSql(loanMetrics.visibleStatus, LIVE_VISIBLE_LOAN_STATUSES)} then ${loanMetrics.totalPayable} else 0 end), 0)`,
-        paidAgainstActive: sql<number>`coalesce(sum(case when ${buildVisibleLoanStatusInSql(loanMetrics.visibleStatus, LIVE_VISIBLE_LOAN_STATUSES)} then ${loanMetrics.totalCollected} else 0 end), 0)`,
+        activeLoans: sql<number>`coalesce(sum(case when ${buildStoredLoanStatusEqualsSql(loanMetrics.storedStatus, "active")} then 1 else 0 end), 0)`,
+        overdueLoans: sql<number>`coalesce(sum(case when ${buildStoredLoanStatusEqualsSql(loanMetrics.storedStatus, "overdue")} then 1 else 0 end), 0)`,
+        totalPayableActive: sql<number>`coalesce(sum(case when ${buildStoredLoanStatusInSql(loanMetrics.storedStatus, LIVE_STORED_LOAN_STATUSES)} then ${loanMetrics.totalPayable} else 0 end), 0)`,
+        paidAgainstActive: sql<number>`coalesce(sum(case when ${buildStoredLoanStatusInSql(loanMetrics.storedStatus, LIVE_STORED_LOAN_STATUSES)} then ${loanMetrics.totalCollected} else 0 end), 0)`,
       })
       .from(loanMetrics)
       .limit(1)
@@ -223,14 +224,14 @@ async function getBorrowerOverview(borrowerId: string): Promise<BorrowerOverview
   });
 
   const activeLoan = await db
-    .select({
-      loan_id: borrowerLoanMetrics.loanId,
-      loan_code: borrowerLoanMetrics.loanCode,
-      status: borrowerLoanMetrics.visibleStatus,
-      outstandingBalance: borrowerLoanMetrics.remainingBalance,
-    })
+      .select({
+        loan_id: borrowerLoanMetrics.loanId,
+        loan_code: borrowerLoanMetrics.loanCode,
+        status: borrowerLoanMetrics.storedStatus,
+        outstandingBalance: borrowerLoanMetrics.remainingBalance,
+      })
     .from(borrowerLoanMetrics)
-    .where(buildVisibleLoanStatusInSql(borrowerLoanMetrics.visibleStatus, LIVE_VISIBLE_LOAN_STATUSES))
+    .where(buildStoredLoanStatusInSql(borrowerLoanMetrics.storedStatus, LIVE_STORED_LOAN_STATUSES))
     .orderBy(desc(borrowerLoanMetrics.startDate), desc(borrowerLoanMetrics.loanId))
     .limit(1)
     .then((rows) => rows[0] ?? null)
@@ -242,7 +243,7 @@ async function getBorrowerOverview(borrowerId: string): Promise<BorrowerOverview
         .select({
           loan_id: borrowerLoanMetrics.loanId,
           loan_code: borrowerLoanMetrics.loanCode,
-          status: borrowerLoanMetrics.visibleStatus,
+          status: borrowerLoanMetrics.storedStatus,
           outstandingBalance: borrowerLoanMetrics.remainingBalance,
         })
         .from(borrowerLoanMetrics)
@@ -279,7 +280,7 @@ async function getBorrowerOverview(borrowerId: string): Promise<BorrowerOverview
 
   return {
     currentLoanCode: currentLoan.loan_code,
-    loanStatus: currentLoan.status,
+    loanStatus: getVisibleLoanStatusFromStoredStatus(currentLoan.status),
     outstandingBalance,
     latestPayment: latestPayment ? toNumber(latestPayment.amount) : 0,
     lastPaymentDate: latestPayment?.collection_date ?? "N/A",

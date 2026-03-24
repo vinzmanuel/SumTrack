@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TremorCard, TremorDescription } from "@/components/tremor/raw/metric-card";
@@ -14,14 +14,13 @@ import {
   borrower_docs,
   borrower_info,
   branch,
-  collections,
   employee_branch_assignment,
   employee_info,
   loan_records,
   roles,
   users,
 } from "@/db/schema";
-import { buildLoanComputedState, getManilaTodayDateString } from "@/app/dashboard/loans/loan-state";
+import { getVisibleLoanStatusFromStoredStatus } from "@/app/dashboard/loans/loan-state";
 import { createClient } from "@/lib/supabase/server";
 
 type PageProps = {
@@ -250,20 +249,9 @@ export default async function BorrowerProfilePage({ params, searchParams }: Page
       start_date: loan_records.start_date,
       due_date: loan_records.due_date,
       status: loan_records.status,
-      total_collected: sql<number>`coalesce(sum(${collections.amount}), 0)`,
     })
     .from(loan_records)
-    .leftJoin(collections, eq(collections.loan_id, loan_records.loan_id))
     .where(eq(loan_records.borrower_id, borrower.user_id))
-    .groupBy(
-      loan_records.loan_id,
-      loan_records.loan_code,
-      loan_records.principal,
-      loan_records.interest,
-      loan_records.start_date,
-      loan_records.due_date,
-      loan_records.status,
-    )
     .orderBy(desc(loan_records.loan_id))
     .catch(() => []);
 
@@ -400,14 +388,7 @@ export default async function BorrowerProfilePage({ params, searchParams }: Page
             interest: Number(loan.interest) || 0,
             startDate: loan.start_date,
             dueDate: loan.due_date,
-            visibleStatus: buildLoanComputedState({
-              principal: Number(loan.principal) || 0,
-              interest: Number(loan.interest) || 0,
-              totalCollected: Number(loan.total_collected) || 0,
-              dueDate: loan.due_date,
-              storedStatus: loan.status,
-              currentDate: getManilaTodayDateString(),
-            }).visibleStatus,
+            visibleStatus: getVisibleLoanStatusFromStoredStatus(loan.status),
           }))}
         />
       ) : (

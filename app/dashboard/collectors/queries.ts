@@ -16,14 +16,17 @@ import {
   type SQL,
 } from "drizzle-orm";
 import {
-  LIVE_VISIBLE_LOAN_STATUSES,
   buildLoanDerivedMetricsSubquery,
-  buildVisibleLoanStatusEqualsSql,
-  buildVisibleLoanStatusInSql,
+  LIVE_STORED_LOAN_STATUSES,
+  buildStoredLoanStatusEqualsSql,
+  buildStoredLoanStatusInSql,
 } from "@/app/dashboard/loans/loan-derived-status-sql";
 import {
-  buildLoanComputedState,
+  calculateLoanRemainingBalance,
+  calculateLoanTotalPayable,
+  getVisibleLoanStatusFromStoredStatus,
   getManilaTodayDateString,
+  normalizeStoredLoanStatus,
   type StoredLoanStatus,
 } from "@/app/dashboard/loans/loan-state";
 import { db } from "@/db";
@@ -180,9 +183,7 @@ function toCollectorLoanListRow(
   collector_first_name: string | null;
   collector_last_name: string | null;
   collector_username: string | null;
-},
-  currentDate: string,
-): LoanListRow {
+}): LoanListRow {
   const borrowerName =
     [row.borrower_first_name, row.borrower_last_name].filter(Boolean).join(" ") ||
     row.borrower_company_id ||
@@ -193,14 +194,10 @@ function toCollectorLoanListRow(
       row.collector_username ||
       row.collector_id
     : "N/A";
-  const computedState = buildLoanComputedState({
-    principal: Number(row.principal) || 0,
-    interest: Number(row.interest) || 0,
-    totalCollected: Number(row.total_collected) || 0,
-    dueDate: row.due_date,
-    storedStatus: row.status,
-    currentDate,
-  });
+  const storedStatus = normalizeStoredLoanStatus(row.status);
+  const totalPayable = calculateLoanTotalPayable(Number(row.principal) || 0, Number(row.interest) || 0);
+  const totalCollected = Number(row.total_collected) || 0;
+  const remainingBalance = calculateLoanRemainingBalance(totalPayable, totalCollected);
 
   return {
     loanId: row.loan_id,
@@ -215,11 +212,11 @@ function toCollectorLoanListRow(
     interest: Number(row.interest) || 0,
     startDate: row.start_date,
     dueDate: row.due_date,
-    storedStatus: computedState.storedStatus,
-    visibleStatus: computedState.visibleStatus,
-    totalPayable: computedState.totalPayable,
-    totalCollected: computedState.totalCollected,
-    remainingBalance: computedState.remainingBalance,
+    storedStatus,
+    visibleStatus: getVisibleLoanStatusFromStoredStatus(storedStatus),
+    totalPayable,
+    totalCollected,
+    remainingBalance,
     collectionCount: 0,
     canArchive: false,
     canDelete: false,
@@ -297,36 +294,30 @@ function buildCollectorAssignedLoansFilters(
   return conditions;
 }
 
-function buildCollectorAssignedLoanTotalPayableSql() {
-  return sql<number>`(${loan_records.principal} + (${loan_records.principal} * ${loan_records.interest} / 100))`;
-}
-
-function buildCollectorAssignedLoanRemainingBalanceSql() {
-  const totalPayable = buildCollectorAssignedLoanTotalPayableSql();
-  return sql<number>`greatest(${totalPayable} - coalesce(${collectorAssignedLoanCollectionStats.totalCollected}, 0), 0)`;
-}
-
-function buildCollectorAssignedLoanVisibleStatusSql(currentDate: string) {
-  const remainingBalance = buildCollectorAssignedLoanRemainingBalanceSql();
-
-  return sql<string>`case
-    when lower(${loan_records.status}) = 'archived' then 'Archived'
-    when lower(${loan_records.status}) = 'abandoned' then 'Abandoned'
-    when ${remainingBalance} <= 0 then 'Completed'
-    when ${loan_records.due_date} < ${currentDate} and ${remainingBalance} > 0 then 'Overdue'
-    else 'Active'
-  end`;
-}
-
 function buildCollectorAssignedLoanVisibleStatusWhere(
   statusFilter: CollectorAssignedLoansFilters["status"],
-  currentDate: string,
 ) {
   if (statusFilter === "all") {
     return undefined;
   }
 
-  return sql`${buildCollectorAssignedLoanVisibleStatusSql(currentDate)} = ${statusFilter}`;
+  if (statusFilter === "Active") {
+    return eq(loan_records.status, "active");
+  }
+
+  if (statusFilter === "Overdue") {
+    return eq(loan_records.status, "overdue");
+  }
+
+  if (statusFilter === "Completed") {
+    return eq(loan_records.status, "completed");
+  }
+
+  if (statusFilter === "Archived") {
+    return eq(loan_records.status, "archived");
+  }
+
+  return eq(loan_records.status, "abandoned");
 }
 
 function buildCollectionScopeFilters(
@@ -402,11 +393,11 @@ async function loadLoanStats(
   const rows = await db
     .select({
         collectorId: loanMetrics.collectorId,
-        assignedActiveLoans: sql<number>`coalesce(sum(case when ${buildVisibleLoanStatusInSql(loanMetrics.visibleStatus, LIVE_VISIBLE_LOAN_STATUSES)} then 1 else 0 end), 0)`,
-        activePrincipalLoad: sql<number>`coalesce(sum(case when ${buildVisibleLoanStatusInSql(loanMetrics.visibleStatus, LIVE_VISIBLE_LOAN_STATUSES)} then ${loanMetrics.principal} else 0 end), 0)`,
-        activeInterestPotential: sql<number>`coalesce(sum(case when ${buildVisibleLoanStatusInSql(loanMetrics.visibleStatus, LIVE_VISIBLE_LOAN_STATUSES)} then (${loanMetrics.principal} * ${loanMetrics.interest}) / 100 else 0 end), 0)`,
-        portfolioAtRiskAmount: sql<number>`coalesce(sum(case when ${buildVisibleLoanStatusEqualsSql(loanMetrics.visibleStatus, "Overdue")} then ${loanMetrics.principal} else 0 end), 0)`,
-        completedLoans: sql<number>`coalesce(sum(case when ${buildVisibleLoanStatusEqualsSql(loanMetrics.visibleStatus, "Completed")} then 1 else 0 end), 0)`,
+        assignedActiveLoans: sql<number>`coalesce(sum(case when ${buildStoredLoanStatusInSql(loanMetrics.storedStatus, LIVE_STORED_LOAN_STATUSES)} then 1 else 0 end), 0)`,
+        activePrincipalLoad: sql<number>`coalesce(sum(case when ${buildStoredLoanStatusInSql(loanMetrics.storedStatus, LIVE_STORED_LOAN_STATUSES)} then ${loanMetrics.principal} else 0 end), 0)`,
+        activeInterestPotential: sql<number>`coalesce(sum(case when ${buildStoredLoanStatusInSql(loanMetrics.storedStatus, LIVE_STORED_LOAN_STATUSES)} then (${loanMetrics.principal} * ${loanMetrics.interest}) / 100 else 0 end), 0)`,
+        portfolioAtRiskAmount: sql<number>`coalesce(sum(case when ${buildStoredLoanStatusEqualsSql(loanMetrics.storedStatus, "overdue")} then ${loanMetrics.principal} else 0 end), 0)`,
+        completedLoans: sql<number>`coalesce(sum(case when ${buildStoredLoanStatusEqualsSql(loanMetrics.storedStatus, "completed")} then 1 else 0 end), 0)`,
         totalLoans: sql<number>`count(*)`,
         firstLoanStart: sql<string | null>`min(${loanMetrics.startDate})::text`,
         expectedCollections: sql<number>`
@@ -521,9 +512,9 @@ async function loadPeriodPortfolioStats(
         collectorId: loanMetrics.collectorId,
         periodPortfolioPrincipal: sql<number>`coalesce(sum(${loanMetrics.principal}), 0)`,
         periodInterestPotential: sql<number>`coalesce(sum((${loanMetrics.principal} * ${loanMetrics.interest}) / 100), 0)`,
-        periodPortfolioAtRiskAmount: sql<number>`coalesce(sum(case when ${buildVisibleLoanStatusEqualsSql(loanMetrics.visibleStatus, "Overdue")} then ${loanMetrics.principal} else 0 end), 0)`,
+        periodPortfolioAtRiskAmount: sql<number>`coalesce(sum(case when ${buildStoredLoanStatusEqualsSql(loanMetrics.storedStatus, "overdue")} then ${loanMetrics.principal} else 0 end), 0)`,
         dueLoans: sql<number>`count(*)`,
-        completedDueLoans: sql<number>`coalesce(sum(case when ${buildVisibleLoanStatusEqualsSql(loanMetrics.visibleStatus, "Completed")} then 1 else 0 end), 0)`,
+        completedDueLoans: sql<number>`coalesce(sum(case when ${buildStoredLoanStatusEqualsSql(loanMetrics.storedStatus, "completed")} then 1 else 0 end), 0)`,
       })
       .from(loanMetrics)
       .groupBy(loanMetrics.collectorId)
@@ -564,11 +555,11 @@ async function loadPeriodPortfolioStats(
         coalesce(sum(case when ${overlapDays} > 0 then (${loanMetrics.principal} * ${loanMetrics.interest}) / 100 else 0 end), 0)
       `,
       periodPortfolioAtRiskAmount: sql<number>`
-        coalesce(sum(case when ${overlapDays} > 0 and ${buildVisibleLoanStatusEqualsSql(loanMetrics.visibleStatus, "Overdue")} then ${loanMetrics.principal} else 0 end), 0)
+        coalesce(sum(case when ${overlapDays} > 0 and ${buildStoredLoanStatusEqualsSql(loanMetrics.storedStatus, "overdue")} then ${loanMetrics.principal} else 0 end), 0)
       `,
       dueLoans: sql<number>`sum(case when ${dueInRange} then 1 else 0 end)`,
       completedDueLoans: sql<number>`
-        coalesce(sum(case when ${dueInRange} and ${buildVisibleLoanStatusEqualsSql(loanMetrics.visibleStatus, "Completed")} then 1 else 0 end), 0)
+        coalesce(sum(case when ${dueInRange} and ${buildStoredLoanStatusEqualsSql(loanMetrics.storedStatus, "completed")} then 1 else 0 end), 0)
       `,
     })
     .from(loanMetrics)
@@ -1471,7 +1462,6 @@ export async function loadCollectorAssignedLoansData(
   collectorId: string,
   filters: CollectorAssignedLoansFilters,
 ): Promise<CollectorAssignedLoansData> {
-  const currentDate = getManilaTodayDateString();
   const filterConditions = buildCollectorAssignedLoansFilters(access, collectorId, filters);
   filterConditions.push(
     notInArray(
@@ -1479,7 +1469,7 @@ export async function loadCollectorAssignedLoansData(
       [...COLLECTOR_ASSIGNED_LOAN_ARCHIVED_STORED_VALUES],
     ),
   );
-  const visibleStatusWhere = buildCollectorAssignedLoanVisibleStatusWhere(filters.status, currentDate);
+  const visibleStatusWhere = buildCollectorAssignedLoanVisibleStatusWhere(filters.status);
   if (visibleStatusWhere) {
     filterConditions.push(visibleStatusWhere);
   }
@@ -1534,7 +1524,7 @@ export async function loadCollectorAssignedLoansData(
     .offset(offset)
     .catch(() => []);
 
-  const pagedRows = rows.map((row) => toCollectorLoanListRow(row, currentDate));
+  const pagedRows = rows.map((row) => toCollectorLoanListRow(row));
 
   return {
     loans: pagedRows,

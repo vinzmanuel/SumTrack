@@ -16,8 +16,10 @@ import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import { borrower_info, branch, collections, employee_info, loan_records, users } from "@/db/schema";
 import {
-  buildLoanComputedState,
-  getManilaTodayDateString,
+  calculateLoanRemainingBalance,
+  calculateLoanTotalPayable,
+  getVisibleLoanStatusFromStoredStatus,
+  normalizeStoredLoanStatus,
   resolveArchiveTargetStatus,
   type StoredLoanStatus,
 } from "@/app/dashboard/loans/loan-state";
@@ -103,37 +105,28 @@ function whereFrom(filters: SQL[]) {
   return and(...filters);
 }
 
-function buildLoanTotalPayableSql() {
-  return sql<number>`(${loan_records.principal} + (${loan_records.principal} * ${loan_records.interest} / 100))`;
-}
-
-function buildLoanRemainingBalanceSql() {
-  const totalPayable = buildLoanTotalPayableSql();
-  return sql<number>`greatest(${totalPayable} - coalesce(${loanCollectionStats.totalCollected}, 0), 0)`;
-}
-
-function buildVisibleStatusSql(currentDate: string) {
-  const remainingBalance = buildLoanRemainingBalanceSql();
-
-  return sql<string>`case
-    when lower(${loan_records.status}) = 'archived' then 'Archived'
-    when lower(${loan_records.status}) = 'abandoned' then 'Abandoned'
-    when ${remainingBalance} <= 0 then 'Completed'
-    when ${loan_records.due_date} < ${currentDate} and ${remainingBalance} > 0 then 'Overdue'
-    else 'Active'
-  end`;
-}
-
-function buildVisibleStatusWhere(
-  statusFilter: LoanStatusFilter,
-  currentDate: string,
-) {
+function resolveStoredStatusFilter(statusFilter: LoanStatusFilter): StoredLoanStatus | null {
   if (statusFilter === "all") {
-    return undefined;
+    return null;
   }
 
-  const visibleStatus = buildVisibleStatusSql(currentDate);
-  return sql`${visibleStatus} = ${statusFilter}`;
+  if (statusFilter === "Active") {
+    return "active";
+  }
+
+  if (statusFilter === "Overdue") {
+    return "overdue";
+  }
+
+  if (statusFilter === "Completed") {
+    return "completed";
+  }
+
+  if (statusFilter === "Archived") {
+    return "archived";
+  }
+
+  return "abandoned";
 }
 
 function toLoanListRow(
@@ -160,7 +153,6 @@ function toLoanListRow(
     collection_count: number;
   },
   scope: StaffLoansScope,
-  currentDate: string,
 ): LoanListRow {
   const borrowerName =
     [row.borrower_first_name, row.borrower_last_name].filter(Boolean).join(" ") ||
@@ -173,14 +165,11 @@ function toLoanListRow(
       row.collector_id
     : "N/A";
 
-  const computedState = buildLoanComputedState({
-    principal: Number(row.principal) || 0,
-    interest: Number(row.interest) || 0,
-    totalCollected: Number(row.total_collected) || 0,
-    dueDate: row.due_date,
-    storedStatus: row.status,
-    currentDate,
-  });
+  const storedStatus = normalizeStoredLoanStatus(row.status);
+  const totalPayable = calculateLoanTotalPayable(Number(row.principal) || 0, Number(row.interest) || 0);
+  const totalCollected = Number(row.total_collected) || 0;
+  const remainingBalance = calculateLoanRemainingBalance(totalPayable, totalCollected);
+  const visibleStatus = getVisibleLoanStatusFromStoredStatus(storedStatus);
 
   const canManageLoanLifecycle =
     scope.roleName === "Admin" || scope.roleName === "Branch Manager" || scope.roleName === "Secretary";
@@ -198,16 +187,16 @@ function toLoanListRow(
     interest: Number(row.interest) || 0,
     startDate: row.start_date,
     dueDate: row.due_date,
-    storedStatus: computedState.storedStatus,
-    visibleStatus: computedState.visibleStatus,
-    totalPayable: computedState.totalPayable,
-    totalCollected: computedState.totalCollected,
-    remainingBalance: computedState.remainingBalance,
+    storedStatus,
+    visibleStatus,
+    totalPayable,
+    totalCollected,
+    remainingBalance,
     collectionCount: Number(row.collection_count) || 0,
     canArchive: canManageLoanLifecycle
       ? resolveArchiveTargetStatus({
-          storedStatus: computedState.storedStatus,
-          visibleStatus: computedState.visibleStatus,
+          storedStatus,
+          visibleStatus,
         }) !== null
       : false,
     canDelete: scope.roleName === "Admin" && (Number(row.collection_count) || 0) === 0,
@@ -215,11 +204,10 @@ function toLoanListRow(
 }
 
 export async function loadStaffLoansPageData(scope: StaffLoansScope): Promise<StaffLoansPageData> {
-  const currentDate = getManilaTodayDateString();
   const loanFilters = buildLoansFilters(scope);
-  const visibleStatusWhere = buildVisibleStatusWhere(scope.status, currentDate);
-  if (visibleStatusWhere) {
-    loanFilters.push(visibleStatusWhere);
+  const storedStatusFilter = resolveStoredStatusFilter(scope.status);
+  if (storedStatusFilter) {
+    loanFilters.push(eq(loan_records.status, storedStatusFilter));
   }
   const whereCondition = whereFrom(loanFilters);
   const branchOptionsWhere = buildBranchOptionsWhere(scope);
@@ -292,7 +280,7 @@ export async function loadStaffLoansPageData(scope: StaffLoansScope): Promise<St
 
   return {
     branchOptions,
-    loans: pageLoanRows.map((row) => toLoanListRow(row, scope, currentDate)),
+    loans: pageLoanRows.map((row) => toLoanListRow(row, scope)),
     page,
     pageSize: STAFF_LOANS_PAGE_SIZE,
     totalCount,

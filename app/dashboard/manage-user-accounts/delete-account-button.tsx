@@ -1,19 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import { Button } from "@/components/ui/button";
+import { DestructiveDeleteFlow } from "@/app/dashboard/_components/destructive-delete-flow";
 import type {
   ManagedCollectorReassignmentRequiredPayload,
   ManagedUserMutationErrorPayload,
@@ -33,10 +21,6 @@ export function DeleteAccountButton({
     retryAction: () => Promise<void>,
   ) => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
-
   async function performDelete() {
     const response = await fetch(`/dashboard/manage-user-accounts/${userId}/delete`, {
       method: "POST",
@@ -46,59 +30,34 @@ export function DeleteAccountButton({
 
     if (!response.ok) {
       if (payload?.errorType === "reassignment_required" && payload.reassignmentRequired && payload.collectorId) {
-        setOpen(false);
-        onReassignmentRequired(payload as ManagedCollectorReassignmentRequiredPayload, performDelete);
-        return;
+        onReassignmentRequired(payload as ManagedCollectorReassignmentRequiredPayload, async () => {
+          await performDelete();
+        });
+        return { ok: false as const, closeDialogs: true };
       }
 
       const message = payload?.message ?? "Unable to delete this account right now.";
-      setErrorMessage(message);
       toast.error(message);
-      return;
+      return { ok: false as const, message };
     }
 
-    setOpen(false);
     toast.success(`${userLabel} was deleted.`);
     onDeleted();
-  }
-
-  function handleDelete() {
-    setErrorMessage(null);
-
-    startTransition(async () => {
-      await performDelete();
-    });
+    return { ok: true as const };
   }
 
   return (
-    <AlertDialog onOpenChange={setOpen} open={open}>
-      <AlertDialogTrigger asChild>
-        <Button className="bg-destructive text-white hover:bg-destructive/90" size="sm" type="button">
-          Delete
-        </Button>
-      </AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Delete user account?</AlertDialogTitle>
-          <AlertDialogDescription>
-            This will attempt to remove {userLabel}. Accounts with linked operational records will be blocked.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        {errorMessage ? <p className="text-sm text-destructive">{errorMessage}</p> : null}
-        <AlertDialogFooter>
-          <AlertDialogCancel disabled={isPending}>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            className="bg-destructive text-white hover:bg-destructive/90"
-            disabled={isPending}
-            onClick={(event) => {
-              event.preventDefault();
-              handleDelete();
-            }}
-          >
-            {isPending ? "Deleting..." : "Delete"}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <DestructiveDeleteFlow
+      actionPhrase="delete account"
+      description={`This will attempt to permanently remove ${userLabel}. Accounts with linked operational records will still be blocked, and collectors with live loans will require reassignment first.`}
+      finalActionLabel="Delete account permanently"
+      finalDescription={`This is the last destructive checkpoint before ${userLabel} is deleted. If the account is eligible, the deletion request will run immediately.`}
+      finalTitle="Are you certain you want to delete this account?"
+      itemLabel="Account"
+      itemValue={userLabel}
+      onExecute={performDelete}
+      title="Delete Account"
+      warningText={`Deleting ${userLabel} cannot be undone.`}
+    />
   );
 }

@@ -1,12 +1,12 @@
 import Link from "next/link";
-import { desc, eq, sql } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireDashboardAuth } from "@/app/dashboard/auth";
 import { LoanVisibleStatusBadge } from "@/app/dashboard/loans/loan-visible-status-badge";
-import { buildLoanComputedState, getManilaTodayDateString } from "@/app/dashboard/loans/loan-state";
+import { getVisibleLoanStatusFromStoredStatus } from "@/app/dashboard/loans/loan-state";
 import { db } from "@/db";
-import { collections, loan_records } from "@/db/schema";
+import { loan_records } from "@/db/schema";
 
 function formatMoney(value: number) {
   return `\u20B1${value.toLocaleString("en-PH", {
@@ -38,19 +38,9 @@ export default async function MyLoansPage() {
       interest: loan_records.interest,
       due_date: loan_records.due_date,
       status: loan_records.status,
-      total_collected: sql<number>`coalesce(sum(${collections.amount}), 0)`,
     })
     .from(loan_records)
-    .leftJoin(collections, eq(collections.loan_id, loan_records.loan_id))
     .where(eq(loan_records.borrower_id, auth.userId))
-    .groupBy(
-      loan_records.loan_id,
-      loan_records.loan_code,
-      loan_records.principal,
-      loan_records.interest,
-      loan_records.due_date,
-      loan_records.status,
-    )
     .orderBy(desc(loan_records.loan_id))
     .catch(() => []);
 
@@ -83,16 +73,7 @@ export default async function MyLoansPage() {
                     <td className="px-2 py-2">{Number(loan.interest) || 0}%</td>
                     <td className="px-2 py-2">{loan.due_date}</td>
                     <td className="px-2 py-2">
-                      <LoanVisibleStatusBadge
-                        status={buildLoanComputedState({
-                          principal: Number(loan.principal) || 0,
-                          interest: Number(loan.interest) || 0,
-                          totalCollected: Number(loan.total_collected) || 0,
-                          dueDate: loan.due_date,
-                          storedStatus: loan.status,
-                          currentDate: getManilaTodayDateString(),
-                        }).visibleStatus}
-                      />
+                      <LoanVisibleStatusBadge status={getVisibleLoanStatusFromStoredStatus(loan.status)} />
                     </td>
                     <td className="px-2 py-2">
                       <Link href={`/dashboard/my-loans/${loan.loan_id}`}>

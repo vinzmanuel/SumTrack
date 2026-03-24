@@ -1,14 +1,13 @@
 import "server-only";
 
-import { and, asc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import { resolveCreateLoanAccess } from "@/app/dashboard/create-loan/access";
-import { buildLoanComputedState, getManilaTodayDateString } from "@/app/dashboard/loans/loan-state";
+import { LIVE_STORED_LOAN_STATUSES } from "@/app/dashboard/loans/loan-state";
 import { db } from "@/db";
 import {
   areas,
   borrower_info,
   branch,
-  collections,
   employee_area_assignment,
   employee_info,
   loan_records,
@@ -194,22 +193,14 @@ export async function loadCreateLoanPageData(
     db
       .select({
         borrower_id: loan_records.borrower_id,
-        principal: loan_records.principal,
-        interest: loan_records.interest,
-        due_date: loan_records.due_date,
         status: loan_records.status,
-        totalCollected: sql<number>`coalesce(sum(${collections.amount}), 0)`,
       })
       .from(loan_records)
-      .leftJoin(collections, eq(collections.loan_id, loan_records.loan_id))
-      .where(loanBranchFilter)
-      .groupBy(
-        loan_records.borrower_id,
-        loan_records.loan_id,
-        loan_records.principal,
-        loan_records.interest,
-        loan_records.due_date,
-        loan_records.status,
+      .where(
+        and(
+          loanBranchFilter,
+          inArray(loan_records.status, [...LIVE_STORED_LOAN_STATUSES]),
+        ),
       )
       .catch(() => []),
   ]);
@@ -253,20 +244,7 @@ export async function loadCreateLoanPageData(
 
   const activeLoanBorrowerIds = Array.from(
     new Set(
-      loanRows
-        .filter((loan) => {
-          const computedState = buildLoanComputedState({
-            principal: Number(loan.principal) || 0,
-            interest: Number(loan.interest) || 0,
-            totalCollected: Number(loan.totalCollected) || 0,
-            dueDate: loan.due_date,
-            storedStatus: loan.status,
-            currentDate: getManilaTodayDateString(),
-          });
-
-          return computedState.visibleStatus === "Active" || computedState.visibleStatus === "Overdue";
-        })
-        .map((loan) => loan.borrower_id),
+      loanRows.map((loan) => loan.borrower_id),
     ),
   );
 

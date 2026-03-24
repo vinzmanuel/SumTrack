@@ -1,6 +1,6 @@
 import "server-only";
 
-import { desc, eq, sql } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import type { DashboardAuthContext } from "@/app/dashboard/auth";
 import {
   type BorrowerRiskAssessmentResult,
@@ -10,7 +10,7 @@ import {
   type BorrowerRiskMetrics,
   type BorrowerRiskScoreBreakdown,
 } from "@/app/dashboard/borrowers/types";
-import { buildLoanComputedState, getManilaTodayDateString } from "@/app/dashboard/loans/loan-state";
+import { normalizeStoredLoanStatus } from "@/app/dashboard/loans/loan-state";
 import { db } from "@/db";
 import { areas, borrower_info, collections, loan_records } from "@/db/schema";
 import { analyzeBorrowerMissedPaymentNotes } from "@/lib/ai/gemini";
@@ -25,11 +25,7 @@ type BorrowerRiskAccessResult =
 
 type LoanRiskRow = {
   loan_id: number;
-  principal: number | string;
-  interest: number | string;
-  due_date: string;
   status: string;
-  total_collected: number | string;
 };
 
 type CollectionRiskRow = {
@@ -63,23 +59,16 @@ function isMissedPaymentRow(row: CollectionRiskRow) {
   return normalizeNumeric(row.amount) === 0 && normalizeMissedPaymentNote(row.note).length > 0;
 }
 
-function buildLoanMix(rows: LoanRiskRow[], currentDate: string): BorrowerRiskLoanMix {
+function buildLoanMix(rows: LoanRiskRow[]): BorrowerRiskLoanMix {
   return rows.reduce<BorrowerRiskLoanMix>(
     (mix, row) => {
-      const visibleStatus = buildLoanComputedState({
-        principal: normalizeNumeric(row.principal),
-        interest: normalizeNumeric(row.interest),
-        totalCollected: normalizeNumeric(row.total_collected),
-        dueDate: row.due_date,
-        storedStatus: row.status,
-        currentDate,
-      }).visibleStatus;
+      const status = normalizeStoredLoanStatus(row.status);
 
-      if (visibleStatus === "Active") mix.active += 1;
-      if (visibleStatus === "Overdue") mix.overdue += 1;
-      if (visibleStatus === "Completed") mix.completed += 1;
-      if (visibleStatus === "Archived") mix.archived += 1;
-      if (visibleStatus === "Abandoned") mix.abandoned += 1;
+      if (status === "active") mix.active += 1;
+      if (status === "overdue") mix.overdue += 1;
+      if (status === "completed") mix.completed += 1;
+      if (status === "archived") mix.archived += 1;
+      if (status === "abandoned") mix.abandoned += 1;
 
       return mix;
     },
@@ -264,7 +253,12 @@ export async function assessBorrowerReapprovalRisk(params: {
     throw Object.assign(new Error(access.message), { status: access.status });
   }
 
-  const currentDate = getManilaTodayDateString();
+  const currentDate = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
   const last30Date = shiftDateString(currentDate, -30);
   const last90Date = shiftDateString(currentDate, -90);
 
@@ -272,22 +266,10 @@ export async function assessBorrowerReapprovalRisk(params: {
     db
       .select({
         loan_id: loan_records.loan_id,
-        principal: loan_records.principal,
-        interest: loan_records.interest,
-        due_date: loan_records.due_date,
         status: loan_records.status,
-        total_collected: sql<number>`coalesce(sum(${collections.amount}), 0)`,
       })
       .from(loan_records)
-      .leftJoin(collections, eq(collections.loan_id, loan_records.loan_id))
       .where(eq(loan_records.borrower_id, params.borrowerId))
-      .groupBy(
-        loan_records.loan_id,
-        loan_records.principal,
-        loan_records.interest,
-        loan_records.due_date,
-        loan_records.status,
-      )
       .catch(() => [] as LoanRiskRow[]),
     db
       .select({
@@ -306,7 +288,7 @@ export async function assessBorrowerReapprovalRisk(params: {
 
   const missedPaymentRows = collectionRows.filter(isMissedPaymentRow);
   const totalNormalPayments = collectionRows.filter((row) => normalizeNumeric(row.amount) > 0).length;
-  const loanMix = buildLoanMix(loanRows, currentDate);
+  const loanMix = buildLoanMix(loanRows);
   const distinctLoansWithMissedPayments = new Set(missedPaymentRows.map((row) => row.loan_id)).size;
   const mostRecentMissedPaymentDate = missedPaymentRows[0]?.collection_date ?? null;
   const missedPaymentsLast30Days = missedPaymentRows.filter(

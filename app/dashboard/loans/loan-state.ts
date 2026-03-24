@@ -1,6 +1,8 @@
 export type StoredLoanStatus = "active" | "overdue" | "completed" | "archived" | "abandoned";
 export type VisibleLoanStatus = "Active" | "Overdue" | "Completed" | "Archived" | "Abandoned";
 
+export const LIVE_STORED_LOAN_STATUSES = ["active", "overdue"] as const satisfies readonly StoredLoanStatus[];
+export const CLOSED_STORED_LOAN_STATUSES = ["completed", "archived"] as const satisfies readonly StoredLoanStatus[];
 const TERMINAL_STORED_LOAN_STATUS_SET = new Set<StoredLoanStatus>(["archived", "abandoned"]);
 
 function clampMoney(value: number) {
@@ -98,6 +100,12 @@ function toVisibleLoanStatus(status: StoredLoanStatus): VisibleLoanStatus {
   }
 
   return "Active";
+}
+
+export function getVisibleLoanStatusFromStoredStatus(
+  status: string | null | undefined,
+): VisibleLoanStatus {
+  return toVisibleLoanStatus(normalizeStoredLoanStatus(status));
 }
 
 export function resolveVisibleLoanStatus(params: {
