@@ -39,7 +39,13 @@ import {
   type ManagedUserRoleOption,
 } from "@/app/dashboard/manage-user-accounts/types";
 import { deleteAuthUserSafely } from "@/app/dashboard/create-account/action-identifiers";
-import { ACTIVE_LOAN_STATUSES } from "@/app/dashboard/loans/active-statuses";
+import {
+  LIVE_VISIBLE_LOAN_STATUSES,
+  buildLoanDerivedMetricsSubquery,
+  buildVisibleLoanStatusEqualsSql,
+  buildVisibleLoanStatusInSql,
+} from "@/app/dashboard/loans/loan-derived-status-sql";
+import { getManilaTodayDateString } from "@/app/dashboard/loans/loan-state";
 import { resolveReportsSystemUser } from "@/app/dashboard/reports/queries";
 
 const MANAGE_USERS_PAGE_SIZE = 20;
@@ -500,18 +506,18 @@ async function loadActiveAssignmentState(userId: string): Promise<ActiveAssignme
 }
 
 async function countLiveCollectorLoans(userId: string) {
+  const liveCollectorLoans = buildLoanDerivedMetricsSubquery({
+    aliasName: "managed_user_live_collector_loans",
+    currentDate: getManilaTodayDateString(),
+    where: eq(loan_records.collector_id, userId),
+  });
+
   return db
     .select({
-      activeLoanCount: sql<number>`sum(case when ${loan_records.status} = 'Active' then 1 else 0 end)`,
-      overdueLoanCount: sql<number>`sum(case when ${loan_records.status} = 'Overdue' then 1 else 0 end)`,
+      activeLoanCount: sql<number>`coalesce(sum(case when ${buildVisibleLoanStatusEqualsSql(liveCollectorLoans.visibleStatus, "Active")} then 1 else 0 end), 0)`,
+      overdueLoanCount: sql<number>`coalesce(sum(case when ${buildVisibleLoanStatusEqualsSql(liveCollectorLoans.visibleStatus, "Overdue")} then 1 else 0 end), 0)`,
     })
-    .from(loan_records)
-    .where(
-      and(
-        eq(loan_records.collector_id, userId),
-        inArray(loan_records.status, [...ACTIVE_LOAN_STATUSES]),
-      ),
-    )
+    .from(liveCollectorLoans)
     .limit(1)
     .then((rows) => {
       const row = rows[0];
@@ -821,6 +827,11 @@ export async function reassignCollectorLiveLoans(params: {
   nextBranchId?: number | null;
   nextAreaId?: number | null;
 }): Promise<ManagedCollectorReassignmentResult | ManagedUserMutationResult> {
+  const liveCollectorLoans = buildLoanDerivedMetricsSubquery({
+    aliasName: "managed_user_reassignment_live_loans",
+    currentDate: getManilaTodayDateString(),
+    where: eq(loan_records.collector_id, params.collectorId),
+  });
   const context = await loadCollectorReassignmentContext(params);
 
   if ("ok" in context) {
@@ -849,7 +860,13 @@ export async function reassignCollectorLiveLoans(params: {
     .where(
       and(
         eq(loan_records.collector_id, params.collectorId),
-        inArray(loan_records.status, [...ACTIVE_LOAN_STATUSES]),
+        inArray(
+          loan_records.loan_id,
+          db
+            .select({ loanId: liveCollectorLoans.loanId })
+            .from(liveCollectorLoans)
+            .where(buildVisibleLoanStatusInSql(liveCollectorLoans.visibleStatus, LIVE_VISIBLE_LOAN_STATUSES)),
+        ),
       ),
     )
     .returning({ loanId: loan_records.loan_id });
@@ -863,15 +880,16 @@ export async function reassignCollectorLiveLoans(params: {
 }
 
 async function countLiveBorrowerLoans(userId: string) {
+  const liveBorrowerLoans = buildLoanDerivedMetricsSubquery({
+    aliasName: "managed_user_live_borrower_loans",
+    currentDate: getManilaTodayDateString(),
+    where: eq(loan_records.borrower_id, userId),
+  });
+
   return db
     .select({ value: sql<number>`count(*)` })
-    .from(loan_records)
-    .where(
-      and(
-        eq(loan_records.borrower_id, userId),
-        inArray(loan_records.status, [...ACTIVE_LOAN_STATUSES]),
-      ),
-    )
+    .from(liveBorrowerLoans)
+    .where(buildVisibleLoanStatusInSql(liveBorrowerLoans.visibleStatus, LIVE_VISIBLE_LOAN_STATUSES))
     .then((rows) => Number(rows[0]?.value) || 0)
     .catch(() => 0);
 }

@@ -1,6 +1,13 @@
 import "server-only";
 
 import { and, asc, eq, gte, inArray, isNull, lt, sql } from "drizzle-orm";
+import {
+  LIVE_VISIBLE_LOAN_STATUSES,
+  buildLoanDerivedMetricsSubquery,
+  buildVisibleLoanStatusEqualsSql,
+  buildVisibleLoanStatusInSql,
+} from "@/app/dashboard/loans/loan-derived-status-sql";
+import { getManilaTodayDateString } from "@/app/dashboard/loans/loan-state";
 import { db } from "@/db";
 import {
   areas,
@@ -127,6 +134,12 @@ async function loadBranchSummaryCards(
 
   const branchIds = branchRows.map((row) => row.branchId);
   const { start, next } = monthWindow();
+  const currentDate = getManilaTodayDateString();
+  const branchLoanMetrics = buildLoanDerivedMetricsSubquery({
+    aliasName: "branch_summary_loan_metrics",
+    currentDate,
+    where: inArray(loan_records.branch_id, branchIds),
+  });
 
   const [
     branchManagerRows,
@@ -188,13 +201,12 @@ async function loadBranchSummaryCards(
       .catch(() => []),
     db
       .select({
-        branchId: loan_records.branch_id,
-        activeLoanCount: sql<number>`sum(case when ${loan_records.status} = 'Active' then 1 else 0 end)`,
-        overdueLoanCount: sql<number>`sum(case when ${loan_records.status} = 'Overdue' then 1 else 0 end)`,
+        branchId: branchLoanMetrics.branchId,
+        activeLoanCount: sql<number>`coalesce(sum(case when ${buildVisibleLoanStatusEqualsSql(branchLoanMetrics.visibleStatus, "Active")} then 1 else 0 end), 0)`,
+        overdueLoanCount: sql<number>`coalesce(sum(case when ${buildVisibleLoanStatusEqualsSql(branchLoanMetrics.visibleStatus, "Overdue")} then 1 else 0 end), 0)`,
       })
-      .from(loan_records)
-      .where(inArray(loan_records.branch_id, branchIds))
-      .groupBy(loan_records.branch_id)
+      .from(branchLoanMetrics)
+      .groupBy(branchLoanMetrics.branchId)
       .catch(() => []),
     db
       .select({
@@ -430,6 +442,12 @@ export async function loadBranchDetailOverviewByCode(
   const branchId = branchCard.branchId;
   const monthBuckets = lastSixMonthBuckets();
   const { start, next } = monthWindow();
+  const currentDate = getManilaTodayDateString();
+  const branchLoanMetrics = buildLoanDerivedMetricsSubquery({
+    aliasName: "branch_detail_loan_metrics",
+    currentDate,
+    where: eq(loan_records.branch_id, branchId),
+  });
 
   const [
     leadershipRows,
@@ -555,11 +573,10 @@ export async function loadBranchDetailOverviewByCode(
 
   const loanMetricRow = await db
     .select({
-      activeLoanCount: sql<number>`sum(case when ${loan_records.status} = 'Active' then 1 else 0 end)`,
-      overdueLoanCount: sql<number>`sum(case when ${loan_records.status} = 'Overdue' then 1 else 0 end)`,
+      activeLoanCount: sql<number>`coalesce(sum(case when ${buildVisibleLoanStatusEqualsSql(branchLoanMetrics.visibleStatus, "Active")} then 1 else 0 end), 0)`,
+      overdueLoanCount: sql<number>`coalesce(sum(case when ${buildVisibleLoanStatusEqualsSql(branchLoanMetrics.visibleStatus, "Overdue")} then 1 else 0 end), 0)`,
     })
-    .from(loan_records)
-    .where(eq(loan_records.branch_id, branchId))
+    .from(branchLoanMetrics)
     .limit(1)
     .then((rows) => rows[0] ?? null)
     .catch(() => null);
@@ -1017,6 +1034,12 @@ export async function deleteBranchByCode(params: {
     return { ok: false, message: "Only Admin can delete branches." };
   }
 
+  const liveBranchLoans = buildLoanDerivedMetricsSubquery({
+    aliasName: "branch_delete_live_loans",
+    currentDate: getManilaTodayDateString(),
+    where: eq(loan_records.branch_id, target.branchId),
+  });
+
   const [
     activeBranchEmployeeCount,
     activeCollectorCount,
@@ -1065,8 +1088,8 @@ export async function deleteBranchByCode(params: {
       .catch(() => 0),
     db
       .select({ value: sql<number>`count(*)` })
-      .from(loan_records)
-      .where(and(eq(loan_records.branch_id, target.branchId), inArray(loan_records.status, ["Active", "Overdue"])))
+      .from(liveBranchLoans)
+      .where(buildVisibleLoanStatusInSql(liveBranchLoans.visibleStatus, LIVE_VISIBLE_LOAN_STATUSES))
       .then((rows) => Number(rows[0]?.value) || 0)
       .catch(() => 0),
     db
@@ -1258,6 +1281,11 @@ export async function loadBranchAreasTabDataByCode(
 
   const branchId = branchCard.branchId;
   const { start, next } = monthWindow();
+  const areaLoanMetrics = buildLoanDerivedMetricsSubquery({
+    aliasName: "branch_area_loan_metrics",
+    currentDate: getManilaTodayDateString(),
+    where: eq(loan_records.branch_id, branchId),
+  });
 
   const areaRows = await db
     .select({
@@ -1316,11 +1344,11 @@ export async function loadBranchAreasTabDataByCode(
     db
       .select({
         areaId: borrower_info.area_id,
-        activeLoanCount: sql<number>`sum(case when ${loan_records.status} = 'Active' then 1 else 0 end)`,
-        overdueLoanCount: sql<number>`sum(case when ${loan_records.status} = 'Overdue' then 1 else 0 end)`,
+        activeLoanCount: sql<number>`coalesce(sum(case when ${buildVisibleLoanStatusEqualsSql(areaLoanMetrics.visibleStatus, "Active")} then 1 else 0 end), 0)`,
+        overdueLoanCount: sql<number>`coalesce(sum(case when ${buildVisibleLoanStatusEqualsSql(areaLoanMetrics.visibleStatus, "Overdue")} then 1 else 0 end), 0)`,
       })
-      .from(loan_records)
-      .innerJoin(borrower_info, eq(borrower_info.user_id, loan_records.borrower_id))
+      .from(areaLoanMetrics)
+      .innerJoin(borrower_info, eq(borrower_info.user_id, areaLoanMetrics.borrowerId))
       .where(inArray(borrower_info.area_id, areaIds))
       .groupBy(borrower_info.area_id)
       .catch(() => []),

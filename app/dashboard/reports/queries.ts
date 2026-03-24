@@ -19,7 +19,14 @@ import {
   loadCollectorPerformanceRowsForCustomRange,
   loadCollectorTrendBucketsForCustomRange,
 } from "@/app/dashboard/collectors/queries";
-import { ACTIVE_LOAN_STATUSES } from "@/app/dashboard/loans/active-statuses";
+import {
+  CLOSED_VISIBLE_LOAN_STATUSES,
+  LIVE_VISIBLE_LOAN_STATUSES,
+  buildLoanDerivedMetricsSubquery,
+  buildVisibleLoanStatusEqualsSql,
+  buildVisibleLoanStatusInSql,
+} from "@/app/dashboard/loans/loan-derived-status-sql";
+import { buildLoanComputedState } from "@/app/dashboard/loans/loan-state";
 import { getReportsDatePresetLabel } from "@/app/dashboard/reports/date-range-presets";
 import {
   buildActiveLoansSummarySnapshot,
@@ -146,7 +153,7 @@ function calculateLoanDurationDays(startDate: string, dueDate: string) {
 }
 
 function isLoanReceiptSummaryEligible(status: string, outstandingBalance: number) {
-  return (status === "Completed" || status === "Archived") && outstandingBalance <= 0.01;
+  return CLOSED_VISIBLE_LOAN_STATUSES.includes(status as (typeof CLOSED_VISIBLE_LOAN_STATUSES)[number]) && outstandingBalance <= 0.01;
 }
 
 type DateBucketMode = "day" | "week" | "month";
@@ -1081,42 +1088,29 @@ async function loadLiveLoanBranchMetrics(branchIds: number[]) {
     }>();
   }
 
-  const [loanRows, paymentRows] = await Promise.all([
-    db
-      .select({
-        branchId: loan_records.branch_id,
-        activeLoans: sql<number>`sum(case when ${loan_records.status} = 'Active' then 1 else 0 end)`,
-        overdueLoans: sql<number>`sum(case when ${loan_records.status} = 'Overdue' then 1 else 0 end)`,
-        principalExposure: sql<number>`coalesce(sum(case when ${loan_records.status} in ('Active', 'Overdue') then ${loan_records.principal} else 0 end), 0)`,
-        totalPayableActive: sql<number>`coalesce(sum(case when ${loan_records.status} in ('Active', 'Overdue') then ${loan_records.principal} + (${loan_records.principal} * ${loan_records.interest} / 100) else 0 end), 0)`,
-      })
-      .from(loan_records)
-      .where(inArray(loan_records.branch_id, safeBranchIds))
-      .groupBy(loan_records.branch_id)
-      .catch(() => []),
-    db
-      .select({
-        branchId: loan_records.branch_id,
-        paidAgainstActive: sql<number>`coalesce(sum(${collections.amount}), 0)`,
-      })
-      .from(collections)
-      .innerJoin(loan_records, eq(loan_records.loan_id, collections.loan_id))
-      .where(
-        and(
-          inArray(loan_records.branch_id, safeBranchIds),
-          inArray(loan_records.status, [...ACTIVE_LOAN_STATUSES]),
-        ),
-      )
-      .groupBy(loan_records.branch_id)
-      .catch(() => []),
-  ]);
+  const liveLoanMetrics = buildLoanDerivedMetricsSubquery({
+    aliasName: "reports_live_loan_branch_metrics",
+    currentDate: currentManilaIsoDate(),
+    where: inArray(loan_records.branch_id, safeBranchIds),
+  });
 
-  const paidMap = new Map(paymentRows.map((row) => [row.branchId, toNumber(row.paidAgainstActive)]));
+  const loanRows = await db
+    .select({
+      branchId: liveLoanMetrics.branchId,
+      activeLoans: sql<number>`coalesce(sum(case when ${buildVisibleLoanStatusEqualsSql(liveLoanMetrics.visibleStatus, "Active")} then 1 else 0 end), 0)`,
+      overdueLoans: sql<number>`coalesce(sum(case when ${buildVisibleLoanStatusEqualsSql(liveLoanMetrics.visibleStatus, "Overdue")} then 1 else 0 end), 0)`,
+      principalExposure: sql<number>`coalesce(sum(case when ${buildVisibleLoanStatusInSql(liveLoanMetrics.visibleStatus, LIVE_VISIBLE_LOAN_STATUSES)} then ${liveLoanMetrics.principal} else 0 end), 0)`,
+      totalPayableActive: sql<number>`coalesce(sum(case when ${buildVisibleLoanStatusInSql(liveLoanMetrics.visibleStatus, LIVE_VISIBLE_LOAN_STATUSES)} then ${liveLoanMetrics.totalPayable} else 0 end), 0)`,
+      paidAgainstActive: sql<number>`coalesce(sum(case when ${buildVisibleLoanStatusInSql(liveLoanMetrics.visibleStatus, LIVE_VISIBLE_LOAN_STATUSES)} then ${liveLoanMetrics.totalCollected} else 0 end), 0)`,
+    })
+    .from(liveLoanMetrics)
+    .groupBy(liveLoanMetrics.branchId)
+    .catch(() => []);
 
   return new Map(
     loanRows.map((row) => {
       const totalPayableActive = toNumber(row.totalPayableActive);
-      const paidAgainstActive = paidMap.get(row.branchId) ?? 0;
+      const paidAgainstActive = toNumber(row.paidAgainstActive);
 
       return [
         row.branchId,
@@ -1265,7 +1259,12 @@ async function loadCollectionsSummaryData(
   dateTo: string | null,
 ) {
   const branchIds = branchRows.map((row) => row.branchId);
-  const collectionConditions: SQL[] = [inArray(loan_records.branch_id, branchIds)];
+  const collectorLoanMetrics = buildLoanDerivedMetricsSubquery({
+    aliasName: "reports_collections_by_collector_metrics",
+    currentDate: currentManilaIsoDate(),
+    where: inArray(loan_records.branch_id, branchIds),
+  });
+  const collectionConditions: SQL[] = [inArray(collectorLoanMetrics.branchId, branchIds)];
 
   if (dateFrom && dateTo) {
     collectionConditions.push(gte(collections.collection_date, dateFrom));
@@ -1401,36 +1400,32 @@ async function loadCollectionsSummaryData(
 async function loadActiveLoansSummaryData(branchRows: Array<{ branchId: number; branchName: string }>) {
   const branchIds = branchRows.map((row) => row.branchId);
   const liveLoanMetrics = await loadLiveLoanBranchMetrics(branchIds);
+  const branchLoanMetrics = buildLoanDerivedMetricsSubquery({
+    aliasName: "reports_active_loans_summary_metrics",
+    currentDate: currentManilaIsoDate(),
+    where: inArray(loan_records.branch_id, branchIds),
+  });
 
   const [collectorRows, borrowerRows] = await Promise.all([
     db
     .select({
-      userId: users.user_id,
+      userId: branchLoanMetrics.collectorId,
       username: users.username,
       firstName: employee_info.first_name,
       middleName: employee_info.middle_name,
       lastName: employee_info.last_name,
       liveLoanCount: sql<number>`count(*)`,
-      overdueLoanCount: sql<number>`sum(case when ${loan_records.status} = 'Overdue' then 1 else 0 end)`,
-      principalExposure: sql<number>`coalesce(sum(${loan_records.principal}), 0)`,
-      totalPayableActive: sql<number>`coalesce(sum(${loan_records.principal} + (${loan_records.principal} * ${loan_records.interest} / 100)), 0)`,
-      paidAgainstActive: sql<number>`coalesce(sum((
-        select coalesce(sum(c.amount), 0)
-        from collections c
-        where c.loan_id = ${loan_records.loan_id}
-      )), 0)`,
+      overdueLoanCount: sql<number>`coalesce(sum(case when ${buildVisibleLoanStatusEqualsSql(branchLoanMetrics.visibleStatus, "Overdue")} then 1 else 0 end), 0)`,
+      principalExposure: sql<number>`coalesce(sum(${branchLoanMetrics.principal}), 0)`,
+      totalPayableActive: sql<number>`coalesce(sum(${branchLoanMetrics.totalPayable}), 0)`,
+      paidAgainstActive: sql<number>`coalesce(sum(${branchLoanMetrics.totalCollected}), 0)`,
     })
-    .from(loan_records)
-    .leftJoin(users, eq(users.user_id, loan_records.collector_id))
+    .from(branchLoanMetrics)
+    .leftJoin(users, eq(users.user_id, branchLoanMetrics.collectorId))
     .leftJoin(employee_info, eq(employee_info.user_id, users.user_id))
-    .where(
-      and(
-        inArray(loan_records.branch_id, branchIds),
-        inArray(loan_records.status, [...ACTIVE_LOAN_STATUSES]),
-      ),
-    )
+    .where(buildVisibleLoanStatusInSql(branchLoanMetrics.visibleStatus, LIVE_VISIBLE_LOAN_STATUSES))
     .groupBy(
-      users.user_id,
+      branchLoanMetrics.collectorId,
       users.username,
       employee_info.first_name,
       employee_info.middle_name,
@@ -1440,17 +1435,12 @@ async function loadActiveLoansSummaryData(branchRows: Array<{ branchId: number; 
     .catch(() => []),
     db
       .select({
-        branchId: loan_records.branch_id,
-        borrowerCount: sql<number>`count(distinct ${loan_records.borrower_id})`,
+        branchId: branchLoanMetrics.branchId,
+        borrowerCount: sql<number>`count(distinct ${branchLoanMetrics.borrowerId})`,
       })
-      .from(loan_records)
-      .where(
-        and(
-          inArray(loan_records.branch_id, branchIds),
-          inArray(loan_records.status, [...ACTIVE_LOAN_STATUSES]),
-        ),
-      )
-      .groupBy(loan_records.branch_id)
+      .from(branchLoanMetrics)
+      .where(buildVisibleLoanStatusInSql(branchLoanMetrics.visibleStatus, LIVE_VISIBLE_LOAN_STATUSES))
+      .groupBy(branchLoanMetrics.branchId)
       .catch(() => []),
   ]);
 
@@ -1612,17 +1602,22 @@ async function loadLoansSummaryData(
     const paymentSummary = paymentMap.get(row.loanId);
     const principal = toNumber(row.principal);
     const interestRate = toNumber(row.interest);
-    const totalPayable = principal + (principal * interestRate) / 100;
     const totalPaidThroughEnd = paymentSummary?.totalPaidThroughEnd ?? 0;
     const completionDate = paymentSummary?.completionDate ?? null;
+    const computedState = buildLoanComputedState({
+      principal,
+      interest: interestRate,
+      totalCollected: totalPaidThroughEnd,
+      dueDate: row.dueDate,
+      storedStatus: row.status,
+      currentDate: effectiveDateTo,
+    });
     const isClosedByPeriodEnd =
-      totalPaidThroughEnd >= totalPayable - 0.01 ||
-      ((row.status === "Completed" || row.status === "Archived") &&
-        Boolean(completionDate && completionDate <= effectiveDateTo));
+      (computedState.visibleStatus === "Completed" || computedState.visibleStatus === "Archived") &&
+      Boolean(completionDate && completionDate <= effectiveDateTo);
 
     if (!isClosedByPeriodEnd) {
-      const outstandingBalance = Math.max(totalPayable - totalPaidThroughEnd, 0);
-      outstandingBalanceAtPeriodEnd += outstandingBalance;
+      outstandingBalanceAtPeriodEnd += computedState.remainingBalance;
 
       if (row.dueDate < effectiveDateTo) {
         if (row.dueDate >= effectiveDateFrom) {
@@ -1682,27 +1677,29 @@ async function loadOverdueLoansReportData(
   dateTo: string | null,
 ) {
   const branchIds = branchRows.map((row) => row.branchId);
-  const overdueConditions: SQL[] = [
-    inArray(loan_records.branch_id, branchIds),
-    eq(loan_records.status, "Overdue"),
-  ];
+  const overdueLoanMetrics = buildLoanDerivedMetricsSubquery({
+    aliasName: "reports_overdue_loans_metrics",
+    currentDate: currentManilaIsoDate(),
+    where: inArray(loan_records.branch_id, branchIds),
+  });
+  const overdueConditions: SQL[] = [buildVisibleLoanStatusEqualsSql(overdueLoanMetrics.visibleStatus, "Overdue")];
 
   if (dateFrom && dateTo) {
-    overdueConditions.push(gte(loan_records.due_date, dateFrom));
-    overdueConditions.push(lte(loan_records.due_date, dateTo));
+    overdueConditions.push(gte(overdueLoanMetrics.dueDate, dateFrom));
+    overdueConditions.push(lte(overdueLoanMetrics.dueDate, dateTo));
   }
 
   const overdueLoanRows = await db
     .select({
-      loanId: loan_records.loan_id,
-      borrowerId: loan_records.borrower_id,
-      branchId: loan_records.branch_id,
+      loanId: overdueLoanMetrics.loanId,
+      borrowerId: overdueLoanMetrics.borrowerId,
+      branchId: overdueLoanMetrics.branchId,
       branchName: branch.branch_name,
-      loanCode: loan_records.loan_code,
-      releaseDate: loan_records.start_date,
-      dueDate: loan_records.due_date,
-      principal: loan_records.principal,
-      interest: loan_records.interest,
+      loanCode: overdueLoanMetrics.loanCode,
+      releaseDate: overdueLoanMetrics.startDate,
+      dueDate: overdueLoanMetrics.dueDate,
+      principal: overdueLoanMetrics.principal,
+      interest: overdueLoanMetrics.interest,
       collectorUsername: collectorUsers.username,
       collectorFirstName: employee_info.first_name,
       collectorMiddleName: employee_info.middle_name,
@@ -1712,31 +1709,25 @@ async function loadOverdueLoansReportData(
       borrowerLastName: borrower_info.last_name,
       borrowerUsername: borrowerUsers.username,
       borrowerCompanyId: borrowerUsers.company_id,
-      status: loan_records.status,
+      status: overdueLoanMetrics.visibleStatus,
+      totalCollected: overdueLoanMetrics.totalCollected,
+      totalPayable: overdueLoanMetrics.totalPayable,
+      remainingBalance: overdueLoanMetrics.remainingBalance,
     })
-    .from(loan_records)
-    .innerJoin(branch, eq(branch.branch_id, loan_records.branch_id))
-    .innerJoin(borrower_info, eq(borrower_info.user_id, loan_records.borrower_id))
-    .leftJoin(borrowerUsers, eq(borrowerUsers.user_id, loan_records.borrower_id))
-    .leftJoin(collectorUsers, eq(collectorUsers.user_id, loan_records.collector_id))
+    .from(overdueLoanMetrics)
+    .innerJoin(branch, eq(branch.branch_id, overdueLoanMetrics.branchId))
+    .innerJoin(borrower_info, eq(borrower_info.user_id, overdueLoanMetrics.borrowerId))
+    .leftJoin(borrowerUsers, eq(borrowerUsers.user_id, overdueLoanMetrics.borrowerId))
+    .leftJoin(collectorUsers, eq(collectorUsers.user_id, overdueLoanMetrics.collectorId))
     .leftJoin(employee_info, eq(employee_info.user_id, collectorUsers.user_id))
     .where(and(...overdueConditions))
-    .orderBy(asc(branch.branch_name), asc(loan_records.due_date), asc(loan_records.loan_code))
+    .orderBy(asc(branch.branch_name), asc(overdueLoanMetrics.dueDate), asc(overdueLoanMetrics.loanCode))
     .catch(() => []);
 
-  const paymentSummaryMap = await loadLoanPaymentSummary(
-    overdueLoanRows.map((row) => row.loanId),
-  );
   const today = currentManilaIsoDate();
 
   const rawRows = overdueLoanRows
     .map((row) => {
-      const paymentSummary = paymentSummaryMap.get(row.loanId);
-      const totalPaid = paymentSummary?.totalPaid ?? 0;
-      const principal = toNumber(row.principal);
-      const interestRate = toNumber(row.interest);
-      const expectedTotal = principal + (principal * interestRate) / 100;
-
       return {
         borrowerId: row.borrowerId,
         branchName: row.branchName,
@@ -1752,9 +1743,9 @@ async function loadOverdueLoansReportData(
         releaseDate: row.releaseDate,
         dueDate: row.dueDate,
         daysOverdue: calculateDaysBetweenIsoDates(row.dueDate, today),
-        outstandingBalance: Math.max(expectedTotal - totalPaid, 0),
-        totalPaid,
-        expectedTotal,
+        outstandingBalance: toNumber(row.remainingBalance),
+        totalPaid: toNumber(row.totalCollected),
+        expectedTotal: toNumber(row.totalPayable),
         collectorName: buildUserDisplayName({
           firstName: row.collectorFirstName,
           middleName: row.collectorMiddleName,
@@ -1816,7 +1807,12 @@ async function loadCollectionsByCollectorData(
   dateTo: string | null,
 ) {
   const branchIds = branchRows.map((row) => row.branchId);
-  const collectionConditions: SQL[] = [inArray(loan_records.branch_id, branchIds)];
+  const collectorLoanMetrics = buildLoanDerivedMetricsSubquery({
+    aliasName: "reports_collections_by_collector_metrics",
+    currentDate: currentManilaIsoDate(),
+    where: inArray(loan_records.branch_id, branchIds),
+  });
+  const collectionConditions: SQL[] = [inArray(collectorLoanMetrics.branchId, branchIds)];
 
   if (dateFrom && dateTo) {
     collectionConditions.push(gte(collections.collection_date, dateFrom));
@@ -1836,19 +1832,19 @@ async function loadCollectionsByCollectorData(
         collectorLastName: employee_info.last_name,
         totalCollectedAmount: sql<number>`coalesce(sum(${collections.amount}), 0)`,
         numberOfCollections: sql<number>`count(*)`,
-        borrowersHandled: sql<number>`count(distinct ${loan_records.borrower_id})`,
-        activeLoansTouched: sql<number>`count(distinct case when ${loan_records.status} in ('Active', 'Overdue') then ${loan_records.loan_id} end)`,
+        borrowersHandled: sql<number>`count(distinct ${collectorLoanMetrics.borrowerId})`,
+        activeLoansTouched: sql<number>`count(distinct case when ${buildVisibleLoanStatusInSql(collectorLoanMetrics.visibleStatus, LIVE_VISIBLE_LOAN_STATUSES)} then ${collectorLoanMetrics.loanId} end)`,
       })
       .from(collections)
-      .innerJoin(loan_records, eq(loan_records.loan_id, collections.loan_id))
-      .innerJoin(branch, eq(branch.branch_id, loan_records.branch_id))
+      .innerJoin(collectorLoanMetrics, eq(collectorLoanMetrics.loanId, collections.loan_id))
+      .innerJoin(branch, eq(branch.branch_id, collectorLoanMetrics.branchId))
       .leftJoin(collectorUsers, eq(collectorUsers.user_id, collections.collector_id))
       .leftJoin(employee_info, eq(employee_info.user_id, collectorUsers.user_id))
       .where(and(...collectionConditions))
       .groupBy(
         collections.collector_id,
         collectorUsers.company_id,
-        loan_records.branch_id,
+        collectorLoanMetrics.branchId,
         branch.branch_name,
         collectorUsers.username,
         employee_info.first_name,
@@ -1861,10 +1857,10 @@ async function loadCollectionsByCollectorData(
       .select({
         totalCollectedAmount: sql<number>`coalesce(sum(${collections.amount}), 0)`,
         totalCollectionsCount: sql<number>`count(*)`,
-        totalBorrowersHandled: sql<number>`count(distinct ${loan_records.borrower_id})`,
+        totalBorrowersHandled: sql<number>`count(distinct ${collectorLoanMetrics.borrowerId})`,
       })
       .from(collections)
-      .innerJoin(loan_records, eq(loan_records.loan_id, collections.loan_id))
+      .innerJoin(collectorLoanMetrics, eq(collectorLoanMetrics.loanId, collections.loan_id))
       .where(and(...collectionConditions))
       .limit(1)
       .catch(() => []),
@@ -1959,22 +1955,27 @@ async function loadReleasedLoansReportData(
   dateTo: string | null,
 ) {
   const branchIds = branchRows.map((row) => row.branchId);
-  const releasedConditions: SQL[] = [inArray(loan_records.branch_id, branchIds)];
+  const releasedLoanMetrics = buildLoanDerivedMetricsSubquery({
+    aliasName: "reports_released_loans_metrics",
+    currentDate: currentManilaIsoDate(),
+    where: inArray(loan_records.branch_id, branchIds),
+  });
+  const releasedConditions: SQL[] = [inArray(releasedLoanMetrics.branchId, branchIds)];
 
   if (dateFrom && dateTo) {
-    releasedConditions.push(gte(loan_records.start_date, dateFrom));
-    releasedConditions.push(lte(loan_records.start_date, dateTo));
+    releasedConditions.push(gte(releasedLoanMetrics.startDate, dateFrom));
+    releasedConditions.push(lte(releasedLoanMetrics.startDate, dateTo));
   }
 
   const releasedLoanRows = await db
     .select({
-      loanId: loan_records.loan_id,
-      borrowerId: loan_records.borrower_id,
+      loanId: releasedLoanMetrics.loanId,
+      borrowerId: releasedLoanMetrics.borrowerId,
       branchName: branch.branch_name,
-      loanCode: loan_records.loan_code,
-      releaseDate: loan_records.start_date,
-      principal: loan_records.principal,
-      interest: loan_records.interest,
+      loanCode: releasedLoanMetrics.loanCode,
+      releaseDate: releasedLoanMetrics.startDate,
+      principal: releasedLoanMetrics.principal,
+      interest: releasedLoanMetrics.interest,
       collectorUsername: collectorUsers.username,
       collectorFirstName: employee_info.first_name,
       collectorMiddleName: employee_info.middle_name,
@@ -1984,16 +1985,16 @@ async function loadReleasedLoansReportData(
       borrowerLastName: borrower_info.last_name,
       borrowerUsername: borrowerUsers.username,
       borrowerCompanyId: borrowerUsers.company_id,
-      status: loan_records.status,
+      status: releasedLoanMetrics.visibleStatus,
     })
-    .from(loan_records)
-    .innerJoin(branch, eq(branch.branch_id, loan_records.branch_id))
-    .innerJoin(borrower_info, eq(borrower_info.user_id, loan_records.borrower_id))
-    .leftJoin(borrowerUsers, eq(borrowerUsers.user_id, loan_records.borrower_id))
-    .leftJoin(collectorUsers, eq(collectorUsers.user_id, loan_records.collector_id))
+    .from(releasedLoanMetrics)
+    .innerJoin(branch, eq(branch.branch_id, releasedLoanMetrics.branchId))
+    .innerJoin(borrower_info, eq(borrower_info.user_id, releasedLoanMetrics.borrowerId))
+    .leftJoin(borrowerUsers, eq(borrowerUsers.user_id, releasedLoanMetrics.borrowerId))
+    .leftJoin(collectorUsers, eq(collectorUsers.user_id, releasedLoanMetrics.collectorId))
     .leftJoin(employee_info, eq(employee_info.user_id, collectorUsers.user_id))
     .where(and(...releasedConditions))
-    .orderBy(desc(loan_records.start_date), asc(branch.branch_name), asc(loan_records.loan_code))
+    .orderBy(desc(releasedLoanMetrics.startDate), asc(branch.branch_name), asc(releasedLoanMetrics.loanCode))
     .catch(() => []);
 
   const branchCountMap = new Map<string, number>();
@@ -2066,15 +2067,20 @@ async function loadClosedLoansReportData(
   dateTo: string | null,
 ) {
   const branchIds = branchRows.map((row) => row.branchId);
+  const closedLoanMetrics = buildLoanDerivedMetricsSubquery({
+    aliasName: "reports_closed_loans_metrics",
+    currentDate: currentManilaIsoDate(),
+    where: inArray(loan_records.branch_id, branchIds),
+  });
   const closedLoanRows = await db
     .select({
-      loanId: loan_records.loan_id,
-      borrowerId: loan_records.borrower_id,
+      loanId: closedLoanMetrics.loanId,
+      borrowerId: closedLoanMetrics.borrowerId,
       branchName: branch.branch_name,
-      loanCode: loan_records.loan_code,
-      releaseDate: loan_records.start_date,
-      dueDate: loan_records.due_date,
-      principal: loan_records.principal,
+      loanCode: closedLoanMetrics.loanCode,
+      releaseDate: closedLoanMetrics.startDate,
+      dueDate: closedLoanMetrics.dueDate,
+      principal: closedLoanMetrics.principal,
       collectorUsername: collectorUsers.username,
       collectorFirstName: employee_info.first_name,
       collectorMiddleName: employee_info.middle_name,
@@ -2084,21 +2090,17 @@ async function loadClosedLoansReportData(
       borrowerLastName: borrower_info.last_name,
       borrowerUsername: borrowerUsers.username,
       borrowerCompanyId: borrowerUsers.company_id,
-      status: loan_records.status,
+      status: closedLoanMetrics.visibleStatus,
+      totalPaid: closedLoanMetrics.totalCollected,
     })
-    .from(loan_records)
-    .innerJoin(branch, eq(branch.branch_id, loan_records.branch_id))
-    .innerJoin(borrower_info, eq(borrower_info.user_id, loan_records.borrower_id))
-    .leftJoin(borrowerUsers, eq(borrowerUsers.user_id, loan_records.borrower_id))
-    .leftJoin(collectorUsers, eq(collectorUsers.user_id, loan_records.collector_id))
+    .from(closedLoanMetrics)
+    .innerJoin(branch, eq(branch.branch_id, closedLoanMetrics.branchId))
+    .innerJoin(borrower_info, eq(borrower_info.user_id, closedLoanMetrics.borrowerId))
+    .leftJoin(borrowerUsers, eq(borrowerUsers.user_id, closedLoanMetrics.borrowerId))
+    .leftJoin(collectorUsers, eq(collectorUsers.user_id, closedLoanMetrics.collectorId))
     .leftJoin(employee_info, eq(employee_info.user_id, collectorUsers.user_id))
-    .where(
-      and(
-        inArray(loan_records.branch_id, branchIds),
-        inArray(loan_records.status, ["Completed", "Archived"]),
-      ),
-    )
-    .orderBy(desc(loan_records.start_date), asc(branch.branch_name), asc(loan_records.loan_code))
+    .where(buildVisibleLoanStatusInSql(closedLoanMetrics.visibleStatus, CLOSED_VISIBLE_LOAN_STATUSES))
+    .orderBy(desc(closedLoanMetrics.startDate), asc(branch.branch_name), asc(closedLoanMetrics.loanCode))
     .catch(() => []);
 
   const paymentSummaryMap = await loadLoanPaymentSummary(
@@ -2110,7 +2112,7 @@ async function loadClosedLoansReportData(
     .map((row) => {
       const paymentSummary = paymentSummaryMap.get(row.loanId);
       const completionDate = paymentSummary?.completionDate ?? row.dueDate;
-      const totalPaid = paymentSummary?.totalPaid ?? 0;
+      const totalPaid = paymentSummary?.totalPaid ?? toNumber(row.totalPaid);
 
       return {
         borrowerId: row.borrowerId,
@@ -2187,6 +2189,11 @@ async function loadBranchPerformanceComparisonData(
   const branchIds = branchRows.map((row) => row.branchId);
   const collectionConditions: SQL[] = [inArray(loan_records.branch_id, branchIds)];
   const expenseConditions: SQL[] = [inArray(expenses.branch_id, branchIds)];
+  const branchLoanMetrics = buildLoanDerivedMetricsSubquery({
+    aliasName: "reports_branch_performance_metrics",
+    currentDate: currentManilaIsoDate(),
+    where: inArray(loan_records.branch_id, branchIds),
+  });
 
   if (dateFrom && dateTo) {
     collectionConditions.push(gte(collections.collection_date, dateFrom));
@@ -2214,14 +2221,13 @@ async function loadBranchPerformanceComparisonData(
       .catch(() => []),
     db
       .select({
-        branchId: loan_records.branch_id,
-        activeLoanCount: sql<number>`sum(case when ${loan_records.status} = 'Active' then 1 else 0 end)`,
-        overdueLoanCount: sql<number>`sum(case when ${loan_records.status} = 'Overdue' then 1 else 0 end)`,
-        completedLoanCount: sql<number>`sum(case when ${loan_records.status} in ('Completed', 'Archived') then 1 else 0 end)`,
+        branchId: branchLoanMetrics.branchId,
+        activeLoanCount: sql<number>`coalesce(sum(case when ${buildVisibleLoanStatusEqualsSql(branchLoanMetrics.visibleStatus, "Active")} then 1 else 0 end), 0)`,
+        overdueLoanCount: sql<number>`coalesce(sum(case when ${buildVisibleLoanStatusEqualsSql(branchLoanMetrics.visibleStatus, "Overdue")} then 1 else 0 end), 0)`,
+        completedLoanCount: sql<number>`coalesce(sum(case when ${buildVisibleLoanStatusInSql(branchLoanMetrics.visibleStatus, CLOSED_VISIBLE_LOAN_STATUSES)} then 1 else 0 end), 0)`,
       })
-      .from(loan_records)
-      .where(inArray(loan_records.branch_id, branchIds))
-      .groupBy(loan_records.branch_id)
+      .from(branchLoanMetrics)
+      .groupBy(branchLoanMetrics.branchId)
       .catch(() => []),
     db
       .select({
@@ -2326,6 +2332,11 @@ async function loadBranchPerformanceOverviewData(
   const branchIds = [branchRow.branchId];
   const collectionConditions: SQL[] = [inArray(loan_records.branch_id, branchIds)];
   const expenseConditions: SQL[] = [eq(expenses.branch_id, branchRow.branchId)];
+  const branchLoanMetrics = buildLoanDerivedMetricsSubquery({
+    aliasName: "reports_branch_overview_metrics",
+    currentDate: currentManilaIsoDate(),
+    where: eq(loan_records.branch_id, branchRow.branchId),
+  });
 
   if (dateFrom && dateTo) {
     collectionConditions.push(gte(collections.collection_date, dateFrom));
@@ -2363,27 +2374,22 @@ async function loadBranchPerformanceOverviewData(
       .catch(() => []),
     db
       .select({
-        borrowerId: loan_records.borrower_id,
-        status: loan_records.status,
+        borrowerId: branchLoanMetrics.borrowerId,
+        status: branchLoanMetrics.visibleStatus,
       })
-      .from(loan_records)
-      .where(eq(loan_records.branch_id, branchRow.branchId))
+      .from(branchLoanMetrics)
       .catch(() => []),
     db
       .select({
-        loanId: loan_records.loan_id,
-        principal: loan_records.principal,
-        interest: loan_records.interest,
-        status: loan_records.status,
-        dueDate: loan_records.due_date,
+        loanId: branchLoanMetrics.loanId,
+        principal: branchLoanMetrics.principal,
+        interest: branchLoanMetrics.interest,
+        status: branchLoanMetrics.visibleStatus,
+        dueDate: branchLoanMetrics.dueDate,
+        totalPaid: branchLoanMetrics.totalCollected,
       })
-      .from(loan_records)
-      .where(
-        and(
-          eq(loan_records.branch_id, branchRow.branchId),
-          inArray(loan_records.status, ["Completed", "Archived"]),
-        ),
-      )
+      .from(branchLoanMetrics)
+      .where(buildVisibleLoanStatusInSql(branchLoanMetrics.visibleStatus, CLOSED_VISIBLE_LOAN_STATUSES))
       .catch(() => []),
   ]);
 
@@ -2564,29 +2570,32 @@ async function loadBranchLoansComparisonData(
   dateTo: string | null,
 ) {
   const branchIds = branchRows.map((row) => row.branchId);
-  const loanConditions: SQL[] = [inArray(loan_records.branch_id, branchIds)];
+  const branchLoanMetrics = buildLoanDerivedMetricsSubquery({
+    aliasName: "reports_branch_loans_comparison_metrics",
+    currentDate: currentManilaIsoDate(),
+    where: inArray(loan_records.branch_id, branchIds),
+  });
+  const loanConditions: SQL[] = [inArray(branchLoanMetrics.branchId, branchIds)];
 
   if (dateFrom && dateTo) {
-    loanConditions.push(gte(loan_records.start_date, dateFrom));
-    loanConditions.push(lte(loan_records.start_date, dateTo));
+    loanConditions.push(gte(branchLoanMetrics.startDate, dateFrom));
+    loanConditions.push(lte(branchLoanMetrics.startDate, dateTo));
   }
 
   const loanRows = await db
     .select({
-      loanId: loan_records.loan_id,
-      branchId: loan_records.branch_id,
+      loanId: branchLoanMetrics.loanId,
+      branchId: branchLoanMetrics.branchId,
       branchName: branch.branch_name,
-      borrowerId: loan_records.borrower_id,
-      principal: loan_records.principal,
-      interest: loan_records.interest,
-      status: loan_records.status,
+      borrowerId: branchLoanMetrics.borrowerId,
+      principal: branchLoanMetrics.principal,
+      status: branchLoanMetrics.visibleStatus,
+      remainingBalance: branchLoanMetrics.remainingBalance,
     })
-    .from(loan_records)
-    .innerJoin(branch, eq(branch.branch_id, loan_records.branch_id))
+    .from(branchLoanMetrics)
+    .innerJoin(branch, eq(branch.branch_id, branchLoanMetrics.branchId))
     .where(and(...loanConditions))
     .catch(() => []);
-
-  const paymentSummaryMap = await loadLoanPaymentSummary(loanRows.map((row) => row.loanId));
 
   const branchMetrics = new Map<
     number,
@@ -2619,12 +2628,7 @@ async function loadBranchLoansComparisonData(
     }
 
     metrics.borrowers.add(row.borrowerId);
-
-    const principal = toNumber(row.principal);
-    const interestRate = toNumber(row.interest);
-    const totalPayable = principal + (principal * interestRate) / 100;
-    const totalPaid = paymentSummaryMap.get(row.loanId)?.totalPaid ?? 0;
-    metrics.outstandingBalance += Math.max(totalPayable - totalPaid, 0);
+    metrics.outstandingBalance += toNumber(row.remainingBalance);
 
     branchMetrics.set(row.branchId, metrics);
   }
@@ -2668,18 +2672,23 @@ async function loadBorrowerSummaryData(
   dateTo: string | null,
 ) {
   const branchIds = branchRows.map((row) => row.branchId);
+  const borrowerLoanMetrics = buildLoanDerivedMetricsSubquery({
+    aliasName: "reports_borrower_summary_metrics",
+    currentDate: currentManilaIsoDate(),
+    where: inArray(loan_records.branch_id, branchIds),
+  });
   const borrowerLoanRows = await db
     .select({
-      branchId: loan_records.branch_id,
+      branchId: borrowerLoanMetrics.branchId,
       branchName: branch.branch_name,
-      borrowerId: loan_records.borrower_id,
+      borrowerId: borrowerLoanMetrics.borrowerId,
       borrowerCreatedAt: sql<string | null>`${borrowerUsers.date_created}::text`,
-      status: loan_records.status,
+      status: borrowerLoanMetrics.visibleStatus,
     })
-    .from(loan_records)
-    .innerJoin(branch, eq(branch.branch_id, loan_records.branch_id))
-    .leftJoin(borrowerUsers, eq(borrowerUsers.user_id, loan_records.borrower_id))
-    .where(inArray(loan_records.branch_id, branchIds))
+    .from(borrowerLoanMetrics)
+    .innerJoin(branch, eq(branch.branch_id, borrowerLoanMetrics.branchId))
+    .leftJoin(borrowerUsers, eq(borrowerUsers.user_id, borrowerLoanMetrics.borrowerId))
+    .where(inArray(borrowerLoanMetrics.branchId, branchIds))
     .catch(() => []);
 
   const branchMetrics = new Map<
@@ -2774,24 +2783,26 @@ async function loadBorrowersWithOverdueLoansData(
   dateTo: string | null,
 ) {
   const branchIds = branchRows.map((row) => row.branchId);
-  const overdueConditions: SQL[] = [
-    inArray(loan_records.branch_id, branchIds),
-    eq(loan_records.status, "Overdue"),
-  ];
+  const overdueLoanMetrics = buildLoanDerivedMetricsSubquery({
+    aliasName: "reports_borrowers_with_overdue_metrics",
+    currentDate: currentManilaIsoDate(),
+    where: inArray(loan_records.branch_id, branchIds),
+  });
+  const overdueConditions: SQL[] = [buildVisibleLoanStatusEqualsSql(overdueLoanMetrics.visibleStatus, "Overdue")];
 
   if (dateFrom && dateTo) {
-    overdueConditions.push(gte(loan_records.due_date, dateFrom));
-    overdueConditions.push(lte(loan_records.due_date, dateTo));
+    overdueConditions.push(gte(overdueLoanMetrics.dueDate, dateFrom));
+    overdueConditions.push(lte(overdueLoanMetrics.dueDate, dateTo));
   }
 
   const overdueLoanRows = await db
     .select({
-      loanId: loan_records.loan_id,
-      borrowerId: loan_records.borrower_id,
+      loanId: overdueLoanMetrics.loanId,
+      borrowerId: overdueLoanMetrics.borrowerId,
       branchName: branch.branch_name,
-      dueDate: loan_records.due_date,
-      principal: loan_records.principal,
-      interest: loan_records.interest,
+      dueDate: overdueLoanMetrics.dueDate,
+      principal: overdueLoanMetrics.principal,
+      interest: overdueLoanMetrics.interest,
       collectorUsername: collectorUsers.username,
       collectorFirstName: employee_info.first_name,
       collectorMiddleName: employee_info.middle_name,
@@ -2801,20 +2812,20 @@ async function loadBorrowersWithOverdueLoansData(
       borrowerLastName: borrower_info.last_name,
       borrowerUsername: borrowerUsers.username,
       borrowerCompanyId: borrowerUsers.company_id,
+      totalCollected: overdueLoanMetrics.totalCollected,
+      totalPayable: overdueLoanMetrics.totalPayable,
+      remainingBalance: overdueLoanMetrics.remainingBalance,
     })
-    .from(loan_records)
-    .innerJoin(branch, eq(branch.branch_id, loan_records.branch_id))
-    .innerJoin(borrower_info, eq(borrower_info.user_id, loan_records.borrower_id))
-    .leftJoin(borrowerUsers, eq(borrowerUsers.user_id, loan_records.borrower_id))
-    .leftJoin(collectorUsers, eq(collectorUsers.user_id, loan_records.collector_id))
+    .from(overdueLoanMetrics)
+    .innerJoin(branch, eq(branch.branch_id, overdueLoanMetrics.branchId))
+    .innerJoin(borrower_info, eq(borrower_info.user_id, overdueLoanMetrics.borrowerId))
+    .leftJoin(borrowerUsers, eq(borrowerUsers.user_id, overdueLoanMetrics.borrowerId))
+    .leftJoin(collectorUsers, eq(collectorUsers.user_id, overdueLoanMetrics.collectorId))
     .leftJoin(employee_info, eq(employee_info.user_id, collectorUsers.user_id))
     .where(and(...overdueConditions))
-    .orderBy(asc(branch.branch_name), asc(loan_records.due_date))
+    .orderBy(asc(branch.branch_name), asc(overdueLoanMetrics.dueDate))
     .catch(() => []);
 
-  const paymentSummaryMap = await loadLoanPaymentSummary(
-    overdueLoanRows.map((row) => row.loanId),
-  );
   const today = currentManilaIsoDate();
   const borrowerMap = new Map<
     string,
@@ -2831,13 +2842,8 @@ async function loadBorrowersWithOverdueLoansData(
   const branchBorrowerMap = new Map<string, Set<string>>();
 
   for (const row of overdueLoanRows) {
-    const paymentSummary = paymentSummaryMap.get(row.loanId);
-    const totalPaid = paymentSummary?.totalPaid ?? 0;
-    const principal = toNumber(row.principal);
-    const interestRate = toNumber(row.interest);
-    const expectedTotal = principal + (principal * interestRate) / 100;
     const daysOverdue = calculateDaysBetweenIsoDates(row.dueDate, today);
-    const overdueBalance = Math.max(expectedTotal - totalPaid, 0);
+    const overdueBalance = toNumber(row.remainingBalance);
     const collectorName = buildUserDisplayName({
       firstName: row.collectorFirstName,
       middleName: row.collectorMiddleName,
@@ -2946,6 +2952,11 @@ async function loadCollectorPerformanceReportData(
   const resolvedDateTo = dateTo ?? lifetimeEnd;
   const isLifetime = !dateFrom || !dateTo;
   const bucketMode = isLifetime ? ("month" as const) : resolveCollectorTrendBucketMode(resolvedDateFrom, resolvedDateTo);
+  const collectorLoanMetrics = buildLoanDerivedMetricsSubquery({
+    aliasName: "reports_collector_detail_metrics",
+    currentDate: currentManilaIsoDate(),
+    where: inArray(loan_records.branch_id, branchRows.map((row) => row.branchId)),
+  });
   const [{ rows }, trendBuckets, bucketRows] = await Promise.all([
     loadCollectorPerformanceRowsForCustomRange(collectorAccess, {
       dateFrom: resolvedDateFrom,
@@ -2978,15 +2989,15 @@ async function loadCollectorPerformanceReportData(
           bucketKey: bucketExpression,
           totalCollected: sql<number>`coalesce(sum(${collections.amount}), 0)`,
           collectionsCount: sql<number>`count(*)`,
-          borrowersHandled: sql<number>`count(distinct ${loan_records.borrower_id})`,
-          activeLoansHandled: sql<number>`count(distinct case when ${loan_records.status} in ('Active', 'Overdue') then ${loan_records.loan_id} end)`,
+          borrowersHandled: sql<number>`count(distinct ${collectorLoanMetrics.borrowerId})`,
+          activeLoansHandled: sql<number>`count(distinct case when ${buildVisibleLoanStatusInSql(collectorLoanMetrics.visibleStatus, LIVE_VISIBLE_LOAN_STATUSES)} then ${collectorLoanMetrics.loanId} end)`,
         })
         .from(collections)
-        .innerJoin(loan_records, eq(loan_records.loan_id, collections.loan_id))
+        .innerJoin(collectorLoanMetrics, eq(collectorLoanMetrics.loanId, collections.loan_id))
         .where(
           and(
             eq(collections.collector_id, collectorId),
-            inArray(loan_records.branch_id, branchRows.map((row) => row.branchId)),
+            inArray(collectorLoanMetrics.branchId, branchRows.map((row) => row.branchId)),
             gte(collections.collection_date, resolvedDateFrom),
             lte(collections.collection_date, resolvedDateTo),
           ),
@@ -4689,6 +4700,14 @@ async function loadLoanDocumentSource(access: ReportsReadyAccessState, loanId: n
     normalizedCollectionRows.length > 0
       ? normalizedCollectionRows[normalizedCollectionRows.length - 1].outstandingBalance
       : totalPayable;
+  const computedLoanState = buildLoanComputedState({
+    principal,
+    interest: interestRate,
+    totalCollected: totalPaid,
+    dueDate: loan.dueDate,
+    storedStatus: loan.status,
+    currentDate: currentManilaIsoDate(),
+  });
   const scheduleRows = buildLoanScheduleRows({
     startDate: loan.startDate,
     dueDate: loan.dueDate,
@@ -4708,7 +4727,7 @@ async function loadLoanDocumentSource(access: ReportsReadyAccessState, loanId: n
     borrowerAddress: borrowerRow.address || "N/A",
     areaCode: borrowerRow.areaCode || "N/A",
     collectorName,
-    status: loan.status,
+    status: computedLoanState.visibleStatus,
     startDate: loan.startDate,
     dueDate: loan.dueDate,
     termDays,

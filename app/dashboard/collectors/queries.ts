@@ -15,6 +15,12 @@ import {
   sql,
   type SQL,
 } from "drizzle-orm";
+import {
+  LIVE_VISIBLE_LOAN_STATUSES,
+  buildLoanDerivedMetricsSubquery,
+  buildVisibleLoanStatusEqualsSql,
+  buildVisibleLoanStatusInSql,
+} from "@/app/dashboard/loans/loan-derived-status-sql";
 import { buildLoanComputedState, getManilaTodayDateString } from "@/app/dashboard/loans/loan-state";
 import { db } from "@/db";
 import {
@@ -385,30 +391,36 @@ async function loadLoanStats(
     return new Map();
   }
 
+  const loanMetrics = buildLoanDerivedMetricsSubquery({
+    aliasName: "collector_loan_stats_metrics",
+    currentDate: getManilaTodayDateString(),
+    where: whereFrom(buildLoanScopeFilters(access, collectorIds)),
+  });
+
   const rows = await db
     .select({
-        collectorId: loan_records.collector_id,
-        assignedActiveLoans: sql<number>`sum(case when ${loan_records.status} in ('Active', 'Overdue') then 1 else 0 end)`,
-        activePrincipalLoad: sql<number>`coalesce(sum(case when ${loan_records.status} in ('Active', 'Overdue') then ${loan_records.principal} else 0 end), 0)`,
-        activeInterestPotential: sql<number>`coalesce(sum(case when ${loan_records.status} in ('Active', 'Overdue') then (${loan_records.principal} * ${loan_records.interest}) / 100 else 0 end), 0)`,
-        portfolioAtRiskAmount: sql<number>`coalesce(sum(case when ${loan_records.status} = 'Overdue' then ${loan_records.principal} else 0 end), 0)`,
-        completedLoans: sql<number>`sum(case when ${loan_records.status} = 'Completed' then 1 else 0 end)`,
+        collectorId: loanMetrics.collectorId,
+        assignedActiveLoans: sql<number>`coalesce(sum(case when ${buildVisibleLoanStatusInSql(loanMetrics.visibleStatus, LIVE_VISIBLE_LOAN_STATUSES)} then 1 else 0 end), 0)`,
+        activePrincipalLoad: sql<number>`coalesce(sum(case when ${buildVisibleLoanStatusInSql(loanMetrics.visibleStatus, LIVE_VISIBLE_LOAN_STATUSES)} then ${loanMetrics.principal} else 0 end), 0)`,
+        activeInterestPotential: sql<number>`coalesce(sum(case when ${buildVisibleLoanStatusInSql(loanMetrics.visibleStatus, LIVE_VISIBLE_LOAN_STATUSES)} then (${loanMetrics.principal} * ${loanMetrics.interest}) / 100 else 0 end), 0)`,
+        portfolioAtRiskAmount: sql<number>`coalesce(sum(case when ${buildVisibleLoanStatusEqualsSql(loanMetrics.visibleStatus, "Overdue")} then ${loanMetrics.principal} else 0 end), 0)`,
+        completedLoans: sql<number>`coalesce(sum(case when ${buildVisibleLoanStatusEqualsSql(loanMetrics.visibleStatus, "Completed")} then 1 else 0 end), 0)`,
         totalLoans: sql<number>`count(*)`,
-        firstLoanStart: sql<string | null>`min(${loan_records.start_date})::text`,
+        firstLoanStart: sql<string | null>`min(${loanMetrics.startDate})::text`,
         expectedCollections: sql<number>`
           coalesce(
             sum(
               (
-                (${loan_records.principal} + ((${loan_records.principal} * ${loan_records.interest}) / 100))
+                (${loanMetrics.principal} + ((${loanMetrics.principal} * ${loanMetrics.interest}) / 100))
                 /
                 greatest(
-                  coalesce(${loan_records.term_days}, (${loan_records.due_date} - ${loan_records.start_date}) + 1),
+                  coalesce(${loanMetrics.termDays}, (${loanMetrics.dueDate} - ${loanMetrics.startDate}) + 1),
                   1
                 )
               )
               *
               greatest(
-                least(${loan_records.due_date}, ${sql`${range.end}::date`}) - greatest(${loan_records.start_date}, ${sql`${range.start}::date`}) + 1,
+                least(${loanMetrics.dueDate}, ${sql`${range.end}::date`}) - greatest(${loanMetrics.startDate}, ${sql`${range.start}::date`}) + 1,
                 0
               )
             ),
@@ -416,9 +428,8 @@ async function loadLoanStats(
           )
         `,
       })
-    .from(loan_records)
-    .where(whereFrom(buildLoanScopeFilters(access, collectorIds)))
-    .groupBy(loan_records.collector_id)
+    .from(loanMetrics)
+    .groupBy(loanMetrics.collectorId)
     .catch(() => []);
 
   const result = new Map<string, LoanStatsRow>();
@@ -496,20 +507,24 @@ async function loadPeriodPortfolioStats(
   range: CollectorsDateRange | null,
 ): Promise<PeriodPortfolioStatsRow | null> {
   const collectorIds = [collectorId];
+  const loanMetrics = buildLoanDerivedMetricsSubquery({
+    aliasName: "collector_period_portfolio_metrics",
+    currentDate: getManilaTodayDateString(),
+    where: whereFrom(buildLoanScopeFilters(access, collectorIds)),
+  });
 
   if (range === null) {
     const rows = await db
       .select({
-        collectorId: loan_records.collector_id,
-        periodPortfolioPrincipal: sql<number>`coalesce(sum(${loan_records.principal}), 0)`,
-        periodInterestPotential: sql<number>`coalesce(sum((${loan_records.principal} * ${loan_records.interest}) / 100), 0)`,
-        periodPortfolioAtRiskAmount: sql<number>`coalesce(sum(case when ${loan_records.status} = 'Overdue' then ${loan_records.principal} else 0 end), 0)`,
+        collectorId: loanMetrics.collectorId,
+        periodPortfolioPrincipal: sql<number>`coalesce(sum(${loanMetrics.principal}), 0)`,
+        periodInterestPotential: sql<number>`coalesce(sum((${loanMetrics.principal} * ${loanMetrics.interest}) / 100), 0)`,
+        periodPortfolioAtRiskAmount: sql<number>`coalesce(sum(case when ${buildVisibleLoanStatusEqualsSql(loanMetrics.visibleStatus, "Overdue")} then ${loanMetrics.principal} else 0 end), 0)`,
         dueLoans: sql<number>`count(*)`,
-        completedDueLoans: sql<number>`sum(case when ${loan_records.status} = 'Completed' then 1 else 0 end)`,
+        completedDueLoans: sql<number>`coalesce(sum(case when ${buildVisibleLoanStatusEqualsSql(loanMetrics.visibleStatus, "Completed")} then 1 else 0 end), 0)`,
       })
-      .from(loan_records)
-      .where(whereFrom(buildLoanScopeFilters(access, collectorIds)))
-      .groupBy(loan_records.collector_id)
+      .from(loanMetrics)
+      .groupBy(loanMetrics.collectorId)
       .catch(() => []);
 
     const row = rows[0];
@@ -529,34 +544,33 @@ async function loadPeriodPortfolioStats(
 
   const overlapDays = sql<number>`
     greatest(
-      least(${loan_records.due_date}, ${sql`${range.end}::date`}) - greatest(${loan_records.start_date}, ${sql`${range.start}::date`}) + 1,
+      least(${loanMetrics.dueDate}, ${sql`${range.end}::date`}) - greatest(${loanMetrics.startDate}, ${sql`${range.start}::date`}) + 1,
       0
     )
   `;
   const dueInRange = sql<boolean>`
-    ${loan_records.due_date} >= ${sql`${range.start}::date`} and ${loan_records.due_date} <= ${sql`${range.end}::date`}
+    ${loanMetrics.dueDate} >= ${sql`${range.start}::date`} and ${loanMetrics.dueDate} <= ${sql`${range.end}::date`}
   `;
 
   const rows = await db
     .select({
-      collectorId: loan_records.collector_id,
+      collectorId: loanMetrics.collectorId,
       periodPortfolioPrincipal: sql<number>`
-        coalesce(sum(case when ${overlapDays} > 0 then ${loan_records.principal} else 0 end), 0)
+        coalesce(sum(case when ${overlapDays} > 0 then ${loanMetrics.principal} else 0 end), 0)
       `,
       periodInterestPotential: sql<number>`
-        coalesce(sum(case when ${overlapDays} > 0 then (${loan_records.principal} * ${loan_records.interest}) / 100 else 0 end), 0)
+        coalesce(sum(case when ${overlapDays} > 0 then (${loanMetrics.principal} * ${loanMetrics.interest}) / 100 else 0 end), 0)
       `,
       periodPortfolioAtRiskAmount: sql<number>`
-        coalesce(sum(case when ${overlapDays} > 0 and ${loan_records.status} = 'Overdue' then ${loan_records.principal} else 0 end), 0)
+        coalesce(sum(case when ${overlapDays} > 0 and ${buildVisibleLoanStatusEqualsSql(loanMetrics.visibleStatus, "Overdue")} then ${loanMetrics.principal} else 0 end), 0)
       `,
       dueLoans: sql<number>`sum(case when ${dueInRange} then 1 else 0 end)`,
       completedDueLoans: sql<number>`
-        sum(case when ${dueInRange} and ${loan_records.status} = 'Completed' then 1 else 0 end)
+        coalesce(sum(case when ${dueInRange} and ${buildVisibleLoanStatusEqualsSql(loanMetrics.visibleStatus, "Completed")} then 1 else 0 end), 0)
       `,
     })
-    .from(loan_records)
-    .where(whereFrom(buildLoanScopeFilters(access, collectorIds)))
-    .groupBy(loan_records.collector_id)
+    .from(loanMetrics)
+    .groupBy(loanMetrics.collectorId)
     .catch(() => []);
 
   const row = rows[0];

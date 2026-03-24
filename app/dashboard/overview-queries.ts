@@ -1,7 +1,12 @@
 import "server-only";
 
 import { and, desc, eq, gte, inArray, lte, sql, type SQL } from "drizzle-orm";
-import { ACTIVE_LOAN_STATUSES } from "@/app/dashboard/loans/active-statuses";
+import {
+  LIVE_VISIBLE_LOAN_STATUSES,
+  buildLoanDerivedMetricsSubquery,
+  buildVisibleLoanStatusEqualsSql,
+  buildVisibleLoanStatusInSql,
+} from "@/app/dashboard/loans/loan-derived-status-sql";
 import { firstDayOfMonth, toNumber, todayInManila } from "@/app/dashboard/overview-format";
 import type {
   BorrowerOverview,
@@ -68,6 +73,11 @@ async function getOverviewMetrics(scope: DashboardScope): Promise<OverviewMetric
   const monthStart = firstDayOfMonth(today);
   const loanScope = loanScopeConditions(scope);
   const expenseScope = expenseScopeConditions(scope);
+  const loanMetrics = buildLoanDerivedMetricsSubquery({
+    aliasName: "overview_loan_metrics",
+    currentDate: today,
+    where: whereFrom(loanScope),
+  });
 
   const borrowerCountPromise =
     scope.kind === "all_branches" || scope.kind === "branches"
@@ -85,10 +95,7 @@ async function getOverviewMetrics(scope: DashboardScope): Promise<OverviewMetric
   const [
     collectionsThisMonth,
     expensesThisMonth,
-    activeLoans,
-    overdueLoans,
-    totalPayableActive,
-    paidAgainstActive,
+    loanSummaryRow,
     borrowerCount,
   ] = await Promise.all([
     db
@@ -107,34 +114,23 @@ async function getOverviewMetrics(scope: DashboardScope): Promise<OverviewMetric
       .then((rows) => toNumber(rows[0]?.value))
       .catch(() => 0),
     db
-      .select({ value: sql<number>`count(*)` })
-      .from(loan_records)
-      .where(whereFrom([...loanScope, inArray(loan_records.status, [...ACTIVE_LOAN_STATUSES])]))
-      .then((rows) => toNumber(rows[0]?.value))
-      .catch(() => 0),
-    db
-      .select({ value: sql<number>`count(*)` })
-      .from(loan_records)
-      .where(whereFrom([...loanScope, eq(loan_records.status, "Overdue")]))
-      .then((rows) => toNumber(rows[0]?.value))
-      .catch(() => 0),
-    db
       .select({
-        value: sql<number>`coalesce(sum(${loan_records.principal} + (${loan_records.principal} * ${loan_records.interest} / 100)), 0)`,
+        activeLoans: sql<number>`coalesce(sum(case when ${buildVisibleLoanStatusEqualsSql(loanMetrics.visibleStatus, "Active")} then 1 else 0 end), 0)`,
+        overdueLoans: sql<number>`coalesce(sum(case when ${buildVisibleLoanStatusEqualsSql(loanMetrics.visibleStatus, "Overdue")} then 1 else 0 end), 0)`,
+        totalPayableActive: sql<number>`coalesce(sum(case when ${buildVisibleLoanStatusInSql(loanMetrics.visibleStatus, LIVE_VISIBLE_LOAN_STATUSES)} then ${loanMetrics.totalPayable} else 0 end), 0)`,
+        paidAgainstActive: sql<number>`coalesce(sum(case when ${buildVisibleLoanStatusInSql(loanMetrics.visibleStatus, LIVE_VISIBLE_LOAN_STATUSES)} then ${loanMetrics.totalCollected} else 0 end), 0)`,
       })
-      .from(loan_records)
-      .where(whereFrom([...loanScope, inArray(loan_records.status, [...ACTIVE_LOAN_STATUSES])]))
-      .then((rows) => toNumber(rows[0]?.value))
-      .catch(() => 0),
-    db
-      .select({ value: sql<number>`coalesce(sum(${collections.amount}), 0)` })
-      .from(collections)
-      .innerJoin(loan_records, eq(loan_records.loan_id, collections.loan_id))
-      .where(whereFrom([...loanScope, inArray(loan_records.status, [...ACTIVE_LOAN_STATUSES])]))
-      .then((rows) => toNumber(rows[0]?.value))
-      .catch(() => 0),
+      .from(loanMetrics)
+      .limit(1)
+      .then((rows) => rows[0] ?? null)
+      .catch(() => null),
     borrowerCountPromise,
   ]);
+
+  const activeLoans = toNumber(loanSummaryRow?.activeLoans);
+  const overdueLoans = toNumber(loanSummaryRow?.overdueLoans);
+  const totalPayableActive = toNumber(loanSummaryRow?.totalPayableActive);
+  const paidAgainstActive = toNumber(loanSummaryRow?.paidAgainstActive);
 
   return {
     collectionsThisMonth,
@@ -219,18 +215,23 @@ async function getCollectorMetrics(collectorId: string): Promise<CollectorMetric
 }
 
 async function getBorrowerOverview(borrowerId: string): Promise<BorrowerOverview> {
+  const currentDate = todayInManila();
+  const borrowerLoanMetrics = buildLoanDerivedMetricsSubquery({
+    aliasName: "borrower_overview_loan_metrics",
+    currentDate,
+    where: eq(loan_records.borrower_id, borrowerId),
+  });
+
   const activeLoan = await db
     .select({
-      loan_id: loan_records.loan_id,
-      loan_code: loan_records.loan_code,
-      status: loan_records.status,
-      principal: loan_records.principal,
-      interest: loan_records.interest,
-      start_date: loan_records.start_date,
+      loan_id: borrowerLoanMetrics.loanId,
+      loan_code: borrowerLoanMetrics.loanCode,
+      status: borrowerLoanMetrics.visibleStatus,
+      outstandingBalance: borrowerLoanMetrics.remainingBalance,
     })
-    .from(loan_records)
-    .where(and(eq(loan_records.borrower_id, borrowerId), inArray(loan_records.status, [...ACTIVE_LOAN_STATUSES])))
-    .orderBy(desc(loan_records.start_date), desc(loan_records.loan_id))
+    .from(borrowerLoanMetrics)
+    .where(buildVisibleLoanStatusInSql(borrowerLoanMetrics.visibleStatus, LIVE_VISIBLE_LOAN_STATUSES))
+    .orderBy(desc(borrowerLoanMetrics.startDate), desc(borrowerLoanMetrics.loanId))
     .limit(1)
     .then((rows) => rows[0] ?? null)
     .catch(() => null);
@@ -239,15 +240,13 @@ async function getBorrowerOverview(borrowerId: string): Promise<BorrowerOverview
     ? null
     : await db
         .select({
-          loan_id: loan_records.loan_id,
-          loan_code: loan_records.loan_code,
-          status: loan_records.status,
-          principal: loan_records.principal,
-          interest: loan_records.interest,
+          loan_id: borrowerLoanMetrics.loanId,
+          loan_code: borrowerLoanMetrics.loanCode,
+          status: borrowerLoanMetrics.visibleStatus,
+          outstandingBalance: borrowerLoanMetrics.remainingBalance,
         })
-        .from(loan_records)
-        .where(eq(loan_records.borrower_id, borrowerId))
-        .orderBy(desc(loan_records.start_date), desc(loan_records.loan_id))
+        .from(borrowerLoanMetrics)
+        .orderBy(desc(borrowerLoanMetrics.startDate), desc(borrowerLoanMetrics.loanId))
         .limit(1)
         .then((rows) => rows[0] ?? null)
         .catch(() => null);
@@ -263,15 +262,8 @@ async function getBorrowerOverview(borrowerId: string): Promise<BorrowerOverview
     };
   }
 
-  const [paidTotal, latestPayment] = await Promise.all([
-    db
-      .select({
-        paid: sql<number>`coalesce(sum(${collections.amount}), 0)`,
-      })
-      .from(collections)
-      .where(eq(collections.loan_id, currentLoan.loan_id))
-      .then((rows) => toNumber(rows[0]?.paid))
-      .catch(() => 0),
+  const [outstandingBalance, latestPayment] = await Promise.all([
+    Promise.resolve(toNumber(currentLoan.outstandingBalance)),
     db
       .select({
         amount: collections.amount,
@@ -285,14 +277,10 @@ async function getBorrowerOverview(borrowerId: string): Promise<BorrowerOverview
       .catch(() => null),
   ]);
 
-  const principal = toNumber(currentLoan.principal);
-  const interest = toNumber(currentLoan.interest);
-  const totalPayable = principal + (principal * interest) / 100;
-
   return {
     currentLoanCode: currentLoan.loan_code,
     loanStatus: currentLoan.status,
-    outstandingBalance: Math.max(totalPayable - paidTotal, 0),
+    outstandingBalance,
     latestPayment: latestPayment ? toNumber(latestPayment.amount) : 0,
     lastPaymentDate: latestPayment?.collection_date ?? "N/A",
   };
