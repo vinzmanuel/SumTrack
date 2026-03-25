@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { BorrowerRecordsModule } from "@/app/dashboard/borrowers/borrower-records-module";
 import { BorrowersFilters } from "@/app/dashboard/borrowers/borrowers-filters";
@@ -249,7 +250,12 @@ export function BorrowersClientPage({
           action={
             canCreateBorrower ? (
               <Link href="/dashboard/create-account">
-                <Button className="w-full xl:w-auto" size="sm" type="button" variant="secondary">
+                <Button
+                  className="w-full bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white xl:w-auto"
+                  size="sm"
+                  type="button"
+                >
+                  <Plus className="h-4 w-4" />
                   Create New Borrower
                 </Button>
               </Link>

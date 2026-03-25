@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { LoanRecordsModule } from "@/app/dashboard/loans/loan-records-module";
 import { LoansFilters } from "@/app/dashboard/loans/loans-filters";
@@ -265,7 +266,12 @@ export function LoansClientPage({
           action={
             initialScope.canCreateLoan ? (
               <Link href="/dashboard/create-loan">
-                <Button className="w-full xl:w-auto" size="sm" type="button" variant="secondary">
+                <Button
+                  className="w-full bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white xl:w-auto"
+                  size="sm"
+                  type="button"
+                >
+                  <Plus className="h-4 w-4" />
                   Create loan
                 </Button>
               </Link>

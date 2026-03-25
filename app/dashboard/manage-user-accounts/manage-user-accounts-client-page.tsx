@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   CollectorLiveLoanReassignmentDialog,
@@ -319,6 +320,7 @@ export function ManageUserAccountsClientPage({
                     size="sm"
                     type="button"
                   >
+                    <Plus className="h-4 w-4" />
                     Create User
                   </Button>
                 </Link>

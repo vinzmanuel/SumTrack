@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EXPENSE_CATEGORIES } from "@/app/dashboard/expenses/filters";
@@ -191,7 +192,11 @@ export function ExpensesClientPage({
           </Link>
           {canCreateExpense ? (
             <Link href="/dashboard/expenses/create">
-              <Button type="button" variant="secondary">
+              <Button
+                className="bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white"
+                type="button"
+              >
+                <Plus className="h-4 w-4" />
                 Create expense
               </Button>
             </Link>
