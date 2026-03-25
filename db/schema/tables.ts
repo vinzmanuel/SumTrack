@@ -285,6 +285,8 @@ export const loan_records = pgTable(
     due_date: date().notNull(),
     term_days: integer(),
     branch_id: integer().notNull(),
+    created_at: timestamp({ mode: "string" }).defaultNow(),
+    created_by: uuid(),
     status: varchar({ length: 50 })
       .$type<"active" | "overdue" | "completed" | "archived" | "abandoned">()
       .notNull(),
@@ -305,6 +307,11 @@ export const loan_records = pgTable(
       foreignColumns: [branch.branch_id],
       name: "loan_records_branch_id_fkey",
     }),
+    foreignKey({
+      columns: [table.created_by],
+      foreignColumns: [users.user_id],
+      name: "loan_records_created_by_fkey",
+    }).onDelete("set null"),
     unique("loan_records_loan_code_key").on(table.loan_code),
     index("loan_records_borrower_id_idx").on(table.borrower_id),
     index("loan_records_collector_id_idx").on(table.collector_id),
@@ -341,6 +348,7 @@ export const collections = pgTable(
     note: text(),
     encoded_by: uuid().notNull(),
     collection_date: date().notNull(),
+    created_at: timestamp({ mode: "string" }).defaultNow(),
   },
   (table) => [
     foreignKey({

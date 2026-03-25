@@ -1877,6 +1877,7 @@ export async function deleteManagedUserAccount(
   const dependencyChecks = await Promise.all([
     db.select({ value: sql<number>`count(*)` }).from(loan_records).where(eq(loan_records.borrower_id, userId)).then((rows) => Number(rows[0]?.value) || 0).catch(() => 0),
     db.select({ value: sql<number>`count(*)` }).from(loan_records).where(eq(loan_records.collector_id, userId)).then((rows) => Number(rows[0]?.value) || 0).catch(() => 0),
+    db.select({ value: sql<number>`count(*)` }).from(loan_records).where(eq(loan_records.created_by, userId)).then((rows) => Number(rows[0]?.value) || 0).catch(() => 0),
     db.select({ value: sql<number>`count(*)` }).from(collections).where(eq(collections.collector_id, userId)).then((rows) => Number(rows[0]?.value) || 0).catch(() => 0),
     db.select({ value: sql<number>`count(*)` }).from(collections).where(eq(collections.encoded_by, userId)).then((rows) => Number(rows[0]?.value) || 0).catch(() => 0),
     db.select({ value: sql<number>`count(*)` }).from(expenses).where(eq(expenses.recorded_by, userId)).then((rows) => Number(rows[0]?.value) || 0).catch(() => 0),

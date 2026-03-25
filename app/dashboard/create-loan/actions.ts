@@ -454,6 +454,7 @@ export async function createLoanAction(
       due_date: dueDate,
       term_days: termDays,
       branch_id: borrowerInfo.borrower_branch_id,
+      created_by: access.userId,
       status: NEW_LOAN_STATUS,
     })
     .returning({ loan_id: loan_records.loan_id, loan_code: loan_records.loan_code })
