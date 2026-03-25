@@ -21,48 +21,41 @@ type NavItem = {
     | "settings";
 };
 
+function buildSharedOperationalNavItems(options?: {
+  branchLabel?: string;
+  branchHref?: string;
+}): NavItem[] {
+  return [
+    { href: "/dashboard", label: "Overview", section: "main", icon: "layout-dashboard" },
+    { href: "/dashboard/loans", label: "Loans", section: "main", icon: "hand-coins" },
+    {
+      href: options?.branchHref ?? "/dashboard/branches",
+      label: options?.branchLabel ?? "Branches",
+      section: "main",
+      icon: "building-2",
+    },
+    { href: "/dashboard/borrowers", label: "Borrowers", section: "main", icon: "users" },
+    { href: "/dashboard/collectors", label: "Collectors", section: "main", icon: "bar-chart-3" },
+    { href: "/dashboard/collections", label: "Collections", section: "finance", icon: "receipt-text" },
+    { href: "/dashboard/incentives", label: "Incentives", section: "finance", icon: "wallet" },
+    { href: "/dashboard/expenses", label: "Expenses", section: "finance", icon: "receipt-text" },
+    { href: "/dashboard/reports", label: "Reports", section: "system", icon: "bar-chart-3" },
+    { href: "/dashboard/recent-activity", label: "Recent Activity", section: "system", icon: "file-text" },
+    { href: "/dashboard/manage-user-accounts", label: "Manage User Accounts", section: "system", icon: "users" },
+    { href: "/dashboard/my-profile", label: "My Profile", section: "system", icon: "user-round" },
+  ];
+}
+
 function navItemsForRole(roleName: string, options?: { branchManagerBranchHref?: string | null }): NavItem[] {
   if (roleName === "Admin") {
-    return [
-      { href: "/dashboard", label: "Overview", section: "main", icon: "layout-dashboard" },
-      { href: "/dashboard/loans", label: "Loans", section: "main", icon: "hand-coins" },
-      { href: "/dashboard/branches", label: "Branches", section: "main", icon: "building-2" },
-      { href: "/dashboard/borrowers", label: "Borrowers", section: "main", icon: "users" },
-      { href: "/dashboard/collectors", label: "Collectors", section: "main", icon: "bar-chart-3" },
-      { href: "/dashboard/collections", label: "Collections", section: "finance", icon: "receipt-text" },
-      { href: "/dashboard/reports", label: "Reports", section: "system", icon: "bar-chart-3" },
-      { href: "/dashboard/recent-activity", label: "Recent Activity", section: "system", icon: "file-text" },
-      { href: "/dashboard/incentives", label: "Incentives", section: "finance", icon: "wallet" },
-      { href: "/dashboard/expenses", label: "Expenses", section: "finance", icon: "receipt-text" },
-      { href: "/dashboard/my-documents", label: "Documents", section: "system", icon: "file-text" },
-      { href: "/dashboard/manage-user-accounts", label: "Manage User Accounts", section: "system", icon: "users" },
-      { href: "/dashboard/create-account", label: "Create Account", section: "system", icon: "user-plus" },
-      { href: "/dashboard/my-profile", label: "My Profile", section: "system", icon: "user-round" },
-    ];
+    return buildSharedOperationalNavItems();
   }
 
   if (roleName === "Branch Manager") {
-    return [
-      { href: "/dashboard", label: "Overview", section: "main", icon: "layout-dashboard" },
-      { href: "/dashboard/loans", label: "Loans", section: "main", icon: "hand-coins" },
-      {
-        href: options?.branchManagerBranchHref ?? "/dashboard/branches",
-        label: "Branches",
-        section: "main",
-        icon: "building-2",
-      },
-      { href: "/dashboard/borrowers", label: "Borrowers", section: "main", icon: "users" },
-      { href: "/dashboard/collectors", label: "Collectors", section: "main", icon: "bar-chart-3" },
-      { href: "/dashboard/collections", label: "Collections", section: "finance", icon: "receipt-text" },
-      { href: "/dashboard/reports", label: "Reports", section: "system", icon: "bar-chart-3" },
-      { href: "/dashboard/recent-activity", label: "Recent Activity", section: "system", icon: "file-text" },
-      { href: "/dashboard/incentives", label: "Incentives", section: "finance", icon: "wallet" },
-      { href: "/dashboard/expenses", label: "Expenses", section: "finance", icon: "receipt-text" },
-      { href: "/dashboard/my-documents", label: "Documents", section: "system", icon: "file-text" },
-      { href: "/dashboard/manage-user-accounts", label: "Manage User Accounts", section: "system", icon: "users" },
-      { href: "/dashboard/create-account", label: "Create Account", section: "system", icon: "user-plus" },
-      { href: "/dashboard/my-profile", label: "My Profile", section: "system", icon: "user-round" },
-    ];
+    return buildSharedOperationalNavItems({
+      branchHref: options?.branchManagerBranchHref ?? "/dashboard/branches",
+      branchLabel: "Manage Branch",
+    });
   }
 
   if (roleName === "Secretary") {
@@ -70,29 +63,14 @@ function navItemsForRole(roleName: string, options?: { branchManagerBranchHref?:
       { href: "/dashboard", label: "Overview", section: "main", icon: "layout-dashboard" },
       { href: "/dashboard/loans", label: "Loans", section: "main", icon: "hand-coins" },
       { href: "/dashboard/borrowers", label: "Borrowers", section: "main", icon: "users" },
-      { href: "/dashboard/loans", label: "Collections", section: "main", icon: "receipt-text" },
       { href: "/dashboard/reports", label: "Reports", section: "system", icon: "bar-chart-3" },
-      { href: "/dashboard/my-documents", label: "Documents", section: "system", icon: "file-text" },
-      { href: "/dashboard/create-account", label: "Create Account", section: "system", icon: "user-plus" },
+      { href: "/dashboard/create-account", label: "Manage Borrower Accounts", section: "system", icon: "users" },
       { href: "/dashboard/my-profile", label: "My Profile", section: "system", icon: "user-round" },
     ];
   }
 
   if (roleName === "Auditor") {
-    return [
-      { href: "/dashboard", label: "Overview", section: "main", icon: "layout-dashboard" },
-      { href: "/dashboard/loans", label: "Loans", section: "main", icon: "hand-coins" },
-      { href: "/dashboard/borrowers", label: "Borrowers", section: "main", icon: "users" },
-      { href: "/dashboard/collectors", label: "Collectors", section: "main", icon: "bar-chart-3" },
-      { href: "/dashboard/collections", label: "Collections", section: "finance", icon: "receipt-text" },
-      { href: "/dashboard/reports", label: "Reports", section: "system", icon: "bar-chart-3" },
-      { href: "/dashboard/recent-activity", label: "Recent Activity", section: "system", icon: "file-text" },
-      { href: "/dashboard/incentives", label: "Incentives", section: "finance", icon: "wallet" },
-      { href: "/dashboard/expenses", label: "Expenses", section: "finance", icon: "receipt-text" },
-      { href: "/dashboard/my-documents", label: "Documents", section: "system", icon: "file-text" },
-      { href: "/dashboard/manage-user-accounts", label: "Manage User Accounts", section: "system", icon: "users" },
-      { href: "/dashboard/my-profile", label: "My Profile", section: "system", icon: "user-round" },
-    ];
+    return buildSharedOperationalNavItems();
   }
 
   if (roleName === "Collector") {
@@ -108,8 +86,7 @@ function navItemsForRole(roleName: string, options?: { branchManagerBranchHref?:
   if (roleName === "Borrower") {
     return [
       { href: "/dashboard", label: "Overview", section: "main", icon: "layout-dashboard" },
-      { href: "/dashboard/my-loans", label: "Loans", section: "main", icon: "hand-coins" },
-      { href: "/dashboard/my-documents", label: "Documents", section: "system", icon: "file-text" },
+      { href: "/dashboard/my-loans", label: "My Loans", section: "main", icon: "hand-coins" },
       { href: "/dashboard/my-profile", label: "My Profile", section: "system", icon: "user-round" },
     ];
   }

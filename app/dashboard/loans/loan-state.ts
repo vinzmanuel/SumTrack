@@ -54,6 +54,14 @@ export function calculateLoanRemainingBalance(totalPayable: number, totalCollect
   return clampMoney(totalPayable - clampMoney(totalCollected));
 }
 
+export function isLoanPaidOff(remainingBalance: number) {
+  return remainingBalance <= 0;
+}
+
+export function hasOutstandingLoanBalance(remainingBalance: number) {
+  return remainingBalance > 0;
+}
+
 export function isTerminalStoredLoanStatus(status: string | null | undefined) {
   return TERMINAL_STORED_LOAN_STATUS_SET.has(normalizeStoredLoanStatus(status));
 }
@@ -70,12 +78,12 @@ export function resolveReconciledStoredLoanStatus(params: {
     return normalizedStoredStatus;
   }
 
-  if (params.remainingBalance <= 0.01) {
+  if (isLoanPaidOff(params.remainingBalance)) {
     return "completed";
   }
 
   const currentDate = params.currentDate ?? getManilaTodayDateString();
-  if (currentDate > params.dueDate && params.remainingBalance > 0.01) {
+  if (currentDate > params.dueDate && hasOutstandingLoanBalance(params.remainingBalance)) {
     return "overdue";
   }
 
@@ -163,7 +171,7 @@ export function canRecordCollectionForLoan(params: {
     return false;
   }
 
-  return params.remainingBalance > 0.01;
+  return hasOutstandingLoanBalance(params.remainingBalance);
 }
 
 export function resolveArchiveTargetStatus(params: {

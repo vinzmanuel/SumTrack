@@ -1,7 +1,8 @@
 "use client";
 
-import { Fragment, useActionState, useMemo, useRef, useState, type FormEvent } from "react";
+import { Fragment, useActionState, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { ChevronDown, ChevronUp, Loader2, Plus } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useFormStatus } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +16,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { toast } from "@/components/ui/sonner";
 import { createCollectionAction } from "@/app/dashboard/loans/[loanId]/actions";
 import { initialLoanDetailState, type CollectionHistoryRow } from "@/app/dashboard/loans/[loanId]/state";
 
@@ -98,7 +100,11 @@ export function LoanDetailForm({
   canRecordCollections,
 }: LoanDetailFormProps) {
   const [state, formAction] = useActionState(createCollectionAction, initialLoanDetailState);
+  const router = useRouter();
   const formRef = useRef<HTMLFormElement>(null);
+  const confirmedSubmitRef = useRef(false);
+  const lastToastKeyRef = useRef<string | null>(null);
+  const successToastIdRef = useRef<string | number | null>(null);
 
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
@@ -106,7 +112,6 @@ export function LoanDetailForm({
   const [missedPayment, setMissedPayment] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
-  const [isConfirmedSubmit, setIsConfirmedSubmit] = useState(false);
   const [localNoteError, setLocalNoteError] = useState("");
   const [expandedCollectionId, setExpandedCollectionId] = useState<string | null>(null);
   const amountDisplay = formatMoneyDisplay(amount);
@@ -154,9 +159,61 @@ export function LoanDetailForm({
   const noteFieldError =
     localNoteError || (missedPayment && !note.trim() ? "Note is required for missed payment." : "") || "";
 
+  function resetCollectionForm() {
+    setAmount("");
+    setNote("");
+    setCollectionDate(getTodayDateString());
+    setMissedPayment(false);
+    setLocalNoteError("");
+    setIsConfirmOpen(false);
+    confirmedSubmitRef.current = false;
+  }
+
+  useEffect(() => {
+    return () => {
+      if (successToastIdRef.current !== null) {
+        toast.dismiss(successToastIdRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (state.status === "idle" || !state.message) {
+      return;
+    }
+
+    const nextToastKey = `${state.status}:${state.result?.collectionCode ?? state.message}`;
+    if (lastToastKeyRef.current === nextToastKey) {
+      return;
+    }
+
+    lastToastKeyRef.current = nextToastKey;
+
+    if (state.status === "success") {
+      if (successToastIdRef.current !== null) {
+        toast.dismiss(successToastIdRef.current);
+      }
+
+      successToastIdRef.current = toast.success(state.message, {
+        closeButton: true,
+        duration: Infinity,
+      });
+
+      const timeoutId = window.setTimeout(() => {
+        setIsFormOpen(false);
+        resetCollectionForm();
+        router.refresh();
+      }, 0);
+
+      return () => window.clearTimeout(timeoutId);
+    }
+
+    toast.error(state.message);
+  }, [router, state.message, state.result?.collectionCode, state.status]);
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    if (isConfirmedSubmit) {
-      setIsConfirmedSubmit(false);
+    if (confirmedSubmitRef.current) {
+      confirmedSubmitRef.current = false;
       return;
     }
 
@@ -173,7 +230,7 @@ export function LoanDetailForm({
 
   function handleConfirmSubmit() {
     setIsConfirmOpen(false);
-    setIsConfirmedSubmit(true);
+    confirmedSubmitRef.current = true;
     formRef.current?.requestSubmit();
   }
 
@@ -188,13 +245,7 @@ export function LoanDetailForm({
   }
 
   function openCollectionForm() {
-    setAmount("");
-    setNote("");
-    setCollectionDate(getTodayDateString());
-    setMissedPayment(false);
-    setLocalNoteError("");
-    setIsConfirmedSubmit(false);
-    setIsConfirmOpen(false);
+    resetCollectionForm();
     setIsFormOpen(true);
   }
 
@@ -286,7 +337,7 @@ export function LoanDetailForm({
   return (
     <div className="space-y-6">
       {canRecordCollections ? (
-        <Dialog onOpenChange={setIsFormOpen} open={isFormOpen && state.status !== "success"}>
+        <Dialog onOpenChange={setIsFormOpen} open={isFormOpen}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Record Collection</DialogTitle>
@@ -297,7 +348,7 @@ export function LoanDetailForm({
         </Dialog>
       ) : null}
 
-      <Dialog onOpenChange={setIsConfirmOpen} open={isConfirmOpen && state.status !== "success"}>
+      <Dialog onOpenChange={setIsConfirmOpen} open={isConfirmOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Confirm Collection Entry</DialogTitle>
@@ -332,34 +383,6 @@ export function LoanDetailForm({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {state.status === "success" && state.result ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Collection Saved</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <p>
-              <span className="font-medium">Collection Code:</span> {state.result.collectionCode}
-            </p>
-            <p>
-              <span className="font-medium">Collection Date:</span> {state.result.collectionDate}
-            </p>
-            <p>
-              <span className="font-medium">Amount:</span> {formatMoney(state.result.amount)}
-            </p>
-            <p>
-              <span className="font-medium">Collector:</span> {state.result.collectorName}
-            </p>
-            {state.result.note ? (
-              <p>
-                <span className="font-medium">Note:</span> {state.result.note}
-              </p>
-            ) : null}
-          </CardContent>
-        </Card>
-      ) : null}
-
       <Card>
         <CardHeader>
           <div>

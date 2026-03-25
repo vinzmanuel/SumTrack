@@ -27,7 +27,11 @@ import {
   buildStoredLoanStatusEqualsSql,
   buildStoredLoanStatusInSql,
 } from "@/app/dashboard/loans/loan-derived-status-sql";
-import { buildLoanComputedState, getVisibleLoanStatusFromStoredStatus } from "@/app/dashboard/loans/loan-state";
+import {
+  buildLoanComputedState,
+  getVisibleLoanStatusFromStoredStatus,
+  isLoanPaidOff,
+} from "@/app/dashboard/loans/loan-state";
 import { getReportsDatePresetLabel } from "@/app/dashboard/reports/date-range-presets";
 import {
   buildActiveLoansSummarySnapshot,
@@ -154,7 +158,10 @@ function calculateLoanDurationDays(startDate: string, dueDate: string) {
 }
 
 function isLoanReceiptSummaryEligible(status: string, outstandingBalance: number) {
-  return CLOSED_VISIBLE_LOAN_STATUSES.includes(status as (typeof CLOSED_VISIBLE_LOAN_STATUSES)[number]) && outstandingBalance <= 0.01;
+  return (
+    CLOSED_VISIBLE_LOAN_STATUSES.includes(status as (typeof CLOSED_VISIBLE_LOAN_STATUSES)[number]) &&
+    isLoanPaidOff(outstandingBalance)
+  );
 }
 
 type DateBucketMode = "day" | "week" | "month";
@@ -1121,7 +1128,7 @@ async function loadLoanPaymentSummary(
     if (paymentSummary.completionDate === null) {
       const remainingBalance = Math.max(totalPayable - paymentSummary.totalPaid, 0);
 
-      if (remainingBalance <= 0.01) {
+      if (isLoanPaidOff(remainingBalance)) {
         paymentSummary.completionDate = row.collectionDate;
       }
     }
@@ -1650,8 +1657,7 @@ async function loadLoansSummaryData(
       currentDate: effectiveDateTo,
     });
     const isClosedByPeriodEnd =
-      computedState.remainingBalance <= 0.01 &&
-      Boolean(completionDate && completionDate <= effectiveDateTo);
+      isLoanPaidOff(computedState.remainingBalance) && Boolean(completionDate && completionDate <= effectiveDateTo);
 
     if (isClosedByPeriodEnd) {
       if (completionDate && completionDate >= effectiveDateFrom && completionDate <= effectiveDateTo) {

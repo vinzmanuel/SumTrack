@@ -154,9 +154,10 @@ export default async function LoanDetailPage({ params, searchParams }: PageProps
   }
 
   const canManageDocs = isAdmin || isBranchManager || isSecretary;
-  const canViewDocs = canManageDocs || isAuditor || isBorrower;
+  const canViewDocs = canManageDocs || isAuditor;
   const canManageLoan = isAdmin || isBranchManager || isSecretary;
   const canGenerateOperationalDocuments = canManageDocs;
+  const resolvedActiveTab = activeTab === "documents" && !canViewDocs ? "details" : activeTab;
 
   const [borrowerInfo, borrowerUser, collectionRows, loanDocRows, assignedCollector] = await Promise.all([
     db
@@ -382,19 +383,21 @@ export default async function LoanDetailPage({ params, searchParams }: PageProps
         <div className="border-t border-border/70 p-6">
           <div className="inline-flex flex-wrap gap-2 rounded-xl border border-border/70 bg-muted/30 p-1">
             <Link href={buildTabHref({ docsPage, loanId, tab: "details" })}>
-              <TabButton active={activeTab === "details"} label="Loan Details" />
+              <TabButton active={resolvedActiveTab === "details"} label="Loan Details" />
             </Link>
             <Link href={buildTabHref({ docsPage, loanId, tab: "reports" })}>
-              <TabButton active={activeTab === "reports"} label="Reports & Receipts" />
+              <TabButton active={resolvedActiveTab === "reports"} label="Reports & Receipts" />
             </Link>
-            <Link href={buildTabHref({ docsPage, loanId, tab: "documents" })}>
-              <TabButton active={activeTab === "documents"} label="Documents" />
-            </Link>
+            {canViewDocs ? (
+              <Link href={buildTabHref({ docsPage, loanId, tab: "documents" })}>
+                <TabButton active={resolvedActiveTab === "documents"} label="Documents" />
+              </Link>
+            ) : null}
           </div>
         </div>
       </div>
 
-      {activeTab === "details" ? (
+      {resolvedActiveTab === "details" ? (
         <div className="space-y-6">
           <Card>
             <CardHeader>
@@ -458,7 +461,7 @@ export default async function LoanDetailPage({ params, searchParams }: PageProps
             totalPayable={computedState.totalPayable}
           />
         </div>
-      ) : activeTab === "reports" ? (
+      ) : resolvedActiveTab === "reports" ? (
         <LoanReportsAndReceiptsTab
           canGenerateOperationalDocuments={canGenerateOperationalDocuments}
           loanId={loan.loan_id}
