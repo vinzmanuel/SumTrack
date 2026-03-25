@@ -202,6 +202,8 @@ export function CollectorAssignedLoansTab({
         />
       }
       data={{
+        activeCount: 0,
+        archivedCount: 0,
         branchOptions: [],
         loans: results.loans,
         page: results.page,

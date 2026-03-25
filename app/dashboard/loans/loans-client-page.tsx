@@ -259,6 +259,8 @@ export function LoansClientPage({
     <LoanRecordsModule
       controls={(
         <LoansFilters
+          activeCount={results.activeCount}
+          archivedCount={results.archivedCount}
           branches={branchOptions}
           action={
             initialScope.canCreateLoan ? (

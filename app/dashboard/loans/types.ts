@@ -79,6 +79,8 @@ export type LoansPageAccessState =
 export type StaffLoansPageData = {
   branchOptions: LoanBranchOption[];
   loans: LoanListRow[];
+  activeCount: number;
+  archivedCount: number;
   page: number;
   pageSize: number;
   totalCount: number;

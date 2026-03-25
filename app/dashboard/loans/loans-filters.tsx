@@ -8,6 +8,8 @@ type LoansFiltersProps = {
   canChooseBranchFilter: boolean;
   selectedBranchId: number | null;
   selectedTab?: LoanListTab;
+  activeCount?: number;
+  archivedCount?: number;
   selectedSearchQuery: string;
   branches: LoanBranchOption[];
   isPending: boolean;
@@ -23,6 +25,8 @@ export function LoansFilters({
   canChooseBranchFilter,
   selectedBranchId,
   selectedTab,
+  activeCount = 0,
+  archivedCount = 0,
   selectedSearchQuery,
   branches,
   isPending,
@@ -53,8 +57,8 @@ export function LoansFilters({
         <SegmentedStatusControl
           onChange={onTabChange}
           options={[
-            { value: "active", label: "Active", tone: "active" },
-            { value: "archived", label: "Archived", tone: "archived" },
+            { value: "active", label: `Active (${activeCount})`, tone: "active" },
+            { value: "archived", label: `Archived (${archivedCount})`, tone: "archived" },
           ]}
           selectedValue={selectedTab ?? "active"}
         />

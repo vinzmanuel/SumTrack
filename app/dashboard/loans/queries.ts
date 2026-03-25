@@ -211,11 +211,13 @@ function toLoanListRow(
 
 export async function loadStaffLoansPageData(scope: StaffLoansScope): Promise<StaffLoansPageData> {
   const loanFilters = buildLoansFilters(scope);
+  const countFilters = buildLoansBaseFilters(scope);
   const storedStatusFilter = resolveStoredStatusFilter(scope.status);
   if (storedStatusFilter) {
     loanFilters.push(eq(loan_records.status, storedStatusFilter));
   }
   const whereCondition = whereFrom(loanFilters);
+  const countWhereCondition = whereFrom(countFilters);
   const branchOptionsWhere = buildBranchOptionsWhere(scope);
   const requestedPage = Math.max(scope.page, 1);
 
@@ -243,6 +245,25 @@ export async function loadStaffLoansPageData(scope: StaffLoansScope): Promise<St
     .where(whereCondition)
     .then((rows) => Number(rows[0]?.value) || 0)
     .catch(() => 0);
+
+  const tabCounts = await db
+    .select({
+      activeCount: sql<number>`coalesce(sum(case when ${loan_records.status} not in ('archived', 'abandoned') then 1 else 0 end), 0)`,
+      archivedCount: sql<number>`coalesce(sum(case when ${loan_records.status} in ('archived', 'abandoned') then 1 else 0 end), 0)`,
+    })
+    .from(loan_records)
+    .innerJoin(branch, eq(branch.branch_id, loan_records.branch_id))
+    .innerJoin(borrowerUsers, eq(borrowerUsers.user_id, loan_records.borrower_id))
+    .leftJoin(borrower_info, eq(borrower_info.user_id, loan_records.borrower_id))
+    .where(countWhereCondition)
+    .then((rows) => ({
+      activeCount: Number(rows[0]?.activeCount) || 0,
+      archivedCount: Number(rows[0]?.archivedCount) || 0,
+    }))
+    .catch(() => ({
+      activeCount: 0,
+      archivedCount: 0,
+    }));
 
   const totalPages = Math.max(Math.ceil(totalCount / STAFF_LOANS_PAGE_SIZE), 1);
   const page = Math.min(requestedPage, totalPages);
@@ -287,6 +308,8 @@ export async function loadStaffLoansPageData(scope: StaffLoansScope): Promise<St
   return {
     branchOptions,
     loans: pageLoanRows.map((row) => toLoanListRow(row, scope)),
+    activeCount: tabCounts.activeCount,
+    archivedCount: tabCounts.archivedCount,
     page,
     pageSize: STAFF_LOANS_PAGE_SIZE,
     totalCount,
