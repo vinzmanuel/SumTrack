@@ -268,7 +268,12 @@ function buildCollapsedActionLine(item: RecentActivityItem) {
     return `Generated ${trimmed.primary}`;
   }
 
-  if (item.activityType === "missed_payment_recorded" || item.activityType === "expense_recorded") {
+  if (
+    item.activityType === "loan_created" ||
+    item.activityType === "collection_recorded" ||
+    item.activityType === "missed_payment_recorded" ||
+    item.activityType === "expense_recorded"
+  ) {
     return buildActivitySummary(item);
   }
 
@@ -276,6 +281,29 @@ function buildCollapsedActionLine(item: RecentActivityItem) {
 }
 
 function buildExpandedDetails(item: RecentActivityItem) {
+  if (item.activityType === "loan_created") {
+    const details = [];
+
+    if (item.detailPrimary) {
+      details.push({ label: "Borrower", value: item.detailPrimary });
+    }
+
+    return details;
+  }
+
+  if (item.activityType === "collection_recorded") {
+    const details = [];
+
+    if (item.detailPrimary) {
+      details.push({ label: "Amount collected", value: item.detailPrimary });
+    }
+    if (item.detailSecondary) {
+      details.push({ label: "Loan owner", value: item.detailSecondary });
+    }
+
+    return details;
+  }
+
   if (item.activityType === "report_generated") {
     const trimmed = trimReportTitle(item.subjectPrimary);
     const details = [];
@@ -294,6 +322,12 @@ function buildExpandedDetails(item: RecentActivityItem) {
     const split = splitDetailContext(item.contextLabel);
     const details = [];
 
+    if (item.detailPrimary) {
+      details.push({ label: "Amount collected", value: item.detailPrimary });
+    }
+    if (item.detailSecondary) {
+      details.push({ label: "Loan owner", value: item.detailSecondary });
+    }
     if (split.lead) {
       details.push({ label: "Loan", value: split.lead });
     }
@@ -491,7 +525,7 @@ export function RecentActivityClientPage({
     filteredActorOptions.find((option) => option.userId === filters.actorUserId) ?? null;
 
   return (
-    <div className="w-full max-w-none space-y-5 p-4 sm:p-6">
+    <div className="w-full max-w-none space-y-5 px-4 pb-6 pt-1 sm:px-6 sm:pb-6 sm:pt-2">
       <TremorCard className="overflow-hidden p-0">
         <div className="bg-gradient-to-r from-slate-50 via-white to-emerald-50/60 p-6">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">

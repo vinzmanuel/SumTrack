@@ -49,6 +49,8 @@ export type RecentActivityItem = {
   actorRoleName: string | null;
   subjectPrimary: string;
   contextLabel: string | null;
+  detailPrimary: string | null;
+  detailSecondary: string | null;
   branchLabel: string | null;
   occurredAt: string;
 };

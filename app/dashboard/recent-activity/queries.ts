@@ -50,6 +50,8 @@ type RawRecentActivityRow = {
   actor_role_name: string | null;
   subject_primary: string;
   context_label: string | null;
+  detail_primary: string | null;
+  detail_secondary: string | null;
   branch_label: string | null;
   occurred_at: string;
 };
@@ -414,11 +416,27 @@ function buildAccountCreatedSelect(params: {
       actor.actor_name as actor_name,
       actor.role_name as actor_role_name,
       target.company_id as subject_primary,
-      concat(target_role.role_name, ' account') as context_label,
+      concat(
+        coalesce(
+          ${buildPersonDisplayNameSql(
+            sql`target_employee.first_name`,
+            sql`target_employee.middle_name`,
+            sql`target_employee.last_name`,
+          )},
+          nullif(trim(target.username), ''),
+          target.company_id
+        ),
+        ' - ',
+        target_role.role_name,
+        ' account'
+      ) as context_label,
+      null::text as detail_primary,
+      null::text as detail_secondary,
       null::text as branch_label
     from users target
     inner join roles target_role on target_role.role_id = target.role_id
     inner join actor_directory actor on actor.user_id = target.created_by
+    left join employee_info target_employee on target_employee.user_id = target.user_id
     ${buildWhereClause(conditions)}
   `;
 }
@@ -468,6 +486,8 @@ function buildBorrowerCreatedSelect(params: {
         ${buildPersonDisplayNameSql(sql`borrower.first_name`, sql`borrower.middle_name`, sql`borrower.last_name`)},
         'Borrower account'
       ) as context_label,
+      null::text as detail_primary,
+      null::text as detail_secondary,
       br.branch_name as branch_label
     from users target
     inner join roles target_role on target_role.role_id = target.role_id
@@ -519,10 +539,25 @@ function buildLoanCreatedSelect(params: {
       actor.actor_name as actor_name,
       actor.role_name as actor_role_name,
       loan.loan_code as subject_primary,
-      concat('Borrower ', borrower_user.company_id) as context_label,
+      null::text as context_label,
+      concat(
+        coalesce(
+          ${buildPersonDisplayNameSql(
+            sql`borrower.first_name`,
+            sql`borrower.middle_name`,
+            sql`borrower.last_name`,
+          )},
+          borrower_user.company_id
+        ),
+        ' (',
+        borrower_user.company_id,
+        ')'
+      ) as detail_primary,
+      null::text as detail_secondary,
       br.branch_name as branch_label
     from loan_records loan
     inner join users borrower_user on borrower_user.user_id = loan.borrower_id
+    left join borrower_info borrower on borrower.user_id = borrower_user.user_id
     inner join branch br on br.branch_id = loan.branch_id
     inner join actor_directory actor on actor.user_id = loan.created_by
     ${buildWhereClause(conditions)}
@@ -570,9 +605,25 @@ function buildCollectionRecordedSelect(params: {
       actor.role_name as actor_role_name,
       collection.collection_code as subject_primary,
       concat('For loan ', loan.loan_code) as context_label,
+      concat('PHP ', to_char(collection.amount, 'FM999,999,990.00')) as detail_primary,
+      concat(
+        coalesce(
+          ${buildPersonDisplayNameSql(
+            sql`borrower.first_name`,
+            sql`borrower.middle_name`,
+            sql`borrower.last_name`,
+          )},
+          borrower_user.company_id
+        ),
+        ' (',
+        borrower_user.company_id,
+        ')'
+      ) as detail_secondary,
       br.branch_name as branch_label
     from collections collection
     inner join loan_records loan on loan.loan_id = collection.loan_id
+    inner join users borrower_user on borrower_user.user_id = loan.borrower_id
+    left join borrower_info borrower on borrower.user_id = borrower_user.user_id
     inner join branch br on br.branch_id = loan.branch_id
     inner join actor_directory actor on actor.user_id = collection.encoded_by
     ${buildWhereClause(conditions)}
@@ -621,9 +672,25 @@ function buildMissedPaymentRecordedSelect(params: {
       actor.role_name as actor_role_name,
       collection.collection_code as subject_primary,
       concat('For loan ', loan.loan_code, ' - ', left(btrim(collection.note), 120)) as context_label,
+      concat('PHP ', to_char(collection.amount, 'FM999,999,990.00')) as detail_primary,
+      concat(
+        coalesce(
+          ${buildPersonDisplayNameSql(
+            sql`borrower.first_name`,
+            sql`borrower.middle_name`,
+            sql`borrower.last_name`,
+          )},
+          borrower_user.company_id
+        ),
+        ' (',
+        borrower_user.company_id,
+        ')'
+      ) as detail_secondary,
       br.branch_name as branch_label
     from collections collection
     inner join loan_records loan on loan.loan_id = collection.loan_id
+    inner join users borrower_user on borrower_user.user_id = loan.borrower_id
+    left join borrower_info borrower on borrower.user_id = borrower_user.user_id
     inner join branch br on br.branch_id = loan.branch_id
     inner join actor_directory actor on actor.user_id = collection.encoded_by
     ${buildWhereClause(conditions)}
@@ -677,6 +744,8 @@ function buildExpenseRecordedSelect(params: {
           else ''
         end
       ) as context_label,
+      null::text as detail_primary,
+      null::text as detail_secondary,
       br.branch_name as branch_label
     from expenses expense
     inner join branch br on br.branch_id = expense.branch_id
@@ -730,6 +799,8 @@ function buildIncentiveRuleCreatedSelect(params: {
         '% / PHP ',
         to_char(rule.flat_amount, 'FM999,999,990.00')
       ) as context_label,
+      null::text as detail_primary,
+      null::text as detail_secondary,
       br.branch_name as branch_label
     from incentive_rules rule
     inner join roles target_role on target_role.role_id = rule.role_id
@@ -787,6 +858,8 @@ function buildReportGeneratedSelect(params: {
         when report.generated_type = 'system' then 'System-generated report'
         else initcap(report.report_category) || ' report'
       end as context_label,
+      null::text as detail_primary,
+      null::text as detail_secondary,
       case
         when coalesce(array_length(report.branch_scope, 1), 0) = 0 then null
         when array_length(report.branch_scope, 1) = 1 then (
@@ -843,6 +916,8 @@ function buildLoanDocumentUploadedSelect(params: {
       actor.role_name as actor_role_name,
       concat(initcap(replace(doc.document_type, '_', ' ')), ' document') as subject_primary,
       concat('For loan ', loan.loan_code) as context_label,
+      null::text as detail_primary,
+      null::text as detail_secondary,
       br.branch_name as branch_label
     from loan_docs doc
     inner join loan_records loan on loan.loan_id = doc.loan_id
@@ -893,6 +968,8 @@ function buildBorrowerDocumentUploadedSelect(params: {
       actor.role_name as actor_role_name,
       concat(initcap(replace(doc.document_type, '_', ' ')), ' document') as subject_primary,
       concat('For borrower ', borrower_user.company_id) as context_label,
+      null::text as detail_primary,
+      null::text as detail_secondary,
       br.branch_name as branch_label
     from borrower_docs doc
     inner join borrower_info borrower on borrower.user_id = doc.borrower_id
@@ -916,6 +993,8 @@ function buildEmptyActivitySelect() {
       null::text as actor_role_name,
       ''::text as subject_primary,
       null::text as context_label,
+      null::text as detail_primary,
+      null::text as detail_secondary,
       null::text as branch_label
     where false
   `;
@@ -998,6 +1077,8 @@ function buildRecentActivityRowsQuery(
       actor_role_name,
       subject_primary,
       context_label,
+      detail_primary,
+      detail_secondary,
       branch_label,
       occurred_at
     from recent_activity
@@ -1046,6 +1127,8 @@ function mapRecentActivityRow(row: RawRecentActivityRow): RecentActivityItem {
     actorRoleName: row.actor_role_name,
     subjectPrimary: row.subject_primary,
     contextLabel: row.context_label,
+    detailPrimary: row.detail_primary,
+    detailSecondary: row.detail_secondary,
     branchLabel: row.branch_label,
     occurredAt: row.occurred_at,
   };
