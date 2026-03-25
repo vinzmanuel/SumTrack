@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
+import { SegmentedStatusControl } from "@/app/dashboard/_components/segmented-status-control";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { CreateBranchDialog } from "@/app/dashboard/branches/create-branch-dialog";
@@ -60,30 +61,14 @@ export function BranchesClientPage({ data }: { data: BranchNetworkPageData }) {
       <Card className="overflow-hidden border-border/70 shadow-sm">
         <CardContent className="p-0">
           <div className="space-y-4 px-4 pb-4 pt-3 md:px-5 md:pb-5">
-            <div className="flex flex-wrap gap-2">
-              <button
-                className={`rounded-md border px-3 py-1.5 text-sm font-medium transition-colors ${
-                  statusFilter === "active"
-                    ? "border-emerald-600 bg-emerald-50 text-emerald-700"
-                    : "border-border bg-background text-muted-foreground hover:bg-muted/40"
-                }`}
-                onClick={() => setStatusFilter("active")}
-                type="button"
-              >
-                Active ({activeCount})
-              </button>
-              <button
-                className={`rounded-md border px-3 py-1.5 text-sm font-medium transition-colors ${
-                  statusFilter === "inactive"
-                    ? "border-amber-600 bg-amber-50 text-amber-700"
-                    : "border-border bg-background text-muted-foreground hover:bg-muted/40"
-                }`}
-                onClick={() => setStatusFilter("inactive")}
-                type="button"
-              >
-                Inactive ({inactiveCount})
-              </button>
-            </div>
+            <SegmentedStatusControl
+              onChange={setStatusFilter}
+              options={[
+                { value: "active", label: `Active (${activeCount})`, tone: "active" },
+                { value: "inactive", label: `Inactive (${inactiveCount})`, tone: "archived" },
+              ]}
+              selectedValue={statusFilter}
+            />
 
             <div className="flex flex-col gap-3 xl:flex-row xl:items-end">
               <div className="flex-1 space-y-1">

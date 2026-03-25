@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { SegmentedStatusControl } from "@/app/dashboard/_components/segmented-status-control";
 import type { LoanBranchOption, LoanListTab, LoanStatusFilter } from "@/app/dashboard/loans/types";
 
 type LoansFiltersProps = {
@@ -17,18 +18,6 @@ type LoansFiltersProps = {
   onStatusChange?: (status: LoanStatusFilter) => void;
   action?: ReactNode;
 };
-
-function TabButton({ active, label }: { active: boolean; label: string }) {
-  return (
-    <span
-      className={`inline-flex rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-        active ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-      }`}
-    >
-      {label}
-    </span>
-  );
-}
 
 export function LoansFilters({
   canChooseBranchFilter,
@@ -61,14 +50,14 @@ export function LoansFilters({
   return (
     <div className="space-y-2.5">
       {onTabChange ? (
-        <div className="inline-flex flex-wrap gap-2 rounded-xl border border-border/70 bg-muted/30 p-1">
-          <button onClick={() => onTabChange("active")} type="button">
-            <TabButton active={selectedTab === "active"} label="Active" />
-          </button>
-          <button onClick={() => onTabChange("archived")} type="button">
-            <TabButton active={selectedTab === "archived"} label="Archived" />
-          </button>
-        </div>
+        <SegmentedStatusControl
+          onChange={onTabChange}
+          options={[
+            { value: "active", label: "Active", tone: "active" },
+            { value: "archived", label: "Archived", tone: "archived" },
+          ]}
+          selectedValue={selectedTab ?? "active"}
+        />
       ) : null}
 
       <div className="flex flex-col gap-3 xl:flex-row xl:items-end">

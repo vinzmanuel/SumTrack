@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FileStack, FolderOpenDot } from "lucide-react";
+import { SegmentedStatusControl } from "@/app/dashboard/_components/segmented-status-control";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,7 +18,6 @@ import type {
   ReportsLibraryCategoryTab,
   ReportsLibraryFilterState,
   ReportsLibraryPageData,
-  ReportsLibraryStatusTab,
   ReportsPageAccessState,
   ReportsTemplateCategoryKey,
 } from "@/app/dashboard/reports/types";
@@ -63,28 +63,6 @@ function templateKeyMatchesLibraryTab(
   return templateCategoryMatchesLibraryTab(libraryCategory, templateCategory);
 }
 
-function TabButton({
-  active,
-  label,
-  onClick,
-}: {
-  active: boolean;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      className={`inline-flex rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-        active ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-      }`}
-      onClick={onClick}
-      type="button"
-    >
-      {label}
-    </button>
-  );
-}
-
 function CategoryTabButton(props: {
   active: boolean;
   category: ReportsLibraryCategoryTab;
@@ -93,27 +71,15 @@ function CategoryTabButton(props: {
   onSelect: (category: ReportsLibraryCategoryTab) => void;
 }) {
   return (
-    <TabButton
-      active={props.active}
-      label={`${props.label} (${props.count})`}
+    <button
+      className={`inline-flex rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+        props.active ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+      }`}
       onClick={() => props.onSelect(props.category)}
-    />
-  );
-}
-
-function StatusTabButton(props: {
-  active: boolean;
-  count: number;
-  label: string;
-  status: ReportsLibraryStatusTab;
-  onSelect: (status: ReportsLibraryStatusTab) => void;
-}) {
-  return (
-    <TabButton
-      active={props.active}
-      label={`${props.label} (${props.count})`}
-      onClick={() => props.onSelect(props.status)}
-    />
+      type="button"
+    >
+      {props.label} ({props.count})
+    </button>
   );
 }
 
@@ -664,32 +630,20 @@ export function ReportsLibraryClientPage({
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="inline-flex flex-wrap gap-2 rounded-xl border border-border/70 bg-muted/20 p-1 mb-2">
-              <StatusTabButton
-                active={filters.status === "active"}
-                count={results.counts.active}
-                label="Active"
-                onSelect={(status) =>
-                  applyFilters({
-                    ...filtersRef.current,
-                    status,
-                  })
-                }
-                status="active"
-              />
-              <StatusTabButton
-                active={filters.status === "archived"}
-                count={results.counts.archived}
-                label="Archived"
-                onSelect={(status) =>
-                  applyFilters({
-                    ...filtersRef.current,
-                    status,
-                  })
-                }
-                status="archived"
-              />
-            </div>
+            <SegmentedStatusControl
+              className="mb-2"
+              onChange={(status) =>
+                applyFilters({
+                  ...filtersRef.current,
+                  status,
+                })
+              }
+              options={[
+                { value: "active", label: `Active (${results.counts.active})`, tone: "active" },
+                { value: "archived", label: `Archived (${results.counts.archived})`, tone: "archived" },
+              ]}
+              selectedValue={filters.status}
+            />
 
             <ReportsLibraryFilterSheet
               branchOptions={results.filterOptions.branches}

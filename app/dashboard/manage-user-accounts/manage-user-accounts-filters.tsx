@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { SegmentedStatusControl } from "@/app/dashboard/_components/segmented-status-control";
 import type {
   ManageUserAccountStatus,
   ManagedUserAreaOption,
@@ -55,30 +56,14 @@ export function ManageUserAccountsFilters({
 }: ManageUserAccountsFiltersProps) {
   return (
     <div className="space-y-2.5">
-      <div className="flex flex-wrap gap-2">
-        <button
-          className={`rounded-md border px-3 py-1.5 text-sm font-medium transition-colors ${
-            selectedStatus === "active"
-              ? "border-emerald-600 bg-emerald-50 text-emerald-700"
-              : "border-border bg-background text-muted-foreground hover:bg-muted/40"
-          }`}
-          onClick={() => onStatusChange("active")}
-          type="button"
-        >
-          Active ({activeCount})
-        </button>
-        <button
-          className={`rounded-md border px-3 py-1.5 text-sm font-medium transition-colors ${
-            selectedStatus === "inactive"
-              ? "border-amber-600 bg-amber-50 text-amber-700"
-              : "border-border bg-background text-muted-foreground hover:bg-muted/40"
-          }`}
-          onClick={() => onStatusChange("inactive")}
-          type="button"
-        >
-          Inactive ({inactiveCount})
-        </button>
-      </div>
+      <SegmentedStatusControl
+        onChange={onStatusChange}
+        options={[
+          { value: "active", label: `Active (${activeCount})`, tone: "active" },
+          { value: "inactive", label: `Inactive (${inactiveCount})`, tone: "archived" },
+        ]}
+        selectedValue={selectedStatus}
+      />
 
       <div className="flex flex-col gap-3 xl:flex-row xl:items-end">
         <div className={`grid flex-1 gap-3 ${showAreaFilter ? "md:grid-cols-5" : canChooseBranch ? "md:grid-cols-4" : "md:grid-cols-3"}`}>

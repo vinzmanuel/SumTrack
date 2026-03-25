@@ -45,7 +45,7 @@ const loanCollectionStats = db
   .groupBy(collections.loan_id)
   .as("loan_collection_stats");
 
-function buildLoansFilters(scope: StaffLoansScope): SQL[] {
+function buildLoansBaseFilters(scope: StaffLoansScope): SQL[] {
   const filters: SQL[] = [];
 
   if (scope.roleName === "Admin") {
@@ -60,12 +60,6 @@ function buildLoansFilters(scope: StaffLoansScope): SQL[] {
     filters.push(eq(loan_records.loan_id, -1));
   }
 
-  if (scope.tab === "archived") {
-    filters.push(inArray(loan_records.status, [...ARCHIVED_BUCKET_STORED_VALUES]));
-  } else {
-    filters.push(notInArray(loan_records.status, [...ARCHIVED_BUCKET_STORED_VALUES]));
-  }
-
   if (scope.searchQuery) {
     const pattern = `%${scope.searchQuery}%`;
     filters.push(
@@ -76,6 +70,18 @@ function buildLoansFilters(scope: StaffLoansScope): SQL[] {
         ilike(borrower_info.last_name, pattern),
       )!,
     );
+  }
+
+  return filters;
+}
+
+function buildLoansFilters(scope: StaffLoansScope): SQL[] {
+  const filters = buildLoansBaseFilters(scope);
+
+  if (scope.tab === "archived") {
+    filters.push(inArray(loan_records.status, [...ARCHIVED_BUCKET_STORED_VALUES]));
+  } else {
+    filters.push(notInArray(loan_records.status, [...ARCHIVED_BUCKET_STORED_VALUES]));
   }
 
   return filters;
