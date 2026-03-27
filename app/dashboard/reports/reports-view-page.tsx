@@ -343,6 +343,7 @@ function ReceiptPaper(props: { children: ReactNode }) {
     <div
       className="mx-auto w-full max-w-[21rem] bg-white px-5 py-6 font-mono text-black shadow-[0_18px_40px_-24px_rgba(15,23,42,0.45)]"
       data-print-layout="receipt"
+      data-receipt-paper="true"
     >
       {props.children}
     </div>
@@ -1011,7 +1012,6 @@ function renderCollectionReceipt(report: ReportsViewerPageData) {
           <ReceiptMetaRow label="Borrower" value={borrower} />
           <ReceiptMetaRow label="Company ID" value={borrowerCompanyId} />
           <ReceiptMetaRow label="Loan Code" value={loanCode} />
-          <ReceiptMetaRow label="Collection Code" value={collectionCode} />
           <ReceiptMetaRow label="Collection Date" value={formatReceiptDate(collectionDate)} />
           <ReceiptMetaRow label="Balance After" value={formatReceiptMoney(remainingBalance)} />
         </ReceiptSection>
@@ -1056,13 +1056,29 @@ function renderLoanReceiptSummary(report: ReportsViewerPageData) {
   const releaseDate = getFieldRowValue(summaryMap, "Release Date");
   const completionDate = getFieldRowValue(summaryMap, "Completion Date");
   const status = getFieldRowValue(summaryMap, "Status", "N/A") ?? "N/A";
+  const normalizedStatus = status.trim().toLowerCase();
+  const isCompletedLoanReceipt =
+    normalizedStatus === "completed" || normalizedStatus === "archived" || normalizedStatus === "abandoned";
   const principal = getFieldRowValue(summaryMap, "Principal");
   const principalAmount = parseNumericText(principal);
   const interest = getFieldRowValue(summaryMap, "Interest");
   const totalPaid = getSummaryCardNumber(report.snapshot, "totalPaid");
   const totalPayable = getSummaryCardNumber(report.snapshot, "totalPayable");
   const remainingBalance = getSummaryCardNumber(report.snapshot, "outstandingBalance");
+  const collectionCount = getSummaryCardNumber(report.snapshot, "collectionCount");
   const statement = completionStatement?.rows[0]?.value?.trim() || null;
+  const latestPaymentDate =
+    historyTable?.rows.reduce<string | null>((latestValue, row) => {
+      if (typeof row.collectionDate !== "string" || !row.collectionDate.trim()) {
+        return latestValue;
+      }
+
+      if (!latestValue || row.collectionDate > latestValue) {
+        return row.collectionDate;
+      }
+
+      return latestValue;
+    }, null) ?? null;
 
   return (
     <ReceiptPaper>
@@ -1090,12 +1106,18 @@ function renderLoanReceiptSummary(report: ReportsViewerPageData) {
         <ReceiptDivider />
 
         <div className="space-y-1.5 text-center">
-          <p className="text-[10px] uppercase tracking-[0.24em] text-black/60">Total Paid</p>
+          <p className="text-[10px] uppercase tracking-[0.24em] text-black/60">
+            {isCompletedLoanReceipt ? "Total Paid" : "Total Paid So Far"}
+          </p>
           <p className="text-[24px] font-semibold tracking-tight text-black">
             {formatReceiptMoney(totalPaid)}
           </p>
           <p className="text-[10px] text-black/65">
-            Completion date {formatReceiptDate(completionDate)}
+            {isCompletedLoanReceipt
+              ? `Completion date ${formatReceiptDate(completionDate)}`
+              : latestPaymentDate
+                ? `Latest payment ${formatReceiptDate(latestPaymentDate)}`
+                : `Snapshot date ${formatReceiptDateTime(report.generatedAt)}`}
           </p>
         </div>
 
@@ -1103,12 +1125,19 @@ function renderLoanReceiptSummary(report: ReportsViewerPageData) {
           <ReceiptMetaRow label="Borrower" value={borrower} />
           <ReceiptMetaRow label="Company ID" value={borrowerCompanyId} />
           <ReceiptMetaRow label="Collector" value={collector} />
-          <ReceiptMetaRow label="Status" value={status} />
+          <ReceiptMetaRow label={isCompletedLoanReceipt ? "Status" : "Current Status"} value={status} />
           <ReceiptMetaRow label="Release Date" value={formatReceiptDate(releaseDate)} />
-          <ReceiptMetaRow label="Completion Date" value={formatReceiptDate(completionDate)} />
+          {isCompletedLoanReceipt ? (
+            <ReceiptMetaRow label="Completion Date" value={formatReceiptDate(completionDate)} />
+          ) : latestPaymentDate ? (
+            <ReceiptMetaRow label="Latest Payment" value={formatReceiptDate(latestPaymentDate)} />
+          ) : null}
+          {!isCompletedLoanReceipt ? (
+            <ReceiptMetaRow label="Snapshot Date" value={formatReceiptDateTime(report.generatedAt)} />
+          ) : null}
         </ReceiptSection>
 
-        <ReceiptSection title="Settlement">
+        <ReceiptSection title={isCompletedLoanReceipt ? "Settlement" : "Current Position"}>
           {principal ? (
             <ReceiptMetaRow
               label="Principal"
@@ -1117,8 +1146,14 @@ function renderLoanReceiptSummary(report: ReportsViewerPageData) {
           ) : null}
           {interest ? <ReceiptMetaRow label="Interest" value={interest} /> : null}
           <ReceiptMetaRow label="Total Payable" value={formatReceiptMoney(totalPayable)} />
-          <ReceiptMetaRow label="Total Paid" value={formatReceiptMoney(totalPaid)} />
+          <ReceiptMetaRow
+            label={isCompletedLoanReceipt ? "Total Paid" : "Total Paid So Far"}
+            value={formatReceiptMoney(totalPaid)}
+          />
           <ReceiptMetaRow label="Remaining Balance" value={formatReceiptMoney(remainingBalance)} />
+          {!isCompletedLoanReceipt && collectionCount !== null ? (
+            <ReceiptMetaRow label="Collections Recorded" value={String(collectionCount)} />
+          ) : null}
         </ReceiptSection>
 
         {historyTable && historyTable.rows.length > 0 ? (

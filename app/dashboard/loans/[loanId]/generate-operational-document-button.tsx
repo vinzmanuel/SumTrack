@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useActionState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { useFormStatus } from "react-dom";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -32,11 +32,13 @@ export function GenerateOperationalDocumentButton(props: {
   templateKey: OperationalDocumentTemplateKey;
   sourceEntityId: number;
   label: string;
+  successBehavior?: "stay" | "redirect";
   size?: "sm" | "default";
   variant?: "default" | "outline" | "secondary";
   disabled?: boolean;
   disabledReason?: string;
 }) {
+  const router = useRouter();
   const [state, formAction] = useActionState(
     generateOperationalDocumentAction,
     initialGenerateOperationalDocumentState,
@@ -48,20 +50,33 @@ export function GenerateOperationalDocumentButton(props: {
       return;
     }
 
-    const nextToastKey = `${state.status}:${state.message}`;
+    const nextToastKey = `${state.status}:${state.result?.reportId ?? state.message}`;
     if (lastToastKeyRef.current === nextToastKey) {
       return;
     }
 
     lastToastKeyRef.current = nextToastKey;
 
-    if (state.status === "success") {
-      toast.success(state.message);
+    if (state.status === "success" && state.result) {
+      const reportHref = `/dashboard/reports/${state.result.reportId}`;
+
+      if (props.successBehavior === "redirect") {
+        toast.success(`${state.message} Opening report...`);
+        router.push(reportHref);
+        return;
+      }
+
+      toast.success(state.message, {
+        action: {
+          label: "View report",
+          onClick: () => router.push(reportHref),
+        },
+      });
       return;
     }
 
     toast.error(state.message);
-  }, [state.message, state.status]);
+  }, [props.successBehavior, router, state.message, state.result, state.status]);
 
   return (
     <div className="space-y-2">
@@ -77,14 +92,6 @@ export function GenerateOperationalDocumentButton(props: {
       </form>
       {props.disabled && props.disabledReason ? (
         <p className="max-w-xs text-xs text-muted-foreground">{props.disabledReason}</p>
-      ) : null}
-      {state.status === "success" && state.result ? (
-        <Link
-          className="inline-flex text-xs font-medium text-emerald-700 underline underline-offset-4 hover:text-emerald-800"
-          href={`/dashboard/reports/${state.result.reportId}`}
-        >
-          View saved document
-        </Link>
       ) : null}
     </div>
   );

@@ -20,7 +20,6 @@ import {
   loadCollectorTrendBucketsForCustomRange,
 } from "@/app/dashboard/collectors/queries";
 import {
-  CLOSED_VISIBLE_LOAN_STATUSES,
   CLOSED_STORED_LOAN_STATUSES,
   LIVE_STORED_LOAN_STATUSES,
   buildLoanDerivedMetricsSubquery,
@@ -155,13 +154,6 @@ function calculateLoanDurationDays(startDate: string, dueDate: string) {
 
   const diff = Math.ceil((due.getTime() - start.getTime()) / 86400000);
   return diff > 0 ? diff : null;
-}
-
-function isLoanReceiptSummaryEligible(status: string, outstandingBalance: number) {
-  return (
-    CLOSED_VISIBLE_LOAN_STATUSES.includes(status as (typeof CLOSED_VISIBLE_LOAN_STATUSES)[number]) &&
-    isLoanPaidOff(outstandingBalance)
-  );
 }
 
 type DateBucketMode = "day" | "week" | "month";
@@ -3780,22 +3772,6 @@ export async function loadReportViewerData(
     };
   }
 
-  if (
-    reportRow.templateKey === "loan_receipt_summary" &&
-    reportRow.sourceEntityType === "loan" &&
-    reportRow.sourceEntityId !== null
-  ) {
-    const loanSource = await loadLoanDocumentSource(access, reportRow.sourceEntityId);
-    if (!loanSource || !isLoanReceiptSummaryEligible(loanSource.status, loanSource.outstandingBalance)) {
-      return {
-        ok: false,
-        code: "ineligible",
-        message:
-          "Loan receipt summaries are only viewable for loans that are completed or archived with zero remaining balance.",
-      };
-    }
-  }
-
   const branchScopeNames =
     reportRow.branchScope.length > 0
       ? await db
@@ -5081,18 +5057,10 @@ export async function generateOperationalDocument(
         scheduleRows: loanSource.scheduleRows,
       });
     } else {
-      if (!isLoanReceiptSummaryEligible(loanSource.status, loanSource.outstandingBalance)) {
-        return {
-          ok: false as const,
-          message:
-            "Loan receipt summaries are only available for loans that are completed or archived with zero remaining balance.",
-        };
-      }
-
       title = `Loan Receipt Summary - ${loanSource.loanCode}`;
       snapshot = buildLoanReceiptSummarySnapshot({
         title,
-        generatedLabel: `Loan payment snapshot for ${loanSource.loanCode}`,
+        generatedLabel: `Loan activity snapshot up to this point for ${loanSource.loanCode}`,
         scopeLabel: loanSource.branchName,
         loanCode: loanSource.loanCode,
         borrowerName: loanSource.borrowerName,

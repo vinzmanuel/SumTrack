@@ -471,7 +471,6 @@ export default async function LoanDetailPage({ params, searchParams }: PageProps
             amount: row.amount,
             note: row.note,
           }))}
-          visibleStatus={computedState.visibleStatus}
         />
       ) : (
         <LoanDocumentsSection

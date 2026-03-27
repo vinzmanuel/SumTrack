@@ -3,7 +3,6 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { GenerateOperationalDocumentButton } from "@/app/dashboard/loans/[loanId]/generate-operational-document-button";
 import { LoanOperationalDocumentsCard } from "@/app/dashboard/loans/[loanId]/loan-operational-documents-card";
-import type { VisibleLoanStatus } from "@/app/dashboard/loans/loan-state";
 
 type LoanReceiptRow = {
   collectionId: string;
@@ -14,7 +13,6 @@ type LoanReceiptRow = {
 
 type LoanReportsAndReceiptsTabProps = {
   loanId: number;
-  visibleStatus: VisibleLoanStatus;
   canGenerateOperationalDocuments: boolean;
   receiptRows: LoanReceiptRow[];
 };
@@ -28,7 +26,6 @@ function formatMoney(value: number) {
 
 export function LoanReportsAndReceiptsTab({
   loanId,
-  visibleStatus,
   canGenerateOperationalDocuments,
   receiptRows,
 }: LoanReportsAndReceiptsTabProps) {
@@ -37,7 +34,6 @@ export function LoanReportsAndReceiptsTab({
       <LoanOperationalDocumentsCard
         canGenerate={canGenerateOperationalDocuments}
         loanId={loanId}
-        visibleStatus={visibleStatus}
       />
 
       <Card>
@@ -78,6 +74,7 @@ export function LoanReportsAndReceiptsTab({
                           label="Generate Receipt"
                           size="sm"
                           sourceEntityId={Number(row.collectionId)}
+                          successBehavior="stay"
                           templateKey="collection_receipt"
                           variant="outline"
                         />

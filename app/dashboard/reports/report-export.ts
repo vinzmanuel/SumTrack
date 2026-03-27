@@ -208,11 +208,31 @@ function isThermalReceiptReport(report: ReportsViewerPageData) {
   return report.templateKey === "collection_receipt" || report.templateKey === "loan_receipt_summary";
 }
 
+function getReceiptPrintableWidthPx() {
+  return Math.floor((80 / 25.4) * 96);
+}
+
+function serializePrintHeadAssets() {
+  return Array.from(
+    document.head.querySelectorAll("style, link[rel='stylesheet'], link[as='style']"),
+  )
+    .map((node) => node.outerHTML)
+    .join("\n");
+}
+
 function buildPrintDocumentHtml(params: {
   title: string;
   contentHtml: string;
+  baseFontFamily: string;
+  headAssetsHtml: string;
   layout: "default" | "receipt";
+  sourceHeightPx: number;
+  sourceWidthPx: number;
 }) {
+  const receiptScale =
+    params.layout === "receipt"
+      ? Math.min(1, getReceiptPrintableWidthPx() / Math.max(params.sourceWidthPx, 1))
+      : 1;
   const pageRule =
     params.layout === "receipt"
       ? `
@@ -232,10 +252,11 @@ function buildPrintDocumentHtml(params: {
     params.layout === "receipt"
       ? `
       body {
-        width: 80mm;
-        min-width: 80mm;
-        padding: 3mm 4mm 6mm;
-        margin: 0 auto;
+        width: ${Math.max(Math.round(params.sourceWidthPx), 1)}px;
+        min-width: ${Math.max(Math.round(params.sourceWidthPx), 1)}px;
+        padding: 0;
+        margin: 0;
+        zoom: ${receiptScale};
       }
 
       * {
@@ -253,6 +274,7 @@ function buildPrintDocumentHtml(params: {
   <head>
     <meta charset="utf-8" />
     <title>${params.title}</title>
+    ${params.headAssetsHtml}
     <style>
       ${pageRule}
 
@@ -261,7 +283,7 @@ function buildPrintDocumentHtml(params: {
         padding: 0;
         background: #ffffff;
         color: #0f172a;
-        font-family: Arial, Helvetica, sans-serif;
+        font-family: ${params.baseFontFamily};
       }
 
       ${bodyRule}
@@ -304,7 +326,16 @@ function buildPrintDocumentHtml(params: {
 
 function createPrintFrame(reportTitle: string, reportContentNode: HTMLElement) {
   const layout = reportContentNode.dataset.printLayout === "receipt" ? "receipt" : "default";
-  const clonedNode = cloneNodeWithInlineStyles(reportContentNode);
+  const receiptPaperNode =
+    layout === "receipt"
+      ? (reportContentNode.querySelector("[data-receipt-paper='true']") as HTMLElement | null)
+      : null;
+  const sourceNode = receiptPaperNode ?? reportContentNode;
+  const clonedNode = cloneNodeWithInlineStyles(sourceNode);
+  const baseFontFamily = window.getComputedStyle(document.body).fontFamily || "sans-serif";
+  const headAssetsHtml = serializePrintHeadAssets();
+  const sourceWidthPx = sourceNode.getBoundingClientRect().width || sourceNode.offsetWidth || 1;
+  const sourceHeightPx = sourceNode.getBoundingClientRect().height || sourceNode.offsetHeight || 1;
   normalizePrintLayout(clonedNode);
   const existingFrame = document.getElementById("reports-print-frame");
   if (existingFrame) {
@@ -337,7 +368,11 @@ function createPrintFrame(reportTitle: string, reportContentNode: HTMLElement) {
     buildPrintDocumentHtml({
       title: reportTitle,
       contentHtml: clonedNode.outerHTML,
+      baseFontFamily,
+      headAssetsHtml,
       layout,
+      sourceHeightPx,
+      sourceWidthPx,
     }),
   );
   frameDocument.close();
@@ -360,11 +395,27 @@ export function printReportContent(params: {
     return;
   }
 
+  let didCleanup = false;
+  const cleanupPrintFrame = () => {
+    if (didCleanup) {
+      return;
+    }
+
+    didCleanup = true;
+    printFrame.remove();
+  };
+
   const runPrint = () => {
     const frameWindow = printFrame.contentWindow;
+    const frameDocument = printFrame.contentDocument;
     if (!frameWindow) {
-      printFrame.remove();
+      cleanupPrintFrame();
       toast.error("Unable to access the print document right now.");
+      return;
+    }
+
+    if (!frameDocument || frameDocument.readyState !== "complete") {
+      window.setTimeout(runPrint, 75);
       return;
     }
 
@@ -376,13 +427,15 @@ export function printReportContent(params: {
       );
     }
 
+    frameWindow.addEventListener("afterprint", cleanupPrintFrame, { once: true });
     frameWindow.focus();
-    frameWindow.print();
-
-    window.setTimeout(() => {
-      printFrame.remove();
-    }, 1500);
+    frameWindow.requestAnimationFrame(() => {
+      frameWindow.requestAnimationFrame(() => {
+        frameWindow.print();
+      });
+    });
   };
 
   window.setTimeout(runPrint, 150);
+  window.setTimeout(cleanupPrintFrame, 120000);
 }
