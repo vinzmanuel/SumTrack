@@ -1704,6 +1704,7 @@ export function buildLoanReceiptSummarySnapshot(params: {
   borrowerName: string;
   borrowerCompanyId: string;
   branchName: string;
+  branchAddress: string;
   areaCode: string;
   collectorName: string;
   status: string;
@@ -1749,6 +1750,7 @@ export function buildLoanReceiptSummarySnapshot(params: {
           { label: "Borrower", value: params.borrowerName },
           { label: "Borrower Company ID", value: params.borrowerCompanyId },
           { label: "Branch", value: params.branchName },
+          { label: "Branch Address", value: params.branchAddress },
           { label: "Area", value: params.areaCode },
           { label: "Collector", value: params.collectorName },
           { label: "Release Date", value: params.startDate },

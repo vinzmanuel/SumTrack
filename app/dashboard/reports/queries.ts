@@ -809,6 +809,75 @@ async function countReportsForLibrary(
     .catch(() => 0);
 }
 
+async function loadReportsLibraryCategoryCounts(
+  whereCondition: SQL | undefined,
+  options?: {
+    includeGeneratedByRoleJoin?: boolean;
+  },
+) {
+  const includeGeneratedByRoleJoin = options?.includeGeneratedByRoleJoin ?? false;
+
+  const query = db
+    .select({
+      allCount: sql<number>`count(*)`,
+      analyticsCount: sql<number>`count(*) filter (where ${reports.report_category} = 'analytics')`,
+      documentsCount: sql<number>`count(*) filter (where ${reports.report_category} = 'document')`,
+    })
+    .from(reports);
+
+  const joinedQuery = includeGeneratedByRoleJoin
+    ? query
+        .innerJoin(users, eq(users.user_id, reports.generated_by))
+        .leftJoin(roles, eq(roles.role_id, users.role_id))
+    : query;
+
+  return joinedQuery
+    .where(whereCondition)
+    .then((rows) => ({
+      all: Number(rows[0]?.allCount) || 0,
+      analytics: Number(rows[0]?.analyticsCount) || 0,
+      documents: Number(rows[0]?.documentsCount) || 0,
+    }))
+    .catch(() => ({
+      all: 0,
+      analytics: 0,
+      documents: 0,
+    }));
+}
+
+async function loadReportsLibraryStatusCounts(
+  whereCondition: SQL | undefined,
+  options?: {
+    includeGeneratedByRoleJoin?: boolean;
+  },
+) {
+  const includeGeneratedByRoleJoin = options?.includeGeneratedByRoleJoin ?? false;
+
+  const query = db
+    .select({
+      activeCount: sql<number>`count(*) filter (where ${reports.status} = 'active')`,
+      archivedCount: sql<number>`count(*) filter (where ${reports.status} = 'archived')`,
+    })
+    .from(reports);
+
+  const joinedQuery = includeGeneratedByRoleJoin
+    ? query
+        .innerJoin(users, eq(users.user_id, reports.generated_by))
+        .leftJoin(roles, eq(roles.role_id, users.role_id))
+    : query;
+
+  return joinedQuery
+    .where(whereCondition)
+    .then((rows) => ({
+      active: Number(rows[0]?.activeCount) || 0,
+      archived: Number(rows[0]?.archivedCount) || 0,
+    }))
+    .catch(() => ({
+      active: 0,
+      archived: 0,
+    }));
+}
+
 function buildReportsLibraryRow(row: {
   reportId: number;
   title: string;
@@ -3427,16 +3496,25 @@ export async function loadReportsLibraryPageData(
   const finalWhere = whereFrom(
     [categoryScopedWhere, eq(reports.status, filters.status)].filter((value): value is SQL => Boolean(value)),
   );
+  const visibleGeneratedByUserIdsQuery = db
+    .selectDistinct({
+      generatedByUserId: reports.generated_by,
+    })
+    .from(reports)
+    .where(
+      whereFrom([
+        visibleScopedWhere,
+        eq(reports.generated_type, "user"),
+      ].filter((value): value is SQL => Boolean(value))),
+    )
+    .as("visible_generated_by_users");
 
   const [
     visibleBranchOptions,
     templateSourceRows,
     generatedByUserSourceRows,
-    allCount,
-    analyticsCount,
-    documentsCount,
-    activeCount,
-    archivedCount,
+    categoryCounts,
+    statusCounts,
     totalCount,
   ] = await Promise.all([
     loadVisibleLibraryBranchOptions(access),
@@ -3449,8 +3527,8 @@ export async function loadReportsLibraryPageData(
       .where(visibleScopedWhere)
       .catch(() => []),
     db
-      .selectDistinct({
-        generatedByUserId: reports.generated_by,
+      .select({
+        generatedByUserId: visibleGeneratedByUserIdsQuery.generatedByUserId,
         generatedByFirstName: employee_info.first_name,
         generatedByMiddleName: employee_info.middle_name,
         generatedByLastName: employee_info.last_name,
@@ -3458,45 +3536,18 @@ export async function loadReportsLibraryPageData(
         generatedByCompanyId: users.company_id,
         generatedByRoleName: roles.role_name,
       })
-      .from(reports)
-      .innerJoin(users, eq(users.user_id, reports.generated_by))
+      .from(visibleGeneratedByUserIdsQuery)
+      .innerJoin(users, eq(users.user_id, visibleGeneratedByUserIdsQuery.generatedByUserId))
       .leftJoin(employee_info, eq(employee_info.user_id, users.user_id))
       .leftJoin(roles, eq(roles.role_id, users.role_id))
-      .where(
-        whereFrom([
-          visibleScopedWhere,
-          eq(reports.generated_type, "user"),
-        ].filter((value): value is SQL => Boolean(value))),
-      )
       .orderBy(asc(users.username))
       .catch(() => []),
-    countReportsForLibrary(advancedScopedWhere, {
+    loadReportsLibraryCategoryCounts(advancedScopedWhere, {
       includeGeneratedByRoleJoin: needsGeneratedByRoleJoin,
     }),
-    countReportsForLibrary(
-      whereFrom([advancedScopedWhere, eq(reports.report_category, "analytics")].filter((value): value is SQL => Boolean(value))),
-      {
-        includeGeneratedByRoleJoin: needsGeneratedByRoleJoin,
-      },
-    ),
-    countReportsForLibrary(
-      whereFrom([advancedScopedWhere, eq(reports.report_category, "document")].filter((value): value is SQL => Boolean(value))),
-      {
-        includeGeneratedByRoleJoin: needsGeneratedByRoleJoin,
-      },
-    ),
-    countReportsForLibrary(
-      whereFrom([categoryScopedWhere, eq(reports.status, "active")].filter((value): value is SQL => Boolean(value))),
-      {
-        includeGeneratedByRoleJoin: needsGeneratedByRoleJoin,
-      },
-    ),
-    countReportsForLibrary(
-      whereFrom([categoryScopedWhere, eq(reports.status, "archived")].filter((value): value is SQL => Boolean(value))),
-      {
-        includeGeneratedByRoleJoin: needsGeneratedByRoleJoin,
-      },
-    ),
+    loadReportsLibraryStatusCounts(categoryScopedWhere, {
+      includeGeneratedByRoleJoin: needsGeneratedByRoleJoin,
+    }),
     countReportsForLibrary(finalWhere, {
       includeGeneratedByRoleJoin: needsGeneratedByRoleJoin,
     }),
@@ -3634,11 +3685,11 @@ export async function loadReportsLibraryPageData(
     pageSize: REPORTS_LIBRARY_PAGE_SIZE,
     totalCount,
     counts: {
-      all: allCount,
-      analytics: analyticsCount,
-      documents: documentsCount,
-      active: activeCount,
-      archived: archivedCount,
+      all: categoryCounts.all,
+      analytics: categoryCounts.analytics,
+      documents: categoryCounts.documents,
+      active: statusCounts.active,
+      archived: statusCounts.archived,
     },
     filterOptions: {
       templateCategories,
@@ -5047,6 +5098,7 @@ export async function generateOperationalDocument(
         borrowerName: loanSource.borrowerName,
         borrowerCompanyId: loanSource.borrowerCompanyId,
         branchName: loanSource.branchName,
+        branchAddress: loanSource.branchAddress,
         areaCode: loanSource.areaCode,
         collectorName: loanSource.collectorName,
         status: loanSource.status,

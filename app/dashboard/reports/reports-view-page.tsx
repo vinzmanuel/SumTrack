@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRef } from "react";
+import type { ReactNode } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatStoredDateTimeForManila } from "@/app/dashboard/datetime";
@@ -200,6 +201,152 @@ function buildMetadataRows(report: ReportsViewerPageData) {
     { label: "Coverage Period", value: formatCoveragePeriod(report) },
     { label: "Status", value: report.status === "active" ? "Active" : "Archived" },
   ];
+}
+
+function buildFieldListRowMap(section: ReportsSnapshotFieldListSection | null) {
+  return new Map(section?.rows.map((row) => [row.label, row.value]) ?? []);
+}
+
+function getFieldRowValue(
+  fieldMap: Map<string, string>,
+  label: string,
+  fallback: string | null = null,
+) {
+  const value = fieldMap.get(label)?.trim();
+
+  if (!value || value === "-" || value === "N/A") {
+    return fallback;
+  }
+
+  return value;
+}
+
+function getSummaryCardNumber(snapshot: SavedReportSnapshot, key: string) {
+  const item = snapshot.summaryCards.find((summaryItem) => summaryItem.key === key);
+  return typeof item?.value === "number" ? item.value : null;
+}
+
+function formatReceiptMoney(value: number | null) {
+  if (value === null) {
+    return "N/A";
+  }
+
+  return new Intl.NumberFormat("en-PH", {
+    style: "currency",
+    currency: "PHP",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
+function formatReceiptGeneratedBy(report: ReportsViewerPageData) {
+  if (report.generatedType === "system") {
+    return "SumTrack System";
+  }
+
+  return report.generatedByRoleName
+    ? `${report.generatedByName} (${report.generatedByRoleName})`
+    : report.generatedByName;
+}
+
+function splitReceiptAddress(address: string | null) {
+  const value = address?.trim();
+
+  if (!value) {
+    return { addressLine: null, localityLine: null };
+  }
+
+  const parts = value
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (parts.length <= 1) {
+    return { addressLine: value, localityLine: null };
+  }
+
+  if (parts.length === 2) {
+    return { addressLine: parts[0], localityLine: parts[1] };
+  }
+
+  return {
+    addressLine: parts.slice(0, -2).join(", "),
+    localityLine: parts.slice(-2).join(", "),
+  };
+}
+
+function formatReceiptDate(value: string | null) {
+  return formatDate(value);
+}
+
+function formatReceiptDateTime(value: string) {
+  return formatStoredDateTimeForManila(value, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function isReceiptTemplate(report: ReportsViewerPageData) {
+  return report.templateKey === "collection_receipt" || report.templateKey === "loan_receipt_summary";
+}
+
+function parseNumericText(value: string | null) {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = Number(value.replace(/,/g, "").trim());
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+function ReceiptDivider() {
+  return <div className="border-t border-dashed border-black/35" />;
+}
+
+function ReceiptMetaRow(props: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-4 py-1">
+      <dt className="shrink-0 text-[10px] uppercase tracking-[0.22em] text-black/60">{props.label}</dt>
+      <dd className="max-w-[12rem] text-right text-[11px] font-medium leading-5 text-black break-words">
+        {props.value}
+      </dd>
+    </div>
+  );
+}
+
+function ReceiptSection(props: {
+  children: ReactNode;
+  title: string;
+}) {
+  return (
+    <section className="space-y-2.5">
+      <div className="flex items-center gap-3">
+        <div className="h-px flex-1 border-t border-dashed border-black/35" />
+        <p className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.28em] text-black/70">
+          {props.title}
+        </p>
+        <div className="h-px flex-1 border-t border-dashed border-black/35" />
+      </div>
+      <dl>{props.children}</dl>
+    </section>
+  );
+}
+
+function ReceiptPaper(props: { children: ReactNode }) {
+  return (
+    <div
+      className="mx-auto w-full max-w-[21rem] bg-white px-5 py-6 font-mono text-black shadow-[0_18px_40px_-24px_rgba(15,23,42,0.45)]"
+      data-print-layout="receipt"
+    >
+      {props.children}
+    </div>
+  );
 }
 
 function deriveFinancialOverviewChart(snapshot: SavedReportSnapshot): ReportsSnapshotChartSection | null {
@@ -801,18 +948,95 @@ function renderCollectionReceipt(report: ReportsViewerPageData) {
   const branchHeader = findFieldListSection(report.snapshot, "receiptHeader");
   const receiptDetails = findFieldListSection(report.snapshot, "receiptDetails");
   const paymentDetails = findFieldListSection(report.snapshot, "paymentDetails");
+  const branchHeaderMap = buildFieldListRowMap(branchHeader);
+  const receiptDetailsMap = buildFieldListRowMap(receiptDetails);
+  const paymentDetailsMap = buildFieldListRowMap(paymentDetails);
+  const branchName =
+    getFieldRowValue(branchHeaderMap, "Branch", report.branchScopeNames[0] ?? report.snapshot.scopeLabel) ??
+    "Branch";
+  const branchAddress = getFieldRowValue(branchHeaderMap, "Branch Address");
+  const { addressLine, localityLine } = splitReceiptAddress(branchAddress);
+  const amountCollected = getSummaryCardNumber(report.snapshot, "amount");
+  const remainingBalance = getSummaryCardNumber(report.snapshot, "remainingBalanceAfterPayment");
+  const collectionCode =
+    getFieldRowValue(
+      receiptDetailsMap,
+      "Receipt No.",
+      typeof report.snapshot.meta.collectionCode === "string" ? report.snapshot.meta.collectionCode : "N/A",
+    ) ?? "N/A";
+  const collectionDate = getFieldRowValue(receiptDetailsMap, "Collection Date");
+  const borrower = getFieldRowValue(receiptDetailsMap, "Borrower", "N/A") ?? "N/A";
+  const borrowerCompanyId = getFieldRowValue(receiptDetailsMap, "Borrower Company ID", "N/A") ?? "N/A";
+  const loanCode = getFieldRowValue(receiptDetailsMap, "Loan Code", "N/A") ?? "N/A";
+  const collector = getFieldRowValue(receiptDetailsMap, "Collector", "N/A") ?? "N/A";
+  const encodedBy = getFieldRowValue(receiptDetailsMap, "Encoded By", "N/A") ?? "N/A";
+  const note = getFieldRowValue(paymentDetailsMap, "Note") ?? getFieldRowValue(receiptDetailsMap, "Note");
 
   return (
-    <div className="space-y-8">
-      <DocumentHeader subtitle={report.snapshot.generatedLabel} title={report.title} />
-      <CompactSummary items={report.snapshot.summaryCards} title="Payment Summary" />
-      {branchHeader ? <FieldListBlock columns={1} section={branchHeader} /> : null}
-      {receiptDetails ? <FieldListBlock columns={2} section={receiptDetails} /> : null}
-      {paymentDetails ? <FieldListBlock columns={2} section={paymentDetails} /> : null}
-      <div className="border-t border-border/70 pt-4 text-sm text-muted-foreground">
-        Prepared from the saved collection snapshot on {formatDateTime(report.generatedAt)}.
+    <ReceiptPaper>
+      <div className="space-y-4">
+        <header className="space-y-1 text-center">
+          <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-black">
+            Sum Finance Services Corp.
+          </p>
+          <div className="space-y-0.5 text-[10px] leading-4 text-black/70">
+            <p className="font-semibold uppercase tracking-[0.18em] text-black">{branchName}</p>
+            {localityLine ? <p>{localityLine}</p> : null}
+            {addressLine ? <p>{addressLine}</p> : null}
+          </div>
+        </header>
+
+        <ReceiptDivider />
+
+        <div className="space-y-1 text-center">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.32em] text-black/70">
+            Collection Receipt
+          </p>
+          <p className="text-[13px] font-semibold tracking-[0.18em] text-black">{collectionCode}</p>
+        </div>
+
+        <ReceiptDivider />
+
+        <div className="space-y-1.5 text-center">
+          <p className="text-[10px] uppercase tracking-[0.24em] text-black/60">Amount Collected</p>
+          <p className="text-[24px] font-semibold tracking-tight text-black">
+            {formatReceiptMoney(amountCollected)}
+          </p>
+          <p className="text-[10px] text-black/65">
+            Collected on {formatReceiptDate(collectionDate)}
+          </p>
+        </div>
+
+        <ReceiptSection title="Transaction">
+          <ReceiptMetaRow label="Borrower" value={borrower} />
+          <ReceiptMetaRow label="Company ID" value={borrowerCompanyId} />
+          <ReceiptMetaRow label="Loan Code" value={loanCode} />
+          <ReceiptMetaRow label="Collection Code" value={collectionCode} />
+          <ReceiptMetaRow label="Collection Date" value={formatReceiptDate(collectionDate)} />
+          <ReceiptMetaRow label="Balance After" value={formatReceiptMoney(remainingBalance)} />
+        </ReceiptSection>
+
+        <ReceiptSection title="Actors">
+          <ReceiptMetaRow label="Collector" value={collector} />
+          <ReceiptMetaRow label="Encoded By" value={encodedBy} />
+          <ReceiptMetaRow label="Receipt Made By" value={formatReceiptGeneratedBy(report)} />
+          <ReceiptMetaRow label="Receipt Date" value={formatReceiptDateTime(report.generatedAt)} />
+        </ReceiptSection>
+
+        {note ? (
+          <ReceiptSection title="Note">
+            <div className="py-1 text-[11px] leading-5 text-black">{note}</div>
+          </ReceiptSection>
+        ) : null}
+
+        <ReceiptDivider />
+
+        <div className="space-y-1 pt-1 text-center text-[10px] uppercase tracking-[0.18em] text-black/60">
+          <p>Saved collection snapshot copy</p>
+          <p>Generated by SumTrack</p>
+        </div>
       </div>
-    </div>
+    </ReceiptPaper>
   );
 }
 
@@ -820,22 +1044,132 @@ function renderLoanReceiptSummary(report: ReportsViewerPageData) {
   const summarySection = findFieldListSection(report.snapshot, "loanReceiptHeader");
   const historyTable = findTableSection(report.snapshot, "collectionHistory");
   const completionStatement = findFieldListSection(report.snapshot, "completionStatement");
+  const summaryMap = buildFieldListRowMap(summarySection);
+  const branchName =
+    getFieldRowValue(summaryMap, "Branch", report.branchScopeNames[0] ?? report.snapshot.scopeLabel) ?? "Branch";
+  const branchAddress = getFieldRowValue(summaryMap, "Branch Address");
+  const { addressLine, localityLine } = splitReceiptAddress(branchAddress);
+  const borrower = getFieldRowValue(summaryMap, "Borrower", "N/A") ?? "N/A";
+  const borrowerCompanyId = getFieldRowValue(summaryMap, "Borrower Company ID", "N/A") ?? "N/A";
+  const loanCode = getFieldRowValue(summaryMap, "Loan Code", "N/A") ?? "N/A";
+  const collector = getFieldRowValue(summaryMap, "Collector", "N/A") ?? "N/A";
+  const releaseDate = getFieldRowValue(summaryMap, "Release Date");
+  const completionDate = getFieldRowValue(summaryMap, "Completion Date");
+  const status = getFieldRowValue(summaryMap, "Status", "N/A") ?? "N/A";
+  const principal = getFieldRowValue(summaryMap, "Principal");
+  const principalAmount = parseNumericText(principal);
+  const interest = getFieldRowValue(summaryMap, "Interest");
+  const totalPaid = getSummaryCardNumber(report.snapshot, "totalPaid");
+  const totalPayable = getSummaryCardNumber(report.snapshot, "totalPayable");
+  const remainingBalance = getSummaryCardNumber(report.snapshot, "outstandingBalance");
+  const statement = completionStatement?.rows[0]?.value?.trim() || null;
 
   return (
-    <div className="space-y-8">
-      <DocumentHeader subtitle={report.snapshot.generatedLabel} title={report.title} />
-      <CompactSummary items={report.snapshot.summaryCards} title="Payment Summary" />
-      {summarySection ? <FieldListBlock columns={2} section={summarySection} /> : null}
-      {historyTable ? (
-        <ReportSection title="Payment History">
-          <ReportsViewerDataTable section={historyTable} />
-        </ReportSection>
-      ) : null}
-      {completionStatement ? <FieldListBlock columns={1} section={completionStatement} /> : null}
-      <div className="border-t border-border/70 pt-4 text-sm text-muted-foreground">
-        This statement reflects the saved report snapshot captured on {formatDateTime(report.generatedAt)}.
+    <ReceiptPaper>
+      <div className="space-y-4">
+        <header className="space-y-1 text-center">
+          <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-black">
+            Sum Finance Services Corp.
+          </p>
+          <div className="space-y-0.5 text-[10px] leading-4 text-black/70">
+            <p className="font-semibold uppercase tracking-[0.18em] text-black">{branchName}</p>
+            {localityLine ? <p>{localityLine}</p> : null}
+            {addressLine ? <p>{addressLine}</p> : null}
+          </div>
+        </header>
+
+        <ReceiptDivider />
+
+        <div className="space-y-1 text-center">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.32em] text-black/70">
+            Loan Receipt Summary
+          </p>
+          <p className="text-[13px] font-semibold tracking-[0.18em] text-black">{loanCode}</p>
+        </div>
+
+        <ReceiptDivider />
+
+        <div className="space-y-1.5 text-center">
+          <p className="text-[10px] uppercase tracking-[0.24em] text-black/60">Total Paid</p>
+          <p className="text-[24px] font-semibold tracking-tight text-black">
+            {formatReceiptMoney(totalPaid)}
+          </p>
+          <p className="text-[10px] text-black/65">
+            Completion date {formatReceiptDate(completionDate)}
+          </p>
+        </div>
+
+        <ReceiptSection title="Loan Details">
+          <ReceiptMetaRow label="Borrower" value={borrower} />
+          <ReceiptMetaRow label="Company ID" value={borrowerCompanyId} />
+          <ReceiptMetaRow label="Collector" value={collector} />
+          <ReceiptMetaRow label="Status" value={status} />
+          <ReceiptMetaRow label="Release Date" value={formatReceiptDate(releaseDate)} />
+          <ReceiptMetaRow label="Completion Date" value={formatReceiptDate(completionDate)} />
+        </ReceiptSection>
+
+        <ReceiptSection title="Settlement">
+          {principal ? (
+            <ReceiptMetaRow
+              label="Principal"
+              value={principalAmount !== null ? formatReceiptMoney(principalAmount) : principal}
+            />
+          ) : null}
+          {interest ? <ReceiptMetaRow label="Interest" value={interest} /> : null}
+          <ReceiptMetaRow label="Total Payable" value={formatReceiptMoney(totalPayable)} />
+          <ReceiptMetaRow label="Total Paid" value={formatReceiptMoney(totalPaid)} />
+          <ReceiptMetaRow label="Remaining Balance" value={formatReceiptMoney(remainingBalance)} />
+        </ReceiptSection>
+
+        {historyTable && historyTable.rows.length > 0 ? (
+          <ReceiptSection title="Payment Trail">
+            <div className="space-y-3">
+              {historyTable.rows.map((row, index) => {
+                const paymentDate =
+                  typeof row.collectionDate === "string" ? formatReceiptDate(row.collectionDate) : "N/A";
+                const paymentCode =
+                  typeof row.collectionCode === "string" && row.collectionCode.trim()
+                    ? row.collectionCode
+                    : `Payment ${index + 1}`;
+                const amount =
+                  typeof row.amount === "number" ? formatReceiptMoney(row.amount) : String(row.amount ?? "N/A");
+                const note =
+                  typeof row.note === "string" && row.note.trim() && row.note !== "-"
+                    ? row.note
+                    : null;
+
+                return (
+                  <div className="space-y-1.5 py-1" key={`${paymentCode}-${index}`}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-0.5">
+                        <p className="text-[11px] font-semibold leading-5 text-black">{paymentCode}</p>
+                        <p className="text-[10px] leading-4 text-black/60">{paymentDate}</p>
+                      </div>
+                      <p className="text-[11px] font-semibold leading-5 text-black">{amount}</p>
+                    </div>
+                    {note ? <p className="text-[10px] leading-4 text-black/65">{note}</p> : null}
+                  </div>
+                );
+              })}
+            </div>
+          </ReceiptSection>
+        ) : null}
+
+        <ReceiptSection title="Receipt Info">
+          <ReceiptMetaRow label="Receipt Made By" value={formatReceiptGeneratedBy(report)} />
+          <ReceiptMetaRow label="Receipt Date" value={formatReceiptDateTime(report.generatedAt)} />
+        </ReceiptSection>
+
+        {statement ? (
+          <>
+            <ReceiptDivider />
+            <p className="text-center text-[10px] uppercase leading-5 tracking-[0.18em] text-black/60">
+              {statement}
+            </p>
+          </>
+        ) : null}
       </div>
-    </div>
+    </ReceiptPaper>
   );
 }
 
@@ -925,7 +1259,9 @@ function renderReportBody(report: ReportsViewerPageData) {
 
 export function ReportsViewPage(props: { backHref?: string; report: ReportsViewerPageData }) {
   const isDocument = props.report.reportCategory === "document";
+  const isReceiptDocument = isReceiptTemplate(props.report);
   const reportContentRef = useRef<HTMLDivElement | null>(null);
+  const receiptContentRef = useRef<HTMLDivElement | null>(null);
   const csvAvailable = canExportCsv(props.report);
 
   return (
@@ -938,21 +1274,44 @@ export function ReportsViewPage(props: { backHref?: string; report: ReportsViewe
           </Button>
         </Link>
 
-        <article className="mx-auto max-w-5xl rounded-2xl border border-border/70 bg-background px-6 py-8 shadow-sm md:px-10">
-          <div ref={reportContentRef}>
-            <header className="space-y-4 border-b border-border/70 pb-6">
-              <div className="space-y-2">
-                <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                  {isDocument ? "Saved Document" : "Saved Report"}
+        <article
+          className={
+            isReceiptDocument
+              ? "mx-auto max-w-5xl rounded-[2rem] border border-border/70 bg-muted/15 px-4 py-6 shadow-sm md:px-8"
+              : "mx-auto max-w-5xl rounded-2xl border border-border/70 bg-background px-6 py-8 shadow-sm md:px-10"
+          }
+        >
+          {isReceiptDocument ? (
+            <div className="space-y-8">
+              <header className="space-y-2 text-center print:hidden">
+                <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">Saved Receipt Preview</p>
+                <h1 className="text-2xl font-semibold tracking-tight text-foreground">{props.report.title}</h1>
+                <p className="mx-auto max-w-xl text-sm text-muted-foreground">
+                  Receipt-formatted output generated from the saved snapshot. Print and PDF export use a narrow
+                  thermal-style paper layout.
                 </p>
-                <h1 className="text-3xl font-semibold tracking-tight text-foreground">{props.report.title}</h1>
-                <p className="text-sm text-muted-foreground">{props.report.templateLabel}</p>
-              </div>
-              <ReportMetadata report={props.report} />
-            </header>
+              </header>
 
-            <div className="pt-8">{renderReportBody(props.report)}</div>
-          </div>
+              <div data-print-layout="receipt" ref={receiptContentRef}>
+                {renderReportBody(props.report)}
+              </div>
+            </div>
+          ) : (
+            <div ref={reportContentRef}>
+              <header className="space-y-4 border-b border-border/70 pb-6">
+                <div className="space-y-2">
+                  <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                    {isDocument ? "Saved Document" : "Saved Report"}
+                  </p>
+                  <h1 className="text-3xl font-semibold tracking-tight text-foreground">{props.report.title}</h1>
+                  <p className="text-sm text-muted-foreground">{props.report.templateLabel}</p>
+                </div>
+                <ReportMetadata report={props.report} />
+              </header>
+
+              <div className="pt-8">{renderReportBody(props.report)}</div>
+            </div>
+          )}
 
           <div className="mt-10 border-t border-border/70 pt-5">
             <div className="flex flex-wrap items-center justify-end gap-3">
@@ -968,7 +1327,7 @@ export function ReportsViewPage(props: { backHref?: string; report: ReportsViewe
                 onClick={() =>
                   printReportContent({
                     report: props.report,
-                    contentNode: reportContentRef.current,
+                    contentNode: isReceiptDocument ? receiptContentRef.current : reportContentRef.current,
                     mode: "pdf",
                   })
                 }
@@ -981,7 +1340,7 @@ export function ReportsViewPage(props: { backHref?: string; report: ReportsViewe
                 onClick={() =>
                   printReportContent({
                     report: props.report,
-                    contentNode: reportContentRef.current,
+                    contentNode: isReceiptDocument ? receiptContentRef.current : reportContentRef.current,
                     mode: "print",
                   })
                 }

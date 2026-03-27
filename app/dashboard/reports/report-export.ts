@@ -204,20 +204,57 @@ function normalizePrintLayout(rootNode: HTMLElement) {
   });
 }
 
+function isThermalReceiptReport(report: ReportsViewerPageData) {
+  return report.templateKey === "collection_receipt" || report.templateKey === "loan_receipt_summary";
+}
+
 function buildPrintDocumentHtml(params: {
   title: string;
   contentHtml: string;
+  layout: "default" | "receipt";
 }) {
+  const pageRule =
+    params.layout === "receipt"
+      ? `
+      @page {
+        size: 80mm auto;
+        margin: 0;
+      }
+    `
+      : `
+      @page {
+        size: auto;
+        margin: 16mm;
+      }
+    `;
+
+  const bodyRule =
+    params.layout === "receipt"
+      ? `
+      body {
+        width: 80mm;
+        min-width: 80mm;
+        padding: 3mm 4mm 6mm;
+        margin: 0 auto;
+      }
+
+      * {
+        box-shadow: none !important;
+      }
+    `
+      : `
+      body {
+        padding: 24px;
+      }
+    `;
+
   return `<!DOCTYPE html>
 <html>
   <head>
     <meta charset="utf-8" />
     <title>${params.title}</title>
     <style>
-      @page {
-        size: auto;
-        margin: 16mm;
-      }
+      ${pageRule}
 
       html, body {
         margin: 0;
@@ -227,9 +264,7 @@ function buildPrintDocumentHtml(params: {
         font-family: Arial, Helvetica, sans-serif;
       }
 
-      body {
-        padding: 24px;
-      }
+      ${bodyRule}
 
       a, button {
         display: none !important;
@@ -268,6 +303,7 @@ function buildPrintDocumentHtml(params: {
 }
 
 function createPrintFrame(reportTitle: string, reportContentNode: HTMLElement) {
+  const layout = reportContentNode.dataset.printLayout === "receipt" ? "receipt" : "default";
   const clonedNode = cloneNodeWithInlineStyles(reportContentNode);
   normalizePrintLayout(clonedNode);
   const existingFrame = document.getElementById("reports-print-frame");
@@ -301,6 +337,7 @@ function createPrintFrame(reportTitle: string, reportContentNode: HTMLElement) {
     buildPrintDocumentHtml({
       title: reportTitle,
       contentHtml: clonedNode.outerHTML,
+      layout,
     }),
   );
   frameDocument.close();
@@ -332,7 +369,11 @@ export function printReportContent(params: {
     }
 
     if (params.mode === "pdf") {
-      toast.message("Use your browser's print dialog and choose Save as PDF.");
+      toast.message(
+        isThermalReceiptReport(params.report)
+          ? "Use your browser's print dialog and choose Save as PDF. Thermal receipts are sized for 80mm paper."
+          : "Use your browser's print dialog and choose Save as PDF.",
+      );
     }
 
     frameWindow.focus();
