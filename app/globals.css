@@ -7,7 +7,7 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
+  --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -45,19 +45,12 @@
   --radius-2xl: calc(var(--radius) + 8px);
   --radius-3xl: calc(var(--radius) + 12px);
   --radius-4xl: calc(var(--radius) + 16px);
-  --font-heading: var(--font-sans);
 }
 
 :root {
   --radius: 0.625rem;
-  --sumtrack-brand-red-soft: #d75656;
-  --sumtrack-brand-red: #bd114a;
-  --sumtrack-brand-red-strong: #7d1035;
-  --sumtrack-brand-gold: #fae251;
-  --sumtrack-paper: #fffdf8;
-  --sumtrack-paper-warm: #fff7ea;
-  --sumtrack-ink: #1e1712;
-  --sumtrack-line: rgba(189, 17, 74, 0.14);
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
@@ -74,11 +67,11 @@
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
@@ -87,8 +80,6 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
 }
 
 .dark {
@@ -110,11 +101,11 @@
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
   --sidebar-primary: oklch(0.488 0.243 264.376);
@@ -129,118 +120,7 @@
   * {
     @apply border-border outline-ring/50;
   }
-
-  html {
-    scroll-behavior: smooth;
-    @apply font-sans;
-  }
-
   body {
     @apply bg-background text-foreground;
   }
-}
-
-@keyframes sumtrack-fade-up {
-  from {
-    opacity: 0;
-    transform: translateY(18px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes sumtrack-drift {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0) rotate(0deg);
-  }
-
-  50% {
-    transform: translate3d(0, -10px, 0) rotate(1.5deg);
-  }
-}
-
-@keyframes sumtrack-pan {
-  from {
-    background-position: 0 0, 0 0;
-  }
-
-  to {
-    background-position: 28px 28px, 0 0;
-  }
-}
-
-.sumtrack-public-theme {
-  --primary: var(--sumtrack-brand-red);
-  --primary-foreground: #fffdf8;
-  --secondary: #fff0bb;
-  --secondary-foreground: var(--sumtrack-ink);
-  --accent: #fff6d1;
-  --accent-foreground: var(--sumtrack-brand-red-strong);
-  --border: rgba(30, 23, 18, 0.08);
-  --input: rgba(30, 23, 18, 0.1);
-  --ring: color-mix(in srgb, var(--sumtrack-brand-red) 40%, white);
-  --muted: #fff7ea;
-  --muted-foreground: #64564d;
-  --card: #ffffff;
-  --card-foreground: var(--sumtrack-ink);
-  --popover: #ffffff;
-  --popover-foreground: var(--sumtrack-ink);
-}
-
-.sumtrack-public-shell {
-  background:
-    linear-gradient(180deg, #fffefb 0%, #fff9ef 38%, #fffdf8 100%);
-  color: var(--sumtrack-ink);
-}
-
-.sumtrack-public-grid {
-  background-image:
-    linear-gradient(to right, rgba(189, 17, 74, 0.05) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(189, 17, 74, 0.05) 1px, transparent 1px);
-  background-position: center;
-  background-size: 34px 34px;
-}
-
-.sumtrack-public-grid-drift {
-  animation: sumtrack-pan 18s linear infinite;
-}
-
-.sumtrack-panel {
-  background: #ffffff;
-  border: 1px solid rgba(30, 23, 18, 0.09);
-  box-shadow:
-    0 28px 60px -36px rgba(125, 16, 53, 0.36),
-    0 12px 26px -22px rgba(30, 23, 18, 0.18);
-}
-
-.sumtrack-inset-panel {
-  background: linear-gradient(180deg, #fffdf7 0%, #fff6df 100%);
-  border: 1px solid rgba(189, 17, 74, 0.14);
-}
-
-.sumtrack-octagon {
-  clip-path: polygon(
-    20% 0,
-    80% 0,
-    100% 20%,
-    100% 80%,
-    80% 100%,
-    20% 100%,
-    0 80%,
-    0 20%
-  );
-}
-
-.sumtrack-reveal {
-  opacity: 0;
-  animation: sumtrack-fade-up 720ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  animation-delay: var(--sumtrack-delay, 0ms);
-}
-
-.sumtrack-slow-drift {
-  animation: sumtrack-drift 14s ease-in-out infinite;
 }

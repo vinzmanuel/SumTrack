@@ -785,13 +785,25 @@ function buildReportsLibraryCategoryWhere(category: ReportsLibraryFilterState["c
   return eq(reports.report_category, category === "documents" ? "document" : "analytics");
 }
 
-async function countReportsForLibrary(whereCondition: SQL | undefined) {
-  return db
+async function countReportsForLibrary(
+  whereCondition: SQL | undefined,
+  options?: {
+    includeGeneratedByRoleJoin?: boolean;
+  },
+) {
+  const includeGeneratedByRoleJoin = options?.includeGeneratedByRoleJoin ?? false;
+
+  const query = db
     .select({ value: sql<number>`count(*)` })
-    .from(reports)
-    .innerJoin(users, eq(users.user_id, reports.generated_by))
-    .leftJoin(employee_info, eq(employee_info.user_id, users.user_id))
-    .leftJoin(roles, eq(roles.role_id, users.role_id))
+    .from(reports);
+
+  const joinedQuery = includeGeneratedByRoleJoin
+    ? query
+        .innerJoin(users, eq(users.user_id, reports.generated_by))
+        .leftJoin(roles, eq(roles.role_id, users.role_id))
+    : query;
+
+  return joinedQuery
     .where(whereCondition)
     .then((rows) => Number(rows[0]?.value) || 0)
     .catch(() => 0);
@@ -3398,6 +3410,7 @@ export async function loadReportsLibraryPageData(
   access: ReportsReadyAccessState,
   filters: ReportsLibraryFilterState,
 ): Promise<ReportsLibraryPageData> {
+  const needsGeneratedByRoleJoin = Boolean(filters.generatedByRoleName);
   const scopeWhere = buildReportsLibraryScopeWhere(access);
   const visibilityWhere = buildReportsSystemVisibilityWhere(access);
   const visibleScopedWhere = whereFrom(
@@ -3418,7 +3431,6 @@ export async function loadReportsLibraryPageData(
   const [
     visibleBranchOptions,
     templateSourceRows,
-    generatedByRoleRows,
     generatedByUserSourceRows,
     allCount,
     analyticsCount,
@@ -3438,21 +3450,6 @@ export async function loadReportsLibraryPageData(
       .catch(() => []),
     db
       .selectDistinct({
-        roleName: roles.role_name,
-      })
-      .from(reports)
-      .innerJoin(users, eq(users.user_id, reports.generated_by))
-      .leftJoin(roles, eq(roles.role_id, users.role_id))
-      .where(
-        whereFrom([
-          visibleScopedWhere,
-          eq(reports.generated_type, "user"),
-          sql`${roles.role_name} is not null`,
-        ].filter((value): value is SQL => Boolean(value))),
-      )
-      .catch(() => []),
-    db
-      .select({
         generatedByUserId: reports.generated_by,
         generatedByFirstName: employee_info.first_name,
         generatedByMiddleName: employee_info.middle_name,
@@ -3473,20 +3470,36 @@ export async function loadReportsLibraryPageData(
       )
       .orderBy(asc(users.username))
       .catch(() => []),
-    countReportsForLibrary(advancedScopedWhere),
+    countReportsForLibrary(advancedScopedWhere, {
+      includeGeneratedByRoleJoin: needsGeneratedByRoleJoin,
+    }),
     countReportsForLibrary(
       whereFrom([advancedScopedWhere, eq(reports.report_category, "analytics")].filter((value): value is SQL => Boolean(value))),
+      {
+        includeGeneratedByRoleJoin: needsGeneratedByRoleJoin,
+      },
     ),
     countReportsForLibrary(
       whereFrom([advancedScopedWhere, eq(reports.report_category, "document")].filter((value): value is SQL => Boolean(value))),
+      {
+        includeGeneratedByRoleJoin: needsGeneratedByRoleJoin,
+      },
     ),
     countReportsForLibrary(
       whereFrom([categoryScopedWhere, eq(reports.status, "active")].filter((value): value is SQL => Boolean(value))),
+      {
+        includeGeneratedByRoleJoin: needsGeneratedByRoleJoin,
+      },
     ),
     countReportsForLibrary(
       whereFrom([categoryScopedWhere, eq(reports.status, "archived")].filter((value): value is SQL => Boolean(value))),
+      {
+        includeGeneratedByRoleJoin: needsGeneratedByRoleJoin,
+      },
     ),
-    countReportsForLibrary(finalWhere),
+    countReportsForLibrary(finalWhere, {
+      includeGeneratedByRoleJoin: needsGeneratedByRoleJoin,
+    }),
   ]);
 
   const templates = Array.from(
@@ -3529,13 +3542,6 @@ export async function loadReportsLibraryPageData(
     ).values(),
   );
 
-  const generatedByRoles = generatedByRoleRows
-    .filter((row) => Boolean(row.roleName))
-    .map((row) => ({
-      roleName: row.roleName as string,
-    }))
-    .sort((left, right) => left.roleName.localeCompare(right.roleName));
-
   const generatedByUsers = Array.from(
     new Map(
       generatedByUserSourceRows
@@ -3554,6 +3560,15 @@ export async function loadReportsLibraryPageData(
           },
         ] as const)
         .sort((left, right) => left[1].displayName.localeCompare(right[1].displayName)),
+    ).values(),
+  );
+
+  const generatedByRoles = Array.from(
+    new Map(
+      generatedByUsers
+        .filter((row) => Boolean(row.roleName))
+        .map((row) => [row.roleName as string, { roleName: row.roleName as string }] as const)
+        .sort((left, right) => left[0].localeCompare(right[0])),
     ).values(),
   );
 

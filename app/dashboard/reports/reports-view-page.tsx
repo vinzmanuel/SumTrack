@@ -923,7 +923,7 @@ function renderReportBody(report: ReportsViewerPageData) {
   );
 }
 
-export function ReportsViewPage(props: { report: ReportsViewerPageData }) {
+export function ReportsViewPage(props: { backHref?: string; report: ReportsViewerPageData }) {
   const isDocument = props.report.reportCategory === "document";
   const reportContentRef = useRef<HTMLDivElement | null>(null);
   const csvAvailable = canExportCsv(props.report);
@@ -931,7 +931,7 @@ export function ReportsViewPage(props: { report: ReportsViewerPageData }) {
   return (
     <main className="mx-auto max-w-6xl p-6">
       <div className="space-y-5">
-        <Link href="/dashboard/reports">
+        <Link href={props.backHref ?? "/dashboard/reports"}>
           <Button className="gap-2 px-0 text-muted-foreground hover:text-foreground" variant="ghost">
             <ArrowLeft className="h-4 w-4" />
             Back to Reports Library

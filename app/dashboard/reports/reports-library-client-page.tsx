@@ -507,6 +507,7 @@ export function ReportsLibraryClientPage({
   const showingFrom = results.totalCount === 0 ? 0 : (safePage - 1) * results.pageSize + 1;
   const showingTo =
     results.totalCount === 0 ? 0 : Math.min(safePage * results.pageSize, results.totalCount);
+  const currentLibraryHref = buildReportsLibraryHref(filters);
   return (
     <div className="space-y-6">
       <Card className="overflow-hidden p-0">
@@ -740,7 +741,9 @@ export function ReportsLibraryClientPage({
                             </td>
                             <td className="px-4 py-4 align-middle">
                               <div className="flex flex-wrap items-center gap-2">
-                                <Link href={`/dashboard/reports/${row.reportId}`}>
+                                <Link
+                                  href={`/dashboard/reports/${row.reportId}?back=${encodeURIComponent(currentLibraryHref)}`}
+                                >
                                   <Button size="sm" type="button" variant="outline">
                                     View
                                   </Button>

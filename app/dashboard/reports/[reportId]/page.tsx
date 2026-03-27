@@ -9,6 +9,7 @@ type PageProps = {
   params: Promise<{
     reportId: string;
   }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
 function renderCenteredCard(props: { message: string; href: string; actionLabel: string; title: string }) {
@@ -29,14 +30,30 @@ function renderCenteredCard(props: { message: string; href: string; actionLabel:
   );
 }
 
-export default async function ReportsViewerPage({ params }: PageProps) {
+function firstSearchValue(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function resolveReportsBackHref(searchParams: Record<string, string | string[] | undefined>) {
+  const rawValue = firstSearchValue(searchParams.back)?.trim();
+
+  if (!rawValue || !rawValue.startsWith("/dashboard/reports")) {
+    return "/dashboard/reports";
+  }
+
+  return rawValue;
+}
+
+export default async function ReportsViewerPage({ params, searchParams }: PageProps) {
   const { reportId: reportIdRaw } = await params;
+  const resolvedSearchParams = searchParams ? await searchParams : {};
+  const backHref = resolveReportsBackHref(resolvedSearchParams);
   const reportId = Number.parseInt(reportIdRaw, 10);
   if (!Number.isInteger(reportId) || reportId <= 0) {
     return renderCenteredCard({
       title: "Saved Report",
       message: "The selected report could not be found.",
-      href: "/dashboard/reports",
+      href: backHref,
       actionLabel: "Back to Reports Library",
     });
   }
@@ -54,7 +71,7 @@ export default async function ReportsViewerPage({ params }: PageProps) {
     return renderCenteredCard({
       title: "Saved Report",
       message: access.message,
-      href: "/dashboard/reports",
+      href: backHref,
       actionLabel: "Back to Reports Library",
     });
   }
@@ -63,9 +80,9 @@ export default async function ReportsViewerPage({ params }: PageProps) {
     return renderCenteredCard({
       title: "Saved Report",
       message: result.message,
-      href: "/dashboard/reports",
+      href: backHref,
       actionLabel: "Back to Reports Library",
     });
   }
-  return <ReportsViewPage report={result.data} />;
+  return <ReportsViewPage backHref={backHref} report={result.data} />;
 }
