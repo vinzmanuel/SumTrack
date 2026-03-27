@@ -9,12 +9,16 @@ export function LoanRecordsModule({
   errorMessage,
   isPending,
   onPageChange,
+  returnTo,
+  detailSource,
 }: {
   controls: ReactNode;
   data: StaffLoansPageData;
   errorMessage: string | null;
   isPending: boolean;
   onPageChange: (page: number) => void;
+  returnTo: string;
+  detailSource?: string;
 }) {
   return (
     <Card className="overflow-hidden border-border/70 shadow-sm">
@@ -29,6 +33,8 @@ export function LoanRecordsModule({
             errorMessage={errorMessage}
             isPending={isPending}
             onPageChange={onPageChange}
+            returnTo={returnTo}
+            detailSource={detailSource}
           />
         </div>
       </CardContent>

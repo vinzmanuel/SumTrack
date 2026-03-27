@@ -1,13 +1,35 @@
-import Link from "next/link";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { DashboardBackLink } from "@/app/dashboard/_components/dashboard-back-link";
 import {
   getDashboardAuthContext,
   getSingleAssignedBranchId,
 } from "@/app/dashboard/auth";
+import { resolveBackNavigation } from "@/app/dashboard/back-navigation";
 import { CreateExpenseForm } from "@/app/dashboard/expenses/create/create-expense-form";
 
-export default async function CreateExpensePage() {
+export default async function CreateExpensePage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ source?: string; returnTo?: string | string[] }>;
+}) {
   const auth = await getDashboardAuthContext();
+  const resolvedSearchParams = (await searchParams) ?? {};
+  const backNavigation = resolveBackNavigation({
+    source: typeof resolvedSearchParams.source === "string" ? resolvedSearchParams.source : null,
+    returnTo: Array.isArray(resolvedSearchParams.returnTo)
+      ? resolvedSearchParams.returnTo[0]
+      : resolvedSearchParams.returnTo,
+    fallbackHref: "/dashboard",
+    fallbackLabel: "Back to dashboard",
+    allowedPrefixes: ["/dashboard/expenses"],
+    sourceMap: {
+      expenses: {
+        href: "/dashboard/expenses",
+        label: "Back to Expenses",
+        allowedPrefixes: ["/dashboard/expenses"],
+      },
+    },
+  });
 
   if (!auth.ok) {
     return (
@@ -18,9 +40,7 @@ export default async function CreateExpensePage() {
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground">Not logged in</p>
-            <Link className="mt-3 inline-block text-sm underline" href="/login">
-              Go to login
-            </Link>
+            <DashboardBackLink className="mt-3" href="/login" label="Go to login" />
           </CardContent>
         </Card>
       </main>
@@ -38,9 +58,7 @@ export default async function CreateExpensePage() {
             <p className="text-sm text-muted-foreground">
               You are logged in, but only Branch Manager users can record expenses.
             </p>
-            <Link className="text-sm underline" href="/dashboard">
-              Back to dashboard
-            </Link>
+            <DashboardBackLink href={backNavigation.href} label={backNavigation.label} />
           </CardContent>
         </Card>
       </main>
@@ -59,9 +77,7 @@ export default async function CreateExpensePage() {
             <p className="text-sm text-amber-700 dark:text-amber-400">
               No active branch assignment found. You cannot record expenses until an active branch assignment is set.
             </p>
-            <Link className="text-sm underline" href="/dashboard">
-              Back to dashboard
-            </Link>
+            <DashboardBackLink href={backNavigation.href} label={backNavigation.label} />
           </CardContent>
         </Card>
       </main>
@@ -81,9 +97,7 @@ export default async function CreateExpensePage() {
             <p className="text-sm text-amber-700 dark:text-amber-400">
               Multiple active branch assignments detected. Please contact Admin to resolve assignments before recording expenses.
             </p>
-            <Link className="text-sm underline" href="/dashboard">
-              Back to dashboard
-            </Link>
+            <DashboardBackLink href={backNavigation.href} label={backNavigation.label} />
           </CardContent>
         </Card>
       </main>
@@ -102,9 +116,7 @@ export default async function CreateExpensePage() {
             <p className="text-sm text-amber-700 dark:text-amber-400">
               Active branch assignment points to an invalid branch.
             </p>
-            <Link className="text-sm underline" href="/dashboard">
-              Back to dashboard
-            </Link>
+            <DashboardBackLink href={backNavigation.href} label={backNavigation.label} />
           </CardContent>
         </Card>
       </main>
@@ -113,16 +125,14 @@ export default async function CreateExpensePage() {
 
   return (
     <main className="mx-auto min-h-screen w-full max-w-5xl p-6">
+      <DashboardBackLink href={backNavigation.href} label={backNavigation.label} />
+
       <Card className="mb-6">
         <CardHeader>
           <CardTitle>Create Expense</CardTitle>
           <CardDescription>Record branch operating expenses.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-2">
-          <Link className="text-sm underline" href="/dashboard">
-            Back to dashboard
-          </Link>
-        </CardContent>
+        <CardContent />
       </Card>
 
       <CreateExpenseForm branchName={auth.activeBranchName} />

@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { ArrowLeft } from "lucide-react";
 import { asc, desc, eq, inArray } from "drizzle-orm";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DashboardBackLink } from "@/app/dashboard/_components/dashboard-back-link";
 import { requireDashboardAuth } from "@/app/dashboard/auth";
+import { resolveBackNavigation } from "@/app/dashboard/back-navigation";
 import { LoanDocumentsSection } from "@/app/dashboard/loans/[loanId]/documents/loan-documents-section";
 import { LoanDetailForm } from "@/app/dashboard/loans/[loanId]/loan-digital-passbook";
 import { LoanReportsAndReceiptsTab } from "@/app/dashboard/loans/[loanId]/loan-reports-and-receipts-tab";
@@ -32,6 +33,8 @@ type PageProps = {
   searchParams: Promise<{
     tab?: string;
     docsPage?: string;
+    source?: string;
+    returnTo?: string;
   }>;
 };
 
@@ -49,6 +52,8 @@ function buildTabHref(params: {
   loanId: string;
   tab: LoanDetailTabKey;
   docsPage: number;
+  source?: string;
+  returnTo?: string;
 }) {
   const search = new URLSearchParams();
 
@@ -58,6 +63,12 @@ function buildTabHref(params: {
 
   if (params.docsPage > 1) {
     search.set("docsPage", String(params.docsPage));
+  }
+  if (params.source) {
+    search.set("source", params.source);
+  }
+  if (params.returnTo) {
+    search.set("returnTo", params.returnTo);
   }
 
   const query = search.toString();
@@ -97,7 +108,12 @@ export default async function LoanDetailPage({ params, searchParams }: PageProps
   }
 
   const { loanId } = await params;
-  const { docsPage: docsPageParam, tab: tabParam } = await searchParams;
+  const {
+    docsPage: docsPageParam,
+    source: sourceParam,
+    returnTo: returnToParam,
+    tab: tabParam,
+  } = await searchParams;
   const activeTab = parseLoanDetailTab(tabParam);
   const docsPage = Math.max(1, Number.parseInt(docsPageParam ?? "1", 10) || 1);
   const docsOffset = (docsPage - 1) * DOCS_PAGE_SIZE;
@@ -158,7 +174,35 @@ export default async function LoanDetailPage({ params, searchParams }: PageProps
   const canManageLoan = isAdmin || isBranchManager || isSecretary;
   const canGenerateOperationalDocuments = canManageDocs;
   const resolvedActiveTab = activeTab === "documents" && !canViewDocs ? "details" : activeTab;
-
+  const backNavigation = resolveBackNavigation({
+    source: sourceParam,
+    returnTo: returnToParam,
+    fallbackHref: "/dashboard/loans",
+    fallbackLabel: "Back to Loans",
+    allowedPrefixes: ["/dashboard/loans", "/dashboard/borrowers", "/dashboard/collectors", "/dashboard/assigned-loans"],
+    sourceMap: {
+      loans: {
+        href: "/dashboard/loans",
+        label: "Back to Loans",
+        allowedPrefixes: ["/dashboard/loans"],
+      },
+      borrowers: {
+        href: "/dashboard/borrowers",
+        label: "Back to Borrower",
+        allowedPrefixes: ["/dashboard/borrowers"],
+      },
+      collectors: {
+        href: "/dashboard/collectors",
+        label: "Back to Collector",
+        allowedPrefixes: ["/dashboard/collectors"],
+      },
+      "assigned-loans": {
+        href: "/dashboard/assigned-loans",
+        label: "Back to Assigned Loans",
+        allowedPrefixes: ["/dashboard/assigned-loans"],
+      },
+    },
+  });
   const [borrowerInfo, borrowerUser, collectionRows, loanDocRows, assignedCollector] = await Promise.all([
     db
       .select({
@@ -341,18 +385,13 @@ export default async function LoanDetailPage({ params, searchParams }: PageProps
 
   return (
     <div className="space-y-6">
+      <DashboardBackLink href={backNavigation.href} label={backNavigation.label} />
+
       <div className="overflow-hidden rounded-xl border border-border/70 bg-card text-card-foreground shadow-sm">
         <div className="bg-gradient-to-r from-slate-50 via-white to-emerald-50/60 p-6">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
             <div className="space-y-3">
               <div className="space-y-1">
-                <Link
-                  className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
-                  href="/dashboard/loans"
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                  Back to Loans
-                </Link>
                 <h1 className="text-3xl font-semibold tracking-tight text-foreground">{loan.loan_code}</h1>
                 <p className="text-sm text-muted-foreground">
                   Borrower:{" "}
@@ -382,14 +421,38 @@ export default async function LoanDetailPage({ params, searchParams }: PageProps
 
         <div className="border-t border-border/70 p-6">
           <div className="inline-flex flex-wrap gap-2 rounded-xl border border-border/70 bg-muted/30 p-1">
-            <Link href={buildTabHref({ docsPage, loanId, tab: "details" })}>
+            <Link
+              href={buildTabHref({
+                docsPage,
+                loanId,
+                returnTo: backNavigation.href,
+                source: sourceParam,
+                tab: "details",
+              })}
+            >
               <TabButton active={resolvedActiveTab === "details"} label="Loan Details" />
             </Link>
-            <Link href={buildTabHref({ docsPage, loanId, tab: "reports" })}>
+            <Link
+              href={buildTabHref({
+                docsPage,
+                loanId,
+                returnTo: backNavigation.href,
+                source: sourceParam,
+                tab: "reports",
+              })}
+            >
               <TabButton active={resolvedActiveTab === "reports"} label="Reports & Receipts" />
             </Link>
             {canViewDocs ? (
-              <Link href={buildTabHref({ docsPage, loanId, tab: "documents" })}>
+              <Link
+                href={buildTabHref({
+                  docsPage,
+                  loanId,
+                  returnTo: backNavigation.href,
+                  source: sourceParam,
+                  tab: "documents",
+                })}
+              >
                 <TabButton active={resolvedActiveTab === "documents"} label="Documents" />
               </Link>
             ) : null}

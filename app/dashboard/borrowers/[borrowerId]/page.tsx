@@ -3,11 +3,13 @@ import { desc, eq } from "drizzle-orm";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TremorCard, TremorDescription } from "@/components/tremor/raw/metric-card";
+import { DashboardBackLink } from "@/app/dashboard/_components/dashboard-back-link";
 import {
   getDashboardAuthContext,
   getSingleAssignedBranchId,
   getUniqueAssignedBranchIds,
 } from "@/app/dashboard/auth";
+import { appendBackNavigationToHref, buildReturnTo, resolveBackNavigation } from "@/app/dashboard/back-navigation";
 import { BorrowerDocumentsSection } from "@/app/dashboard/borrowers/[borrowerId]/documents/borrower-documents-section";
 import { BorrowerLoanHistoryTab } from "@/app/dashboard/borrowers/borrower-loan-history-tab";
 import { parseBorrowerDetailTab } from "@/app/dashboard/borrowers/detail-filters";
@@ -60,9 +62,7 @@ function renderMessageCard(props: {
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground">{props.message}</p>
-          <Link className="text-sm underline" href={props.href}>
-            {props.label}
-          </Link>
+          <DashboardBackLink href={props.href} label={props.label} />
         </CardContent>
       </Card>
     </main>
@@ -272,17 +272,36 @@ export default async function BorrowerProfilePage({ params, searchParams }: Page
     borrower.last_name,
   );
   const branchLabel = borrower.branch_code || borrower.branch_name;
-  const safeBorrowersBackHref = String(returnToParam ?? "").startsWith("/dashboard/borrowers")
-    ? String(returnToParam)
-    : "/dashboard/borrowers";
-  const safeManageUsersBackHref = String(returnToParam ?? "").startsWith("/dashboard/manage-user-accounts")
-    ? String(returnToParam)
-    : "/dashboard/manage-user-accounts";
-  const backHref = source === "manage-users" ? safeManageUsersBackHref : safeBorrowersBackHref;
-  const backLabel = source === "manage-users" ? "Back to Manage Users" : "Back to Borrowers";
+  const backNavigation = resolveBackNavigation({
+    source,
+    returnTo: returnToParam,
+    fallbackHref: "/dashboard/borrowers",
+    fallbackLabel: "Back to Borrowers",
+    allowedPrefixes: ["/dashboard/borrowers", "/dashboard/manage-user-accounts"],
+    sourceMap: {
+      borrowers: {
+        href: "/dashboard/borrowers",
+        label: "Back to Borrowers",
+        allowedPrefixes: ["/dashboard/borrowers"],
+      },
+      "manage-users": {
+        href: "/dashboard/manage-user-accounts",
+        label: "Back to Manage Users",
+        allowedPrefixes: ["/dashboard/manage-user-accounts"],
+      },
+    },
+  });
+  const currentBorrowerHref = buildReturnTo(`/dashboard/borrowers/${borrowerId}`, new URLSearchParams({
+    ...(activeTab !== "profile" ? { tab: activeTab } : {}),
+    ...(docsPage > 1 ? { docsPage: String(docsPage) } : {}),
+    source,
+    returnTo: backNavigation.href,
+  }));
 
   return (
     <div className="space-y-6">
+      <DashboardBackLink href={backNavigation.href} label={backNavigation.label} />
+
       <TremorCard className="overflow-hidden p-0">
         <div className="bg-gradient-to-r from-slate-50 via-white to-emerald-50/60 p-6">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
@@ -307,28 +326,26 @@ export default async function BorrowerProfilePage({ params, searchParams }: Page
 
             <div className="flex flex-wrap items-center gap-3">
               {canCreateLoan ? (
-                <Link href={`/dashboard/create-loan?borrowerId=${borrower.user_id}`}>
+                <Link href={appendBackNavigationToHref(`/dashboard/create-loan?borrowerId=${borrower.user_id}`, {
+                  source: "borrowers",
+                  returnTo: currentBorrowerHref,
+                })}>
                   <Button type="button">Create Loan</Button>
                 </Link>
               ) : null}
-              <Link href={backHref}>
-                <Button type="button" variant="outline">
-                  {backLabel}
-                </Button>
-              </Link>
             </div>
           </div>
         </div>
 
         <div className="border-t border-border/70 p-6">
           <div className="inline-flex flex-wrap gap-2 rounded-xl border border-border/70 bg-muted/30 p-1">
-            <Link href={buildTabHref({ borrowerId, tab: "profile", docsPage, source, returnTo: backHref })}>
+            <Link href={buildTabHref({ borrowerId, tab: "profile", docsPage, source, returnTo: backNavigation.href })}>
               <TabButton active={activeTab === "profile"} label="Profile" />
             </Link>
-            <Link href={buildTabHref({ borrowerId, tab: "loan-history", docsPage, source, returnTo: backHref })}>
+            <Link href={buildTabHref({ borrowerId, tab: "loan-history", docsPage, source, returnTo: backNavigation.href })}>
               <TabButton active={activeTab === "loan-history"} label="Loan History" />
             </Link>
-            <Link href={buildTabHref({ borrowerId, tab: "documents", docsPage, source, returnTo: backHref })}>
+            <Link href={buildTabHref({ borrowerId, tab: "documents", docsPage, source, returnTo: backNavigation.href })}>
               <TabButton active={activeTab === "documents"} label="Documents" />
             </Link>
           </div>
@@ -361,6 +378,7 @@ export default async function BorrowerProfilePage({ params, searchParams }: Page
             dueDate: loan.due_date,
             visibleStatus: getVisibleLoanStatusFromStoredStatus(loan.status),
           }))}
+          returnTo={currentBorrowerHref}
         />
       ) : (
         <BorrowerDocumentsSection

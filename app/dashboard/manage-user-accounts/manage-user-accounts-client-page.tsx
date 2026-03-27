@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Plus } from "lucide-react";
+import { appendBackNavigationToHref } from "@/app/dashboard/back-navigation";
 import { Button } from "@/components/ui/button";
 import {
   CollectorLiveLoanReassignmentDialog,
@@ -154,6 +155,7 @@ export function ManageUserAccountsClientPage({
   const updateHistory = useCallback((nextFilters: ManageUserFilters) => {
     window.history.replaceState(null, "", buildResultsUrl(nextFilters));
   }, []);
+  const currentReturnTo = buildResultsUrl(filters);
 
   const loadResults = useCallback(async (nextFilters: ManageUserFilters) => {
     abortRef.current?.abort();
@@ -314,7 +316,10 @@ export function ManageUserAccountsClientPage({
           <ManageUserAccountsFilters
             action={
               canCreateManagedUser(initialScope) ? (
-                <Link href="/dashboard/create-account">
+                <Link href={appendBackNavigationToHref("/dashboard/create-account", {
+                  source: "manage-users",
+                  returnTo: currentReturnTo,
+                })}>
                   <Button
                     className="w-full bg-emerald-600 text-white hover:bg-emerald-700 xl:w-auto"
                     size="sm"

@@ -7,6 +7,7 @@ import { SegmentedStatusControl } from "@/app/dashboard/_components/segmented-st
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { appendBackNavigationToHref } from "@/app/dashboard/back-navigation";
 import { formatStoredDateTimeForManila } from "@/app/dashboard/datetime";
 import { getReportsDatePresetLabel } from "@/app/dashboard/reports/date-range-presets";
 import {
@@ -491,10 +492,15 @@ export function ReportsLibraryClientPage({
 
   const emptyState = resolveEmptyState(filters, results.counts);
   const canGenerate = access.canAccessAnalytics || access.canAccessOperationalDocuments;
-  const createHref =
+  const currentLibraryHref = buildReportsLibraryHref(filters);
+  const createHrefBase =
     access.canAccessAnalytics || !access.canAccessOperationalDocuments
       ? "/dashboard/reports/create"
       : "/dashboard/reports/create?tab=documents";
+  const createHref = appendBackNavigationToHref(createHrefBase, {
+    returnTo: currentLibraryHref,
+    source: "reports",
+  });
   const activeFilterChips = buildActiveFilterChipData(filters, results);
   const hasNonDefaultFilters = activeFilterChips.length > 0;
   const clearAllFilters = {
@@ -507,7 +513,6 @@ export function ReportsLibraryClientPage({
   const showingFrom = results.totalCount === 0 ? 0 : (safePage - 1) * results.pageSize + 1;
   const showingTo =
     results.totalCount === 0 ? 0 : Math.min(safePage * results.pageSize, results.totalCount);
-  const currentLibraryHref = buildReportsLibraryHref(filters);
   return (
     <div className="space-y-6">
       <Card className="overflow-hidden p-0">
@@ -742,7 +747,10 @@ export function ReportsLibraryClientPage({
                             <td className="px-4 py-4 align-middle">
                               <div className="flex flex-wrap items-center gap-2">
                                 <Link
-                                  href={`/dashboard/reports/${row.reportId}?back=${encodeURIComponent(currentLibraryHref)}`}
+                                  href={appendBackNavigationToHref(`/dashboard/reports/${row.reportId}`, {
+                                    returnTo: currentLibraryHref,
+                                    source: "reports",
+                                  })}
                                 >
                                   <Button size="sm" type="button" variant="outline">
                                     View

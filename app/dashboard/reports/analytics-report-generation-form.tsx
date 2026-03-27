@@ -1,9 +1,10 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { toast } from "sonner";
+import { appendBackNavigationToHref, buildReturnTo } from "@/app/dashboard/back-navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -72,11 +73,14 @@ export function AnalyticsReportGenerationForm(props: {
   analyticsTemplateCategories: ReportsTemplateCategoryDefinition[];
 }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [state, formAction] = useActionState(
     generateAnalyticsReportAction,
     initialGenerateAnalyticsReportState,
   );
   const handledSuccessReportIdRef = useRef<number | null>(null);
+  const currentReturnTo = buildReturnTo(pathname, searchParams);
 
   const initialCategory =
     props.analyticsTemplateCategories.find((category) =>
@@ -182,8 +186,13 @@ export function AnalyticsReportGenerationForm(props: {
 
     handledSuccessReportIdRef.current = state.result.reportId;
     toast.success(`${state.result.templateLabel} saved. Opening report...`);
-    router.push(`/dashboard/reports/${state.result.reportId}`);
-  }, [router, state.result, state.status]);
+    router.push(
+      appendBackNavigationToHref(`/dashboard/reports/${state.result.reportId}`, {
+        source: "reports-create",
+        returnTo: currentReturnTo,
+      }),
+    );
+  }, [currentReturnTo, router, state.result, state.status]);
 
   return (
     <Card className="mx-auto w-full max-w-3xl border-border/70 bg-background">

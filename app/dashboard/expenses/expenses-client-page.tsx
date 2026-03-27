@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Plus } from "lucide-react";
+import { DashboardBackLink } from "@/app/dashboard/_components/dashboard-back-link";
+import { appendBackNavigationToHref } from "@/app/dashboard/back-navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EXPENSE_CATEGORIES } from "@/app/dashboard/expenses/filters";
@@ -177,21 +179,23 @@ export function ExpensesClientPage({
     });
   }, [canChooseBranch, normalizedInitialFilters.branch]);
 
+  const currentReturnTo = buildExpensesPageUrl(filters);
+
   return (
     <div className="space-y-6">
+      <DashboardBackLink href="/dashboard" label="Back to dashboard" />
+
       <Card>
         <CardHeader>
           <CardTitle>Expenses</CardTitle>
           <CardDescription>{description}</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2">
-          <Link href="/dashboard">
-            <Button type="button" variant="outline">
-              Back to dashboard
-            </Button>
-          </Link>
           {canCreateExpense ? (
-            <Link href="/dashboard/expenses/create">
+            <Link href={appendBackNavigationToHref("/dashboard/expenses/create", {
+              source: "expenses",
+              returnTo: currentReturnTo,
+            })}>
               <Button
                 className="bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white"
                 type="button"

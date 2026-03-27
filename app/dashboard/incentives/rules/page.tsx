@@ -1,10 +1,11 @@
-import Link from "next/link";
 import { asc, inArray } from "drizzle-orm";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { DashboardBackLink } from "@/app/dashboard/_components/dashboard-back-link";
 import {
   getDashboardAuthContext,
   getSingleAssignedBranchId,
 } from "@/app/dashboard/auth";
+import { resolveBackNavigation } from "@/app/dashboard/back-navigation";
 import { db } from "@/db";
 import { branch, roles } from "@/db/schema";
 import { IncentiveRulesForm } from "@/app/dashboard/incentives/rules/incentive-rules-form";
@@ -17,8 +18,29 @@ import {
 const ADMIN_MANAGEABLE_ROLES = ["Branch Manager", "Secretary", "Collector"] as const;
 const BRANCH_MANAGER_MANAGEABLE_ROLES = ["Secretary", "Collector"] as const;
 
-export default async function IncentiveRulesPage() {
+export default async function IncentiveRulesPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ source?: string; returnTo?: string | string[] }>;
+}) {
   const auth = await getDashboardAuthContext();
+  const resolvedSearchParams = (await searchParams) ?? {};
+  const backNavigation = resolveBackNavigation({
+    source: typeof resolvedSearchParams.source === "string" ? resolvedSearchParams.source : null,
+    returnTo: Array.isArray(resolvedSearchParams.returnTo)
+      ? resolvedSearchParams.returnTo[0]
+      : resolvedSearchParams.returnTo,
+    fallbackHref: "/dashboard",
+    fallbackLabel: "Back to dashboard",
+    allowedPrefixes: ["/dashboard/incentives"],
+    sourceMap: {
+      incentives: {
+        href: "/dashboard/incentives",
+        label: "Back to Incentives",
+        allowedPrefixes: ["/dashboard/incentives"],
+      },
+    },
+  });
 
   if (!auth.ok) {
     return (
@@ -29,9 +51,7 @@ export default async function IncentiveRulesPage() {
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground">Not logged in</p>
-            <Link className="mt-3 inline-block text-sm underline" href="/login">
-              Go to login
-            </Link>
+            <DashboardBackLink className="mt-3" href="/login" label="Go to login" />
           </CardContent>
         </Card>
       </main>
@@ -52,9 +72,7 @@ export default async function IncentiveRulesPage() {
             <p className="text-sm text-muted-foreground">
               You are logged in, but only Admin and Branch Manager users can manage incentive rules.
             </p>
-            <Link className="text-sm underline" href="/dashboard">
-              Back to dashboard
-            </Link>
+            <DashboardBackLink href={backNavigation.href} label={backNavigation.label} />
           </CardContent>
         </Card>
       </main>
@@ -85,9 +103,7 @@ export default async function IncentiveRulesPage() {
               <p className="text-sm text-amber-700 dark:text-amber-400">
                 No active branch assignment found. You cannot manage incentive rules until an active assignment is set.
               </p>
-              <Link className="text-sm underline" href="/dashboard">
-                Back to dashboard
-              </Link>
+              <DashboardBackLink href={backNavigation.href} label={backNavigation.label} />
             </CardContent>
           </Card>
         </main>
@@ -107,9 +123,7 @@ export default async function IncentiveRulesPage() {
               <p className="text-sm text-amber-700 dark:text-amber-400">
                 Multiple active branch assignments detected. Please contact Admin to resolve assignments.
               </p>
-              <Link className="text-sm underline" href="/dashboard">
-                Back to dashboard
-              </Link>
+              <DashboardBackLink href={backNavigation.href} label={backNavigation.label} />
             </CardContent>
           </Card>
         </main>
@@ -128,9 +142,7 @@ export default async function IncentiveRulesPage() {
               <p className="text-sm text-amber-700 dark:text-amber-400">
                 Active branch assignment points to an invalid branch.
               </p>
-              <Link className="text-sm underline" href="/dashboard">
-                Back to dashboard
-              </Link>
+              <DashboardBackLink href={backNavigation.href} label={backNavigation.label} />
             </CardContent>
           </Card>
         </main>
@@ -241,6 +253,8 @@ export default async function IncentiveRulesPage() {
 
   return (
     <main className="mx-auto min-h-screen w-full max-w-6xl p-6">
+      <DashboardBackLink href={backNavigation.href} label={backNavigation.label} />
+
       <Card className="mb-6">
         <CardHeader>
           <CardTitle>Incentive Rules</CardTitle>
@@ -254,9 +268,6 @@ export default async function IncentiveRulesPage() {
           <p className="text-sm text-muted-foreground">
             Rule changes made during the current month take effect on the next month.
           </p>
-          <Link className="text-sm underline" href="/dashboard">
-            Back to dashboard
-          </Link>
         </CardContent>
       </Card>
 

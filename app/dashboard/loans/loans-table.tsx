@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { appendBackNavigationToHref } from "@/app/dashboard/back-navigation";
 import { Button } from "@/components/ui/button";
 import { LoanArchiveButton } from "@/app/dashboard/loans/loan-archive-button";
 import { LoanDeleteButton } from "@/app/dashboard/loans/loan-delete-button";
@@ -12,7 +13,15 @@ function formatMoney(value: number) {
   })}`;
 }
 
-export function LoansTable({ loans }: { loans: LoanListRow[] }) {
+export function LoansTable({
+  loans,
+  returnTo,
+  source = "loans",
+}: {
+  loans: LoanListRow[];
+  returnTo: string;
+  source?: string;
+}) {
   if (loans.length === 0) {
     return <p className="text-muted-foreground text-sm">No loans found for your scope.</p>;
   }
@@ -52,7 +61,10 @@ export function LoansTable({ loans }: { loans: LoanListRow[] }) {
               </td>
               <td className="px-2 py-3">
                 <div className="flex flex-wrap gap-2">
-                  <Link href={`/dashboard/loans/${loan.loanId}`}>
+                  <Link href={appendBackNavigationToHref(`/dashboard/loans/${loan.loanId}`, {
+                    source,
+                    returnTo,
+                  })}>
                     <Button size="sm" type="button" variant="outline">
                       View
                     </Button>

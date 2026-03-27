@@ -1,10 +1,11 @@
-import Link from "next/link";
 import { and, eq, inArray } from "drizzle-orm";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { DashboardBackLink } from "@/app/dashboard/_components/dashboard-back-link";
 import {
   getDashboardAuthContext,
   getSingleAssignedBranchId,
 } from "@/app/dashboard/auth";
+import { resolveBackNavigation } from "@/app/dashboard/back-navigation";
 import { db } from "@/db";
 import { areas, branch, roles } from "@/db/schema";
 import { CreateAccountForm } from "@/app/dashboard/create-account/create-account-form";
@@ -35,8 +36,34 @@ const ALLOWED_ROLE_NAMES = [
   "Borrower",
 ];
 
-export default async function CreateAccountPage() {
+export default async function CreateAccountPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ source?: string; returnTo?: string | string[] }>;
+}) {
   const auth = await getDashboardAuthContext();
+  const resolvedSearchParams = (await searchParams) ?? {};
+  const backNavigation = resolveBackNavigation({
+    source: typeof resolvedSearchParams.source === "string" ? resolvedSearchParams.source : null,
+    returnTo: Array.isArray(resolvedSearchParams.returnTo)
+      ? resolvedSearchParams.returnTo[0]
+      : resolvedSearchParams.returnTo,
+    fallbackHref: "/dashboard",
+    fallbackLabel: "Back to dashboard",
+    allowedPrefixes: ["/dashboard/manage-user-accounts", "/dashboard/branches"],
+    sourceMap: {
+      "manage-users": {
+        href: "/dashboard/manage-user-accounts",
+        label: "Back to User Accounts",
+        allowedPrefixes: ["/dashboard/manage-user-accounts"],
+      },
+      branches: {
+        href: "/dashboard/branches",
+        label: "Back to Branches",
+        allowedPrefixes: ["/dashboard/branches"],
+      },
+    },
+  });
 
   if (!auth.ok) {
     return (
@@ -47,9 +74,7 @@ export default async function CreateAccountPage() {
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground">Not logged in</p>
-            <Link className="mt-3 inline-block text-sm underline" href="/login">
-              Go to login
-            </Link>
+            <DashboardBackLink className="mt-3" href="/login" label="Go to login" />
           </CardContent>
         </Card>
       </main>
@@ -71,9 +96,7 @@ export default async function CreateAccountPage() {
             <p className="text-sm text-muted-foreground">
               You are logged in, but only Admin, Branch Manager, and Secretary can access account creation.
             </p>
-            <Link className="text-sm underline" href="/dashboard">
-              Back to dashboard
-            </Link>
+            <DashboardBackLink href={backNavigation.href} label={backNavigation.label} />
           </CardContent>
         </Card>
       </main>
@@ -94,9 +117,7 @@ export default async function CreateAccountPage() {
               <p className="text-sm text-amber-700 dark:text-amber-400">
                 A single active branch assignment is required before creating accounts.
               </p>
-              <Link className="text-sm underline" href="/dashboard">
-                Back to dashboard
-              </Link>
+              <DashboardBackLink href={backNavigation.href} label={backNavigation.label} />
             </CardContent>
           </Card>
         </main>
@@ -178,9 +199,7 @@ export default async function CreateAccountPage() {
             <p className="text-sm text-amber-700 dark:text-amber-400">
               Your assigned branch is inactive, so new account creation is currently blocked there.
             </p>
-            <Link className="text-sm underline" href="/dashboard">
-              Back to dashboard
-            </Link>
+            <DashboardBackLink href={backNavigation.href} label={backNavigation.label} />
           </CardContent>
         </Card>
       </main>
@@ -189,6 +208,8 @@ export default async function CreateAccountPage() {
 
   return (
     <main className="mx-auto min-h-screen w-full max-w-5xl p-6">
+      <DashboardBackLink href={backNavigation.href} label={backNavigation.label} />
+
       <Card className="mb-6">
         <CardHeader>
           <CardTitle>Create Account</CardTitle>
@@ -200,11 +221,7 @@ export default async function CreateAccountPage() {
                 : "Create borrower accounts within your assigned branch."}
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <Link className="text-sm underline" href="/dashboard">
-            Back to dashboard
-          </Link>
-        </CardContent>
+        <CardContent />
       </Card>
 
       <CreateAccountForm

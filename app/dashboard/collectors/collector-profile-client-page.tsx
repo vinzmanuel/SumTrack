@@ -1,9 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import { Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { DashboardBackLink } from "@/app/dashboard/_components/dashboard-back-link";
 import { TremorCard, TremorDescription } from "@/components/tremor/raw/metric-card";
 import { CollectorAccountOverviewTab } from "@/app/dashboard/collectors/collector-account-overview-tab";
 import { CollectorAssignedLoansTab } from "@/app/dashboard/collectors/collector-assigned-loans-tab";
@@ -146,6 +145,8 @@ export function CollectorProfileClientPage({
 
   return (
     <div className="space-y-6">
+      <DashboardBackLink href={backHref} label={backLabel} />
+
       <TremorCard className="overflow-hidden p-0">
         <div className="bg-gradient-to-r from-slate-50 via-white to-emerald-50/60 p-6">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
@@ -167,12 +168,6 @@ export function CollectorProfileClientPage({
                 </span>
               </div>
             </div>
-
-            <Link href={backHref}>
-              <Button type="button" variant="outline">
-                {backLabel}
-              </Button>
-            </Link>
           </div>
         </div>
 

@@ -55,6 +55,28 @@ function replaceAssignedLoansUrl(filters: CollectorAssignedLoansFilters) {
   window.history.replaceState(null, "", query ? `${url.pathname}?${query}` : url.pathname);
 }
 
+function buildAssignedLoansReturnTo(collectorId: string, filters: CollectorAssignedLoansFilters) {
+  const params = new URLSearchParams();
+  params.set("tab", "assigned-loans");
+
+  if (filters.query.trim()) {
+    params.set("loanQuery", filters.query.trim());
+  }
+
+  if (filters.status !== "all") {
+    params.set("loanStatus", filters.status);
+  }
+
+  if (filters.page > 1) {
+    params.set("loansPage", String(filters.page));
+  }
+
+  const query = params.toString();
+  return query
+    ? `/dashboard/collectors/${collectorId}?${query}`
+    : `/dashboard/collectors/${collectorId}`;
+}
+
 export function CollectorAssignedLoansTab({
   collectorId,
   initialData,
@@ -173,6 +195,7 @@ export function CollectorAssignedLoansTab({
       page,
     });
   }, [filters.query, filters.status, loadResults]);
+  const currentReturnTo = buildAssignedLoansReturnTo(collectorId, filters);
 
   return (
     <LoanRecordsModule
@@ -213,6 +236,8 @@ export function CollectorAssignedLoansTab({
       errorMessage={errorMessage}
       isPending={isPending}
       onPageChange={handlePageChange}
+      returnTo={currentReturnTo}
+      detailSource="collectors"
     />
   );
 }

@@ -1,6 +1,7 @@
-import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DashboardBackLink } from "@/app/dashboard/_components/dashboard-back-link";
 import { getDashboardAuthContext } from "@/app/dashboard/auth";
+import { firstSearchValue, resolveBackNavigation } from "@/app/dashboard/back-navigation";
 import { resolveReportsPageAccess } from "@/app/dashboard/reports/access";
 import { loadReportViewerData } from "@/app/dashboard/reports/queries";
 import { ReportsViewPage } from "@/app/dashboard/reports/reports-view-page";
@@ -21,40 +22,51 @@ function renderCenteredCard(props: { message: string; href: string; actionLabel:
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground">{props.message}</p>
-          <Link className="text-sm underline" href={props.href}>
-            {props.actionLabel}
-          </Link>
+          <DashboardBackLink href={props.href} label={props.actionLabel} />
         </CardContent>
       </Card>
     </main>
   );
 }
 
-function firstSearchValue(value: string | string[] | undefined) {
-  return Array.isArray(value) ? value[0] : value;
-}
-
 function resolveReportsBackHref(searchParams: Record<string, string | string[] | undefined>) {
-  const rawValue = firstSearchValue(searchParams.back)?.trim();
-
-  if (!rawValue || !rawValue.startsWith("/dashboard/reports")) {
-    return "/dashboard/reports";
-  }
-
-  return rawValue;
+  return resolveBackNavigation({
+    source: firstSearchValue(searchParams.source),
+    returnTo: firstSearchValue(searchParams.returnTo) ?? firstSearchValue(searchParams.back),
+    allowedPrefixes: ["/dashboard/reports", "/dashboard/reports/create", "/dashboard/loans"],
+    fallbackHref: "/dashboard/reports",
+    fallbackLabel: "Back to Reports Library",
+    sourceMap: {
+      reports: {
+        href: "/dashboard/reports",
+        label: "Back to Reports Library",
+        allowedPrefixes: ["/dashboard/reports"],
+      },
+      "reports-create": {
+        href: "/dashboard/reports/create",
+        label: "Back to Create Report",
+        allowedPrefixes: ["/dashboard/reports/create"],
+      },
+      loans: {
+        href: "/dashboard/loans",
+        label: "Back to Loan",
+        allowedPrefixes: ["/dashboard/loans"],
+      },
+    },
+  });
 }
 
 export default async function ReportsViewerPage({ params, searchParams }: PageProps) {
   const { reportId: reportIdRaw } = await params;
   const resolvedSearchParams = searchParams ? await searchParams : {};
-  const backHref = resolveReportsBackHref(resolvedSearchParams);
+  const backNavigation = resolveReportsBackHref(resolvedSearchParams);
   const reportId = Number.parseInt(reportIdRaw, 10);
   if (!Number.isInteger(reportId) || reportId <= 0) {
     return renderCenteredCard({
       title: "Saved Report",
       message: "The selected report could not be found.",
-      href: backHref,
-      actionLabel: "Back to Reports Library",
+      href: backNavigation.href,
+      actionLabel: backNavigation.label,
     });
   }
   const auth = await getDashboardAuthContext();
@@ -71,8 +83,8 @@ export default async function ReportsViewerPage({ params, searchParams }: PagePr
     return renderCenteredCard({
       title: "Saved Report",
       message: access.message,
-      href: backHref,
-      actionLabel: "Back to Reports Library",
+      href: backNavigation.href,
+      actionLabel: backNavigation.label,
     });
   }
   const result = await loadReportViewerData(access, reportId);
@@ -80,9 +92,9 @@ export default async function ReportsViewerPage({ params, searchParams }: PagePr
     return renderCenteredCard({
       title: "Saved Report",
       message: result.message,
-      href: backHref,
-      actionLabel: "Back to Reports Library",
+      href: backNavigation.href,
+      actionLabel: backNavigation.label,
     });
   }
-  return <ReportsViewPage backHref={backHref} report={result.data} />;
+  return <ReportsViewPage backHref={backNavigation.href} backLabel={backNavigation.label} report={result.data} />;
 }

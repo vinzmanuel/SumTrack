@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Button } from "@/components/ui/button";
+import { DashboardBackLink } from "@/app/dashboard/_components/dashboard-back-link";
+import { firstSearchValue, resolveBackNavigation } from "@/app/dashboard/back-navigation";
 import { getDashboardAuthContext } from "@/app/dashboard/auth";
 import {
   parseManageUserAccountsFilters,
@@ -36,20 +36,30 @@ export async function renderRoleAccountProfilePage(params: {
   }
 
   const resolvedSearchParams = (await params.searchParams) ?? {};
-  const rawReturnTo = String(resolvedSearchParams.returnTo ?? "");
-  const isBranchSource =
-    resolvedSearchParams.source === "branches" && rawReturnTo.startsWith("/dashboard/branches");
-  const backHref = isBranchSource ? rawReturnTo : "/dashboard/manage-user-accounts";
-  const backLabel = isBranchSource ? "Back to Branches" : "Back to User Accounts";
+  const backNavigation = resolveBackNavigation({
+    source: firstSearchValue(resolvedSearchParams.source),
+    returnTo: firstSearchValue(resolvedSearchParams.returnTo),
+    fallbackHref: "/dashboard/manage-user-accounts",
+    fallbackLabel: "Back to User Accounts",
+    allowedPrefixes: ["/dashboard/manage-user-accounts", "/dashboard/branches"],
+    sourceMap: {
+      "manage-users": {
+        href: "/dashboard/manage-user-accounts",
+        label: "Back to User Accounts",
+        allowedPrefixes: ["/dashboard/manage-user-accounts"],
+      },
+      branches: {
+        href: "/dashboard/branches",
+        label: "Back to Branches",
+        allowedPrefixes: ["/dashboard/branches"],
+      },
+    },
+  });
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
       <div className="flex justify-end">
-        <Link href={backHref}>
-          <Button type="button" variant="outline">
-            {backLabel}
-          </Button>
-        </Link>
+        <DashboardBackLink href={backNavigation.href} label={backNavigation.label} />
       </div>
 
       <ManagedUserSummaryCard

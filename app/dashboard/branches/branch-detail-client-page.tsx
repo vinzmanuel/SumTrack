@@ -1,10 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { Building2, MapPin } from "lucide-react";
+import { DashboardBackLink } from "@/app/dashboard/_components/dashboard-back-link";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { BranchDeleteButton } from "@/app/dashboard/branches/branch-delete-button";
 import { BranchEditDialog } from "@/app/dashboard/branches/branch-edit-dialog";
@@ -84,6 +83,8 @@ export function BranchDetailClientPage({
 
   return (
     <div className="space-y-4">
+      <DashboardBackLink href={backHref} label={backLabel} />
+
       <Card className="overflow-hidden border-border/70 py-0 shadow-sm">
         <CardContent className="p-0">
           <div className="rounded-t-[inherit] bg-gradient-to-r from-slate-50 via-white to-emerald-50/60 p-6">
@@ -110,14 +111,6 @@ export function BranchDetailClientPage({
                     Status: {data.statusLabel}
                   </Badge>
                 </div>
-              </div>
-
-              <div className="flex justify-end">
-                <Link href={backHref}>
-                  <Button size="sm" type="button" variant="outline">
-                    {backLabel}
-                  </Button>
-                </Link>
               </div>
             </div>
           </div>

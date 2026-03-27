@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { DashboardBackLink } from "@/app/dashboard/_components/dashboard-back-link";
+import { appendBackNavigationToHref, buildReturnTo } from "@/app/dashboard/back-navigation";
 import { ExportPrintTools } from "@/app/dashboard/incentives/export-print-tools";
 import { FinalizePayoutForm } from "@/app/dashboard/incentives/finalize-payout-form";
 import { IncentivesFilters } from "@/app/dashboard/incentives/incentives-filters";
@@ -18,9 +20,7 @@ function renderCenteredCard(props: { title: string; message: string; href: strin
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground">{props.message}</p>
-          <Link className="text-sm underline" href={props.href}>
-            {props.actionLabel}
-          </Link>
+          <DashboardBackLink href={props.href} label={props.actionLabel} />
         </CardContent>
       </Card>
     </main>
@@ -37,9 +37,7 @@ function renderBranchError(message: string) {
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-sm text-amber-700 dark:text-amber-400">{message}</p>
-          <Link className="text-sm underline" href="/dashboard">
-            Back to dashboard
-          </Link>
+          <DashboardBackLink href="/dashboard" label="Back to dashboard" />
         </CardContent>
       </Card>
     </main>
@@ -73,9 +71,18 @@ export default async function IncentivesPage({ searchParams }: IncentivesPagePro
   }
 
   const viewState = await loadIncentivesViewState(access);
+  const currentReturnTo = buildReturnTo(
+    "/dashboard/incentives",
+    new URLSearchParams({
+      ...(access.selectedBranchRaw ? { branch: access.selectedBranchRaw } : {}),
+      ...(access.selectedMonthRaw ? { month: access.selectedMonthRaw } : {}),
+    }),
+  );
 
   return (
     <div className="space-y-6">
+      <DashboardBackLink href="/dashboard" label="Back to dashboard" />
+
       <Card>
         <CardHeader>
           <CardTitle>Incentive Payouts</CardTitle>
@@ -84,13 +91,11 @@ export default async function IncentivesPage({ searchParams }: IncentivesPagePro
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-2">
-          <Link href="/dashboard">
-            <Button type="button" variant="outline">
-              Back to dashboard
-            </Button>
-          </Link>
           {!access.isAuditor ? (
-            <Link href="/dashboard/incentives/rules">
+            <Link href={appendBackNavigationToHref("/dashboard/incentives/rules", {
+              source: "incentives",
+              returnTo: currentReturnTo,
+            })}>
               <Button type="button" variant="secondary">
                 Manage Rules
               </Button>

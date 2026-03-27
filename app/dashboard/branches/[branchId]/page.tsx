@@ -1,7 +1,8 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DashboardBackLink } from "@/app/dashboard/_components/dashboard-back-link";
 import { getDashboardAuthContext } from "@/app/dashboard/auth";
+import { firstSearchValue, resolveBackNavigation } from "@/app/dashboard/back-navigation";
 import { BranchDetailClientPage } from "@/app/dashboard/branches/branch-detail-client-page";
 import {
   loadBranchAreasTabDataByCode,
@@ -34,9 +35,7 @@ function renderCenteredCard(props: { message: string; href: string; actionLabel:
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-sm text-muted-foreground">{props.message}</p>
-          <Link className="text-sm underline" href={props.href}>
-            {props.actionLabel}
-          </Link>
+          <DashboardBackLink href={props.href} label={props.actionLabel} />
         </CardContent>
       </Card>
     </main>
@@ -79,20 +78,31 @@ export default async function BranchDetailPage({ params, searchParams }: BranchD
     notFound();
   }
 
-  const defaultBackHref = "/dashboard/branches";
-  const rawReturnTo = resolvedSearchParams.returnTo?.trim();
-  const safeReturnTo =
-    rawReturnTo && rawReturnTo.startsWith("/dashboard") ? rawReturnTo : defaultBackHref;
-  const backLabel =
-    resolvedSearchParams.source === "branches" || !resolvedSearchParams.source
-      ? "Back to Branches"
-      : "Back";
+  const backNavigation = resolveBackNavigation({
+    source: firstSearchValue(resolvedSearchParams.source),
+    returnTo: firstSearchValue(resolvedSearchParams.returnTo),
+    fallbackHref: "/dashboard/branches",
+    fallbackLabel: "Back to Branches",
+    allowedPrefixes: ["/dashboard/branches", "/dashboard/manage-user-accounts"],
+    sourceMap: {
+      branches: {
+        href: "/dashboard/branches",
+        label: "Back to Branches",
+        allowedPrefixes: ["/dashboard/branches"],
+      },
+      "manage-users": {
+        href: "/dashboard/manage-user-accounts",
+        label: "Back to User Accounts",
+        allowedPrefixes: ["/dashboard/manage-user-accounts"],
+      },
+    },
+  });
   const permissions = resolveBranchActionPermissions(access);
 
   return (
     <BranchDetailClientPage
-      backHref={safeReturnTo}
-      backLabel={backLabel}
+      backHref={backNavigation.href}
+      backLabel={backNavigation.label}
       data={branch}
       areasData={areasData}
       employeesData={employeesData}

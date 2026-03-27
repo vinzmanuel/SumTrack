@@ -1,6 +1,8 @@
 export type CreateLoanPageProps = {
   searchParams?: Promise<{
     borrowerId?: string;
+    source?: string | string[];
+    returnTo?: string | string[];
   }>;
 };
 

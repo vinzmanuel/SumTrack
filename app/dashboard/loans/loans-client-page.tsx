@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Plus } from "lucide-react";
+import { appendBackNavigationToHref } from "@/app/dashboard/back-navigation";
 import { Button } from "@/components/ui/button";
 import { LoanRecordsModule } from "@/app/dashboard/loans/loan-records-module";
 import { LoansFilters } from "@/app/dashboard/loans/loans-filters";
@@ -256,6 +257,8 @@ export function LoansClientPage({
     }));
   }, []);
 
+  const currentReturnTo = buildResultsUrl(filters);
+
   return (
     <LoanRecordsModule
       controls={(
@@ -265,7 +268,10 @@ export function LoansClientPage({
           branches={branchOptions}
           action={
             initialScope.canCreateLoan ? (
-              <Link href="/dashboard/create-loan">
+              <Link href={appendBackNavigationToHref("/dashboard/create-loan", {
+                source: "loans",
+                returnTo: currentReturnTo,
+              })}>
                 <Button
                   className="w-full bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white xl:w-auto"
                   size="sm"
@@ -293,6 +299,8 @@ export function LoansClientPage({
       errorMessage={errorMessage}
       isPending={isPending}
       onPageChange={handlePageChange}
+      returnTo={currentReturnTo}
+      detailSource="loans"
     />
   );
 }

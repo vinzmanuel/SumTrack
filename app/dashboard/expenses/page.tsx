@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DashboardBackLink } from "@/app/dashboard/_components/dashboard-back-link";
 import { requireDashboardAuth } from "@/app/dashboard/auth";
 import { ExpensesClientPage } from "@/app/dashboard/expenses/expenses-client-page";
 import { parseExpensesFilters, resolveExpensesPageAccess } from "@/app/dashboard/expenses/filters";
@@ -33,9 +33,7 @@ export default async function ExpensesPage({ searchParams }: ExpensesPageProps) 
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm text-muted-foreground">{access.message}</p>
-            <Link className="text-sm underline" href="/dashboard">
-              Back to dashboard
-            </Link>
+            <DashboardBackLink href="/dashboard" label="Back to dashboard" />
           </CardContent>
         </Card>
       </main>

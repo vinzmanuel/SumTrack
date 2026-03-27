@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { appendBackNavigationToHref } from "@/app/dashboard/back-navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { LoanVisibleStatusBadge } from "@/app/dashboard/loans/loan-visible-status-badge";
 import type { VisibleLoanStatus } from "@/app/dashboard/loans/loan-state";
@@ -13,6 +14,7 @@ function formatMoney(value: number) {
 
 export function BorrowerLoanHistoryTab({
   loans,
+  returnTo,
 }: {
   loans: Array<{
     loanId: number;
@@ -23,6 +25,7 @@ export function BorrowerLoanHistoryTab({
     dueDate: string;
     visibleStatus: VisibleLoanStatus;
   }>;
+  returnTo: string;
 }) {
   return (
     <Card className="overflow-hidden border-border/70 shadow-sm">
@@ -58,7 +61,10 @@ export function BorrowerLoanHistoryTab({
                       <LoanVisibleStatusBadge status={loan.visibleStatus} />
                     </td>
                     <td className="px-2 py-3">
-                      <Link href={`/dashboard/loans/${loan.loanId}`}>
+                      <Link href={appendBackNavigationToHref(`/dashboard/loans/${loan.loanId}`, {
+                        source: "borrowers",
+                        returnTo,
+                      })}>
                         <Button size="sm" type="button" variant="outline">
                           View
                         </Button>

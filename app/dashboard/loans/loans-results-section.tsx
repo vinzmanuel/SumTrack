@@ -9,6 +9,8 @@ type LoansResultsSectionProps = {
   isPending: boolean;
   errorMessage: string | null;
   onPageChange: (page: number) => void;
+  returnTo: string;
+  detailSource?: string;
   embedded?: boolean;
 };
 
@@ -17,6 +19,8 @@ export function LoansResultsSection({
   isPending,
   errorMessage,
   onPageChange,
+  returnTo,
+  detailSource,
   embedded = false,
 }: LoansResultsSectionProps) {
   const totalPages = Math.max(Math.ceil(data.totalCount / data.pageSize), 1);
@@ -26,7 +30,7 @@ export function LoansResultsSection({
 
   return (
     <div className={`relative ${embedded ? "space-y-3" : ""}`}>
-      <LoansTable loans={data.loans} />
+      <LoansTable loans={data.loans} returnTo={returnTo} source={detailSource} />
       <div className="flex flex-col gap-3 border-t pt-3 text-sm md:flex-row md:items-center md:justify-between">
         <div className="space-y-1">
           <p className="text-muted-foreground">

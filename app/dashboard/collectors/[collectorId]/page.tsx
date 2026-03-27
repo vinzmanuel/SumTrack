@@ -1,5 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireDashboardAuth } from "@/app/dashboard/auth";
+import { firstSearchValue, resolveBackNavigation } from "@/app/dashboard/back-navigation";
 import { resolveCollectorsPageAccess } from "@/app/dashboard/collectors/access";
 import {
   parseCollectorAssignedLoansFilters,
@@ -118,31 +119,36 @@ export default async function CollectorProfilePage({
   const backQuery = backParams.toString();
 
   const collectorsBackHref = backQuery ? `/dashboard/collectors?${backQuery}` : "/dashboard/collectors";
-  const returnTo = String(currentSearchParams.returnTo ?? "");
-  const safeManageUsersBackHref = returnTo.startsWith("/dashboard/manage-user-accounts")
-    ? returnTo
-    : "/dashboard/manage-user-accounts";
-  const safeBranchesBackHref = returnTo.startsWith("/dashboard/branches")
-    ? returnTo
-    : "/dashboard/branches";
-  const backHref =
-    source === "manage-users"
-      ? safeManageUsersBackHref
-      : source === "branches"
-        ? safeBranchesBackHref
-        : collectorsBackHref;
-  const backLabel =
-    source === "manage-users"
-      ? "Back to Manage Users"
-      : source === "branches"
-        ? "Back to Branches"
-        : "Back to Collectors";
+  const backNavigation = resolveBackNavigation({
+    source,
+    returnTo: firstSearchValue(currentSearchParams.returnTo),
+    fallbackHref: collectorsBackHref,
+    fallbackLabel: "Back to Collectors",
+    allowedPrefixes: ["/dashboard/collectors", "/dashboard/manage-user-accounts", "/dashboard/branches"],
+    sourceMap: {
+      collectors: {
+        href: collectorsBackHref,
+        label: "Back to Collectors",
+        allowedPrefixes: ["/dashboard/collectors"],
+      },
+      "manage-users": {
+        href: "/dashboard/manage-user-accounts",
+        label: "Back to Manage Users",
+        allowedPrefixes: ["/dashboard/manage-user-accounts"],
+      },
+      branches: {
+        href: "/dashboard/branches",
+        label: "Back to Branches",
+        allowedPrefixes: ["/dashboard/branches"],
+      },
+    },
+  });
 
   return (
     <div className="space-y-6">
       <CollectorProfileClientPage
-        backLabel={backLabel}
-        backHref={backHref}
+        backLabel={backNavigation.label}
+        backHref={backNavigation.href}
         collectorId={routeParams.collectorId}
         initialAssignedLoansData={assignedLoans}
         initialAssignedLoansFilters={assignedLoansFilters}

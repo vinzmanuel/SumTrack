@@ -1,9 +1,10 @@
 "use client";
 
 import { useActionState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useFormStatus } from "react-dom";
 import { toast } from "sonner";
+import { appendBackNavigationToHref, buildReturnTo } from "@/app/dashboard/back-navigation";
 import { Button } from "@/components/ui/button";
 import {
   generateOperationalDocumentAction,
@@ -39,11 +40,14 @@ export function GenerateOperationalDocumentButton(props: {
   disabledReason?: string;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [state, formAction] = useActionState(
     generateOperationalDocumentAction,
     initialGenerateOperationalDocumentState,
   );
   const lastToastKeyRef = useRef<string | null>(null);
+  const currentReturnTo = buildReturnTo(pathname, searchParams);
 
   useEffect(() => {
     if (state.status === "idle" || !state.message) {
@@ -58,7 +62,10 @@ export function GenerateOperationalDocumentButton(props: {
     lastToastKeyRef.current = nextToastKey;
 
     if (state.status === "success" && state.result) {
-      const reportHref = `/dashboard/reports/${state.result.reportId}`;
+      const reportHref = appendBackNavigationToHref(`/dashboard/reports/${state.result.reportId}`, {
+        source: "loans",
+        returnTo: currentReturnTo,
+      });
 
       if (props.successBehavior === "redirect") {
         toast.success(`${state.message} Opening report...`);
@@ -76,7 +83,7 @@ export function GenerateOperationalDocumentButton(props: {
     }
 
     toast.error(state.message);
-  }, [props.successBehavior, router, state.message, state.result, state.status]);
+  }, [currentReturnTo, props.successBehavior, router, state.message, state.result, state.status]);
 
   return (
     <div className="space-y-2">

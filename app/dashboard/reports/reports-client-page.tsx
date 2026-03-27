@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { ArrowLeft, BarChart3, FileText, Lock, Sparkles } from "lucide-react";
+import { BarChart3, FileText, Lock, Sparkles } from "lucide-react";
+import { DashboardBackLink } from "@/app/dashboard/_components/dashboard-back-link";
+import { appendBackNavigationToHref } from "@/app/dashboard/back-navigation";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AnalyticsReportGenerationForm } from "@/app/dashboard/reports/analytics-report-generation-form";
 import { buildReportsCreateHref } from "@/app/dashboard/reports/filters";
@@ -114,10 +115,14 @@ function TabButton({
 export function ReportsCreateClientPage({
   access,
   activeTab,
+  backHref,
+  backLabel,
   pageData,
 }: {
   access: Extract<ReportsPageAccessState, { view: "ready" }>;
   activeTab: ReportsCreateTab;
+  backHref: string;
+  backLabel: string;
   pageData: ReportsPageData;
 }) {
   const analyticalReportItems: ReportsPageCategoryItem[] = pageData.analyticsTemplateCategories.map(
@@ -137,17 +142,12 @@ export function ReportsCreateClientPage({
 
   return (
     <div className="space-y-6">
+      <DashboardBackLink href={backHref} label={backLabel} />
+
       <Card className="overflow-hidden p-0">
         <div className="bg-linear-to-r from-slate-50 via-white to-emerald-50/60 px-6 py-6">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
             <div className="space-y-3">
-              <Link href="/dashboard/reports">
-                <Button className="gap-2 px-0 text-muted-foreground hover:text-foreground" variant="ghost">
-                  <ArrowLeft className="h-4 w-4" />
-                  Back to Reports Library
-                </Button>
-              </Link>
-
               <div className="space-y-1">
                 <h1 className="text-3xl font-semibold tracking-tight text-foreground">Create Report</h1>
                 <p className="text-sm text-muted-foreground">
@@ -170,10 +170,10 @@ export function ReportsCreateClientPage({
 
         <div className="border-t border-border/70 p-6">
           <div className="inline-flex flex-wrap gap-2 rounded-xl border border-border/70 bg-muted/30 p-1">
-            <Link href={buildReportsCreateHref("analytics")}>
+            <Link href={appendBackNavigationToHref(buildReportsCreateHref("analytics"), { source: "reports", returnTo: backHref })}>
               <TabButton active={activeTab === "analytics"} label="Analytical Reports" />
             </Link>
-            <Link href={buildReportsCreateHref("documents")}>
+            <Link href={appendBackNavigationToHref(buildReportsCreateHref("documents"), { source: "reports", returnTo: backHref })}>
               <TabButton active={activeTab === "documents"} label="Operational Documents" />
             </Link>
           </div>

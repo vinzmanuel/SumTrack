@@ -1,7 +1,7 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { DashboardBackLink } from "@/app/dashboard/_components/dashboard-back-link";
+import { firstSearchValue, resolveBackNavigation } from "@/app/dashboard/back-navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getDashboardAuthContext } from "@/app/dashboard/auth";
 import {
@@ -12,8 +12,10 @@ import { loadManagedUserDetail } from "@/app/dashboard/manage-user-accounts/quer
 
 export default async function ManagedUserDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ userId: string }>;
+  searchParams?: Promise<{ source?: string; returnTo?: string | string[] }>;
 }) {
   const auth = await getDashboardAuthContext();
   const accessState = resolveManageUserAccountsAccess(auth, parseManageUserAccountsFilters({}));
@@ -29,8 +31,31 @@ export default async function ManagedUserDetailPage({
     return notFound();
   }
 
+  const resolvedSearchParams = (await searchParams) ?? {};
+  const backNavigation = resolveBackNavigation({
+    source: firstSearchValue(resolvedSearchParams.source),
+    returnTo: firstSearchValue(resolvedSearchParams.returnTo),
+    fallbackHref: "/dashboard/manage-user-accounts",
+    fallbackLabel: "Back to User Accounts",
+    allowedPrefixes: ["/dashboard/manage-user-accounts", "/dashboard/branches"],
+    sourceMap: {
+      "manage-users": {
+        href: "/dashboard/manage-user-accounts",
+        label: "Back to User Accounts",
+        allowedPrefixes: ["/dashboard/manage-user-accounts"],
+      },
+      branches: {
+        href: "/dashboard/branches",
+        label: "Back to Branches",
+        allowedPrefixes: ["/dashboard/branches"],
+      },
+    },
+  });
+
   return (
     <div className="space-y-6">
+      <DashboardBackLink href={backNavigation.href} label={backNavigation.label} />
+
       <Card>
         <CardHeader className="flex flex-row items-start justify-between gap-4">
           <div className="space-y-2">
@@ -40,13 +65,6 @@ export default async function ManagedUserDetailPage({
             <CardTitle>{detail.fullName}</CardTitle>
             <p className="text-sm text-muted-foreground">{detail.scopeLabel}</p>
           </div>
-        <div className="flex flex-wrap gap-2">
-          <Link href="/dashboard/manage-user-accounts">
-            <Button type="button" variant="outline">
-              Back to User Accounts
-            </Button>
-          </Link>
-        </div>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
           <div className="rounded-lg border p-4">

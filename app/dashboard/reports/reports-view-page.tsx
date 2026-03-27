@@ -1,9 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useRef } from "react";
 import type { ReactNode } from "react";
-import { ArrowLeft } from "lucide-react";
+import { DashboardBackLink } from "@/app/dashboard/_components/dashboard-back-link";
 import { Button } from "@/components/ui/button";
 import { formatStoredDateTimeForManila } from "@/app/dashboard/datetime";
 import {
@@ -1292,7 +1291,7 @@ function renderReportBody(report: ReportsViewerPageData) {
   );
 }
 
-export function ReportsViewPage(props: { backHref?: string; report: ReportsViewerPageData }) {
+export function ReportsViewPage(props: { backHref?: string; backLabel?: string; report: ReportsViewerPageData }) {
   const isDocument = props.report.reportCategory === "document";
   const isReceiptDocument = isReceiptTemplate(props.report);
   const reportContentRef = useRef<HTMLDivElement | null>(null);
@@ -1302,12 +1301,10 @@ export function ReportsViewPage(props: { backHref?: string; report: ReportsViewe
   return (
     <main className="mx-auto max-w-6xl p-6">
       <div className="space-y-5">
-        <Link href={props.backHref ?? "/dashboard/reports"}>
-          <Button className="gap-2 px-0 text-muted-foreground hover:text-foreground" variant="ghost">
-            <ArrowLeft className="h-4 w-4" />
-            Back to Reports Library
-          </Button>
-        </Link>
+        <DashboardBackLink
+          href={props.backHref ?? "/dashboard/reports"}
+          label={props.backLabel ?? "Back to Reports Library"}
+        />
 
         <article
           className={
