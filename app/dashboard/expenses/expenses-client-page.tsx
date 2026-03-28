@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Plus } from "lucide-react";
-import { DashboardBackLink } from "@/app/dashboard/_components/dashboard-back-link";
 import { appendBackNavigationToHref } from "@/app/dashboard/back-navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -183,8 +182,6 @@ export function ExpensesClientPage({
 
   return (
     <div className="space-y-6">
-      <DashboardBackLink href="/dashboard" label="Back to dashboard" />
-
       <Card>
         <CardHeader>
           <CardTitle>Expenses</CardTitle>

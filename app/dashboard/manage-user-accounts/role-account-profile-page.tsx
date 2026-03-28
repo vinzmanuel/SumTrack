@@ -58,9 +58,7 @@ export async function renderRoleAccountProfilePage(params: {
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
-      <div className="flex justify-end">
-        <DashboardBackLink href={backNavigation.href} label={backNavigation.label} />
-      </div>
+      <DashboardBackLink href={backNavigation.href} label={backNavigation.label} />
 
       <ManagedUserSummaryCard
         companyId={detail.companyId}

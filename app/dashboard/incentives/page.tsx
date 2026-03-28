@@ -81,8 +81,6 @@ export default async function IncentivesPage({ searchParams }: IncentivesPagePro
 
   return (
     <div className="space-y-6">
-      <DashboardBackLink href="/dashboard" label="Back to dashboard" />
-
       <Card>
         <CardHeader>
           <CardTitle>Incentive Payouts</CardTitle>

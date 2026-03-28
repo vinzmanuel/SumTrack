@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useRef } from "react";
 import { useFormStatus } from "react-dom";
 import { toast } from "sonner";
+import { PasswordInput } from "@/components/password-input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -108,19 +109,19 @@ export function LoginInformationForm({ username }: { username: string }) {
               <label className="text-sm font-medium" htmlFor="current-password">
                 Current Password
               </label>
-              <Input id="current-password" name="current_password" type="password" />
+              <PasswordInput id="current-password" name="current_password" />
             </div>
             <div className="space-y-1.5">
               <label className="text-sm font-medium" htmlFor="new-password">
                 New Password
               </label>
-              <Input id="new-password" name="new_password" type="password" />
+              <PasswordInput id="new-password" name="new_password" />
             </div>
             <div className="space-y-1.5">
               <label className="text-sm font-medium" htmlFor="confirm-password">
                 Confirm New Password
               </label>
-              <Input id="confirm-password" name="confirm_password" type="password" />
+              <PasswordInput id="confirm-password" name="confirm_password" />
             </div>
           </div>
 
