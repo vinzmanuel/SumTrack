@@ -37,6 +37,45 @@ function buildCollectionHistoryRow(params: {
   };
 }
 
+function logCollectionStatusProof(params: {
+  loanCode: string;
+  insertedCollectionAmount: number;
+  insertedCollectionCode: string;
+  reconciliation: Awaited<ReturnType<typeof reconcilePersistedLoanStatus>>;
+}) {
+  if (process.env.NODE_ENV === "production" || !params.reconciliation) {
+    return;
+  }
+
+  const proofPayload = {
+    flow: "collection-create -> reconcilePersistedLoanStatus",
+    loanId: params.reconciliation.loanId,
+    loanCode: params.loanCode,
+    insertedCollectionCode: params.insertedCollectionCode,
+    insertedCollectionAmount: params.insertedCollectionAmount,
+    principal: params.reconciliation.debug.principal,
+    interest: params.reconciliation.debug.interest,
+    totalPayable: params.reconciliation.totalPayable,
+    totalCollected: params.reconciliation.totalCollected,
+    remainingBalance: params.reconciliation.remainingBalance,
+    previousStatus: params.reconciliation.previousStatus,
+    nextStatus: params.reconciliation.nextStatus,
+    payoffReached: params.reconciliation.debug.payoffReached,
+    aggregateSource: params.reconciliation.debug.source,
+    dueDate: params.reconciliation.debug.dueDate,
+    currentDate: params.reconciliation.debug.currentDate,
+    statusChanged: params.reconciliation.changed,
+  };
+
+  console.info(
+    [
+      "[sumtrack][collection-status-proof] START",
+      JSON.stringify(proofPayload, null, 2),
+      "[sumtrack][collection-status-proof] END",
+    ].join("\n"),
+  );
+}
+
 export async function createCollectionAction(
   prevState: LoanDetailState,
   formData: FormData,
@@ -83,7 +122,7 @@ export async function createCollectionAction(
   }
 
   try {
-    const insertedCollection = await db.transaction(async (tx) => {
+    const transactionResult = await db.transaction(async (tx) => {
       const persistedCollection = input.missedPayment
         ? await insertMissedPaymentRecord({
             collectionCode: nextCollectionCode,
@@ -104,24 +143,34 @@ export async function createCollectionAction(
         return null;
       }
 
-      await reconcilePersistedLoanStatus({
+      const reconciliation = await reconcilePersistedLoanStatus({
         loanId: loanContext.data.loanId,
         executor: tx,
       });
 
-      return persistedCollection;
+      return {
+        persistedCollection,
+        reconciliation,
+      };
     });
 
-    if (!insertedCollection) {
+    if (!transactionResult?.persistedCollection) {
       return buildCollectionErrorState(stateFactory, "Failed to record collection: Unknown error.");
     }
 
+    logCollectionStatusProof({
+      loanCode: loanContext.data.loanCode,
+      insertedCollectionAmount: transactionResult.persistedCollection.amount,
+      insertedCollectionCode: transactionResult.persistedCollection.collectionCode,
+      reconciliation: transactionResult.reconciliation,
+    });
+
     const newRow = buildCollectionHistoryRow({
-      collectionId: insertedCollection.collectionId,
-      collectionCode: insertedCollection.collectionCode,
-      collectionDate: insertedCollection.collectionDate,
-      amount: insertedCollection.amount,
-      note: insertedCollection.note,
+      collectionId: transactionResult.persistedCollection.collectionId,
+      collectionCode: transactionResult.persistedCollection.collectionCode,
+      collectionDate: transactionResult.persistedCollection.collectionDate,
+      amount: transactionResult.persistedCollection.amount,
+      note: transactionResult.persistedCollection.note,
       collectorName: loanContext.data.collectorName,
       encodedByName: creatorAccess.data.displayName,
     });
@@ -132,12 +181,12 @@ export async function createCollectionAction(
       message: "Collection recorded successfully.",
       appendedRows,
       result: {
-        collectionId: String(insertedCollection.collectionId),
-        collectionCode: insertedCollection.collectionCode,
-        collectionDate: insertedCollection.collectionDate,
-        amount: insertedCollection.amount,
+        collectionId: String(transactionResult.persistedCollection.collectionId),
+        collectionCode: transactionResult.persistedCollection.collectionCode,
+        collectionDate: transactionResult.persistedCollection.collectionDate,
+        amount: transactionResult.persistedCollection.amount,
         collectorName: loanContext.data.collectorName,
-        note: insertedCollection.note,
+        note: transactionResult.persistedCollection.note,
         missedPayment: input.missedPayment,
         collectionRow: newRow,
       },

@@ -14,6 +14,7 @@ import {
   or,
   sql,
   type SQL,
+  type Subquery,
 } from "drizzle-orm";
 import {
   buildLoanDerivedMetricsSubquery,
@@ -151,6 +152,61 @@ type CollectorRadarMaxima = {
 function toNumber(value: unknown) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+async function logCollectorsAnalyticsDebug(params: {
+  access: AnalyticsAccess;
+  filters: CollectorsFilterState;
+  totalCount: number;
+  summaryQueryFailed: boolean;
+  summaryQueryError: string | null;
+  baseCollectors: Subquery<string, Record<string, unknown>>;
+}) {
+  if (process.env.NODE_ENV === "production") {
+    return;
+  }
+
+  const [baseCollectorSummary, baseCollectorSamples] = await Promise.all([
+    db
+      .select({
+        count: sql<number>`count(*)::int`,
+      })
+      .from(params.baseCollectors)
+      .then((rows) => rows[0] ?? { count: 0 })
+      .catch(() => ({ count: 0 })),
+    db
+      .select({
+        collectorId: sql<string>`cast(${sql.raw("collector_analytics_base.collector_id")} as text)`,
+      })
+      .from(params.baseCollectors)
+      .limit(5)
+      .then((rows) => rows.map((row) => row.collectorId))
+      .catch(() => []),
+  ]);
+
+  console.log("[sumtrack][collectors-analytics-debug] START");
+  console.log(
+    JSON.stringify(
+      {
+        access: {
+          roleName: params.access.roleName,
+          allowedBranchIds: params.access.allowedBranchIds,
+          selectedBranchId: params.access.selectedBranchId,
+          canChooseBranch: params.access.canChooseBranch,
+          fixedBranchName: params.access.fixedBranchName,
+        },
+        filters: params.filters,
+        totalCount: params.totalCount,
+        summaryQueryFailed: params.summaryQueryFailed,
+        summaryQueryError: params.summaryQueryError,
+        baseCollectorCount: toNumber(baseCollectorSummary.count),
+        baseCollectorSampleIds: baseCollectorSamples,
+      },
+      null,
+      2,
+    ),
+  );
+  console.log("[sumtrack][collectors-analytics-debug] END");
 }
 
 function whereFrom(filters: SQL[]) {
@@ -655,8 +711,7 @@ function buildCollectorAnalyticsMetricsSubqueries(
             ),
             ''
           ),
-          ${users.username},
-          ${users.user_id}
+          ${users.username}
         )
       `.as("full_name"),
       branchId: branch.branch_id,
@@ -746,7 +801,7 @@ function buildCollectorAnalyticsMetricsSubqueries(
   const currentCollectionStats = db
     .select({
       collectorId: collections.collector_id,
-      totalCollected: sql<number>`coalesce(sum(${collections.amount}), 0)::double precision`.as("total_collected"),
+      totalCollected: sql<number>`coalesce(sum(${collections.amount}), 0)::double precision`.as("current_total_collected"),
       averageCollectionAmount: sql<number>`coalesce(avg(${collections.amount}), 0)::double precision`.as("average_collection_amount"),
       collectionEntries: sql<number>`count(*)::int`.as("collection_entries"),
       missedPaymentCount: sql<number>`
@@ -765,7 +820,7 @@ function buildCollectorAnalyticsMetricsSubqueries(
   const previousCollectionStats = db
     .select({
       collectorId: collections.collector_id,
-      totalCollected: sql<number>`coalesce(sum(${collections.amount}), 0)::double precision`.as("total_collected"),
+      totalCollected: sql<number>`coalesce(sum(${collections.amount}), 0)::double precision`.as("previous_total_collected"),
     })
     .from(collections)
     .innerJoin(loan_records, eq(loan_records.loan_id, collections.loan_id))
@@ -989,6 +1044,7 @@ function buildCollectorAnalyticsMetricsSubqueries(
     .as("collector_analytics_ranked_metrics");
 
   return {
+    baseCollectors,
     range,
     metrics,
     rankedMetrics,
@@ -1699,8 +1755,9 @@ export async function loadCollectorsAnalyticsData(
   access: AnalyticsAccess,
   filters: CollectorsFilterState,
 ): Promise<CollectorsAnalyticsData> {
-  const { metrics, rankedMetrics, range } = buildCollectorAnalyticsMetricsSubqueries(access, filters);
+  const { baseCollectors, metrics, rankedMetrics, range } = buildCollectorAnalyticsMetricsSubqueries(access, filters);
   const pageSize = COLLECTORS_PAGE_SIZE;
+  let summaryQueryError: string | null = null;
   const summaryRow = await db
     .select({
       totalCount: sql<number>`count(*)::int`,
@@ -1724,8 +1781,21 @@ export async function loadCollectorsAnalyticsData(
     })
     .from(metrics)
     .then((rows) => rows[0])
-    .catch(() => undefined);
+    .catch((error) => {
+      summaryQueryError = error instanceof Error ? error.message : String(error);
+      return undefined;
+    });
   const totalCount = toNumber(summaryRow?.totalCount);
+  if (totalCount === 0) {
+    await logCollectorsAnalyticsDebug({
+      access,
+      filters,
+      totalCount,
+      summaryQueryFailed: !summaryRow,
+      summaryQueryError,
+      baseCollectors,
+    });
+  }
   const totalPages = Math.max(Math.ceil(totalCount / pageSize), 1);
   const page = Math.min(Math.max(filters.page, 1), totalPages);
   const offset = (page - 1) * pageSize;

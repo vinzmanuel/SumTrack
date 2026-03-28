@@ -31,6 +31,14 @@ export type LoanStatusPersistenceResult = {
   totalCollected: number;
   remainingBalance: number;
   changed: boolean;
+  debug: {
+    source: "db-aggregate";
+    dueDate: string;
+    principal: number;
+    interest: number;
+    payoffReached: boolean;
+    currentDate: string;
+  };
 };
 
 export type LoanStatusReconciliationSummary = {
@@ -42,10 +50,68 @@ export type LoanStatusReconciliationSummary = {
 };
 
 const NON_TERMINAL_STORED_LOAN_STATUSES = ["active", "overdue", "completed"] as const;
+const loanCollectionTotals = db
+  .select({
+    loanId: collections.loan_id,
+    totalCollected: sql<number>`coalesce(sum(${collections.amount}), 0)`.as("total_collected"),
+  })
+  .from(collections)
+  .groupBy(collections.loan_id)
+  .as("loan_collection_totals");
 
 function toNumber(value: number | string | null | undefined) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function logLoanStatusRawProof(params: {
+  rawRow: LoanStatusSnapshotRow;
+  currentDate: string;
+  principal: number;
+  interest: number;
+  totalCollected: number;
+  totalPayable: number;
+  remainingBalance: number;
+  nextStatus: StoredLoanStatus;
+}) {
+  if (process.env.NODE_ENV === "production") {
+    return;
+  }
+
+  console.info(
+    [
+      "[sumtrack][collection-status-raw-proof] START",
+      JSON.stringify(params.rawRow, null, 2),
+      JSON.stringify(
+        {
+          rawFieldTypes: {
+            principal: typeof params.rawRow.principal,
+            interest: typeof params.rawRow.interest,
+            totalCollected: typeof params.rawRow.totalCollected,
+          },
+          rawFieldValues: {
+            principal: params.rawRow.principal,
+            interest: params.rawRow.interest,
+            totalCollected: params.rawRow.totalCollected,
+          },
+          convertedValues: {
+            principal: params.principal,
+            interest: params.interest,
+            totalCollected: params.totalCollected,
+          },
+          derivedValues: {
+            currentDate: params.currentDate,
+            totalPayable: params.totalPayable,
+            remainingBalance: params.remainingBalance,
+            nextStatus: params.nextStatus,
+          },
+        },
+        null,
+        2,
+      ),
+      "[sumtrack][collection-status-raw-proof] END",
+    ].join("\n"),
+  );
 }
 
 function buildLoanStatusSnapshotResult(row: LoanStatusSnapshotRow, currentDate: string): LoanStatusPersistenceResult {
@@ -62,6 +128,17 @@ function buildLoanStatusSnapshotResult(row: LoanStatusSnapshotRow, currentDate: 
     currentDate,
   });
 
+  logLoanStatusRawProof({
+    rawRow: row,
+    currentDate,
+    principal,
+    interest,
+    totalCollected,
+    totalPayable,
+    remainingBalance,
+    nextStatus,
+  });
+
   return {
     loanId: row.loanId,
     previousStatus,
@@ -70,6 +147,14 @@ function buildLoanStatusSnapshotResult(row: LoanStatusSnapshotRow, currentDate: 
     totalCollected,
     remainingBalance,
     changed: previousStatus !== nextStatus,
+    debug: {
+      source: "db-aggregate",
+      dueDate: row.dueDate,
+      principal,
+      interest,
+      payoffReached: remainingBalance <= 0,
+      currentDate,
+    },
   };
 }
 
@@ -84,13 +169,10 @@ async function loadLoanStatusSnapshot(
       principal: loan_records.principal,
       interest: loan_records.interest,
       storedStatus: loan_records.status,
-      totalCollected: sql<number>`(
-        select coalesce(sum(${collections.amount}), 0)
-        from ${collections}
-        where ${collections.loan_id} = ${loan_records.loan_id}
-      )`,
+      totalCollected: sql<number>`coalesce(${loanCollectionTotals.totalCollected}, 0)`,
     })
     .from(loan_records)
+    .leftJoin(loanCollectionTotals, eq(loanCollectionTotals.loanId, loan_records.loan_id))
     .where(eq(loan_records.loan_id, loanId))
     .limit(1)
     .then((rows) => rows[0] ?? null)
@@ -133,18 +215,11 @@ export async function reconcileAllPersistedLoanStatuses(params?: {
       principal: loan_records.principal,
       interest: loan_records.interest,
       storedStatus: loan_records.status,
-      totalCollected: sql<number>`coalesce(sum(${collections.amount}), 0)`,
+      totalCollected: sql<number>`coalesce(${loanCollectionTotals.totalCollected}, 0)`,
     })
     .from(loan_records)
-    .leftJoin(collections, eq(collections.loan_id, loan_records.loan_id))
+    .leftJoin(loanCollectionTotals, eq(loanCollectionTotals.loanId, loan_records.loan_id))
     .where(inArray(sql<string>`lower(${loan_records.status})`, NON_TERMINAL_STORED_LOAN_STATUSES as unknown as string[]))
-    .groupBy(
-      loan_records.loan_id,
-      loan_records.due_date,
-      loan_records.principal,
-      loan_records.interest,
-      loan_records.status,
-    )
     .orderBy(asc(loan_records.loan_id))
     .catch(() => [] as LoanStatusSnapshotRow[]);
 
