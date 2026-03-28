@@ -116,32 +116,36 @@ export default async function CreateLoanPage({ searchParams }: CreateLoanPagePro
   }
 
   return (
-    <main className="mx-auto min-h-screen w-full max-w-5xl p-6">
-      <DashboardBackLink href={backNavigation.href} label={backNavigation.label} />
+    <main className="mx-auto min-h-screen w-full max-w-5xl px-6 pb-6 pt-3 md:pt-4">
+      <div className="space-y-4">
+        <DashboardBackLink href={backNavigation.href} label={backNavigation.label} />
 
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle>Create Loan</CardTitle>
-          <CardDescription>Create a loan record for an existing borrower.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Create Loan</CardTitle>
+            <CardDescription>Create a loan record for an existing borrower.</CardDescription>
+          </CardHeader>
           {pageState.borrowers.length === 0 ? (
-            <p className="text-sm text-amber-700 dark:text-amber-400">
-              No borrowers found. Create a borrower account first.
-            </p>
+            <CardContent className="pt-0">
+              <p className="text-sm text-amber-700 dark:text-amber-400">
+                No borrowers found. Create a borrower account first.
+              </p>
+            </CardContent>
           ) : null}
-        </CardContent>
-      </Card>
+        </Card>
+      </div>
 
-      <CreateLoanForm
-        activeLoanBorrowerIds={pageState.activeLoanBorrowerIds}
-        areas={pageState.areas}
-        branches={pageState.branches}
-        borrowers={pageState.borrowers}
-        collectors={pageState.collectors}
-        isAdmin={pageState.isAdmin}
-        prefilledBorrower={pageState.prefilledBorrower}
-      />
+      <div className="mt-6">
+        <CreateLoanForm
+          activeLoanBorrowerIds={pageState.activeLoanBorrowerIds}
+          areas={pageState.areas}
+          branches={pageState.branches}
+          borrowers={pageState.borrowers}
+          collectors={pageState.collectors}
+          isAdmin={pageState.isAdmin}
+          prefilledBorrower={pageState.prefilledBorrower}
+        />
+      </div>
     </main>
   );
 }

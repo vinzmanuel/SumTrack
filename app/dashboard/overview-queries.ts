@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, desc, eq, gte, inArray, lte, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNull, lte, sql, type SQL } from "drizzle-orm";
 import {
   buildLoanDerivedMetricsSubquery,
   LIVE_STORED_LOAN_STATUSES,
@@ -11,6 +11,7 @@ import { firstDayOfMonth, toNumber, todayInManila } from "@/app/dashboard/overvi
 import { getVisibleLoanStatusFromStoredStatus } from "@/app/dashboard/loans/loan-state";
 import type {
   BorrowerOverview,
+  BorrowerCollectorContact,
   CollectorMetrics,
   DashboardOverviewData,
   DashboardOverviewState,
@@ -19,7 +20,18 @@ import type {
   SecretaryMetrics,
 } from "@/app/dashboard/overview-types";
 import { db } from "@/db";
-import { areas, borrower_info, collections, expenses, loan_records, users } from "@/db/schema";
+import {
+  areas,
+  borrower_info,
+  branch,
+  collections,
+  employee_area_assignment,
+  employee_info,
+  expenses,
+  loan_records,
+  roles,
+  users,
+} from "@/db/schema";
 
 function loanScopeConditions(scope: DashboardScope): SQL[] {
   if (scope.kind === "all_branches") {
@@ -229,6 +241,7 @@ async function getBorrowerOverview(borrowerId: string): Promise<BorrowerOverview
         loan_code: borrowerLoanMetrics.loanCode,
         status: borrowerLoanMetrics.storedStatus,
         outstandingBalance: borrowerLoanMetrics.remainingBalance,
+        dueDate: borrowerLoanMetrics.dueDate,
       })
     .from(borrowerLoanMetrics)
     .where(buildStoredLoanStatusInSql(borrowerLoanMetrics.storedStatus, LIVE_STORED_LOAN_STATUSES))
@@ -245,6 +258,7 @@ async function getBorrowerOverview(borrowerId: string): Promise<BorrowerOverview
           loan_code: borrowerLoanMetrics.loanCode,
           status: borrowerLoanMetrics.storedStatus,
           outstandingBalance: borrowerLoanMetrics.remainingBalance,
+          dueDate: borrowerLoanMetrics.dueDate,
         })
         .from(borrowerLoanMetrics)
         .orderBy(desc(borrowerLoanMetrics.startDate), desc(borrowerLoanMetrics.loanId))
@@ -252,7 +266,74 @@ async function getBorrowerOverview(borrowerId: string): Promise<BorrowerOverview
         .then((rows) => rows[0] ?? null)
         .catch(() => null);
 
+  const collectorContactPromise = db
+    .select({
+      assignmentId: employee_area_assignment.assignment_id,
+      assignmentStartDate: employee_area_assignment.start_date,
+      collectorUserId: users.user_id,
+      collectorCompanyId: users.company_id,
+      collectorContactNo: users.contact_no,
+      collectorFirstName: employee_info.first_name,
+      collectorMiddleName: employee_info.middle_name,
+      collectorLastName: employee_info.last_name,
+      areaCode: areas.area_code,
+      areaNo: areas.area_no,
+      branchName: branch.branch_name,
+      branchAddress: branch.branch_address,
+      municipalityName: branch.municipality_name,
+      provinceName: branch.province_name,
+    })
+    .from(borrower_info)
+    .innerJoin(areas, eq(areas.area_id, borrower_info.area_id))
+    .innerJoin(branch, eq(branch.branch_id, areas.branch_id))
+    .leftJoin(
+      employee_area_assignment,
+      and(eq(employee_area_assignment.area_id, borrower_info.area_id), isNull(employee_area_assignment.end_date)),
+    )
+    .leftJoin(users, eq(users.user_id, employee_area_assignment.employee_user_id))
+    .leftJoin(roles, eq(roles.role_id, users.role_id))
+    .leftJoin(employee_info, eq(employee_info.user_id, users.user_id))
+    .where(
+      and(
+        eq(borrower_info.user_id, borrowerId),
+        eq(users.status, "active"),
+        eq(roles.role_name, "Collector"),
+      ),
+    )
+    .orderBy(
+      desc(employee_area_assignment.start_date),
+      desc(employee_area_assignment.assignment_id),
+      employee_info.last_name,
+      employee_info.first_name,
+    )
+    .limit(2)
+    .catch(() => []);
+
   const currentLoan = activeLoan ?? fallbackLoan;
+  const collectorRows = await collectorContactPromise;
+  const primaryCollectorRow = collectorRows[0] ?? null;
+  const collectorContact: BorrowerCollectorContact | null = primaryCollectorRow
+    ? {
+        collectorName:
+          [
+            primaryCollectorRow.collectorFirstName,
+            primaryCollectorRow.collectorMiddleName?.trim()
+              ? `${primaryCollectorRow.collectorMiddleName.trim().charAt(0)}.`
+              : null,
+            primaryCollectorRow.collectorLastName,
+          ]
+            .filter(Boolean)
+            .join(" ") || primaryCollectorRow.collectorCompanyId || primaryCollectorRow.collectorUserId || "Assigned collector",
+        collectorCompanyId: primaryCollectorRow.collectorCompanyId || primaryCollectorRow.collectorUserId || "N/A",
+        contactNumber: primaryCollectorRow.collectorContactNo,
+        areaLabel: primaryCollectorRow.areaCode || `Area ${primaryCollectorRow.areaNo}`,
+        branchName: primaryCollectorRow.branchName,
+        branchLocation: `${primaryCollectorRow.municipalityName}, ${primaryCollectorRow.provinceName}`,
+        branchAddress: primaryCollectorRow.branchAddress,
+        hasMultipleActiveCollectors: collectorRows.length > 1,
+      }
+    : null;
+
   if (!currentLoan) {
     return {
       currentLoanCode: "None",
@@ -260,6 +341,9 @@ async function getBorrowerOverview(borrowerId: string): Promise<BorrowerOverview
       outstandingBalance: 0,
       latestPayment: 0,
       lastPaymentDate: "N/A",
+      nextDueDate: "N/A",
+      hasActiveOrOverdueLoan: false,
+      collectorContact,
     };
   }
 
@@ -284,6 +368,9 @@ async function getBorrowerOverview(borrowerId: string): Promise<BorrowerOverview
     outstandingBalance,
     latestPayment: latestPayment ? toNumber(latestPayment.amount) : 0,
     lastPaymentDate: latestPayment?.collection_date ?? "N/A",
+    nextDueDate: currentLoan.dueDate || "N/A",
+    hasActiveOrOverdueLoan: currentLoan.status === "active" || currentLoan.status === "overdue",
+    collectorContact,
   };
 }
 

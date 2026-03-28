@@ -9,6 +9,14 @@ function clampMoney(value: number) {
   return Number.isFinite(value) ? Math.max(value, 0) : 0;
 }
 
+function toMoneyCents(value: number) {
+  return Math.round(clampMoney(value) * 100);
+}
+
+function fromMoneyCents(value: number) {
+  return value / 100;
+}
+
 export function getManilaTodayDateString() {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Manila",
@@ -47,11 +55,13 @@ export function normalizeStoredLoanStatus(status: string | null | undefined): St
 export function calculateLoanTotalPayable(principal: number, interest: number) {
   const safePrincipal = clampMoney(principal);
   const safeInterest = clampMoney(interest);
-  return safePrincipal + (safePrincipal * safeInterest) / 100;
+  return fromMoneyCents(Math.round((safePrincipal + (safePrincipal * safeInterest) / 100) * 100));
 }
 
 export function calculateLoanRemainingBalance(totalPayable: number, totalCollected: number) {
-  return clampMoney(totalPayable - clampMoney(totalCollected));
+  const payableCents = toMoneyCents(totalPayable);
+  const collectedCents = toMoneyCents(totalCollected);
+  return fromMoneyCents(Math.max(payableCents - collectedCents, 0));
 }
 
 export function isLoanPaidOff(remainingBalance: number) {

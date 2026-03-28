@@ -1,5 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
+import { appendBackNavigationToHref } from "@/app/dashboard/back-navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireDashboardAuth } from "@/app/dashboard/auth";
 import { db } from "@/db";
@@ -60,5 +61,10 @@ export default async function BorrowerLoanDetailRedirectPage({ params }: PagePro
     );
   }
 
-  redirect(`/dashboard/loans/${ownedLoan.loan_id}`);
+  redirect(
+    appendBackNavigationToHref(`/dashboard/loans/${ownedLoan.loan_id}`, {
+      source: "my-loans",
+      returnTo: "/dashboard/my-loans",
+    }),
+  );
 }

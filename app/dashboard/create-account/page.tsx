@@ -207,30 +207,33 @@ export default async function CreateAccountPage({
   }
 
   return (
-    <main className="mx-auto min-h-screen w-full max-w-5xl p-6">
-      <DashboardBackLink href={backNavigation.href} label={backNavigation.label} />
+    <main className="mx-auto min-h-screen w-full max-w-5xl px-6 pb-6 pt-3 md:pt-4">
+      <div className="space-y-4">
+        <DashboardBackLink href={backNavigation.href} label={backNavigation.label} />
 
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle>Create Account</CardTitle>
-          <CardDescription>
-            {isAdmin
-              ? "Admin account provisioning for employee and borrower profiles."
-              : isBranchManager
-                ? "Create secretary, collector, and borrower accounts within your assigned branch."
-                : "Create borrower accounts within your assigned branch."}
-          </CardDescription>
-        </CardHeader>
-        <CardContent />
-      </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Create Account</CardTitle>
+            <CardDescription>
+              {isAdmin
+                ? "Admin account provisioning for employee and borrower profiles."
+                : isBranchManager
+                  ? "Create secretary, collector, and borrower accounts within your assigned branch."
+                  : "Create borrower accounts within your assigned branch."}
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      </div>
 
-      <CreateAccountForm
-        areas={mappedAreas}
-        borrowerOnly={isSecretary}
-        branches={mappedBranches}
-        fixedBranchId={fixedBranchId ? String(fixedBranchId) : null}
-        roles={mappedRoles}
-      />
+      <div className="mt-6">
+        <CreateAccountForm
+          areas={mappedAreas}
+          borrowerOnly={isSecretary}
+          branches={mappedBranches}
+          fixedBranchId={fixedBranchId ? String(fixedBranchId) : null}
+          roles={mappedRoles}
+        />
+      </div>
     </main>
   );
 }

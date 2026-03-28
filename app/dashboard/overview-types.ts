@@ -45,6 +45,20 @@ export type BorrowerOverview = {
   outstandingBalance: number;
   latestPayment: number;
   lastPaymentDate: string;
+  nextDueDate: string;
+  hasActiveOrOverdueLoan: boolean;
+  collectorContact: BorrowerCollectorContact | null;
+};
+
+export type BorrowerCollectorContact = {
+  collectorName: string;
+  collectorCompanyId: string;
+  contactNumber: string | null;
+  areaLabel: string;
+  branchName: string;
+  branchLocation: string;
+  branchAddress: string;
+  hasMultipleActiveCollectors: boolean;
 };
 
 export type DashboardOverviewData =

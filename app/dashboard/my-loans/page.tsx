@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { desc, eq } from "drizzle-orm";
+import { appendBackNavigationToHref } from "@/app/dashboard/back-navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { requireDashboardAuth } from "@/app/dashboard/auth";
@@ -76,7 +77,12 @@ export default async function MyLoansPage() {
                       <LoanVisibleStatusBadge status={getVisibleLoanStatusFromStoredStatus(loan.status)} />
                     </td>
                     <td className="px-2 py-2">
-                      <Link href={`/dashboard/my-loans/${loan.loan_id}`}>
+                      <Link
+                        href={appendBackNavigationToHref(`/dashboard/my-loans/${loan.loan_id}`, {
+                          source: "my-loans",
+                          returnTo: "/dashboard/my-loans",
+                        })}
+                      >
                         <Button size="sm" type="button" variant="outline">
                           View
                         </Button>

@@ -371,6 +371,7 @@ export function CreateLoanForm({
             <input name="principal" type="hidden" value={principalRaw} />
             <input name="interest" type="hidden" value={interest} />
             <input name="term_option" type="hidden" value={termOption} />
+            {!isCustomTerm ? <input name="due_date" type="hidden" value={dueDate} /> : null}
 
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
@@ -584,7 +585,7 @@ export function CreateLoanForm({
                 <Input
                   disabled={!isCustomTerm}
                   id="due_date"
-                  name="due_date"
+                  name={isCustomTerm ? "due_date" : undefined}
                   onChange={(event) => setDueDate(event.target.value)}
                   type="date"
                   value={dueDate}

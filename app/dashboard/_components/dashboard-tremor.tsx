@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import {
   TremorCard,
   TremorDescription,
@@ -9,6 +10,7 @@ import {
 import {
   AlertTriangle,
   Banknote,
+  CalendarDays,
   FileText,
   HandCoins,
   Landmark,
@@ -16,7 +18,14 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-type MetricIconKey = "loans" | "collections" | "expenses" | "outstanding" | "overdue" | "borrowers";
+type MetricIconKey =
+  | "loans"
+  | "collections"
+  | "expenses"
+  | "outstanding"
+  | "overdue"
+  | "borrowers"
+  | "dueDate";
 
 const metricIconMap: Record<MetricIconKey, LucideIcon> = {
   loans: HandCoins,
@@ -25,6 +34,7 @@ const metricIconMap: Record<MetricIconKey, LucideIcon> = {
   outstanding: FileText,
   overdue: AlertTriangle,
   borrowers: Users,
+  dueDate: CalendarDays,
 };
 
 export type OverviewMetric = {
@@ -35,8 +45,14 @@ export type OverviewMetric = {
   iconClassName?: string;
 };
 
-export function DashboardMetricGrid({ items }: { items: OverviewMetric[] }) {
-  if (items.length === 0) return null;
+export function DashboardMetricGrid({
+  items,
+  children,
+}: {
+  items: OverviewMetric[];
+  children?: ReactNode;
+}) {
+  if (items.length === 0 && !children) return null;
 
   return (
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -56,6 +72,7 @@ export function DashboardMetricGrid({ items }: { items: OverviewMetric[] }) {
           </div>
         </TremorCard>
       ))}
+      {children}
     </div>
   );
 }

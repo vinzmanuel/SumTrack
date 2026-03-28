@@ -173,18 +173,34 @@ export default async function LoanDetailPage({ params, searchParams }: PageProps
   const canViewDocs = canManageDocs || isAuditor;
   const canManageLoan = isAdmin || isBranchManager || isSecretary;
   const canGenerateOperationalDocuments = canManageDocs;
-  const resolvedActiveTab = activeTab === "documents" && !canViewDocs ? "details" : activeTab;
+  const showTabNavigation = !isBorrower;
+  const resolvedActiveTab = isBorrower
+    ? "details"
+    : activeTab === "documents" && !canViewDocs
+      ? "details"
+      : activeTab;
   const backNavigation = resolveBackNavigation({
     source: sourceParam,
     returnTo: returnToParam,
-    fallbackHref: "/dashboard/loans",
-    fallbackLabel: "Back to Loans",
-    allowedPrefixes: ["/dashboard/loans", "/dashboard/borrowers", "/dashboard/collectors", "/dashboard/assigned-loans"],
+    fallbackHref: isBorrower ? "/dashboard/my-loans" : "/dashboard/loans",
+    fallbackLabel: isBorrower ? "Back to My Loans" : "Back to Loans",
+    allowedPrefixes: [
+      "/dashboard/loans",
+      "/dashboard/my-loans",
+      "/dashboard/borrowers",
+      "/dashboard/collectors",
+      "/dashboard/assigned-loans",
+    ],
     sourceMap: {
       loans: {
         href: "/dashboard/loans",
         label: "Back to Loans",
         allowedPrefixes: ["/dashboard/loans"],
+      },
+      "my-loans": {
+        href: "/dashboard/my-loans",
+        label: "Back to My Loans",
+        allowedPrefixes: ["/dashboard/my-loans"],
       },
       borrowers: {
         href: "/dashboard/borrowers",
@@ -419,45 +435,47 @@ export default async function LoanDetailPage({ params, searchParams }: PageProps
           </div>
         </div>
 
-        <div className="border-t border-border/70 p-6">
-          <div className="inline-flex flex-wrap gap-2 rounded-xl border border-border/70 bg-muted/30 p-1">
-            <Link
-              href={buildTabHref({
-                docsPage,
-                loanId,
-                returnTo: backNavigation.href,
-                source: sourceParam,
-                tab: "details",
-              })}
-            >
-              <TabButton active={resolvedActiveTab === "details"} label="Loan Details" />
-            </Link>
-            <Link
-              href={buildTabHref({
-                docsPage,
-                loanId,
-                returnTo: backNavigation.href,
-                source: sourceParam,
-                tab: "reports",
-              })}
-            >
-              <TabButton active={resolvedActiveTab === "reports"} label="Reports & Receipts" />
-            </Link>
-            {canViewDocs ? (
+        {showTabNavigation ? (
+          <div className="border-t border-border/70 p-6">
+            <div className="inline-flex flex-wrap gap-2 rounded-xl border border-border/70 bg-muted/30 p-1">
               <Link
                 href={buildTabHref({
                   docsPage,
                   loanId,
                   returnTo: backNavigation.href,
                   source: sourceParam,
-                  tab: "documents",
+                  tab: "details",
                 })}
               >
-                <TabButton active={resolvedActiveTab === "documents"} label="Documents" />
+                <TabButton active={resolvedActiveTab === "details"} label="Loan Details" />
               </Link>
-            ) : null}
+              <Link
+                href={buildTabHref({
+                  docsPage,
+                  loanId,
+                  returnTo: backNavigation.href,
+                  source: sourceParam,
+                  tab: "reports",
+                })}
+              >
+                <TabButton active={resolvedActiveTab === "reports"} label="Reports & Receipts" />
+              </Link>
+              {canViewDocs ? (
+                <Link
+                  href={buildTabHref({
+                    docsPage,
+                    loanId,
+                    returnTo: backNavigation.href,
+                    source: sourceParam,
+                    tab: "documents",
+                  })}
+                >
+                  <TabButton active={resolvedActiveTab === "documents"} label="Documents" />
+                </Link>
+              ) : null}
+            </div>
           </div>
-        </div>
+        ) : null}
       </div>
 
       {resolvedActiveTab === "details" ? (

@@ -9,6 +9,7 @@ const cardStyles = {
   outstanding: "bg-purple-100 text-purple-600",
   overdue: "bg-amber-100 text-amber-600",
   borrowers: "bg-orange-100 text-orange-600",
+  dueDate: "bg-cyan-100 text-cyan-600",
 } as const;
 
 export function buildDashboardOverviewCards(data: DashboardOverviewData): OverviewMetric[] {
@@ -150,6 +151,16 @@ export function buildDashboardOverviewCards(data: DashboardOverviewData): Overvi
         supportingText: "Current status of your loan",
         iconKey: "overdue",
         iconClassName: cardStyles.overdue,
+      },
+      {
+        label: "Next Due Date",
+        value:
+          data.borrower.nextDueDate && data.borrower.nextDueDate !== "N/A"
+            ? formatDateShort(data.borrower.nextDueDate)
+            : "N/A",
+        supportingText: "Due date of current loan",
+        iconKey: "dueDate",
+        iconClassName: cardStyles.dueDate,
       },
     ];
   }

@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { BorrowerCollectorContactPanel } from "@/app/dashboard/_components/borrower-collector-contact-panel";
 import { requireDashboardAuth } from "@/app/dashboard/auth";
 import { DashboardChartSection } from "@/app/dashboard/_components/dashboard-chart-section";
 import { DashboardChartSkeleton } from "@/app/dashboard/_components/dashboard-chart-skeleton";
@@ -31,6 +32,11 @@ export default async function DashboardPage({ searchParams }: DashboardChartPage
   return (
     <div className="space-y-6">
       <DashboardMetricGrid items={cards} />
+      {overviewData.variant === "borrower" ? (
+        <div className="xl:max-w-sm">
+          <BorrowerCollectorContactPanel borrower={overviewData.borrower} />
+        </div>
+      ) : null}
       <Suspense fallback={<DashboardChartSkeleton />}>
         <DashboardChartSection overviewState={overviewState} searchParams={searchParams} />
       </Suspense>
