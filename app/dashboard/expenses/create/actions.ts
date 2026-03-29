@@ -4,10 +4,12 @@ import {
   getSingleAssignedBranchId,
 } from "@/app/dashboard/auth";
 import { db } from "@/db";
-import { expenses } from "@/db/schema";
+import { branch, expenses } from "@/db/schema";
+import { eq } from "drizzle-orm";
 import type { CreateExpenseState } from "@/app/dashboard/expenses/create/state";
 
 type FormFields = {
+  branch_id: string;
   expense_category: string;
   description: string;
   amount: string;
@@ -44,6 +46,7 @@ export async function createExpenseAction(
   _prevState: CreateExpenseState,
   formData: FormData,
 ): Promise<CreateExpenseState> {
+  const branchIdRaw = getTrimmed(formData, "branch_id");
   const expenseCategory = getTrimmed(formData, "expense_category");
   const description = getTrimmed(formData, "description");
   const amountRaw = getTrimmed(formData, "amount");
@@ -88,32 +91,79 @@ export async function createExpenseAction(
     };
   }
 
-  if (auth.roleName !== "Branch Manager") {
+  let branchId: number | null = null;
+  let branchName: string | null = null;
+
+  if (auth.roleName === "Admin") {
+    if (!/^\d+$/.test(branchIdRaw)) {
+      fieldErrors.branch_id = "Branch is required.";
+    } else {
+      branchId = Number(branchIdRaw);
+
+      if (!auth.assignedBranchIds.includes(branchId)) {
+        return {
+          status: "error",
+          message: "You are not authorized to record expenses for that branch.",
+        };
+      }
+
+      const branchRow = await db
+        .select({ branch_name: branch.branch_name })
+        .from(branch)
+        .where(eq(branch.branch_id, branchId))
+        .limit(1)
+        .then((rows) => rows[0] ?? null)
+        .catch(() => null);
+
+      if (!branchRow?.branch_name) {
+        fieldErrors.branch_id = "Selected branch is invalid.";
+      } else {
+        branchName = branchRow.branch_name;
+      }
+    }
+  } else if (auth.roleName === "Branch Manager") {
+    if (auth.assignedBranchIds.length === 0) {
+      return {
+        status: "error",
+        message: "No active branch assignment found for your account.",
+      };
+    }
+
+    branchId = getSingleAssignedBranchId(auth);
+    if (branchId === null) {
+      return {
+        status: "error",
+        message: "Unable to resolve a single active branch assignment.",
+      };
+    }
+
+    if (!auth.activeBranchName) {
+      return {
+        status: "error",
+        message: "Active branch assignment points to an invalid branch.",
+      };
+    }
+
+    branchName = auth.activeBranchName;
+  } else {
     return {
       status: "error",
-      message: "Only Branch Manager users can record expenses.",
+      message: "Only Admin and Branch Manager users can record expenses.",
     };
   }
 
-  if (auth.assignedBranchIds.length === 0) {
+  if (Object.keys(fieldErrors).length > 0) {
     return {
       status: "error",
-      message: "No active branch assignment found for your account.",
+      message: "Please fix the highlighted fields.",
+      fieldErrors,
     };
   }
 
-  const branchId = getSingleAssignedBranchId(auth);
-  if (branchId === null) {
+  if (branchId === null || !branchName) {
     return {
       status: "error",
-      message: "Unable to resolve a single active branch assignment.",
-    };
-  }
-
-  if (!auth.activeBranchName) {
-    return {
-      status: "error",
-      message: "Active branch assignment points to an invalid branch.",
+      message: "Unable to resolve the target branch for this expense.",
     };
   }
 
@@ -149,7 +199,7 @@ export async function createExpenseAction(
     message: "Expense recorded successfully.",
     result: {
       expenseId: String(insertedExpense.expense_id),
-      branchName: auth.activeBranchName,
+      branchName: branchName ?? "N/A",
       expenseCategory: insertedExpense.expense_category,
       description: insertedExpense.description,
       amount: Number(insertedExpense.amount),

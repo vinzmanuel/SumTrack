@@ -25,16 +25,19 @@ export function ExpensesResultsSection({
   const showingTo = data.totalExpenses === 0 ? 0 : Math.min(safePage * data.pageSize, data.totalExpenses);
 
   return (
-    <div className="relative space-y-6">
+    <div className="relative space-y-5">
       <ExpensesSummary totalAmount={data.totalAmount} totalExpenses={data.totalExpenses} />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Expense Records</CardTitle>
+      <Card className="gap-0 overflow-hidden py-0">
+        <CardHeader className="pb-2 pt-4">
+          <div className="space-y-1">
+            <CardTitle className="text-base font-semibold">Expense Records</CardTitle>
+            <p className="text-sm text-muted-foreground">Branch expense records that match the current filters.</p>
+          </div>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 pt-3 pb-5 px-5">
           <ExpensesTable expenses={data.expenses} />
-          <div className="flex flex-col gap-3 border-t pt-4 text-sm md:flex-row md:items-center md:justify-between">
+          <div className="flex flex-col gap-3 pt-2 text-sm md:flex-row md:items-center md:justify-between">
             <div className="space-y-1">
               <p className="text-muted-foreground">
                 Showing {showingFrom}-{showingTo} of {data.totalExpenses}

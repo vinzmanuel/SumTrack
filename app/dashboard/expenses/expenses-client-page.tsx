@@ -4,8 +4,9 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Plus } from "lucide-react";
 import { appendBackNavigationToHref } from "@/app/dashboard/back-navigation";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { EXPENSE_CATEGORIES } from "@/app/dashboard/expenses/filters";
 import { ExpensesFilters } from "@/app/dashboard/expenses/expenses-filters";
 import { ExpensesResultsSection } from "@/app/dashboard/expenses/expenses-results-section";
@@ -69,6 +70,20 @@ function buildExpensesDataUrl(filters: ExpensesFilterInput) {
 
   const queryString = params.toString();
   return queryString ? `/dashboard/expenses/data?${queryString}` : "/dashboard/expenses/data";
+}
+
+function formatMonthLabel(value: string) {
+  if (!/^\d{4}-\d{2}$/.test(value)) {
+    return "All months";
+  }
+
+  const [yearRaw, monthRaw] = value.split("-");
+  const date = new Date(Number(yearRaw), Number(monthRaw) - 1, 1);
+
+  return date.toLocaleDateString("en-PH", {
+    month: "short",
+    year: "numeric",
+  });
 }
 
 export function ExpensesClientPage({
@@ -179,80 +194,73 @@ export function ExpensesClientPage({
   }, [canChooseBranch, normalizedInitialFilters.branch]);
 
   const currentReturnTo = buildExpensesPageUrl(filters);
+  const scopeLabel = canChooseBranch
+    ? filters.branch === "all"
+      ? "All branches"
+      : branchOptions.find((option) => String(option.branch_id) === filters.branch)?.branch_name ?? "Selected branch"
+    : fixedBranchName ?? "Assigned branch";
+  const monthLabel = formatMonthLabel(filters.month);
+  const categoryLabel = filters.category === "all" ? "All categories" : filters.category;
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Expenses</CardTitle>
-          <CardDescription>{description}</CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-wrap gap-2">
-          {canCreateExpense ? (
-            <Link href={appendBackNavigationToHref("/dashboard/expenses/create", {
-              source: "expenses",
-              returnTo: currentReturnTo,
-            })}>
-              <Button
-                className="bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white"
-                type="button"
-              >
-                <Plus className="h-4 w-4" />
-                Create expense
-              </Button>
-            </Link>
-          ) : null}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Filters</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {canChooseBranch ? (
-            <ExpensesFilters
-              branches={branchOptions}
-              canChooseBranch
-              categories={EXPENSE_CATEGORIES}
-              isPending={isPending}
-              onBranchChange={(value) => updateFilters({ branch: value })}
-              onCategoryChange={(value) => updateFilters({ category: value })}
-              onClear={handleClear}
-              onMonthChange={(value) => updateFilters({ month: value })}
-              selectedBranchRaw={filters.branch}
-              selectedCategory={filters.category}
-              selectedMonthRaw={filters.month}
-            />
-          ) : (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium" htmlFor="fixed_branch">
-                  Branch
-                </label>
-                <input
-                  className="border-input focus-visible:border-ring focus-visible:ring-ring/50 w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
-                  id="fixed_branch"
-                  readOnly
-                  value={fixedBranchName ?? "N/A"}
-                />
+    <div className="w-full max-w-none space-y-5 px-4 pb-6 pt-1 sm:px-6 sm:pb-6 sm:pt-2">
+      <Card className="gap-0 overflow-hidden py-0">
+        <div className="bg-gradient-to-r from-slate-50 via-background to-emerald-50/60 p-6">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+            <div className="space-y-1">
+              <div className="space-y-1">
+                <h1 className="text-3xl font-semibold tracking-tight text-foreground">Expenses</h1>
+                <p className="text-sm text-muted-foreground">{description}</p>
               </div>
-              <ExpensesFilters
-                branches={[]}
-                canChooseBranch={false}
-                categories={EXPENSE_CATEGORIES}
-                isPending={isPending}
-                onBranchChange={() => undefined}
-                onCategoryChange={(value) => updateFilters({ category: value })}
-                onClear={handleClear}
-                onMonthChange={(value) => updateFilters({ month: value })}
-                selectedBranchRaw={filters.branch}
-                selectedCategory={filters.category}
-                selectedMonthRaw={filters.month}
-              />
+              <div className="flex flex-wrap items-center gap-2 pt-2">
+                <Badge className="border-zinc-200 bg-background/80 text-zinc-700" variant="outline">
+                  {results.totalExpenses} matches
+                </Badge>
+                <Badge className="border-zinc-200 bg-background/80 text-zinc-700" variant="outline">
+                  {scopeLabel}
+                </Badge>
+                <Badge className="border-zinc-200 bg-background/80 text-zinc-700" variant="outline">
+                  {monthLabel}
+                </Badge>
+                <Badge className="border-zinc-200 bg-background/80 text-zinc-700" variant="outline">
+                  {categoryLabel}
+                </Badge>
+              </div>
             </div>
-          )}
-        </CardContent>
+
+            {canCreateExpense ? (
+              <Link href={appendBackNavigationToHref("/dashboard/expenses/create", {
+                source: "expenses",
+                returnTo: currentReturnTo,
+              })}>
+                <Button
+                  className="bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white"
+                  size="sm"
+                  type="button"
+                >
+                  <Plus className="h-4 w-4" />
+                  Create expense
+                </Button>
+              </Link>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="border-t border-border/70 px-6 pb-4 pt-3">
+          <ExpensesFilters
+            branches={branchOptions}
+            canChooseBranch={canChooseBranch}
+            categories={EXPENSE_CATEGORIES}
+            isPending={isPending}
+            onBranchChange={(value) => updateFilters({ branch: value })}
+            onCategoryChange={(value) => updateFilters({ category: value })}
+            onClear={handleClear}
+            onMonthChange={(value) => updateFilters({ month: value })}
+            selectedBranchRaw={filters.branch}
+            selectedCategory={filters.category}
+            selectedMonthRaw={filters.month}
+          />
+        </div>
       </Card>
 
       <ExpensesResultsSection

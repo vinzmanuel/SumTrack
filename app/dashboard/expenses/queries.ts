@@ -2,7 +2,7 @@ import "server-only";
 
 import { and, desc, eq, gte, inArray, lte, sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
-import { branch, expenses, users } from "@/db/schema";
+import { branch, employee_info, expenses, roles, users } from "@/db/schema";
 import type {
   ExpenseBranchOption,
   ExpenseListRow,
@@ -72,6 +72,10 @@ function toExpenseListRow(row: {
   description: string | null;
   amount: string;
   expense_date: string;
+  recorded_by_role_name: string | null;
+  recorded_by_first_name: string | null;
+  recorded_by_middle_name: string | null;
+  recorded_by_last_name: string | null;
   recorded_by_username: string | null;
   recorded_by_company_id: string | null;
   recorded_at: string | null;
@@ -83,6 +87,10 @@ function toExpenseListRow(row: {
     description: row.description,
     amount: Number(row.amount) || 0,
     expenseDate: row.expense_date,
+    recordedByRoleName: row.recorded_by_role_name,
+    recordedByFirstName: row.recorded_by_first_name,
+    recordedByMiddleName: row.recorded_by_middle_name,
+    recordedByLastName: row.recorded_by_last_name,
     recordedByUsername: row.recorded_by_username,
     recordedByCompanyId: row.recorded_by_company_id,
     recordedAt: row.recorded_at,
@@ -135,6 +143,10 @@ export async function loadExpensesResultsData(
       description: expenses.description,
       amount: expenses.amount,
       expense_date: expenses.expense_date,
+      recorded_by_role_name: roles.role_name,
+      recorded_by_first_name: employee_info.first_name,
+      recorded_by_middle_name: employee_info.middle_name,
+      recorded_by_last_name: employee_info.last_name,
       recorded_by_username: users.username,
       recorded_by_company_id: users.company_id,
       recorded_at: expenses.recorded_at,
@@ -142,6 +154,8 @@ export async function loadExpensesResultsData(
     .from(expenses)
     .innerJoin(branch, eq(branch.branch_id, expenses.branch_id))
     .leftJoin(users, eq(users.user_id, expenses.recorded_by))
+    .leftJoin(roles, eq(roles.role_id, users.role_id))
+    .leftJoin(employee_info, eq(employee_info.user_id, users.user_id))
     .where(whereCondition)
     .orderBy(desc(expenses.expense_date), desc(expenses.expense_id))
     .limit(EXPENSES_PAGE_SIZE)

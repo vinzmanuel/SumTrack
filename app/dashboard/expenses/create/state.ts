@@ -2,6 +2,7 @@ export type CreateExpenseState = {
   status: "idle" | "error" | "success";
   message?: string;
   fieldErrors?: {
+    branch_id?: string;
     expense_category?: string;
     description?: string;
     amount?: string;

@@ -3,6 +3,7 @@ import { DashboardBackLink } from "@/app/dashboard/_components/dashboard-back-li
 import {
   getDashboardAuthContext,
   getSingleAssignedBranchId,
+  resolveBranchNames,
 } from "@/app/dashboard/auth";
 import { resolveBackNavigation } from "@/app/dashboard/back-navigation";
 import { CreateExpenseForm } from "@/app/dashboard/expenses/create/create-expense-form";
@@ -47,7 +48,7 @@ export default async function CreateExpensePage({
     );
   }
 
-  if (auth.roleName !== "Branch Manager") {
+  if (auth.roleName !== "Admin" && auth.roleName !== "Branch Manager") {
     return (
       <main className="mx-auto flex min-h-screen w-full max-w-4xl items-center justify-center p-6">
         <Card className="w-full max-w-md">
@@ -56,11 +57,37 @@ export default async function CreateExpensePage({
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              You are logged in, but only Branch Manager users can record expenses.
+              You are logged in, but only Admin and Branch Manager users can record expenses.
             </p>
             <DashboardBackLink href={backNavigation.href} label={backNavigation.label} />
           </CardContent>
         </Card>
+      </main>
+    );
+  }
+
+  if (auth.roleName === "Admin") {
+    const branchNames = await resolveBranchNames(auth.assignedBranchIds);
+    const branchOptions = auth.assignedBranchIds
+      .map((branchId) => ({
+        branch_id: branchId,
+        branch_name: branchNames.get(branchId) ?? `Branch ${branchId}`,
+      }))
+      .sort((left, right) => left.branch_name.localeCompare(right.branch_name));
+
+    return (
+      <main className="mx-auto min-h-screen w-full max-w-5xl p-6">
+        <DashboardBackLink href={backNavigation.href} label={backNavigation.label} />
+
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle>Create Expense</CardTitle>
+            <CardDescription>Record branch operating expenses.</CardDescription>
+          </CardHeader>
+          <CardContent />
+        </Card>
+
+        <CreateExpenseForm branchOptions={branchOptions} canChooseBranch />
       </main>
     );
   }
@@ -135,7 +162,7 @@ export default async function CreateExpensePage({
         <CardContent />
       </Card>
 
-      <CreateExpenseForm branchName={auth.activeBranchName} />
+      <CreateExpenseForm branchId={branchId} branchName={auth.activeBranchName} />
     </main>
   );
 }

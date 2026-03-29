@@ -19,6 +19,10 @@ export type ExpenseListRow = {
   description: string | null;
   amount: number;
   expenseDate: string;
+  recordedByRoleName: string | null;
+  recordedByFirstName: string | null;
+  recordedByMiddleName: string | null;
+  recordedByLastName: string | null;
   recordedByUsername: string | null;
   recordedByCompanyId: string | null;
   recordedAt: string | null;

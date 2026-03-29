@@ -5,12 +5,12 @@ export default function LoadingIncentivesPage() {
   return (
     <div className="flex flex-col gap-6">
       <Card className="gap-0 overflow-hidden py-0">
-        <div className="bg-gradient-to-r from-slate-50 via-background to-emerald-50/50 p-6">
+        <div className="bg-linear-to-r from-slate-50 via-background to-emerald-50/50 p-6">
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div className="max-w-2xl space-y-1">
               <div className="space-y-1">
                 <Skeleton className="h-9 w-64 max-w-full" />
-                <Skeleton className="h-4 w-[32rem] max-w-full" />
+                <Skeleton className="h-4 w-lg max-w-full" />
               </div>
               <div className="flex flex-wrap items-center gap-2 pt-2">
                 <Skeleton className="h-8 w-28 rounded-full" />

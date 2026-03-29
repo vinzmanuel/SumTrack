@@ -155,7 +155,7 @@ export default async function IncentivesPage({ searchParams }: IncentivesPagePro
         <Clock3 className="size-4" />
         <AlertTitle>Ready for payout finalization</AlertTitle>
         <AlertDescription>
-          Review the payout table above, then finalize once you&apos;ve verified with the current month&apos;s output.
+          Review the payout table above, then finalize once you&apos;ve verified the current month&apos;s output.
         </AlertDescription>
       </Alert>
     );

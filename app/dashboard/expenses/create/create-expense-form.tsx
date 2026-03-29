@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/select";
 import { createExpenseAction } from "@/app/dashboard/expenses/create/actions";
 import { initialCreateExpenseState } from "@/app/dashboard/expenses/create/state";
+import type { ExpenseBranchOption } from "@/app/dashboard/expenses/types";
 
 const EXPENSE_CATEGORIES = [
   "Rent",
@@ -35,7 +36,10 @@ const EXPENSE_CATEGORIES = [
 ] as const;
 
 type CreateExpenseFormProps = {
-  branchName: string;
+  branchId?: number | null;
+  branchName?: string | null;
+  branchOptions?: ExpenseBranchOption[];
+  canChooseBranch?: boolean;
 };
 
 function SubmitButton() {
@@ -91,10 +95,16 @@ function formatMoneyDisplay(rawValue: string) {
   return `${formattedInt}.${decimalPartRaw}`;
 }
 
-export function CreateExpenseForm({ branchName }: CreateExpenseFormProps) {
+export function CreateExpenseForm({
+  branchId = null,
+  branchName = null,
+  branchOptions = [],
+  canChooseBranch = false,
+}: CreateExpenseFormProps) {
   const [state, formAction] = useActionState(createExpenseAction, initialCreateExpenseState);
   const formRef = useRef<HTMLFormElement>(null);
 
+  const [selectedBranchId, setSelectedBranchId] = useState(branchId ? String(branchId) : "");
   const [expenseCategory, setExpenseCategory] = useState("");
   const [description, setDescription] = useState("");
   const [amountRaw, setAmountRaw] = useState("");
@@ -103,6 +113,10 @@ export function CreateExpenseForm({ branchName }: CreateExpenseFormProps) {
   const [isConfirmedSubmit, setIsConfirmedSubmit] = useState(false);
   const amountDisplay = formatMoneyDisplay(amountRaw);
   const amountPreview = amountDisplay ? `\u20B1${amountDisplay}` : "";
+  const selectedBranchName =
+    canChooseBranch
+      ? branchOptions.find((option) => String(option.branch_id) === selectedBranchId)?.branch_name ?? "N/A"
+      : branchName ?? "N/A";
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     if (isConfirmedSubmit) {
@@ -129,10 +143,32 @@ export function CreateExpenseForm({ branchName }: CreateExpenseFormProps) {
         <CardContent>
           <form action={formAction} className="space-y-4" onSubmit={handleSubmit} ref={formRef}>
             <input name="amount" type="hidden" value={amountRaw} />
-            <div className="space-y-2">
-              <Label>Branch</Label>
-              <Input readOnly value={branchName} />
-            </div>
+            <input name="branch_id" type="hidden" value={canChooseBranch ? selectedBranchId : String(branchId ?? "")} />
+            {canChooseBranch ? (
+              <div className="space-y-2">
+                <Label>Branch</Label>
+                <Select onValueChange={setSelectedBranchId} value={selectedBranchId}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select branch" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {branchOptions.map((option) => (
+                      <SelectItem key={option.branch_id} value={String(option.branch_id)}>
+                        {option.branch_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {state.fieldErrors?.branch_id ? (
+                  <p className="text-sm text-destructive">{state.fieldErrors.branch_id}</p>
+                ) : null}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Label>Branch</Label>
+                <Input readOnly value={branchName ?? "N/A"} />
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label>Expense Category</Label>
@@ -238,7 +274,7 @@ export function CreateExpenseForm({ branchName }: CreateExpenseFormProps) {
 
               <div className="space-y-2 text-sm">
                 <p>
-                  <span className="font-medium">Branch:</span> {branchName || "N/A"}
+                  <span className="font-medium">Branch:</span> {selectedBranchName}
                 </p>
                 <p>
                   <span className="font-medium">Category:</span> {expenseCategory || "N/A"}

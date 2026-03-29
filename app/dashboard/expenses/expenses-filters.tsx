@@ -1,5 +1,16 @@
 "use client";
 
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import type { ExpenseBranchOption } from "@/app/dashboard/expenses/types";
 
@@ -31,67 +42,75 @@ export function ExpensesFilters({
   onMonthChange,
 }: ExpensesFiltersProps) {
   return (
-    <div className="space-y-3">
-      <div className="grid gap-4 md:grid-cols-4">
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-end justify-end gap-4">
         {canChooseBranch ? (
-          <div className="space-y-2">
-            <label className="text-sm font-medium" htmlFor="branch">
-              Branch
-            </label>
-            <select
-              className="border-input focus-visible:border-ring focus-visible:ring-ring/50 w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
-              id="branch"
-              onChange={(event) => onBranchChange(event.target.value)}
+          <label className="w-full space-y-1 sm:w-[220px]">
+            <Label htmlFor="branch">Branch</Label>
+            <Select
+              disabled={isPending}
+              onValueChange={onBranchChange}
               value={selectedBranchRaw}
             >
-              <option value="all">All branches</option>
-              {branches.map((item) => (
-                <option key={item.branch_id} value={String(item.branch_id)}>
-                  {item.branch_name}
-                </option>
-              ))}
-            </select>
-          </div>
+              <SelectTrigger id="branch" className="w-full">
+                <SelectValue placeholder="All branches" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectLabel>Branches</SelectLabel>
+                  <SelectItem value="all">All branches</SelectItem>
+                  {branches.map((item) => (
+                    <SelectItem key={item.branch_id} value={String(item.branch_id)}>
+                      {item.branch_name}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </label>
         ) : null}
 
-        <div className="space-y-2">
-          <label className="text-sm font-medium" htmlFor="month">
-            Month
-          </label>
-          <input
-            className="border-input focus-visible:border-ring focus-visible:ring-ring/50 w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
+        <label className="w-full space-y-1 sm:w-[220px]">
+          <Label htmlFor="month">Month</Label>
+          <Input
             id="month"
             onChange={(event) => onMonthChange(event.target.value)}
             type="month"
             value={selectedMonthRaw}
           />
-        </div>
+        </label>
 
-        <div className="space-y-2">
-          <label className="text-sm font-medium" htmlFor="category">
-            Category
-          </label>
-          <select
-            className="border-input focus-visible:border-ring focus-visible:ring-ring/50 w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
-            id="category"
-            onChange={(event) => onCategoryChange(event.target.value)}
+        <label className="w-full space-y-1 sm:w-[220px]">
+          <Label htmlFor="category">Category</Label>
+          <Select
+            disabled={isPending}
+            onValueChange={onCategoryChange}
             value={selectedCategory}
           >
-            <option value="all">All categories</option>
-            {categories.map((entry) => (
-              <option key={entry} value={entry}>
-                {entry}
-              </option>
-            ))}
-          </select>
-        </div>
+            <SelectTrigger id="category" className="w-full">
+              <SelectValue placeholder="All categories" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectLabel>Categories</SelectLabel>
+                <SelectItem value="all">All categories</SelectItem>
+                {categories.map((entry) => (
+                  <SelectItem key={entry} value={entry}>
+                    {entry}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        </label>
 
-        <div className="flex items-end gap-2">
-          <Button className="active:scale-[0.98]" onClick={onClear} type="button" variant="outline">
+        <div className="flex items-end">
+          <Button className="active:scale-[0.98]" onClick={onClear} size="sm" type="button" variant="outline">
             Clear
           </Button>
         </div>
       </div>
+
       {isPending ? <p className="text-muted-foreground text-sm">Updating expense records...</p> : null}
     </div>
   );

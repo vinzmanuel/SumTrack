@@ -92,6 +92,34 @@ function sortCollections(rows: CollectionHistoryRow[]) {
   });
 }
 
+function buildExpandedCollectionDetails(row: CollectionHistoryRow) {
+  return [
+    { label: "Collection Code", value: row.collectionCode },
+    { label: "Collector", value: row.collectorName },
+    { label: "Encoded By", value: row.encodedByName },
+  ];
+}
+
+function ExpandedDetailRows(props: {
+  details: Array<{ label: string; value: string }>;
+}) {
+  return (
+    <div className="space-y-3">
+      {props.details.map((detail) => (
+        <div
+          className="grid items-start gap-x-6 gap-y-1 border-b border-border/50 pb-3 last:border-b-0 last:pb-0 md:grid-cols-[160px_minmax(0,1fr)]"
+          key={`${detail.label}-${detail.value}`}
+        >
+          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-zinc-500 md:pt-1">
+            {detail.label}
+          </p>
+          <p className="text-sm leading-6 text-foreground">{detail.value}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function LoanDetailForm({
   loanId,
   assignedCollectorLabel,
@@ -411,7 +439,15 @@ export function LoanDetailForm({
           ) : (
             <div className="overflow-hidden rounded-lg border border-border/70">
               <div className="overflow-auto">
-              <table className="w-full min-w-190 text-sm">
+              <table className="min-w-245 w-full table-fixed text-sm">
+                <colgroup>
+                  <col className="w-40" />
+                  <col className="w-40" />
+                  <col className="w-40" />
+                  <col className="w-40" />
+                  <col />
+                  <col className="w-27" />
+                </colgroup>
                 <thead>
                   <tr className="border-b text-left">
                     <th className="border-r border-border/70 px-3 py-2.5 font-medium">Date</th>
@@ -442,7 +478,7 @@ export function LoanDetailForm({
                           <td className="border-r border-border/70 px-3 py-3">{formatMoney(totalPayable)}</td>
                           <td className="border-r border-border/70 px-3 py-3">{formatMoney(row.outstandingBalance)}</td>
                           <td className="border-r border-border/70 px-3 py-3">{formatMoney(row.amount)}</td>
-                          <td className="border-r border-border/70 px-3 py-3">
+                          <td className="border-r border-border/70 px-3 py-3 whitespace-normal wrap-break-word">
                             <span className={isMissedPaymentNote ? "font-medium text-destructive" : ""}>
                               {row.note || "-"}
                             </span>
@@ -464,19 +500,8 @@ export function LoanDetailForm({
                         {isExpanded ? (
                           <tr className="border-b bg-muted/15">
                             <td className="px-3 py-3 text-sm text-muted-foreground" colSpan={6}>
-                              <div className="grid gap-2 md:grid-cols-3">
-                                <p>
-                                  <span className="font-medium text-foreground">Collection Code:</span>{" "}
-                                  {row.collectionCode}
-                                </p>
-                                <p>
-                                  <span className="font-medium text-foreground">Collector:</span>{" "}
-                                  {row.collectorName}
-                                </p>
-                                <p>
-                                  <span className="font-medium text-foreground">Encoded By:</span>{" "}
-                                  {row.encodedByName}
-                                </p>
+                              <div className="px-1 py-1">
+                                <ExpandedDetailRows details={buildExpandedCollectionDetails(row)} />
                               </div>
                             </td>
                           </tr>
