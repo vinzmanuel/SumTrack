@@ -3,7 +3,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export default function LoadingIncentivesPage() {
   return (
-    <div className="flex flex-col gap-6">
+    <div className="w-full max-w-none space-y-5 px-4 pb-6 pt-1 sm:px-6 sm:pb-6 sm:pt-2">
       <Card className="gap-0 overflow-hidden py-0">
         <div className="bg-linear-to-r from-slate-50 via-background to-emerald-50/50 p-6">
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
@@ -21,20 +21,17 @@ export default function LoadingIncentivesPage() {
           </div>
         </div>
 
-        <CardContent className="border-t p-6">
-          <div className="flex flex-col gap-3 lg:flex-row lg:flex-nowrap lg:items-end lg:justify-end">
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,220px)_minmax(0,170px)]">
-              <label className="space-y-1">
-                <Skeleton className="h-4 w-14" />
-                <Skeleton className="h-10 w-full" />
-              </label>
-              <label className="space-y-1">
-                <Skeleton className="h-4 w-14" />
-                <Skeleton className="h-10 w-full" />
-              </label>
-            </div>
-
-            <div className="flex shrink-0 items-end gap-2 lg:flex-nowrap">
+        <CardContent className="border-t border-border/70 px-6 pb-4 pt-3">
+          <div className="flex flex-wrap items-end justify-end gap-4">
+            <label className="w-full space-y-1 sm:w-[220px]">
+              <Skeleton className="h-4 w-14" />
+              <Skeleton className="h-10 w-full" />
+            </label>
+            <label className="w-full space-y-1 sm:w-[220px]">
+              <Skeleton className="h-4 w-14" />
+              <Skeleton className="h-10 w-full" />
+            </label>
+            <div className="flex items-end">
               <Skeleton className="h-9 w-16" />
             </div>
           </div>
@@ -56,9 +53,9 @@ export default function LoadingIncentivesPage() {
 
           <div className="overflow-hidden rounded-2xl border">
             <div className="border-b px-5 py-3">
-              <div className="grid grid-cols-[160px_minmax(0,1.6fr)_140px_180px_140px] gap-4">
+              <div className="grid grid-cols-[140px_minmax(0,1.9fr)_170px_170px_140px] gap-4">
                 <Skeleton className="h-4 w-12" />
-                <Skeleton className="h-4 w-14" />
+                <Skeleton className="h-4 w-16" />
                 <Skeleton className="h-4 w-20" />
                 <Skeleton className="h-4 w-20" />
                 <Skeleton className="ml-auto h-4 w-16" />
@@ -67,21 +64,21 @@ export default function LoadingIncentivesPage() {
             <div className="space-y-0">
               {Array.from({ length: 5 }).map((_, index) => (
                 <div className="border-b px-5 py-4 last:border-b-0" key={index}>
-                  <div className="grid grid-cols-[160px_minmax(0,1.6fr)_140px_180px_140px] items-center gap-4">
+                  <div className="grid grid-cols-[140px_minmax(0,1.9fr)_170px_170px_140px] items-center gap-4">
                     <Skeleton className="h-7 w-28 rounded-full" />
-                    <Skeleton className="h-5 w-48" />
+                    <Skeleton className="h-5 w-52" />
                     <Skeleton className="h-5 w-24" />
-                    <Skeleton className="h-5 w-28" />
+                    <Skeleton className="h-7 w-24 rounded-full" />
                     <Skeleton className="ml-auto h-5 w-24" />
                   </div>
                 </div>
               ))}
               <div className="px-5 py-4">
-                <div className="grid grid-cols-[160px_minmax(0,1.6fr)_140px_180px_140px] items-center gap-4">
+                <div className="grid grid-cols-[140px_minmax(0,1.9fr)_170px_170px_140px] items-center gap-4">
+                  <div />
+                  <div />
+                  <div />
                   <Skeleton className="h-5 w-14" />
-                  <div />
-                  <div />
-                  <div />
                   <Skeleton className="ml-auto h-5 w-24" />
                 </div>
               </div>

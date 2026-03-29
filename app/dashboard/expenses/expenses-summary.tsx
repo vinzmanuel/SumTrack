@@ -6,8 +6,8 @@ export function ExpensesSummary(props: { totalExpenses: number; totalAmount: num
   const averageExpense = props.totalExpenses > 0 ? props.totalAmount / props.totalExpenses : 0;
 
   return (
-    <div className="grid gap-3 lg:grid-cols-3">
-      <Card className="gap-0 rounded-2xl border bg-slate-50/70 py-0">
+    <div className="grid gap-3 lg:grid-cols-3 pb-2">
+      <Card className="gap-0 rounded-2xl border bg-slate-50/70 py-0 shadow-none">
         <CardContent className="p-5">
           <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
             <ReceiptText className="size-4" />
@@ -19,7 +19,7 @@ export function ExpensesSummary(props: { totalExpenses: number; totalAmount: num
         </CardContent>
       </Card>
 
-      <Card className="gap-0 rounded-2xl border bg-emerald-50/60 py-0">
+      <Card className="gap-0 rounded-2xl border bg-emerald-50/60 py-0 shadow-none">
         <CardContent className="p-5">
           <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
             <WalletCards className="size-4" />
@@ -29,7 +29,7 @@ export function ExpensesSummary(props: { totalExpenses: number; totalAmount: num
         </CardContent>
       </Card>
 
-      <Card className="gap-0 rounded-2xl border bg-muted/20 py-0">
+      <Card className="gap-0 rounded-2xl border bg-muted/20 py-0 shadow-none">
         <CardContent className="p-5">
           <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
             <Waves className="size-4" />

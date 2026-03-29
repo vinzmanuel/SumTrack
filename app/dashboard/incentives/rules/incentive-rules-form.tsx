@@ -1,7 +1,7 @@
 "use client";
 
-import { useActionState, useRef, useState, type FormEvent } from "react";
-import { CircleAlert, CircleCheck } from "lucide-react";
+import { useActionState, useEffect, useRef, useState, type FormEvent } from "react";
+import { Check, CircleAlert } from "lucide-react";
 import { useFormStatus } from "react-dom";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -120,6 +120,7 @@ export function IncentiveRulesForm({
 }: IncentiveRulesFormProps) {
   const [state, formAction] = useActionState(upsertIncentiveRuleAction, initialIncentiveRuleFormState);
   const formRef = useRef<HTMLFormElement>(null);
+  const confirmedSubmitRef = useRef(false);
 
   const [branchId, setBranchId] = useState(isAdmin ? "" : fixedBranch ? String(fixedBranch.branch_id) : "");
   const [roleId, setRoleId] = useState("");
@@ -129,7 +130,7 @@ export function IncentiveRulesForm({
   const [rulesRoleFilter, setRulesRoleFilter] = useState("all");
   const [rulesPage, setRulesPage] = useState(1);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
-  const [isConfirmedSubmit, setIsConfirmedSubmit] = useState(false);
+  const [isSuccessOpen, setIsSuccessOpen] = useState(false);
 
   const selectedBranchName =
     (isAdmin
@@ -152,9 +153,29 @@ export function IncentiveRulesForm({
     safeRulesPage * RULES_PAGE_SIZE,
   );
 
+  useEffect(() => {
+    if (state.status !== "success" || !state.result) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      confirmedSubmitRef.current = false;
+      setIsConfirmOpen(false);
+      setIsSuccessOpen(true);
+      setRoleId("");
+      setPercentValue("");
+      setFlatAmountRaw("");
+      if (isAdmin) {
+        setBranchId("");
+      }
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [isAdmin, state.result, state.status]);
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    if (isConfirmedSubmit) {
-      setIsConfirmedSubmit(false);
+    if (confirmedSubmitRef.current) {
+      confirmedSubmitRef.current = false;
       return;
     }
 
@@ -164,7 +185,7 @@ export function IncentiveRulesForm({
 
   function handleConfirmSave() {
     setIsConfirmOpen(false);
-    setIsConfirmedSubmit(true);
+    confirmedSubmitRef.current = true;
     formRef.current?.requestSubmit();
   }
 
@@ -326,22 +347,46 @@ export function IncentiveRulesForm({
               </DialogFooter>
             </DialogContent>
           </Dialog>
+
+          <Dialog onOpenChange={setIsSuccessOpen} open={isSuccessOpen}>
+            <DialogContent className="border-emerald-200 bg-background shadow-xl sm:max-w-md">
+              <DialogHeader className="items-center text-center">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500 text-white shadow-sm">
+                  <Check className="size-8 stroke-[3]" />
+                </div>
+                <DialogTitle className="text-2xl font-semibold text-foreground">Rule saved</DialogTitle>
+                <DialogDescription className="max-w-sm text-base text-muted-foreground">
+                  {state.result
+                    ? `${state.result.mode === "created" ? "Created" : "Updated"} ${state.result.roleName} for ${state.result.branchName}.`
+                    : state.message ?? "The incentive rule was saved successfully."}
+                </DialogDescription>
+              </DialogHeader>
+
+              {state.result ? (
+                <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4 text-sm text-emerald-950">
+                  <p>
+                    <span className="font-medium">Branch:</span> {state.result.branchName}
+                  </p>
+                  <p>
+                    <span className="font-medium">Role:</span> {state.result.roleName}
+                  </p>
+                  <p>
+                    <span className="font-medium">Percent Value:</span> {state.result.percentValue}%
+                  </p>
+                  <p>
+                    <span className="font-medium">Flat Amount:</span> {formatMoney(state.result.flatAmount)}
+                  </p>
+                  <p>
+                    <span className="font-medium">Effective Period:</span> {state.result.periodLabel}
+                  </p>
+                </div>
+              ) : null}
+            </DialogContent>
+          </Dialog>
         </CardContent>
       </Card>
 
       <div className="min-w-0 flex flex-col gap-5">
-        {state.status === "success" && state.result ? (
-          <Alert className="border-emerald-200 bg-emerald-50/70 text-emerald-900">
-            <CircleCheck className="size-4" />
-            <AlertTitle>Rule saved</AlertTitle>
-            <AlertDescription className="text-emerald-800">
-              {state.result.mode === "created" ? "Created" : "Updated"} {state.result.roleName} for{" "}
-              {state.result.branchName}. This rule applies starting {state.result.periodLabel} and uses{" "}
-              {state.result.percentValue}% plus {formatMoney(state.result.flatAmount)}.
-            </AlertDescription>
-          </Alert>
-        ) : null}
-
         <Card className="min-w-0 gap-0 overflow-hidden py-0">
           <CardHeader className="gap-4 border-b py-5">
             <div className="flex flex-col gap-1">

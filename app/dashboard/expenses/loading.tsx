@@ -24,85 +24,80 @@ export default function LoadingExpensesPage() {
         </div>
 
         <div className="border-t border-border/70 px-6 pb-4 pt-3">
-          <div className="grid gap-4 lg:grid-cols-4">
-            <label className="space-y-1">
+          <div className="flex flex-wrap items-end justify-end gap-4">
+            <label className="w-full space-y-1 sm:w-[220px]">
               <Skeleton className="h-4 w-14" />
               <Skeleton className="h-10 w-full" />
             </label>
-            <label className="space-y-1">
+            <label className="w-full space-y-1 sm:w-[220px]">
               <Skeleton className="h-4 w-14" />
               <Skeleton className="h-10 w-full" />
             </label>
-            <label className="space-y-1">
+            <label className="w-full space-y-1 sm:w-[220px]">
               <Skeleton className="h-4 w-20" />
               <Skeleton className="h-10 w-full" />
             </label>
-            <div className="flex items-end justify-start lg:justify-end">
+            <div className="flex items-end">
               <Skeleton className="h-9 w-16" />
             </div>
           </div>
         </div>
       </Card>
 
-      <div className="space-y-5">
-        <div className="grid gap-3 lg:grid-cols-3">
-          <Skeleton className="h-28 rounded-2xl" />
-          <Skeleton className="h-28 rounded-2xl" />
-          <Skeleton className="h-28 rounded-2xl" />
+      <Card className="gap-0 overflow-hidden py-0">
+        <div className="px-6 pb-2 pt-4">
+          <div className="space-y-1">
+            <Skeleton className="h-6 w-36" />
+            <Skeleton className="h-4 w-72 max-w-full" />
+          </div>
         </div>
 
-        <Card className="gap-0 overflow-hidden py-0">
-          <div className="border-b px-6 py-4">
-            <div className="flex items-center justify-between gap-3">
-              <div className="space-y-1">
-                <Skeleton className="h-5 w-32" />
-                <Skeleton className="h-4 w-72 max-w-full" />
+        <CardContent className="space-y-4 px-5 pb-5 pt-3">
+          <div className="grid gap-3 lg:grid-cols-3">
+            <Skeleton className="h-28 rounded-2xl" />
+            <Skeleton className="h-28 rounded-2xl" />
+            <Skeleton className="h-28 rounded-2xl" />
+          </div>
+
+          <div className="overflow-hidden rounded-2xl border">
+            <div className="border-b px-5 py-3">
+              <div className="grid grid-cols-[190px_140px_160px_minmax(0,1fr)_120px] gap-4">
+                <Skeleton className="h-4 w-18" />
+                <Skeleton className="h-4 w-16" />
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-4 w-20" />
+                <Skeleton className="ml-auto h-4 w-10" />
               </div>
-              <Skeleton className="h-4 w-20" />
+            </div>
+
+            <div className="space-y-0">
+              {Array.from({ length: 5 }).map((_, index) => (
+                <div className="border-b px-5 py-4 last:border-b-0" key={index}>
+                  <div className="grid grid-cols-[190px_140px_160px_minmax(0,1fr)_120px] items-center gap-4">
+                    <Skeleton className="h-5 w-24" />
+                    <Skeleton className="h-5 w-28" />
+                    <Skeleton className="h-5 w-24" />
+                    <div className="flex min-w-0 items-center gap-2">
+                      <Skeleton className="h-7 w-28 rounded-full" />
+                      <Skeleton className="h-5 w-36" />
+                    </div>
+                    <Skeleton className="ml-auto h-5 w-24" />
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
 
-          <CardContent className="space-y-4 p-5">
-            <div className="overflow-hidden rounded-2xl border">
-              <div className="border-b px-5 py-3">
-                <div className="grid grid-cols-[90px_140px_130px_minmax(0,1fr)_120px_130px_210px_170px] gap-4">
-                  {Array.from({ length: 8 }).map((_, index) => (
-                    <Skeleton className="h-4 w-20" key={index} />
-                  ))}
-                </div>
-              </div>
-
-              <div className="space-y-0">
-                {Array.from({ length: 5 }).map((_, index) => (
-                  <div className="border-b px-5 py-4 last:border-b-0" key={index}>
-                    <div className="grid grid-cols-[90px_140px_130px_minmax(0,1fr)_120px_130px_210px_170px] items-center gap-4">
-                      <Skeleton className="h-5 w-12" />
-                      <Skeleton className="h-5 w-24" />
-                      <Skeleton className="h-5 w-20" />
-                      <Skeleton className="h-5 w-full" />
-                      <Skeleton className="ml-auto h-5 w-20" />
-                      <Skeleton className="h-5 w-24" />
-                      <Skeleton className="h-5 w-44" />
-                      <Skeleton className="h-5 w-28" />
-                    </div>
-                  </div>
-                ))}
-              </div>
+          <div className="flex flex-col gap-3 pt-2 text-sm md:flex-row md:items-center md:justify-between">
+            <Skeleton className="h-4 w-44" />
+            <div className="flex items-center gap-2">
+              <Skeleton className="h-4 w-20" />
+              <Skeleton className="h-9 w-20" />
+              <Skeleton className="h-9 w-16" />
             </div>
-
-            <div className="flex flex-col gap-3 border-t pt-4 text-sm md:flex-row md:items-center md:justify-between">
-              <div className="space-y-1">
-                <Skeleton className="h-4 w-44" />
-              </div>
-              <div className="flex items-center gap-2">
-                <Skeleton className="h-4 w-20" />
-                <Skeleton className="h-9 w-20" />
-                <Skeleton className="h-9 w-16" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

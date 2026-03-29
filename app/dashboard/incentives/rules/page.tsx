@@ -254,7 +254,7 @@ export default async function IncentiveRulesPage({
   });
 
   return (
-    <main className="mx-auto w-full max-w-7xl space-y-5 px-4 pb-6 pt-2 sm:px-6">
+    <main className="mx-auto w-full max-w-7xl space-y-5 px-4 pb-6 pt-0 sm:px-6">
       <DashboardBackLink href={backNavigation.href} label={backNavigation.label} />
 
       <Card className="gap-0 overflow-hidden py-0">

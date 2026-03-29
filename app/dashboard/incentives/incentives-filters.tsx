@@ -88,29 +88,26 @@ export function IncentivesFilters({
     return () => window.clearTimeout(timeoutId);
   }, [canChooseBranch, isDirty, pathname, router, setPending, startTransition]);
 
-  const branchLabelClass = useMemo(
-    () => (compact ? "space-y-1" : "space-y-2"),
-    [compact],
-  );
+  const branchLabelClass = useMemo(() => (compact ? "space-y-1" : "space-y-2"), [compact]);
 
   return (
     <div className="flex flex-col gap-3">
       <div
         className={
           compact
-            ? "flex flex-col gap-3 lg:flex-row lg:flex-nowrap lg:items-end lg:justify-end"
+            ? "flex flex-wrap items-end justify-end gap-4"
             : "flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between"
         }
       >
         <div
         className={
           compact
-            ? "grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,220px)_minmax(0,170px)]"
+            ? "flex flex-wrap items-end justify-end gap-4"
             : "grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,240px)_minmax(0,190px)]"
         }
         >
           {canChooseBranch ? (
-            <label className={branchLabelClass}>
+            <label className={`w-full sm:w-[220px] ${branchLabelClass}`}>
               <span className="text-sm font-medium text-foreground">Branch</span>
               <Select disabled={isPending} onValueChange={setBranch} value={branch}>
                 <SelectTrigger className="w-full">
@@ -130,13 +127,13 @@ export function IncentivesFilters({
               </Select>
             </label>
           ) : (
-            <label className={branchLabelClass}>
+            <label className={`w-full sm:w-[220px] ${branchLabelClass}`}>
               <span className="text-sm font-medium text-foreground">Branch</span>
               <Input readOnly value={fixedBranchName ?? "N/A"} />
             </label>
           )}
 
-          <label className={branchLabelClass}>
+          <label className={`w-full sm:w-[220px] ${branchLabelClass}`}>
             <span className="text-sm font-medium text-foreground">Month</span>
             <Input
               disabled={isPending}
@@ -147,7 +144,7 @@ export function IncentivesFilters({
           </label>
         </div>
 
-        <div className={compact ? "flex shrink-0 items-end gap-2 lg:flex-nowrap" : "flex flex-wrap gap-2 md:justify-end"}>
+        <div className={compact ? "flex items-end" : "flex flex-wrap gap-2 md:justify-end"}>
           {isPending ? (
             <Button disabled size="sm" type="button" variant="outline">
               <Loader2 className="animate-spin" data-icon="inline-start" />

@@ -25,9 +25,7 @@ export function ExpensesResultsSection({
   const showingTo = data.totalExpenses === 0 ? 0 : Math.min(safePage * data.pageSize, data.totalExpenses);
 
   return (
-    <div className="relative space-y-5">
-      <ExpensesSummary totalAmount={data.totalAmount} totalExpenses={data.totalExpenses} />
-
+    <div className="relative">
       <Card className="gap-0 overflow-hidden py-0">
         <CardHeader className="pb-2 pt-4">
           <div className="space-y-1">
@@ -36,6 +34,7 @@ export function ExpensesResultsSection({
           </div>
         </CardHeader>
         <CardContent className="space-y-4 pt-3 pb-5 px-5">
+          <ExpensesSummary totalAmount={data.totalAmount} totalExpenses={data.totalExpenses} />
           <ExpensesTable expenses={data.expenses} />
           <div className="flex flex-col gap-3 pt-2 text-sm md:flex-row md:items-center md:justify-between">
             <div className="space-y-1">

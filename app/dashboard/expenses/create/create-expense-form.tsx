@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useRef, useState, type FormEvent } from "react";
+import { Check } from "lucide-react";
+import { useActionState, useEffect, useRef, useState, type FormEvent } from "react";
 import { useFormStatus } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -103,6 +104,7 @@ export function CreateExpenseForm({
 }: CreateExpenseFormProps) {
   const [state, formAction] = useActionState(createExpenseAction, initialCreateExpenseState);
   const formRef = useRef<HTMLFormElement>(null);
+  const confirmedSubmitRef = useRef(false);
 
   const [selectedBranchId, setSelectedBranchId] = useState(branchId ? String(branchId) : "");
   const [expenseCategory, setExpenseCategory] = useState("");
@@ -110,7 +112,7 @@ export function CreateExpenseForm({
   const [amountRaw, setAmountRaw] = useState("");
   const [expenseDate, setExpenseDate] = useState(getTodayDateString());
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
-  const [isConfirmedSubmit, setIsConfirmedSubmit] = useState(false);
+  const [isSuccessOpen, setIsSuccessOpen] = useState(false);
   const amountDisplay = formatMoneyDisplay(amountRaw);
   const amountPreview = amountDisplay ? `\u20B1${amountDisplay}` : "";
   const selectedBranchName =
@@ -118,9 +120,27 @@ export function CreateExpenseForm({
       ? branchOptions.find((option) => String(option.branch_id) === selectedBranchId)?.branch_name ?? "N/A"
       : branchName ?? "N/A";
 
+  useEffect(() => {
+    if (state.status !== "success" || !state.result) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      confirmedSubmitRef.current = false;
+      setIsConfirmOpen(false);
+      setIsSuccessOpen(true);
+      setExpenseCategory("");
+      setDescription("");
+      setAmountRaw("");
+      setExpenseDate(getTodayDateString());
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [state.result, state.status]);
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    if (isConfirmedSubmit) {
-      setIsConfirmedSubmit(false);
+    if (confirmedSubmitRef.current) {
+      confirmedSubmitRef.current = false;
       return;
     }
 
@@ -130,7 +150,7 @@ export function CreateExpenseForm({
 
   function handleConfirmCreate() {
     setIsConfirmOpen(false);
-    setIsConfirmedSubmit(true);
+    confirmedSubmitRef.current = true;
     formRef.current?.requestSubmit();
   }
 
@@ -300,33 +320,42 @@ export function CreateExpenseForm({
               </DialogFooter>
             </DialogContent>
           </Dialog>
+
+          <Dialog onOpenChange={setIsSuccessOpen} open={isSuccessOpen}>
+            <DialogContent className="border-emerald-200 bg-background shadow-xl sm:max-w-md">
+              <DialogHeader className="items-center text-center">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500 text-white shadow-sm">
+                  <Check className="size-8 stroke-[3]" />
+                </div>
+                <DialogTitle className="text-2xl font-semibold text-foreground">Expense Saved</DialogTitle>
+                <DialogDescription className="max-w-sm text-base text-muted-foreground">
+                  {state.message ?? "The expense entry was saved successfully."}
+                </DialogDescription>
+              </DialogHeader>
+
+              {state.result ? (
+                <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4 text-sm text-emerald-950">
+                  <p>
+                    <span className="font-medium">Branch:</span> {state.result.branchName}
+                  </p>
+                  <p>
+                    <span className="font-medium">Category:</span> {state.result.expenseCategory}
+                  </p>
+                  <p>
+                    <span className="font-medium">Description:</span> {state.result.description}
+                  </p>
+                  <p>
+                    <span className="font-medium">Amount:</span> {formatMoney(state.result.amount)}
+                  </p>
+                  <p>
+                    <span className="font-medium">Expense Date:</span> {state.result.expenseDate}
+                  </p>
+                </div>
+              ) : null}
+            </DialogContent>
+          </Dialog>
         </CardContent>
       </Card>
-
-      {state.status === "success" && state.result ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Expense Saved</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <p>
-              <span className="font-medium">Branch:</span> {state.result.branchName}
-            </p>
-            <p>
-              <span className="font-medium">Category:</span> {state.result.expenseCategory}
-            </p>
-            <p>
-              <span className="font-medium">Description:</span> {state.result.description}
-            </p>
-            <p>
-              <span className="font-medium">Amount:</span> {formatMoney(state.result.amount)}
-            </p>
-            <p>
-              <span className="font-medium">Expense Date:</span> {state.result.expenseDate}
-            </p>
-          </CardContent>
-        </Card>
-      ) : null}
     </div>
   );
 }

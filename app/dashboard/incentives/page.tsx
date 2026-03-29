@@ -174,7 +174,7 @@ export default async function IncentivesPage({ searchParams }: IncentivesPagePro
 
   return (
     <IncentivesWorkspaceTransitionProvider>
-      <div className="flex flex-col gap-6">
+      <div className="w-full max-w-none space-y-5 px-4 pb-6 pt-1 sm:px-6 sm:pb-6 sm:pt-2">
         <Card className="gap-0 overflow-hidden py-0">
           <div className="bg-linear-to-r from-slate-50 via-background to-emerald-50/50 p-6">
             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
@@ -197,7 +197,7 @@ export default async function IncentivesPage({ searchParams }: IncentivesPagePro
               </div>
 
               {!access.isAuditor ? (
-                <Button asChild variant="outline">
+                <Button asChild className="bg-blue-600 text-white hover:bg-blue-700 hover:text-white">
                   <Link
                     href={appendBackNavigationToHref("/dashboard/incentives/rules", {
                       source: "incentives",
@@ -211,7 +211,7 @@ export default async function IncentivesPage({ searchParams }: IncentivesPagePro
               ) : null}
             </div>
           </div>
-          <CardContent className="border-t p-6">
+          <CardContent className="border-t border-border/70 px-6 pb-4 pt-3">
             <IncentivesFilters
               allBranchLabel={access.isAuditor ? "All assigned branches" : "All branches"}
               branches={access.filterBranches}
