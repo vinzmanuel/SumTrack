@@ -32,6 +32,9 @@ export type EmployeeRow = {
 export type IncentiveRow = {
   userId: string;
   employeeName: string;
+  firstName?: string;
+  middleName?: string | null;
+  lastName?: string;
   companyId: string;
   roleName: IncentiveRoleName;
   roleId: number;

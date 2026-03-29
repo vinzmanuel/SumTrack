@@ -1,7 +1,10 @@
 "use client";
 
 import { useActionState, useRef, useState, type FormEvent } from "react";
+import { CircleAlert, CircleCheck } from "lucide-react";
 import { useFormStatus } from "react-dom";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -17,10 +20,20 @@ import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { upsertIncentiveRuleAction } from "@/app/dashboard/incentives/rules/actions";
 import { initialIncentiveRuleFormState } from "@/app/dashboard/incentives/rules/state";
 
@@ -114,6 +127,7 @@ export function IncentiveRulesForm({
   const [flatAmountRaw, setFlatAmountRaw] = useState("");
   const [rulesBranchFilter, setRulesBranchFilter] = useState("all");
   const [rulesRoleFilter, setRulesRoleFilter] = useState("all");
+  const [rulesPage, setRulesPage] = useState(1);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isConfirmedSubmit, setIsConfirmedSubmit] = useState(false);
 
@@ -130,6 +144,13 @@ export function IncentiveRulesForm({
     const roleMatches = rulesRoleFilter === "all" || rule.role_name === rulesRoleFilter;
     return branchMatches && roleMatches;
   });
+  const RULES_PAGE_SIZE = 10;
+  const totalRulePages = Math.max(Math.ceil(filteredExistingRules.length / RULES_PAGE_SIZE), 1);
+  const safeRulesPage = Math.min(rulesPage, totalRulePages);
+  const paginatedExistingRules = filteredExistingRules.slice(
+    (safeRulesPage - 1) * RULES_PAGE_SIZE,
+    safeRulesPage * RULES_PAGE_SIZE,
+  );
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     if (isConfirmedSubmit) {
@@ -148,31 +169,34 @@ export function IncentiveRulesForm({
   }
 
   return (
-    <div className="space-y-6">
-      <Card>
+    <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,320px)_minmax(0,1fr)] 2xl:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
+      <Card className="h-fit">
         <CardHeader>
-          <CardTitle>Manage Incentive Rule</CardTitle>
+          <CardTitle>Rule Editor</CardTitle>
         </CardHeader>
         <CardContent>
-          <form action={formAction} className="space-y-4" onSubmit={handleSubmit} ref={formRef}>
+          <form action={formAction} className="flex flex-col gap-4" onSubmit={handleSubmit} ref={formRef}>
             <input name="branch_id" type="hidden" value={isAdmin ? branchId : fixedBranch ? String(fixedBranch.branch_id) : ""} />
             <input name="role_id" type="hidden" value={roleId} />
             <input name="percent_value" type="hidden" value={percentValue} />
             <input name="flat_amount" type="hidden" value={flatAmountRaw} />
 
             {isAdmin ? (
-              <div className="space-y-2">
+              <div className="flex flex-col gap-2">
                 <Label>Branch</Label>
                 <Select onValueChange={setBranchId} value={branchId}>
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select branch" />
                   </SelectTrigger>
                   <SelectContent>
-                    {branches.map((item) => (
-                      <SelectItem key={item.branch_id} value={String(item.branch_id)}>
-                        {item.branch_name}
-                      </SelectItem>
-                    ))}
+                    <SelectGroup>
+                      <SelectLabel>Branches</SelectLabel>
+                      {branches.map((item) => (
+                        <SelectItem key={item.branch_id} value={String(item.branch_id)}>
+                          {item.branch_name}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
                   </SelectContent>
                 </Select>
                 {state.fieldErrors?.branch_id ? (
@@ -180,24 +204,27 @@ export function IncentiveRulesForm({
                 ) : null}
               </div>
             ) : (
-              <div className="space-y-2">
+              <div className="flex flex-col gap-2">
                 <Label>Branch</Label>
                 <Input readOnly value={fixedBranch?.branch_name ?? "N/A"} />
               </div>
             )}
 
-            <div className="space-y-2">
+            <div className="flex flex-col gap-2">
               <Label>Role</Label>
               <Select onValueChange={setRoleId} value={roleId}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select role" />
                 </SelectTrigger>
                 <SelectContent>
-                  {manageableRoles.map((role) => (
-                    <SelectItem key={role.role_id} value={String(role.role_id)}>
-                      {role.role_name}
-                    </SelectItem>
-                  ))}
+                  <SelectGroup>
+                    <SelectLabel>Roles</SelectLabel>
+                    {manageableRoles.map((role) => (
+                      <SelectItem key={role.role_id} value={String(role.role_id)}>
+                        {role.role_name}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
                 </SelectContent>
               </Select>
               {state.fieldErrors?.role_id ? (
@@ -206,7 +233,7 @@ export function IncentiveRulesForm({
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
+              <div className="flex flex-col gap-2">
                 <Label htmlFor="percent_value">Percent Value</Label>
                 <div className="relative">
                   <Input
@@ -231,7 +258,7 @@ export function IncentiveRulesForm({
                 ) : null}
               </div>
 
-              <div className="space-y-2">
+              <div className="flex flex-col gap-2">
                 <Label htmlFor="flat_amount">Flat Amount</Label>
                 <div className="relative">
                   <span className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-sm">
@@ -254,7 +281,11 @@ export function IncentiveRulesForm({
             </div>
 
             {state.status === "error" && state.message ? (
-              <p className="text-sm text-destructive">{state.message}</p>
+              <Alert variant="destructive">
+                <CircleAlert className="size-4" />
+                <AlertTitle>Unable to save rule</AlertTitle>
+                <AlertDescription>{state.message}</AlertDescription>
+              </Alert>
             ) : null}
 
             <SubmitButton />
@@ -298,129 +329,171 @@ export function IncentiveRulesForm({
         </CardContent>
       </Card>
 
-      {state.status === "success" && state.result ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Rule Saved</CardTitle>
+      <div className="min-w-0 flex flex-col gap-5">
+        {state.status === "success" && state.result ? (
+          <Alert className="border-emerald-200 bg-emerald-50/70 text-emerald-900">
+            <CircleCheck className="size-4" />
+            <AlertTitle>Rule saved</AlertTitle>
+            <AlertDescription className="text-emerald-800">
+              {state.result.mode === "created" ? "Created" : "Updated"} {state.result.roleName} for{" "}
+              {state.result.branchName}. This rule applies starting {state.result.periodLabel} and uses{" "}
+              {state.result.percentValue}% plus {formatMoney(state.result.flatAmount)}.
+            </AlertDescription>
+          </Alert>
+        ) : null}
+
+        <Card className="min-w-0 gap-0 overflow-hidden py-0">
+          <CardHeader className="gap-4 border-b py-5">
+            <div className="flex flex-col gap-1">
+              <CardTitle>Existing Rules</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Review active and upcoming rule versions before editing the next-period configuration.
+              </p>
+            </div>
+
+            {isAdmin ? (
+              <div className="grid gap-3 lg:grid-cols-[minmax(0,220px)_minmax(0,220px)]">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="rules_branch_filter">Branch Filter</Label>
+                  <Select
+                    onValueChange={(value) => {
+                      setRulesBranchFilter(value);
+                      setRulesPage(1);
+                    }}
+                    value={rulesBranchFilter}
+                  >
+                    <SelectTrigger id="rules_branch_filter" className="w-full">
+                      <SelectValue placeholder="Filter by branch" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectLabel>Branch filter</SelectLabel>
+                        <SelectItem value="all">All branches</SelectItem>
+                        {branches.map((item) => (
+                          <SelectItem key={item.branch_id} value={item.branch_name}>
+                            {item.branch_name}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="rules_role_filter">Role Filter</Label>
+                  <Select
+                    onValueChange={(value) => {
+                      setRulesRoleFilter(value);
+                      setRulesPage(1);
+                    }}
+                    value={rulesRoleFilter}
+                  >
+                    <SelectTrigger id="rules_role_filter" className="w-full">
+                      <SelectValue placeholder="Filter by role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectLabel>Role filter</SelectLabel>
+                        <SelectItem value="all">All roles</SelectItem>
+                        {manageableRoles.map((item) => (
+                          <SelectItem key={item.role_id} value={item.role_name}>
+                            {item.role_name}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            ) : null}
           </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <p>
-              <span className="font-medium">Action:</span> {state.result.mode === "created" ? "Created" : "Updated"}
-            </p>
-            <p>
-              <span className="font-medium">Applies To:</span>{" "}
-              {state.result.appliesTo === "current_period" ? "Current month" : "Next month"}
-            </p>
-            <p>
-              <span className="font-medium">Period:</span> {state.result.periodLabel}
-            </p>
-            <p>
-              <span className="font-medium">Effective Start:</span> {state.result.effectiveStart}
-            </p>
-            <p>
-              <span className="font-medium">Effective End:</span> {state.result.effectiveEnd ?? "Open-ended"}
-            </p>
-            <p>
-              <span className="font-medium">Branch:</span> {state.result.branchName}
-            </p>
-            <p>
-              <span className="font-medium">Role:</span> {state.result.roleName}
-            </p>
-            <p>
-              <span className="font-medium">Percent Value:</span> {state.result.percentValue}%
-            </p>
-            <p>
-              <span className="font-medium">Flat Amount:</span> {formatMoney(state.result.flatAmount)}
-            </p>
+          <CardContent className="p-5">
+            {filteredExistingRules.length === 0 ? (
+              <div className="rounded-xl border border-dashed bg-muted/20 px-5 py-10 text-center">
+                <p className="text-sm font-medium text-foreground">No incentive rules found.</p>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Create a rule for the selected branch and role to prepare next period&apos;s payouts.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="overflow-hidden rounded-xl border">
+                  <Table className="[&_td:first-child]:pl-5 [&_td:last-child]:pr-5 [&_th:first-child]:pl-5 [&_th:last-child]:pr-5">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Branch</TableHead>
+                      <TableHead>Role</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Percent Value</TableHead>
+                      <TableHead>Flat Amount</TableHead>
+                      <TableHead>Effective Start</TableHead>
+                      <TableHead>Effective End</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedExistingRules.map((rule) => (
+                      <TableRow key={rule.rule_id}>
+                        <TableCell className="whitespace-normal">{rule.branch_name}</TableCell>
+                        <TableCell>{rule.role_name}</TableCell>
+                        <TableCell>
+                          <Badge
+                            className={
+                              rule.status_label === "Active Now"
+                                ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                                : "border-amber-200 bg-amber-50 text-amber-800"
+                            }
+                            variant="outline"
+                          >
+                            {rule.status_label}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{(Number(rule.percent_value) || 0).toLocaleString("en-PH")}%</TableCell>
+                        <TableCell>{formatMoney(Number(rule.flat_amount) || 0)}</TableCell>
+                        <TableCell>{rule.effective_start}</TableCell>
+                        <TableCell>{rule.effective_end ?? "Open-ended"}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                  </Table>
+                </div>
+
+                {filteredExistingRules.length > 0 ? (
+                  <div className="flex flex-col gap-3 border-t border-border/70 pt-4 text-sm md:flex-row md:items-center md:justify-between">
+                    <p className="text-muted-foreground">
+                      Showing {(safeRulesPage - 1) * RULES_PAGE_SIZE + 1}-
+                      {Math.min(safeRulesPage * RULES_PAGE_SIZE, filteredExistingRules.length)} of{" "}
+                      {filteredExistingRules.length} rules
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground">
+                        Page {safeRulesPage} of {totalRulePages}
+                      </span>
+                      <Button
+                        disabled={safeRulesPage <= 1}
+                        onClick={() => setRulesPage((current) => Math.max(current - 1, 1))}
+                        size="sm"
+                        type="button"
+                        variant="outline"
+                      >
+                        Previous
+                      </Button>
+                      <Button
+                        disabled={safeRulesPage >= totalRulePages}
+                        onClick={() => setRulesPage((current) => Math.min(current + 1, totalRulePages))}
+                        size="sm"
+                        type="button"
+                        variant="outline"
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            )}
           </CardContent>
         </Card>
-      ) : null}
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Existing Rules</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isAdmin ? (
-            <div className="mb-4 grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="rules_branch_filter">Branch Filter</Label>
-                <Select onValueChange={setRulesBranchFilter} value={rulesBranchFilter}>
-                  <SelectTrigger id="rules_branch_filter" className="w-full">
-                    <SelectValue placeholder="Filter by branch" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All branches</SelectItem>
-                    {branches.map((item) => (
-                      <SelectItem key={item.branch_id} value={item.branch_name}>
-                        {item.branch_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="rules_role_filter">Role Filter</Label>
-                <Select onValueChange={setRulesRoleFilter} value={rulesRoleFilter}>
-                  <SelectTrigger id="rules_role_filter" className="w-full">
-                    <SelectValue placeholder="Filter by role" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All roles</SelectItem>
-                    {manageableRoles.map((item) => (
-                      <SelectItem key={item.role_id} value={item.role_name}>
-                        {item.role_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          ) : null}
-
-          {filteredExistingRules.length === 0 ? (
-            <p className="text-muted-foreground text-sm">No incentive rules found.</p>
-          ) : (
-            <div className="overflow-auto">
-              <table className="w-full min-w-220 text-sm">
-                <thead>
-                  <tr className="border-b text-left">
-                    <th className="px-2 py-2 font-medium">Branch</th>
-                    <th className="px-2 py-2 font-medium">Role</th>
-                    <th className="px-2 py-2 font-medium">Status</th>
-                    <th className="px-2 py-2 font-medium">Percent Value</th>
-                    <th className="px-2 py-2 font-medium">Flat Amount</th>
-                    <th className="px-2 py-2 font-medium">Effective Start</th>
-                    <th className="px-2 py-2 font-medium">Effective End</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredExistingRules.map((rule) => (
-                    <tr className="border-b" key={rule.rule_id}>
-                      <td className="px-2 py-2">{rule.branch_name}</td>
-                      <td className="px-2 py-2">{rule.role_name}</td>
-                      <td className="px-2 py-2">
-                        <span
-                          className={rule.status_label === "Active Now"
-                            ? "rounded bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-800"
-                            : "rounded bg-amber-100 px-2 py-1 text-xs font-medium text-amber-800"}
-                        >
-                          {rule.status_label}
-                        </span>
-                      </td>
-                      <td className="px-2 py-2">{(Number(rule.percent_value) || 0).toLocaleString("en-PH")}%</td>
-                      <td className="px-2 py-2">{formatMoney(Number(rule.flat_amount) || 0)}</td>
-                      <td className="px-2 py-2">{rule.effective_start}</td>
-                      <td className="px-2 py-2">{rule.effective_end ?? "Open-ended"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      </div>
     </div>
   );
 }

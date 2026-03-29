@@ -47,6 +47,9 @@ function buildRows(
     return {
       userId: employee.user_id,
       employeeName: buildEmployeeName(employee),
+      firstName: employee.first_name,
+      middleName: employee.middle_name,
+      lastName: employee.last_name,
       companyId: employee.company_id,
       roleName,
       roleId,

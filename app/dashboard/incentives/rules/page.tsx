@@ -1,4 +1,6 @@
 import { asc, inArray } from "drizzle-orm";
+import { Settings2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DashboardBackLink } from "@/app/dashboard/_components/dashboard-back-link";
 import {
@@ -252,23 +254,27 @@ export default async function IncentiveRulesPage({
   });
 
   return (
-    <main className="mx-auto min-h-screen w-full max-w-6xl p-6">
+    <main className="mx-auto w-full max-w-7xl space-y-5 px-4 pb-6 pt-2 sm:px-6">
       <DashboardBackLink href={backNavigation.href} label={backNavigation.label} />
 
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle>Incentive Rules</CardTitle>
-          <CardDescription>
-            {isAdmin
-              ? "Manage incentive rules across all branches."
-              : "Manage incentive rules for your assigned branch."}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <p className="text-sm text-muted-foreground">
-            Rule changes made during the current month take effect on the next month.
-          </p>
-        </CardContent>
+      <Card className="gap-0 overflow-hidden py-0">
+        <div className="bg-linear-to-r from-slate-50 via-background to-amber-50/60 p-6">
+          <CardHeader className="px-0 py-0">
+            <div className="flex flex-col gap-1">
+              <CardTitle className="flex items-center gap-2 text-3xl font-semibold tracking-tight">
+                <Settings2 className="size-5 text-muted-foreground" />
+                Incentive Rules
+              </CardTitle>
+              <CardDescription>
+                Configure branch-role payout formulas that will apply to the next payout period.
+              </CardDescription>
+              <div className="flex flex-wrap gap-2 pt-2">
+                <Badge variant="outline">{isAdmin ? "Admin scope" : fixedBranch?.branch_name ?? "Assigned branch"}</Badge>
+                <Badge variant="outline">Next-period effective</Badge>
+              </div>
+            </div>
+          </CardHeader>
+        </div>
       </Card>
 
       <IncentiveRulesForm

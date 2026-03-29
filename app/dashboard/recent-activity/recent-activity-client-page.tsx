@@ -527,7 +527,7 @@ export function RecentActivityClientPage({
   return (
     <div className="w-full max-w-none space-y-5 px-4 pb-6 pt-1 sm:px-6 sm:pb-6 sm:pt-2">
       <TremorCard className="overflow-hidden p-0">
-        <div className="bg-gradient-to-r from-slate-50 via-white to-emerald-50/60 p-6">
+        <div className="bg-linear-to-r from-slate-50 via-white to-emerald-50/60 p-6">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
             <div className="space-y-1">
               <div className="space-y-1">
@@ -551,9 +551,9 @@ export function RecentActivityClientPage({
           </div>
         </div>
 
-        <div className="border-t border-border/70 p-6">
+        <div className="border-t border-border/70 px-6 pb-4 pt-3">
           <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
-            <label className="space-y-2">
+            <label>
               <FilterLabel>Recency</FilterLabel>
               <Select
                 onValueChange={(value) =>
@@ -577,7 +577,7 @@ export function RecentActivityClientPage({
               </Select>
             </label>
 
-            <label className="space-y-2">
+            <label>
               <FilterLabel>Activity Type</FilterLabel>
               <Select
                 onValueChange={(value) =>
@@ -601,7 +601,7 @@ export function RecentActivityClientPage({
               </Select>
             </label>
 
-            <label className="space-y-2">
+            <label>
               <FilterLabel>Actor Role</FilterLabel>
               <Select
                 onValueChange={(value) =>
@@ -639,7 +639,7 @@ export function RecentActivityClientPage({
               </Select>
             </label>
 
-            <label className="space-y-2">
+            <label>
               <FilterLabel>Branch</FilterLabel>
               <Select
                 disabled={results.branchOptions.length <= 1}
@@ -688,7 +688,7 @@ export function RecentActivityClientPage({
                     placeholder={`Search ${filters.actorRoleName.toLowerCase()}s`}
                     showClear
                   />
-                  <ComboboxContent className="z-[100] max-h-72">
+                  <ComboboxContent className="z-100 max-h-72">
                     <ComboboxEmpty>No visible actors found.</ComboboxEmpty>
                     <ComboboxList>
                       {(item: ActorComboboxOption) => (
@@ -818,7 +818,7 @@ export function RecentActivityClientPage({
                           <Badge className={activityBadgeClass(item.activityType)} variant="outline">
                             {item.activityLabel}
                           </Badge>
-                          <span className="min-w-0 flex-1 whitespace-normal break-words text-sm leading-5 text-foreground">
+                          <span className="min-w-0 flex-1 whitespace-normal wrap-break-word text-sm leading-5 text-foreground">
                             {buildCollapsedActionLine(item)}
                           </span>
                           {isExpandable ? <ChevronDown className={`mt-0.5 size-4 shrink-0 text-zinc-400 transition-transform ${isExpanded ? "rotate-180" : ""}`} /> : null}
@@ -830,7 +830,7 @@ export function RecentActivityClientPage({
                             </Badge>
                           ) : null}
                           {actorHasVisibleName ? (
-                            <span className="min-w-0 flex-1 whitespace-normal break-words">{item.actorName}</span>
+                            <span className="min-w-0 flex-1 whitespace-normal wrap-break-word">{item.actorName}</span>
                           ) : null}
                           <span className="text-muted-foreground">{item.branchLabel ?? "Global / Unscoped"}</span>
                         </div>
@@ -846,7 +846,7 @@ export function RecentActivityClientPage({
                             <Badge className={activityBadgeClass(item.activityType)} variant="outline">
                               {item.activityLabel}
                             </Badge>
-                            <span className="min-w-0 flex-1 whitespace-normal break-words text-sm leading-5 text-foreground">
+                            <span className="min-w-0 flex-1 whitespace-normal wrap-break-word text-sm leading-5 text-foreground">
                               {buildCollapsedActionLine(item)}
                             </span>
                           </div>
@@ -860,7 +860,7 @@ export function RecentActivityClientPage({
                               </Badge>
                             ) : null}
                             {actorHasVisibleName ? (
-                              <span className="min-w-0 flex-1 whitespace-normal break-words text-sm leading-5 text-foreground">
+                              <span className="min-w-0 flex-1 whitespace-normal wrap-break-word text-sm leading-5 text-foreground">
                                 {item.actorName}
                               </span>
                             ) : null}
@@ -868,7 +868,7 @@ export function RecentActivityClientPage({
                         </div>
 
                         <div className="min-w-0 text-left text-sm leading-5 text-foreground">
-                          <span className="whitespace-normal break-words">{item.branchLabel ?? "Global / Unscoped"}</span>
+                          <span className="whitespace-normal wrap-break-word ">{item.branchLabel ?? "Global / Unscoped"}</span>
                         </div>
 
                         <div className="flex justify-end">

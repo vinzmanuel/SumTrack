@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { Download, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export type ExportIncentiveRow = {
@@ -71,10 +72,12 @@ export function ExportPrintTools({ rows, fileName, modeLabel }: ExportPrintTools
 
   return (
     <div className="flex flex-wrap gap-2">
-      <Button onClick={() => window.print()} type="button" variant="outline">
+      <Button onClick={() => window.print()} size="sm" type="button" variant="outline">
+        <Printer data-icon="inline-start" />
         Print
       </Button>
-      <Button disabled={rows.length === 0} onClick={handleExport} type="button" variant="secondary">
+      <Button disabled={rows.length === 0} onClick={handleExport} size="sm" type="button" variant="secondary">
+        <Download data-icon="inline-start" />
         Export CSV
       </Button>
     </div>

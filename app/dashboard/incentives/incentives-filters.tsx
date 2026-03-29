@@ -3,9 +3,20 @@
 import { Loader2 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import type { IncentivesBranchOption } from "@/app/dashboard/incentives/types";
+import { useIncentivesWorkspaceTransition } from "@/app/dashboard/incentives/incentives-workspace-transition";
 
 type IncentivesFiltersProps = {
   canChooseBranch: boolean;
@@ -14,6 +25,8 @@ type IncentivesFiltersProps = {
   branches: IncentivesBranchOption[];
   clearHref: string;
   allBranchLabel: string;
+  fixedBranchName?: string | null;
+  compact?: boolean;
 };
 
 export function IncentivesFilters({
@@ -23,76 +36,140 @@ export function IncentivesFilters({
   branches,
   clearHref,
   allBranchLabel,
+  fixedBranchName = null,
+  compact = false,
 }: IncentivesFiltersProps) {
   const router = useRouter();
   const pathname = usePathname();
   const [isPending, startTransition] = useTransition();
+  const { setPending } = useIncentivesWorkspaceTransition();
   const [branch, setBranch] = useState(selectedBranchRaw);
   const [month, setMonth] = useState(selectedMonthRaw);
+  const [appliedBranch, setAppliedBranch] = useState(selectedBranchRaw);
+  const [appliedMonth, setAppliedMonth] = useState(selectedMonthRaw);
+  const filtersRef = useRef({ branch: selectedBranchRaw, month: selectedMonthRaw });
 
-  function applyFilters() {
-    const params = new URLSearchParams();
-    if (canChooseBranch && branch && branch !== "all") params.set("branch", branch);
-    if (month) params.set("month", month);
-    const query = params.toString();
-    const nextUrl = query ? `${pathname}?${query}` : pathname;
-    startTransition(() => {
-      router.replace(nextUrl);
-    });
-  }
+  useEffect(() => {
+    filtersRef.current = { branch, month };
+  }, [branch, month]);
+
+  useEffect(() => () => setPending(false), [setPending]);
+
+  const isDirty = branch !== appliedBranch || month !== appliedMonth;
+
+  useEffect(() => {
+    if (!isDirty) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      const nextBranch = filtersRef.current.branch;
+      const nextMonth = filtersRef.current.month;
+      const params = new URLSearchParams();
+
+      if (canChooseBranch && nextBranch && nextBranch !== "all") {
+        params.set("branch", nextBranch);
+      }
+      if (nextMonth) {
+        params.set("month", nextMonth);
+      }
+
+      const query = params.toString();
+      const nextUrl = query ? `${pathname}?${query}` : pathname;
+
+      setAppliedBranch(nextBranch);
+      setAppliedMonth(nextMonth);
+      setPending(true);
+      startTransition(() => {
+        router.replace(nextUrl);
+      });
+    }, 350);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [canChooseBranch, isDirty, pathname, router, setPending, startTransition]);
+
+  const branchLabelClass = useMemo(
+    () => (compact ? "space-y-1" : "space-y-2"),
+    [compact],
+  );
 
   return (
-    <div className="space-y-3">
-      <div className="grid gap-4 md:grid-cols-4">
-        {canChooseBranch ? (
-          <div className="space-y-2">
-            <label className="text-sm font-medium" htmlFor="branch">
-              Branch
+    <div className="flex flex-col gap-3">
+      <div
+        className={
+          compact
+            ? "flex flex-col gap-3 lg:flex-row lg:flex-nowrap lg:items-end lg:justify-end"
+            : "flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between"
+        }
+      >
+        <div
+        className={
+          compact
+            ? "grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,220px)_minmax(0,170px)]"
+            : "grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,240px)_minmax(0,190px)]"
+        }
+        >
+          {canChooseBranch ? (
+            <label className={branchLabelClass}>
+              <span className="text-sm font-medium text-foreground">Branch</span>
+              <Select disabled={isPending} onValueChange={setBranch} value={branch}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder={allBranchLabel} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectLabel>Branches</SelectLabel>
+                    <SelectItem value="all">{allBranchLabel}</SelectItem>
+                    {branches.map((item) => (
+                      <SelectItem key={item.branch_id} value={String(item.branch_id)}>
+                        {item.branch_name}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
             </label>
-            <select
-              className="border-input focus-visible:border-ring focus-visible:ring-ring/50 w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
-              disabled={isPending}
-              id="branch"
-              onChange={(event) => setBranch(event.target.value)}
-              value={branch}
-            >
-              <option value="all">{allBranchLabel}</option>
-              {branches.map((item) => (
-                <option key={item.branch_id} value={String(item.branch_id)}>
-                  {item.branch_name}
-                </option>
-              ))}
-            </select>
-          </div>
-        ) : null}
+          ) : (
+            <label className={branchLabelClass}>
+              <span className="text-sm font-medium text-foreground">Branch</span>
+              <Input readOnly value={fixedBranchName ?? "N/A"} />
+            </label>
+          )}
 
-        <div className="space-y-2">
-          <label className="text-sm font-medium" htmlFor="month">
-            Month
+          <label className={branchLabelClass}>
+            <span className="text-sm font-medium text-foreground">Month</span>
+            <Input
+              disabled={isPending}
+              onChange={(event) => setMonth(event.target.value)}
+              type="month"
+              value={month}
+            />
           </label>
-          <input
-            className="border-input focus-visible:border-ring focus-visible:ring-ring/50 w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
-            disabled={isPending}
-            id="month"
-            onChange={(event) => setMonth(event.target.value)}
-            type="month"
-            value={month}
-          />
         </div>
 
-        <div className="flex items-end gap-2 md:col-span-4">
-          <Button className="active:scale-[0.98]" disabled={isPending} onClick={applyFilters} type="button">
-            {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            {isPending ? "Applying..." : "Apply Filters"}
-          </Button>
-          <Link href={clearHref}>
-            <Button className="active:scale-[0.98]" disabled={isPending} type="button" variant="outline">
-              Clear
+        <div className={compact ? "flex shrink-0 items-end gap-2 lg:flex-nowrap" : "flex flex-wrap gap-2 md:justify-end"}>
+          {isPending ? (
+            <Button disabled size="sm" type="button" variant="outline">
+              <Loader2 className="animate-spin" data-icon="inline-start" />
+              Updating
             </Button>
-          </Link>
+          ) : (
+            <Button asChild size="sm" variant="outline">
+              <Link href={clearHref}>Clear</Link>
+            </Button>
+          )}
         </div>
       </div>
-      {isPending ? <p className="text-muted-foreground text-sm">Updating incentives view...</p> : null}
+
+      {!compact ? (
+        isPending ? (
+          <p className="text-sm text-muted-foreground">Updating incentives view...</p>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Adjust the branch and payout month and the workspace will update automatically.
+          </p>
+        )
+      ) : null}
     </div>
   );
 }

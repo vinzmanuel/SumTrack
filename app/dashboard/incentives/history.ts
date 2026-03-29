@@ -132,6 +132,9 @@ export async function loadHistoricalIncentives(batchMeta: HistoricalBatchMeta): 
     const mappedRow: IncentiveRow = {
       userId: row.employee_user_id,
       employeeName: [row.first_name, row.middle_name, row.last_name].filter(Boolean).join(" "),
+      firstName: row.first_name,
+      middleName: row.middle_name,
+      lastName: row.last_name,
       companyId: row.company_id,
       roleName: row.role_name,
       roleId: row.role_id,
