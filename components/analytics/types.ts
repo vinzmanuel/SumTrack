@@ -1,5 +1,8 @@
 export type AnalyticsDateRangeKey =
   | "this-week"
+  | "past-3-months"
+  | "past-6-months"
+  | "lifetime"
   | "this-month"
   | "last-30-days"
   | "this-year"

@@ -5,6 +5,7 @@ import { CollectorsIndividualMode } from "@/app/dashboard/collectors/collectors-
 import { CollectorsRankedMode } from "@/app/dashboard/collectors/collectors-ranked-mode";
 import { CollectorsResultsSkeleton } from "@/app/dashboard/collectors/collectors-results-skeleton";
 import type {
+  CollectorLeaderboardBasis,
   CollectorPerformanceRow,
   CollectorsAnalyticsData,
   CollectorsFilterInput,
@@ -44,13 +45,19 @@ export function CollectorsResultsSection({
   errorMessage,
   filters,
   isPending,
+  onBasisChange,
+  onRangeChange,
   onPageChange,
+  onPageSizeChange,
 }: {
   data: CollectorsAnalyticsData | null;
   errorMessage: string | null;
   filters: CollectorsFilterInput;
   isPending: boolean;
+  onBasisChange: (basis: CollectorLeaderboardBasis) => void;
+  onRangeChange: (value: { range: CollectorsFilterInput["range"]; from: string; to: string }) => void;
   onPageChange: (page: number) => void;
+  onPageSizeChange: (pageSize: number) => void;
 }) {
   const router = useRouter();
   const isIndividualMode = data?.totalCount === 1;
@@ -77,7 +84,10 @@ export function CollectorsResultsSection({
           data={data}
           errorMessage={errorMessage}
           isPending={isPending}
+          onBasisChange={onBasisChange}
+          onRangeChange={onRangeChange}
           onPageChange={onPageChange}
+          onPageSizeChange={onPageSizeChange}
           onViewCollector={handleViewCollector}
         />
       )}

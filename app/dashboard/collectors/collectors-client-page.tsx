@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { TremorCard, TremorDescription } from "@/components/tremor/raw/metric-card";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardDescription, CardTitle } from "@/components/ui/card";
 import { CollectorsFilters } from "@/app/dashboard/collectors/collectors-filters";
+import { supportsAverageMonthlyCollections } from "@/app/dashboard/collectors/filters";
 import { CollectorsResultsSection } from "@/app/dashboard/collectors/collectors-results-section";
 import type {
   CollectorsAnalyticsData,
@@ -31,8 +33,14 @@ function buildPageUrl(filters: CollectorsFilterInput) {
   if (filters.query.trim()) {
     params.set("query", filters.query.trim());
   }
+  if (filters.basis !== "average-monthly-collections") {
+    params.set("basis", filters.basis);
+  }
   if (filters.page > 1) {
     params.set("page", String(filters.page));
+  }
+  if (filters.pageSize !== 10) {
+    params.set("pageSize", String(filters.pageSize));
   }
 
   const queryString = params.toString();
@@ -56,9 +64,11 @@ function buildDataUrl(filters: CollectorsFilterInput) {
   if (filters.query.trim()) {
     params.set("query", filters.query.trim());
   }
+  params.set("basis", filters.basis);
   if (filters.page > 1) {
     params.set("page", String(filters.page));
   }
+  params.set("pageSize", String(filters.pageSize));
   return `/dashboard/collectors/data?${params.toString()}`;
 }
 
@@ -84,12 +94,16 @@ export function CollectorsClientPage({
       from: initialFilters.fromRaw,
       to: initialFilters.toRaw,
       query: initialFilters.searchQuery,
+      basis: initialFilters.selectedBasis,
       page: initialFilters.page,
+      pageSize: initialFilters.pageSize,
     }),
     [
       initialFilters.fromRaw,
       initialFilters.page,
+      initialFilters.pageSize,
       initialFilters.searchQuery,
+      initialFilters.selectedBasis,
       initialFilters.selectedBranchRaw,
       initialFilters.selectedRange,
       initialFilters.toRaw,
@@ -159,7 +173,9 @@ export function CollectorsClientPage({
       filters.range === appliedFilters.range &&
       filters.from === appliedFilters.from &&
       filters.to === appliedFilters.to &&
-      filters.page === appliedFilters.page
+      filters.basis === appliedFilters.basis &&
+      filters.page === appliedFilters.page &&
+      filters.pageSize === appliedFilters.pageSize
     ) {
       return;
     }
@@ -170,9 +186,11 @@ export function CollectorsClientPage({
 
     void loadResults(filters);
   }, [
+    appliedFilters.basis,
     appliedFilters.branch,
     appliedFilters.from,
     appliedFilters.page,
+    appliedFilters.pageSize,
     appliedFilters.range,
     appliedFilters.to,
     filters,
@@ -194,21 +212,42 @@ export function CollectorsClientPage({
     return () => window.clearTimeout(timeoutId);
   }, [appliedFilters.query, filters.query, loadResults]);
 
-  return (
-    <div className="space-y-6">
-      <TremorCard className="p-6">
-        <div className="space-y-4">
-          <div className="space-y-1.5">
-            <h2 className="text-lg font-semibold tracking-tight text-foreground">
-              Collectors Performance
-            </h2>
-            <TremorDescription className="text-[13px]">
-              {canChooseBranch
-                ? "Monitor collector performance, ranking, portfolio load, and execution quality across the visible branches."
-                : `Monitor collector performance, ranking, portfolio load, and execution quality in ${fixedBranchName ?? "your branch"}.`}
-            </TremorDescription>
-          </div>
+  const scopeLabel = canChooseBranch
+    ? filters.branch === "all"
+      ? "All visible branches"
+      : branchOptions.find((option) => option.value === filters.branch)?.label ?? "Selected branch"
+    : fixedBranchName ?? "Assigned branch";
 
+  return (
+    <div className="w-full max-w-none space-y-5 px-4 pb-6 pt-1 sm:px-6 sm:pb-6 sm:pt-2">
+      <Card className="gap-0 overflow-hidden py-0 shadow-none">
+        <div className="bg-linear-to-r from-slate-50 via-white to-emerald-50/60 p-6">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+            <div className="space-y-1">
+              <div className="space-y-1">
+                <CardTitle className="text-3xl font-semibold tracking-tight">Collectors</CardTitle>
+                <CardDescription>
+                  {canChooseBranch
+                    ? "Rank collectors, compare output, and review workload context across the visible branches."
+                    : `Rank collectors, compare output, and review workload context in ${fixedBranchName ?? "your branch"}.`}
+                </CardDescription>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 pt-2">
+                <Badge className="border-zinc-200 bg-background/80 text-zinc-700" variant="outline">
+                  {results?.totalCount ?? 0} collectors
+                </Badge>
+                <Badge className="border-zinc-200 bg-background/80 text-zinc-700" variant="outline">
+                  {results?.dateRangeLabel ?? initialData.dateRangeLabel}
+                </Badge>
+                <Badge className="border-zinc-200 bg-background/80 text-zinc-700" variant="outline">
+                  {scopeLabel}
+                </Badge>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <CardContent className="border-t border-border/70 px-6 pb-4 pt-3">
           <CollectorsFilters
             branchFilterLabel={branchFilterLabel}
             branchOptions={branchOptions}
@@ -220,15 +259,6 @@ export function CollectorsClientPage({
                 page: 1,
               }))
             }
-            onRangeChange={(value) =>
-              setFilters((previous) => ({
-                ...previous,
-                range: value.range,
-                from: value.from,
-                to: value.to,
-                page: 1,
-              }))
-            }
             onSearchChange={(value) =>
               setFilters((previous) => ({
                 ...previous,
@@ -236,27 +266,69 @@ export function CollectorsClientPage({
                 page: 1,
               }))
             }
+            onClear={() =>
+              setFilters({
+                branch: canChooseBranch ? "all" : normalizedInitialFilters.branch,
+                range: "this-month",
+                from: "",
+                to: "",
+                query: "",
+                basis: "total-collected",
+                page: 1,
+                pageSize: 10,
+              })
+            }
             selectedFilters={{
               selectedBranchRaw: filters.branch,
               selectedRange: filters.range,
               fromRaw: filters.from,
               toRaw: filters.to,
               searchQuery: filters.query,
+              selectedBasis: filters.basis,
               page: filters.page,
+              pageSize: filters.pageSize,
             }}
           />
-        </div>
-      </TremorCard>
+        </CardContent>
+      </Card>
 
       <CollectorsResultsSection
         data={results}
         errorMessage={errorMessage}
         filters={filters}
         isPending={isPending}
+        onBasisChange={(basis) =>
+          setFilters((previous) => ({
+            ...previous,
+            basis,
+            page: 1,
+          }))
+        }
+        onRangeChange={(value) =>
+          setFilters((previous) => ({
+            ...previous,
+            range: value.range,
+            from: value.from,
+            to: value.to,
+            basis:
+              previous.basis === "average-monthly-collections" &&
+              !supportsAverageMonthlyCollections(value.range)
+                ? "total-collected"
+                : previous.basis,
+            page: 1,
+          }))
+        }
         onPageChange={(page) =>
           setFilters((previous) => ({
             ...previous,
             page,
+          }))
+        }
+        onPageSizeChange={(pageSize) =>
+          setFilters((previous) => ({
+            ...previous,
+            page: 1,
+            pageSize,
           }))
         }
       />

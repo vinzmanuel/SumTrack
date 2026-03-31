@@ -1,13 +1,29 @@
 import type { AnalyticsDateRangeKey, AnalyticsSelectOption } from "@/components/analytics/types";
-import type { CollectorsDateRange, CollectorsFilterState, CollectorsPageProps } from "@/app/dashboard/collectors/types";
+import type {
+  CollectorLeaderboardBasis,
+  CollectorsDateRange,
+  CollectorsFilterState,
+  CollectorsPageProps,
+} from "@/app/dashboard/collectors/types";
 
 export const COLLECTORS_DATE_RANGE_OPTIONS: AnalyticsSelectOption[] = [
-  { value: "this-week", label: "This Week" },
-  { value: "this-month", label: "This Month" },
-  { value: "last-30-days", label: "Last 30 Days" },
-  { value: "this-year", label: "This Year" },
-  { value: "custom", label: "Custom" },
+  { value: "this-week", label: "Past week" },
+  { value: "last-30-days", label: "Past 30 days" },
+  { value: "this-month", label: "This month" },
+  { value: "past-3-months", label: "Past 3 months" },
+  { value: "past-6-months", label: "Past 6 months" },
+  { value: "this-year", label: "This year" },
+  { value: "lifetime", label: "Lifetime" },
 ];
+
+export function supportsAverageMonthlyCollections(range: AnalyticsDateRangeKey) {
+  return (
+    range === "past-3-months" ||
+    range === "past-6-months" ||
+    range === "this-year" ||
+    range === "lifetime"
+  );
+}
 
 function isIsoDate(value: string) {
   return /^\d{4}-\d{2}-\d{2}$/.test(value);
@@ -21,6 +37,19 @@ function normalizeRange(value: string | undefined): AnalyticsDateRangeKey {
   return COLLECTORS_DATE_RANGE_OPTIONS.some((option) => option.value === value)
     ? (value as AnalyticsDateRangeKey)
     : "this-month";
+}
+
+function normalizeBasis(value: string | undefined): CollectorLeaderboardBasis {
+  return value === "total-collected" ? "total-collected" : "average-monthly-collections";
+}
+
+function normalizePageSize(value: string | undefined) {
+  const parsed = parsePositiveInt(value);
+  if (parsed === 20 || parsed === 50) {
+    return parsed;
+  }
+
+  return 10;
 }
 
 function normalizeQuery(value: string | undefined) {
@@ -46,6 +75,13 @@ function firstDayOfYear(value: string) {
   return `${value.slice(0, 4)}-01-01`;
 }
 
+function addMonths(value: string, amount: number) {
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  date.setUTCMonth(date.getUTCMonth() + amount);
+  return date.toISOString().slice(0, 10);
+}
+
 function startOfWeek(value: string) {
   const [year, month, day] = value.split("-").map(Number);
   const date = new Date(Date.UTC(year, month - 1, day));
@@ -58,14 +94,22 @@ function startOfWeek(value: string) {
 export function parseCollectorsFilters(
   params: Awaited<CollectorsPageProps["searchParams"]> | Record<string, string | undefined>,
 ): CollectorsFilterState & { requestedBranchId: number | null } {
+  const selectedRange = normalizeRange(params?.range);
+  const selectedBasis = normalizeBasis(params?.basis);
+
   return {
     requestedBranchId: parsePositiveInt(params?.branch),
     selectedBranchRaw: String(params?.branch ?? "all"),
-    selectedRange: normalizeRange(params?.range),
+    selectedRange,
     fromRaw: isIsoDate(String(params?.from ?? "")) ? String(params?.from) : "",
     toRaw: isIsoDate(String(params?.to ?? "")) ? String(params?.to) : "",
     searchQuery: normalizeQuery(params?.query),
+    selectedBasis:
+      selectedBasis === "average-monthly-collections" && !supportsAverageMonthlyCollections(selectedRange)
+        ? "total-collected"
+        : selectedBasis,
     page: Math.max(parsePositiveInt(params?.page) ?? 1, 1),
+    pageSize: normalizePageSize(params?.pageSize),
   };
 }
 
@@ -86,8 +130,20 @@ export function resolveCollectorsDateRange(filters: CollectorsFilterState): Coll
     return { start: addDays(today, -29), end: today, label: "last 30 days" };
   }
 
+  if (filters.selectedRange === "past-3-months") {
+    return { start: addMonths(today, -3), end: today, label: "past 3 months" };
+  }
+
+  if (filters.selectedRange === "past-6-months") {
+    return { start: addMonths(today, -6), end: today, label: "past 6 months" };
+  }
+
   if (filters.selectedRange === "this-year") {
     return { start: firstDayOfYear(today), end: today, label: "this year" };
+  }
+
+  if (filters.selectedRange === "lifetime") {
+    return { start: "2000-01-01", end: today, label: "lifetime" };
   }
 
   return { start: firstDayOfMonth(today), end: today, label: "this month" };

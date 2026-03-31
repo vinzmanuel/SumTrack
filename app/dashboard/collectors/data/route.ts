@@ -17,7 +17,9 @@ export async function GET(request: Request) {
     from: url.searchParams.get("from") ?? undefined,
     to: url.searchParams.get("to") ?? undefined,
     query: url.searchParams.get("query") ?? undefined,
+    basis: url.searchParams.get("basis") ?? undefined,
     page: url.searchParams.get("page") ?? undefined,
+    pageSize: url.searchParams.get("pageSize") ?? undefined,
   });
   const access = resolveCollectorsPageAccess(auth, filters);
 

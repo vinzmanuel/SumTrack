@@ -55,7 +55,9 @@ export default async function CollectorsPage({ searchParams }: CollectorsPagePro
         fromRaw: filters.fromRaw,
         toRaw: filters.toRaw,
         searchQuery: filters.searchQuery,
+        selectedBasis: filters.selectedBasis,
         page: filters.page,
+        pageSize: filters.pageSize,
       }}
     />
   );

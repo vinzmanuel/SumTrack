@@ -33,7 +33,9 @@ export function buildCollectorsFiltersForProfilePeriod(periodKey: CollectorProfi
       fromRaw: "1900-01-01",
       toRaw: todayInManila(),
       searchQuery: "",
+      selectedBasis: "average-monthly-collections",
       page: 1,
+      pageSize: 10,
     };
   }
 
@@ -43,7 +45,9 @@ export function buildCollectorsFiltersForProfilePeriod(periodKey: CollectorProfi
     fromRaw: "",
     toRaw: "",
     searchQuery: "",
+    selectedBasis: "average-monthly-collections",
     page: 1,
+    pageSize: 10,
   };
 }
 

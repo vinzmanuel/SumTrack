@@ -1,4 +1,4 @@
-import { TremorCard, TremorDescription } from "@/components/tremor/raw/metric-card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatCollectorsCurrency, formatCollectorsInteger, formatCollectorsPercent } from "@/app/dashboard/collectors/format";
 import type { CollectorsComparisonItem } from "@/app/dashboard/collectors/types";
 
@@ -10,16 +10,16 @@ export function CollectorsComparisonCard({
   const maxPrincipal = Math.max(...items.map((item) => item.activePrincipalLoad), 0);
 
   return (
-    <TremorCard className="p-6">
-      <div className="space-y-5">
-        <div className="space-y-1.5">
-          <h3 className="text-base font-semibold tracking-tight text-foreground">
-            Portfolio Load vs Recovery
-          </h3>
-          <TremorDescription className="text-[13px]">
+    <Card className="gap-0 overflow-hidden py-0 shadow-none">
+      <CardHeader className="pb-3 pt-5">
+        <div className="space-y-1">
+          <CardTitle className="text-base font-semibold">Portfolio Load vs Recovery</CardTitle>
+          <CardDescription>
             Compare live principal responsibility against current recovery rate.
-          </TremorDescription>
+          </CardDescription>
         </div>
+      </CardHeader>
+      <CardContent className="space-y-4 pb-5 pt-3">
 
         {items.length === 0 ? (
           <p className="text-sm text-muted-foreground">No comparison data is available for the selected filters.</p>
@@ -71,7 +71,7 @@ export function CollectorsComparisonCard({
             })}
           </div>
         )}
-      </div>
-    </TremorCard>
+      </CardContent>
+    </Card>
   );
 }

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { TremorCard, TremorDescription } from "@/components/tremor/raw/metric-card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
 export function CollectorsChartCard({
@@ -14,14 +14,16 @@ export function CollectorsChartCard({
   className?: string;
 }) {
   return (
-    <TremorCard className={cn(className)}>
-      <div className="space-y-5 p-6">
-        <div className="space-y-1.5">
-          <h3 className="text-base font-semibold tracking-tight text-foreground">{title}</h3>
-          <TremorDescription className="text-[13px]">{description}</TremorDescription>
+    <Card className={cn("gap-0 overflow-hidden py-0 shadow-none", className)}>
+      <CardHeader className="pb-3 pt-5">
+        <div className="space-y-1">
+          <CardTitle className="text-base font-semibold">{title}</CardTitle>
+          <CardDescription>{description}</CardDescription>
         </div>
+      </CardHeader>
+      <CardContent className="pb-5 pt-3">
         {chart}
-      </div>
-    </TremorCard>
+      </CardContent>
+    </Card>
   );
 }

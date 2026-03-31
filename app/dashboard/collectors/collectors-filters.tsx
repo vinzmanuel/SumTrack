@@ -1,25 +1,18 @@
 "use client";
 
-import { useState } from "react";
 import { Search } from "lucide-react";
-import {
-  AnalyticsDateRangeFilter,
-  AnalyticsSelectFilter,
-} from "@/components/analytics/analytics-filter-controls";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { COLLECTORS_DATE_RANGE_OPTIONS } from "@/app/dashboard/collectors/filters";
-import type {
-  CollectorsBranchOption,
-  CollectorsFilterInput,
-  CollectorsFilterState,
-} from "@/app/dashboard/collectors/types";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import type { CollectorsBranchOption, CollectorsFilterState } from "@/app/dashboard/collectors/types";
 
 export function CollectorsFilters({
   branchFilterLabel,
   branchOptions,
   canChooseBranch,
   onBranchChange,
-  onRangeChange,
+  onClear,
   onSearchChange,
   selectedFilters,
 }: {
@@ -27,18 +20,16 @@ export function CollectorsFilters({
   branchOptions: CollectorsBranchOption[];
   canChooseBranch: boolean;
   onBranchChange: (value: string) => void;
-  onRangeChange: (value: { range: CollectorsFilterInput["range"]; from: string; to: string }) => void;
+  onClear: () => void;
   onSearchChange: (value: string) => void;
   selectedFilters: CollectorsFilterState;
 }) {
-  const [isCustomOpen, setIsCustomOpen] = useState(false);
-
   return (
-    <div className="grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)]">
-      <label className="grid gap-2 text-sm font-medium">
-        Search
+    <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+      <label className="flex min-w-0 flex-col gap-1 xl:w-1/2">
+        <Label>Search</Label>
         <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             className="pl-9"
             onChange={(event) => onSearchChange(event.target.value)}
@@ -48,48 +39,29 @@ export function CollectorsFilters({
         </div>
       </label>
 
-      {canChooseBranch ? (
-        <AnalyticsSelectFilter
-          label={branchFilterLabel}
-          onChange={(event) => onBranchChange(event.target.value)}
-          options={branchOptions}
-          value={selectedFilters.selectedBranchRaw || "all"}
-        />
-      ) : (
-        <div />
-      )}
+      <div className="flex flex-wrap items-end gap-3 xl:flex-1 xl:justify-end">
+        {canChooseBranch ? (
+          <label className="flex w-full flex-col gap-1 sm:w-55 xl:min-w-60 xl:flex-1">
+            <Label>{branchFilterLabel}</Label>
+            <Select onValueChange={onBranchChange} value={selectedFilters.selectedBranchRaw || "all"}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {branchOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </label>
+        ) : null}
 
-      <AnalyticsDateRangeFilter
-        from={selectedFilters.fromRaw}
-        isOpen={isCustomOpen}
-        label="Date Range"
-        onFromChange={(value) =>
-          onRangeChange({
-            range: selectedFilters.selectedRange,
-            from: value,
-            to: selectedFilters.toRaw,
-          })
-        }
-        onOpenChange={setIsCustomOpen}
-        onRangeChange={(value) => {
-          setIsCustomOpen(value === "custom");
-          onRangeChange({
-            range: value,
-            from: selectedFilters.fromRaw,
-            to: selectedFilters.toRaw,
-          });
-        }}
-        onToChange={(value) =>
-          onRangeChange({
-            range: selectedFilters.selectedRange,
-            from: selectedFilters.fromRaw,
-            to: value,
-          })
-        }
-        options={COLLECTORS_DATE_RANGE_OPTIONS}
-        to={selectedFilters.toRaw}
-        value={selectedFilters.selectedRange}
-      />
+        <Button className="h-9 px-4" onClick={onClear} type="button" variant="outline">
+          Clear
+        </Button>
+      </div>
     </div>
   );
 }

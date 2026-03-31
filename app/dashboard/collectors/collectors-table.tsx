@@ -1,126 +1,254 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
+import { CircleHelp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { collectorRankBadgeClassName } from "@/app/dashboard/collectors/collectors-rank-styles";
 import {
-  collectorsTrendTone,
   formatCollectorsCurrency,
   formatCollectorsInteger,
   formatCollectorsPercent,
-  formatCollectorsSignedPercent,
 } from "@/app/dashboard/collectors/format";
+import { cn } from "@/lib/utils";
 import type { CollectorPerformanceRow } from "@/app/dashboard/collectors/types";
 
+function TableMetricStack({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return <div className={cn("flex min-h-15 flex-col items-start justify-center gap-0.5", className)}>{children}</div>;
+}
+
+function TableLabelWithTooltip({
+  label,
+  content,
+}: {
+  label: string;
+  content: React.ReactNode;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="inline-flex cursor-help items-center gap-1 align-middle">
+          <span>{label}</span>
+          <CircleHelp className="size-3.5 text-muted-foreground" />
+        </span>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-64 px-3 py-2 text-left" side="top">
+        <div className="space-y-2">{content}</div>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+const cellGroupDividerClassName = "border-r border-border/70";
+const headerGroupDividerClassName = "border-r border-border/70";
+
 export function CollectorsTable({
+  basis,
   rows,
   onViewCollector,
 }: {
+  basis: "total-collected" | "average-monthly-collections";
   rows: CollectorPerformanceRow[];
   onViewCollector: (collector: CollectorPerformanceRow) => void;
 }) {
-  const maxCollected = Math.max(...rows.map((row) => row.totalCollected), 0);
-
   return (
-    <div className="overflow-x-auto">
-      <table className="min-w-full text-sm">
-        <thead className="text-left text-muted-foreground">
-          <tr className="border-b">
-            <th className="px-3 py-3 font-medium">Rank</th>
-            <th className="px-3 py-3 font-medium">Collector</th>
-            <th className="px-3 py-3 font-medium">Branch / Area</th>
-            <th className="px-3 py-3 font-medium">Assigned Active Loans</th>
-            <th className="px-3 py-3 font-medium">Total Collected</th>
-            <th className="px-3 py-3 font-medium">Execution</th>
-            <th className="px-3 py-3 font-medium text-right">Action</th>
-          </tr>
-        </thead>
-        <tbody>
+    <div className="overflow-hidden rounded-2xl border">
+      <Table className="table-fixed [&_td:first-child]:pl-5 [&_td:last-child]:pr-5 [&_th:first-child]:pl-5 [&_th:last-child]:pr-5">
+        <colgroup>
+          <col style={{ width: "5rem" }} />
+          <col style={{ width: "20rem" }} />
+          <col style={{ width: "6rem" }} />
+          <col style={{ width: "8rem" }} />
+          <col style={{ width: "6rem" }} />
+          <col style={{ width: "9rem" }} />
+          <col style={{ width: "6rem" }} />
+          <col style={{ width: "6rem" }} />
+          <col style={{ width: "5rem" }} />
+        </colgroup>
+        <TableHeader>
+          <TableRow className="border-border/70">
+            <TableHead className={cn("h-10 border-b border-border/70", headerGroupDividerClassName)} colSpan={2} />
+            <TableHead className={cn("h-10 px-4 text-center align-middle font-semibold", headerGroupDividerClassName)} colSpan={4}>
+              Period-Based
+            </TableHead>
+            <TableHead className={cn("h-10 px-4 text-center align-middle font-semibold", headerGroupDividerClassName)} colSpan={2}>
+              Live Stats
+            </TableHead>
+            <TableHead className="h-10 border-b border-border/70" />
+          </TableRow>
+          <TableRow className="border-border/70">
+            <TableHead className="align-middle">Rank</TableHead>
+            <TableHead className={cn("align-middle", headerGroupDividerClassName)}>Collector</TableHead>
+            <TableHead className={cn("px-4", basis === "total-collected" ? "text-foreground" : "text-muted-foreground")}>
+              Total Collected
+            </TableHead>
+            <TableHead className="px-4">
+              <TableLabelWithTooltip
+                content={
+                  <>
+                    <p className="font-medium">What it means</p>
+                    <ul className="list-disc space-y-1 pl-4 text-xs">
+                      <li>Prorated target for the selected date range.</li>
+                      <li>Uses each loan&apos;s total payable spread across its term.</li>
+                      <li>Counts only the due days that fall inside the selected range.</li>
+                    </ul>
+                    <p className="font-medium">How to read it</p>
+                    <ul className="list-disc space-y-1 pl-4 text-xs">
+                      <li>Below 100% means collections are behind the in-range target.</li>
+                      <li>At 100% means the collector has matched the in-range target.</li>
+                      <li>Above 100% means collections are ahead of the in-range target.</li>
+                    </ul>
+                  </>
+                }
+                label="Expected Collected"
+              />
+            </TableHead>
+            <TableHead className="px-4">Missed Rate</TableHead>
+            <TableHead className={cn("px-4", headerGroupDividerClassName)}>
+              Avg Monthly Collections
+            </TableHead>
+            <TableHead className="px-4">Active Loans</TableHead>
+            <TableHead className={cn("px-4", headerGroupDividerClassName)}>
+              <TableLabelWithTooltip
+                content={
+                  <>
+                    <p className="font-medium">What these values mean</p>
+                    <ul className="list-disc space-y-1 pl-4 text-xs">
+                      <li>`Load` is the current total payable load of the collector&apos;s active loans.</li>
+                      <li>`Recovery` compares total collected so far on active loans against that active loan load.</li>
+                      <li>`Efficiency` compares total collected so far on active loans against what those same active loans should have reached by today.</li>
+                    </ul>
+                    <p className="font-medium">How to read them</p>
+                    <ul className="list-disc space-y-1 pl-4 text-xs">
+                      <li>Below 100% usually means the active-loan portfolio is still behind target or only partially recovered.</li>
+                      <li>At 100% means the collector has matched the compared live benchmark.</li>
+                      <li>Above 100% means the collector is outperforming the live benchmark.</li>
+                    </ul>
+                  </>
+                }
+                label="Recovery"
+              />
+            </TableHead>
+            <TableHead className="px-4 text-center align-middle">Action</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {rows.length === 0 ? (
-            <tr>
-              <td className="px-3 py-6 text-center text-muted-foreground" colSpan={7}>
+            <TableRow>
+              <TableCell className="py-8 text-center text-muted-foreground" colSpan={9}>
                 No collectors matched the selected filters.
-              </td>
-            </tr>
+              </TableCell>
+            </TableRow>
           ) : (
-            rows.map((row) => (
-              <tr
-                className="cursor-pointer border-b last:border-b-0 hover:bg-muted/25"
+            rows.map((row) => {
+              const activeTotalPayableLoad = row.activePrincipalLoad + row.activeInterestPotential;
+
+              return (
+              <TableRow
+                className="cursor-pointer hover:bg-muted/25"
                 key={row.collectorId}
                 onClick={() => onViewCollector(row)}
               >
-                <td className="px-3 py-4 align-top">
-                  <Badge className={collectorRankBadgeClassName(row.rank)} variant="outline">
-                    #{formatCollectorsInteger(row.rank)}
-                  </Badge>
-                </td>
-                <td className="px-3 py-4 align-top">
-                  <div className="space-y-1">
-                    <p className="font-semibold text-foreground">{row.fullName}</p>
-                    <p className="text-xs text-muted-foreground">{row.companyId}</p>
+                <TableCell className="py-3 align-middle whitespace-normal">
+                  <div className="flex min-h-[3.75rem] items-center">
+                    <Badge className={collectorRankBadgeClassName(row.rank)} variant="outline">
+                      #{formatCollectorsInteger(row.rank)}
+                    </Badge>
                   </div>
-                </td>
-                <td className="px-3 py-4 align-top">
-                  <div className="space-y-1">
-                    <p className="font-medium text-foreground">{row.branchName}</p>
-                    <p className="text-xs text-muted-foreground">{row.areaLabel}</p>
-                  </div>
-                </td>
-                <td className="px-3 py-4 align-top">
-                  <div className="space-y-1">
-                    <p className="font-semibold text-foreground">{formatCollectorsInteger(row.assignedActiveLoans)}</p>
-                    <p className="text-xs text-muted-foreground">
-                      Load {formatCollectorsCurrency(row.activePrincipalLoad)}
+                </TableCell>
+                <TableCell className={cn("py-3 align-middle whitespace-normal", cellGroupDividerClassName)}>
+                  <TableMetricStack>
+                    <p className="text-sm font-semibold leading-5 text-foreground">{row.fullName}</p>
+                    <p className="text-xs leading-4 text-muted-foreground">
+                      {row.companyId} - {row.branchName} / {row.areaLabel}
                     </p>
-                  </div>
-                </td>
-                <td className="px-3 py-4 align-top">
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="font-semibold text-foreground">{formatCollectorsCurrency(row.totalCollected)}</p>
-                      <span className="text-xs text-muted-foreground">
-                        Month {formatCollectorsCurrency(row.averageMonthlyCollections)}
-                      </span>
-                    </div>
-                    <p className={`text-xs font-medium ${collectorsTrendTone(row.periodChangePercent)}`}>
-                      {formatCollectorsSignedPercent(row.periodChangePercent)} vs previous period
+                  </TableMetricStack>
+                </TableCell>
+                <TableCell className="px-4 py-3 align-middle whitespace-normal">
+                  <TableMetricStack>
+                    <p className="text-sm font-semibold leading-5 text-foreground">{formatCollectorsCurrency(row.totalCollected)}</p>
+                    <p aria-hidden="true" className="invisible text-xs font-medium leading-4">
+                      &nbsp;
                     </p>
-                    <div className="h-2 rounded-full bg-muted">
-                      <div
-                        className="h-2 rounded-full bg-emerald-500/85"
-                        style={{ width: `${maxCollected > 0 ? Math.max((row.totalCollected / maxCollected) * 100, 8) : 8}%` }}
-                      />
-                    </div>
-                  </div>
-                </td>
-                <td className="px-3 py-4 align-top">
-                  <div className="space-y-1 text-xs">
-                    <p className="text-muted-foreground">
-                      Recovery <span className="font-medium text-foreground">{formatCollectorsPercent(row.portfolioRecoveryRate)}</span>
+                  </TableMetricStack>
+                </TableCell>
+                <TableCell className="px-4 py-3 align-middle whitespace-normal">
+                  <TableMetricStack>
+                    <p className="text-sm font-semibold leading-5 text-foreground">{formatCollectorsCurrency(row.expectedCollections)}</p>
+                    <p className="text-xs leading-4 text-muted-foreground">
+                      {row.expectedCollections > 0
+                        ? `${formatCollectorsPercent((row.totalCollected / row.expectedCollections) * 100)} of target`
+                        : "No target for range"}
                     </p>
-                    <p className="text-muted-foreground">
-                      Missed rate <span className="font-medium text-foreground">{formatCollectorsPercent(row.missedPaymentRate)}</span>
+                  </TableMetricStack>
+                </TableCell>
+                <TableCell className="px-4 py-3 align-middle whitespace-normal">
+                  <TableMetricStack>
+                    <p className="text-sm font-semibold leading-5 text-foreground">{formatCollectorsPercent(row.missedPaymentRate)}</p>
+                    <p className="text-xs leading-4 text-muted-foreground">
+                      {formatCollectorsInteger(row.missedPaymentCount)} missed
                     </p>
+                  </TableMetricStack>
+                </TableCell>
+                <TableCell className={cn("px-4 py-3 align-middle whitespace-normal", cellGroupDividerClassName)}>
+                  <TableMetricStack>
+                    <p className="text-sm font-semibold leading-5 text-foreground">{formatCollectorsCurrency(row.averageMonthlyCollections)}</p>
+                    <p aria-hidden="true" className="invisible text-xs leading-4">
+                      &nbsp;
+                    </p>
+                  </TableMetricStack>
+                </TableCell>
+                <TableCell className="px-4 py-3 align-middle whitespace-normal">
+                  <TableMetricStack>
+                    <p className="text-sm font-semibold leading-5 text-foreground">{formatCollectorsInteger(row.assignedActiveLoans)}</p>
+                    <p className="text-xs leading-4 text-muted-foreground">
+                      Load {formatCollectorsCurrency(activeTotalPayableLoad)}
+                    </p>
+                  </TableMetricStack>
+                </TableCell>
+                <TableCell className={cn("px-4 py-3 align-middle whitespace-normal", cellGroupDividerClassName)}>
+                  <TableMetricStack>
+                    <p className="text-sm font-semibold leading-5 text-foreground">{formatCollectorsPercent(row.liveRecoveryRate)}</p>
+                    <p className="text-xs leading-4 text-muted-foreground">
+                      Efficiency {formatCollectorsPercent(row.activeEfficiencyRatio ?? 0)}
+                    </p>
+                  </TableMetricStack>
+                </TableCell>
+                <TableCell className="px-4 py-3 text-center align-middle whitespace-normal">
+                  <div className="flex min-h-[3.75rem] items-center justify-center">
+                    <Button
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        onViewCollector(row);
+                      }}
+                      size="sm"
+                      type="button"
+                      variant="outline"
+                    >
+                      View
+                    </Button>
                   </div>
-                </td>
-                <td className="px-3 py-4 text-right align-top">
-                  <Button
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onViewCollector(row);
-                    }}
-                    size="sm"
-                    type="button"
-                    variant="outline"
-                  >
-                    View
-                  </Button>
-                </td>
-              </tr>
-            ))
+                </TableCell>
+              </TableRow>
+              );
+            })
           )}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </div>
   );
 }

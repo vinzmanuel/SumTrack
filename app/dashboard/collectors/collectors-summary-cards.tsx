@@ -1,5 +1,5 @@
-import { cn } from "@/lib/utils";
-import { TremorCard, TremorDescription, TremorMetric, TremorTitle } from "@/components/tremor/raw/metric-card";
+import { ArrowDownRight, ArrowUpRight, Gauge, HandCoins, Users } from "lucide-react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   collectorsTrendTone,
   formatCollectorsCurrency,
@@ -7,49 +7,35 @@ import {
   formatCollectorsPercent,
   formatCollectorsSignedPercent,
 } from "@/app/dashboard/collectors/format";
-import type { CollectorsSummaryStats, CollectorsSummaryTrends } from "@/app/dashboard/collectors/types";
+import { cn } from "@/lib/utils";
+import type { CollectorsSummaryStats } from "@/app/dashboard/collectors/types";
 
 export function CollectorsSummaryCards({
   summary,
-  trends,
 }: {
   summary: CollectorsSummaryStats;
-  trends: CollectorsSummaryTrends;
 }) {
   return (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="grid gap-3 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.2fr)_minmax(0,0.95fr)]">
       <SummaryCard
-        accentClassName="bg-sky-500"
-        kicker="Portfolio load"
-        subtitle="Active loan pressure across the highest-ranked visible collectors."
+        description="Collectors currently visible inside the active branch, date, and search scope."
+        icon={Users}
         title="Active Collectors"
-        trendValues={trends.activeCollectors}
         value={formatCollectorsInteger(summary.activeCollectors)}
       />
       <SummaryCard
-        accentClassName="bg-emerald-500"
+        className="bg-emerald-50/55"
         deltaValue={summary.totalCollectionsChangePercent}
-        kicker="Collection output"
-        subtitle="Attributed cash-in profile across the current ranking."
+        description="Cash-in attributed to the currently visible collectors for the active period."
+        icon={HandCoins}
         title="Total Collections Attributed"
-        trendValues={trends.totalCollectionsAttributed}
         value={formatCollectorsCurrency(summary.totalCollectionsAttributed)}
       />
       <SummaryCard
-        accentClassName="bg-teal-500"
-        kicker="Load-relative recovery"
-        subtitle="Collected amount as a share of visible active principal load."
+        description="Collected amount as a share of the visible live principal load."
+        icon={Gauge}
         title="Avg Portfolio Recovery Rate"
-        trendValues={trends.averagePortfolioRecoveryRate}
         value={formatCollectorsPercent(summary.averagePortfolioRecoveryRate)}
-      />
-      <SummaryCard
-        accentClassName="bg-amber-500"
-        kicker="Monthly pace leader"
-        subtitle={summary.topCollectorAmount > 0 ? `${formatCollectorsCurrency(summary.topCollectorAmount)} total collected` : "No collected amount yet"}
-        title="Top Collector"
-        trendValues={trends.topCollector}
-        value={summary.topCollectorName}
       />
     </div>
   );
@@ -58,66 +44,34 @@ export function CollectorsSummaryCards({
 function SummaryCard({
   title,
   value,
-  subtitle,
-  kicker,
-  trendValues,
-  accentClassName,
+  description,
+  icon: Icon,
   deltaValue,
+  className,
 }: {
   title: string;
   value: string;
-  subtitle: string;
-  kicker: string;
-  trendValues: number[];
-  accentClassName: string;
+  description: string;
+  icon: typeof Users;
   deltaValue?: number | null;
+  className?: string;
 }) {
   return (
-    <TremorCard className="overflow-hidden p-0">
-      <div className="flex h-full flex-col gap-4 p-5">
-        <div className="space-y-1">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">{kicker}</p>
-          <TremorTitle>{title}</TremorTitle>
-          <TremorMetric className="text-xl md:text-2xl">{value}</TremorMetric>
+    <Card className={cn("gap-0 rounded-2xl py-0 shadow-none", className)}>
+      <CardHeader className="gap-2 pb-2">
+        <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+          <Icon className="size-4" />
+          {title}
         </div>
-
-        <TrendBars accentClassName={accentClassName} values={trendValues} />
-
+        <CardTitle className="text-3xl font-semibold tracking-tight">{value}</CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-2 pb-5">
         {typeof deltaValue !== "undefined" ? (
-          <SummaryDelta
-            className={collectorsTrendTone(deltaValue)}
-            value={deltaValue}
-          />
+          <SummaryDelta className={collectorsTrendTone(deltaValue)} value={deltaValue} />
         ) : null}
-        <TremorDescription className="text-[13px]">{subtitle}</TremorDescription>
-      </div>
-    </TremorCard>
-  );
-}
-
-function TrendBars({
-  values,
-  accentClassName,
-}: {
-  values: number[];
-  accentClassName: string;
-}) {
-  const maxValue = Math.max(...values, 0);
-
-  return (
-    <div className="grid h-14 grid-cols-7 items-end gap-1.5 rounded-xl bg-muted/45 px-3 py-2">
-      {values.map((value, index) => {
-        const height = maxValue > 0 ? Math.max((value / maxValue) * 100, 18) : 18;
-
-        return (
-          <div
-            className={cn("rounded-full opacity-90", accentClassName)}
-            key={`${value}-${index}`}
-            style={{ height: `${height}%` }}
-          />
-        );
-      })}
-    </div>
+        <CardDescription>{description}</CardDescription>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -128,8 +82,11 @@ function SummaryDelta({
   value: number | null;
   className: string;
 }) {
+  const TrendIcon = value !== null && value < -0.5 ? ArrowDownRight : ArrowUpRight;
+
   return (
-    <p className={cn("text-xs font-medium", className)}>
+    <p className={cn("inline-flex items-center gap-1 text-xs font-medium", className)}>
+      <TrendIcon className="size-3.5" />
       {formatCollectorsSignedPercent(value)} vs previous equivalent period
     </p>
   );

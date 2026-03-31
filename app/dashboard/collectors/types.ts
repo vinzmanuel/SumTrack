@@ -9,9 +9,13 @@ export type CollectorsPageProps = {
     from?: string;
     to?: string;
     query?: string;
+    basis?: string;
     page?: string;
+    pageSize?: string;
   }>;
 };
+
+export type CollectorLeaderboardBasis = "total-collected" | "average-monthly-collections";
 
 export type CollectorProfilePeriodKey =
   | "this-month"
@@ -27,7 +31,9 @@ export type CollectorsFilterState = {
   fromRaw: string;
   toRaw: string;
   searchQuery: string;
+  selectedBasis: CollectorLeaderboardBasis;
   page: number;
+  pageSize: number;
 };
 
 export type CollectorsFilterInput = {
@@ -36,7 +42,9 @@ export type CollectorsFilterInput = {
   from: string;
   to: string;
   query: string;
+  basis: CollectorLeaderboardBasis;
   page: number;
+  pageSize: number;
 };
 
 export type CollectorsDateRange = {
@@ -87,6 +95,7 @@ export type CollectorPerformanceRow = {
   averageMonthlyCollections: number;
   expectedCollections: number;
   efficiencyRatio: number | null;
+  activeEfficiencyRatio: number | null;
   productivityCount: number;
   completedLoans: number;
   missedPaymentCount: number;
@@ -98,6 +107,7 @@ export type CollectorPerformanceRow = {
   consistencyScore: number;
   delinquencyControl: number;
   portfolioRecoveryRate: number;
+  liveRecoveryRate: number;
   activeInterestPotential: number;
   portfolioYieldRate: number | null;
   portfolioAtRiskAmount: number;

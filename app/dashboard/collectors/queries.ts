@@ -107,10 +107,12 @@ type LoanStatsRow = {
   assignedActiveLoans: number;
   activePrincipalLoad: number;
   activeInterestPotential: number;
+  activeCollected: number;
   portfolioAtRiskAmount: number;
   completedLoans: number;
   totalLoans: number;
   expectedCollections: number;
+  activeExpectedCollections: number;
   firstLoanStart: string | null;
 };
 
@@ -122,6 +124,8 @@ type CollectionStatsRow = {
   missedPaymentCount: number;
   collectionDays: number;
   activeWeeks: number;
+  firstCollectionDate: string | null;
+  lastCollectionDate: string | null;
 };
 
 type PeriodPortfolioStatsRow = {
@@ -483,9 +487,10 @@ async function loadLoanStats(
     return new Map();
   }
 
+  const currentDate = getManilaTodayDateString();
   const loanMetrics = buildLoanDerivedMetricsSubquery({
     aliasName: "collector_loan_stats_metrics",
-    currentDate: getManilaTodayDateString(),
+    currentDate,
     where: whereFrom(buildLoanScopeFilters(access, collectorIds)),
   });
 
@@ -495,6 +500,7 @@ async function loadLoanStats(
         assignedActiveLoans: sql<number>`coalesce(sum(case when ${buildStoredLoanStatusInSql(loanMetrics.storedStatus, LIVE_STORED_LOAN_STATUSES)} then 1 else 0 end), 0)`,
         activePrincipalLoad: sql<number>`coalesce(sum(case when ${buildStoredLoanStatusInSql(loanMetrics.storedStatus, LIVE_STORED_LOAN_STATUSES)} then ${loanMetrics.principal} else 0 end), 0)`,
         activeInterestPotential: sql<number>`coalesce(sum(case when ${buildStoredLoanStatusInSql(loanMetrics.storedStatus, LIVE_STORED_LOAN_STATUSES)} then (${loanMetrics.principal} * ${loanMetrics.interest}) / 100 else 0 end), 0)`,
+        activeCollected: sql<number>`coalesce(sum(case when ${buildStoredLoanStatusInSql(loanMetrics.storedStatus, LIVE_STORED_LOAN_STATUSES)} then ${loanMetrics.totalCollected} else 0 end), 0)`,
         portfolioAtRiskAmount: sql<number>`coalesce(sum(case when ${buildStoredLoanStatusEqualsSql(loanMetrics.storedStatus, "overdue")} then ${loanMetrics.principal} else 0 end), 0)`,
         completedLoans: sql<number>`coalesce(sum(case when ${buildStoredLoanStatusEqualsSql(loanMetrics.storedStatus, "completed")} then 1 else 0 end), 0)`,
         totalLoans: sql<number>`count(*)`,
@@ -519,6 +525,30 @@ async function loadLoanStats(
             0
           )
         `,
+        activeExpectedCollections: sql<number>`
+          coalesce(
+            sum(
+              case
+                when ${buildStoredLoanStatusInSql(loanMetrics.storedStatus, LIVE_STORED_LOAN_STATUSES)}
+                  then (
+                (${loanMetrics.principal} + ((${loanMetrics.principal} * ${loanMetrics.interest}) / 100))
+                    /
+                    greatest(
+                      coalesce(${loanMetrics.termDays}, (${loanMetrics.dueDate} - ${loanMetrics.startDate}) + 1),
+                      1
+                    )
+                  )
+                  *
+                  greatest(
+                    least(${loanMetrics.dueDate}, ${sql`${currentDate}::date`}) - ${loanMetrics.startDate} + 1,
+                    0
+                  )
+                else 0
+              end
+            ),
+            0
+          )
+        `,
       })
     .from(loanMetrics)
     .groupBy(loanMetrics.collectorId)
@@ -536,10 +566,12 @@ async function loadLoanStats(
       assignedActiveLoans: toNumber(row.assignedActiveLoans),
       activePrincipalLoad: toNumber(row.activePrincipalLoad),
       activeInterestPotential: toNumber(row.activeInterestPotential),
+      activeCollected: toNumber(row.activeCollected),
       portfolioAtRiskAmount: toNumber(row.portfolioAtRiskAmount),
       completedLoans: toNumber(row.completedLoans),
       totalLoans: toNumber(row.totalLoans),
       expectedCollections: toNumber(row.expectedCollections),
+      activeExpectedCollections: toNumber(row.activeExpectedCollections),
       firstLoanStart: row.firstLoanStart,
     });
   }
@@ -565,6 +597,8 @@ async function loadCollectionStats(
       missedPaymentCount: sql<number>`sum(case when ${collections.amount} = 0 then 1 else 0 end)`,
       collectionDays: sql<number>`count(distinct ${collections.collection_date})`,
       activeWeeks: sql<number>`count(distinct date_trunc('week', ${collections.collection_date}))`,
+      firstCollectionDate: sql<string | null>`min(${collections.collection_date})::text`,
+      lastCollectionDate: sql<string | null>`max(${collections.collection_date})::text`,
     })
     .from(collections)
     .innerJoin(loan_records, eq(loan_records.loan_id, collections.loan_id))
@@ -587,6 +621,8 @@ async function loadCollectionStats(
       missedPaymentCount: toNumber(row.missedPaymentCount),
       collectionDays: toNumber(row.collectionDays),
       activeWeeks: toNumber(row.activeWeeks),
+      firstCollectionDate: row.firstCollectionDate,
+      lastCollectionDate: row.lastCollectionDate,
     });
   }
 
@@ -688,7 +724,7 @@ function buildCollectorAnalyticsMetricsSubqueries(
   const previousRange = previousEquivalentRange(range);
   const sharedVisibleDays = daysInRange(range);
   const sharedVisibleWeeks = Math.max(Math.ceil(sharedVisibleDays / 7), 1);
-  const sharedVisibleMonths = Math.max(sharedVisibleDays / 30.4375, 0.25);
+  const currentDate = getManilaTodayDateString();
 
   const baseCollectors = db
     .select({
@@ -735,7 +771,7 @@ function buildCollectorAnalyticsMetricsSubqueries(
 
   const loanMetrics = buildLoanDerivedMetricsSubquery({
     aliasName: "collector_analytics_loan_metrics",
-    currentDate: getManilaTodayDateString(),
+    currentDate,
     where: whereFrom(buildCollectorAnalyticsLoanScopeFilters(access)),
   });
   const loanStats = db
@@ -759,6 +795,12 @@ function buildCollectorAnalyticsMetricsSubqueries(
           0
         )::double precision
       `.as("active_interest_potential"),
+      activeCollected: sql<number>`
+        coalesce(
+          sum(case when ${buildStoredLoanStatusInSql(loanMetrics.storedStatus, LIVE_STORED_LOAN_STATUSES)} then ${loanMetrics.totalCollected} else 0 end),
+          0
+        )::double precision
+      `.as("active_collected"),
       portfolioAtRiskAmount: sql<number>`
         coalesce(
           sum(case when ${buildStoredLoanStatusEqualsSql(loanMetrics.storedStatus, "overdue")} then ${loanMetrics.principal} else 0 end),
@@ -792,6 +834,32 @@ function buildCollectorAnalyticsMetricsSubqueries(
           0
         )::double precision
       `.as("expected_collections"),
+      activeExpectedCollections: sql<number>`
+        coalesce(
+          sum(
+            case
+              when ${buildStoredLoanStatusInSql(loanMetrics.storedStatus, LIVE_STORED_LOAN_STATUSES)}
+                then (
+                  (
+                    (${loanMetrics.principal} + ((${loanMetrics.principal} * ${loanMetrics.interest}) / 100))
+                    /
+                    greatest(
+                      coalesce(${loanMetrics.termDays}, (${loanMetrics.dueDate} - ${loanMetrics.startDate}) + 1),
+                      1
+                    )
+                  )
+                  *
+                  greatest(
+                    least(${loanMetrics.dueDate}, ${sql`${currentDate}::date`}) - ${loanMetrics.startDate} + 1,
+                    0
+                  )
+                )
+              else 0
+            end
+          ),
+          0
+        )::double precision
+      `.as("active_expected_collections"),
     })
     .from(loanMetrics)
     .innerJoin(baseCollectors, eq(baseCollectors.collectorId, loanMetrics.collectorId))
@@ -809,6 +877,8 @@ function buildCollectorAnalyticsMetricsSubqueries(
       `.as("missed_payment_count"),
       collectionDays: sql<number>`count(distinct ${collections.collection_date})::int`.as("collection_days"),
       activeWeeks: sql<number>`count(distinct date_trunc('week', ${collections.collection_date}))::int`.as("active_weeks"),
+      firstCollectionDate: sql<string | null>`min(${collections.collection_date})::text`.as("first_collection_date"),
+      lastCollectionDate: sql<string | null>`max(${collections.collection_date})::text`.as("last_collection_date"),
     })
     .from(collections)
     .innerJoin(loan_records, eq(loan_records.loan_id, collections.loan_id))
@@ -832,10 +902,17 @@ function buildCollectorAnalyticsMetricsSubqueries(
   const assignedActiveLoansExpression = sql<number>`coalesce(${loanStats.assignedActiveLoans}, 0)::int`;
   const activePrincipalLoadExpression = sql<number>`coalesce(${loanStats.activePrincipalLoad}, 0)::double precision`;
   const activeInterestPotentialExpression = sql<number>`coalesce(${loanStats.activeInterestPotential}, 0)::double precision`;
+  const activeCollectedExpression = sql<number>`coalesce(${loanStats.activeCollected}, 0)::double precision`;
+  const activeTotalPayableLoadExpression = sql<number>`
+    (${activePrincipalLoadExpression} + ${activeInterestPotentialExpression})::double precision
+  `;
   const portfolioAtRiskAmountExpression = sql<number>`coalesce(${loanStats.portfolioAtRiskAmount}, 0)::double precision`;
   const completedLoansExpression = sql<number>`coalesce(${loanStats.completedLoans}, 0)::int`;
   const totalLoansExpression = sql<number>`coalesce(${loanStats.totalLoans}, 0)::int`;
   const expectedCollectionsExpression = sql<number>`coalesce(${loanStats.expectedCollections}, 0)::double precision`;
+  const activeExpectedCollectionsExpression = sql<number>`
+    coalesce(${loanStats.activeExpectedCollections}, 0)::double precision
+  `;
   const totalCollectedExpression = sql<number>`coalesce(${currentCollectionStats.totalCollected}, 0)::double precision`;
   const previousTotalCollectedExpression = sql<number>`
     coalesce(${previousCollectionStats.totalCollected}, 0)::double precision
@@ -847,11 +924,29 @@ function buildCollectorAnalyticsMetricsSubqueries(
   const missedPaymentCountExpression = sql<number>`coalesce(${currentCollectionStats.missedPaymentCount}, 0)::int`;
   const collectionDaysExpression = sql<number>`coalesce(${currentCollectionStats.collectionDays}, 0)::int`;
   const activeWeeksExpression = sql<number>`coalesce(${currentCollectionStats.activeWeeks}, 0)::int`;
+  const activeCollectionMonthsExpression = sql<number>`
+    greatest(
+      (
+        (
+          extract(year from ${currentCollectionStats.lastCollectionDate}::date) -
+          extract(year from ${currentCollectionStats.firstCollectionDate}::date)
+        ) * 12
+      ) +
+      (
+        extract(month from ${currentCollectionStats.lastCollectionDate}::date) -
+        extract(month from ${currentCollectionStats.firstCollectionDate}::date)
+      ) +
+      1,
+      1
+    )::double precision
+  `;
   const averageMonthlyCollectionsExpression = sql<number>`
     (
       case
         when ${totalCollectedExpression} > 0
-          then ${totalCollectedExpression} / ${sharedVisibleMonths}
+          and ${currentCollectionStats.firstCollectionDate} is not null
+          and ${currentCollectionStats.lastCollectionDate} is not null
+          then ${totalCollectedExpression} / ${activeCollectionMonthsExpression}
         else 0
       end
     )::double precision
@@ -898,11 +993,29 @@ function buildCollectorAnalyticsMetricsSubqueries(
       end
     )::double precision
   `;
+  const liveRecoveryRateExpression = sql<number>`
+    (
+      case
+        when ${activeTotalPayableLoadExpression} > 0
+          then (${activeCollectedExpression} * 100.0) / ${activeTotalPayableLoadExpression}
+        else 0
+      end
+    )::double precision
+  `;
   const efficiencyRatioExpression = sql<number>`
     (
       case
         when ${expectedCollectionsExpression} > 0
           then (${totalCollectedExpression} * 100.0) / ${expectedCollectionsExpression}
+        else null
+      end
+    )::double precision
+  `;
+  const activeEfficiencyRatioExpression = sql<number>`
+    (
+      case
+        when ${activeExpectedCollectionsExpression} > 0
+          then (${activeCollectedExpression} * 100.0) / ${activeExpectedCollectionsExpression}
         else null
       end
     )::double precision
@@ -957,6 +1070,7 @@ function buildCollectorAnalyticsMetricsSubqueries(
       averageMonthlyCollections: averageMonthlyCollectionsExpression.as("average_monthly_collections"),
       expectedCollections: expectedCollectionsExpression.as("expected_collections"),
       efficiencyRatio: efficiencyRatioExpression.as("efficiency_ratio"),
+      activeEfficiencyRatio: activeEfficiencyRatioExpression.as("active_efficiency_ratio"),
       productivityCount: collectionEntriesExpression.as("productivity_count"),
       completedLoans: completedLoansExpression.as("completed_loans"),
       missedPaymentCount: missedPaymentCountExpression.as("missed_payment_count"),
@@ -968,6 +1082,7 @@ function buildCollectorAnalyticsMetricsSubqueries(
       consistencyScore: consistencyScoreExpression.as("consistency_score"),
       delinquencyControl: delinquencyControlExpression.as("delinquency_control"),
       portfolioRecoveryRate: portfolioRecoveryRateExpression.as("portfolio_recovery_rate"),
+      liveRecoveryRate: liveRecoveryRateExpression.as("live_recovery_rate"),
       activeInterestPotential: activeInterestPotentialExpression.as("active_interest_potential"),
       portfolioYieldRate: portfolioYieldRateExpression.as("portfolio_yield_rate"),
       portfolioAtRiskAmount: portfolioAtRiskAmountExpression.as("portfolio_at_risk_amount"),
@@ -981,8 +1096,13 @@ function buildCollectorAnalyticsMetricsSubqueries(
     .leftJoin(previousCollectionStats, eq(previousCollectionStats.collectorId, baseCollectors.collectorId))
     .as("collector_analytics_metrics");
 
+  const primaryRankingMetric =
+    filters.selectedBasis === "total-collected"
+      ? metrics.totalCollected
+      : metrics.averageMonthlyCollections;
+
   const performanceOrderSql = sql`
-    ${metrics.averageMonthlyCollections} desc,
+    ${primaryRankingMetric} desc,
     ${metrics.totalCollected} desc,
     ${metrics.productivityCount} desc,
     ${metrics.completedLoans} desc,
@@ -1012,6 +1132,7 @@ function buildCollectorAnalyticsMetricsSubqueries(
       averageMonthlyCollections: metrics.averageMonthlyCollections,
       expectedCollections: metrics.expectedCollections,
       efficiencyRatio: metrics.efficiencyRatio,
+      activeEfficiencyRatio: metrics.activeEfficiencyRatio,
       productivityCount: metrics.productivityCount,
       completedLoans: metrics.completedLoans,
       missedPaymentCount: metrics.missedPaymentCount,
@@ -1023,6 +1144,7 @@ function buildCollectorAnalyticsMetricsSubqueries(
       consistencyScore: metrics.consistencyScore,
       delinquencyControl: metrics.delinquencyControl,
       portfolioRecoveryRate: metrics.portfolioRecoveryRate,
+      liveRecoveryRate: metrics.liveRecoveryRate,
       activeInterestPotential: metrics.activeInterestPotential,
       portfolioYieldRate: metrics.portfolioYieldRate,
       portfolioAtRiskAmount: metrics.portfolioAtRiskAmount,
@@ -1144,7 +1266,9 @@ export async function loadCollectorPerformanceRowsForCustomRange(
       fromRaw: params.dateFrom,
       toRaw: params.dateTo,
       searchQuery: "",
+      selectedBasis: "average-monthly-collections",
       page: 1,
+      pageSize: 10,
     },
     params.collectorId,
     {
@@ -1355,6 +1479,7 @@ function normalizeCollectorLeaderboardRow(row: CollectorLeaderboardRow): Collect
     averageMonthlyCollections: toNumber(row.averageMonthlyCollections),
     expectedCollections: toNumber(row.expectedCollections),
     efficiencyRatio: row.efficiencyRatio === null ? null : toNumber(row.efficiencyRatio),
+    activeEfficiencyRatio: row.activeEfficiencyRatio === null ? null : toNumber(row.activeEfficiencyRatio),
     productivityCount: toNumber(row.productivityCount),
     completedLoans: toNumber(row.completedLoans),
     missedPaymentCount: toNumber(row.missedPaymentCount),
@@ -1366,6 +1491,7 @@ function normalizeCollectorLeaderboardRow(row: CollectorLeaderboardRow): Collect
     consistencyScore: toNumber(row.consistencyScore),
     delinquencyControl: toNumber(row.delinquencyControl),
     portfolioRecoveryRate: toNumber(row.portfolioRecoveryRate),
+    liveRecoveryRate: toNumber(row.liveRecoveryRate),
     activeInterestPotential: toNumber(row.activeInterestPotential),
     portfolioYieldRate: row.portfolioYieldRate === null ? null : toNumber(row.portfolioYieldRate),
     portfolioAtRiskAmount: toNumber(row.portfolioAtRiskAmount),
@@ -1442,7 +1568,6 @@ function buildCollectorRows(
 ): CollectorPerformanceRow[] {
   const sharedVisibleDays = daysInRange(range);
   const sharedVisibleWeeks = Math.max(Math.ceil(sharedVisibleDays / 7), 1);
-  const sharedVisibleMonths = Math.max(sharedVisibleDays / 30.4375, 0.25);
 
   const combined = baseRows.map((row) => {
     const loanStats = loanStatsMap.get(row.collectorId);
@@ -1460,10 +1585,6 @@ function buildCollectorRows(
       mode === "career"
         ? Math.max(Math.ceil(visibleDays / 7), 1)
         : sharedVisibleWeeks;
-    const visibleMonths =
-      mode === "career"
-        ? Math.max(monthsBetweenInclusive(normalizedStart, range.end), 1)
-        : sharedVisibleMonths;
     const assignedActiveLoans = loanStats?.assignedActiveLoans ?? 0;
     const activePrincipalLoad = loanStats?.activePrincipalLoad ?? 0;
     const activeInterestPotential = loanStats?.activeInterestPotential ?? 0;
@@ -1471,10 +1592,25 @@ function buildCollectorRows(
     const completedLoans = loanStats?.completedLoans ?? 0;
     const totalLoans = loanStats?.totalLoans ?? 0;
     const expectedCollections = loanStats?.expectedCollections ?? 0;
+    const activeExpectedCollections = loanStats?.activeExpectedCollections ?? 0;
     const totalCollected = collectionStats?.totalCollected ?? 0;
+    const activeCollected = loanStats?.activeCollected ?? 0;
     const previousTotalCollected = previousCollectionStats?.totalCollected ?? 0;
     const averageCollectionAmount = collectionStats?.averageCollectionAmount ?? 0;
-    const averageMonthlyCollections = totalCollected > 0 ? totalCollected / visibleMonths : 0;
+    const activeCollectionMonths =
+      collectionStats?.firstCollectionDate && collectionStats?.lastCollectionDate
+        ? Math.max(
+            monthsBetweenInclusive(
+              collectionStats.firstCollectionDate,
+              collectionStats.lastCollectionDate,
+            ),
+            1,
+          )
+        : 0;
+    const averageMonthlyCollections =
+      totalCollected > 0 && activeCollectionMonths > 0
+        ? totalCollected / activeCollectionMonths
+        : 0;
     const collectionEntries = collectionStats?.collectionEntries ?? 0;
     const productivityCount = collectionEntries;
     const missedPaymentCount = collectionStats?.missedPaymentCount ?? 0;
@@ -1486,6 +1622,9 @@ function buildCollectorRows(
     const delinquencyControl = Math.max(0, 100 - missedPaymentRate);
     const portfolioRecoveryRate = percentOf(totalCollected, activePrincipalLoad) ?? 0;
     const efficiencyRatio = percentOf(totalCollected, expectedCollections);
+    const activeTotalPayableLoad = activePrincipalLoad + activeInterestPotential;
+    const liveRecoveryRate = percentOf(activeCollected, activeTotalPayableLoad) ?? 0;
+    const activeEfficiencyRatio = percentOf(activeCollected, activeExpectedCollections);
     const portfolioYieldRate = percentOf(activeInterestPotential, activePrincipalLoad);
     const portfolioAtRiskRate = percentOf(portfolioAtRiskAmount, activePrincipalLoad);
     const periodChangePercent = percentChange(totalCollected, previousTotalCollected);
@@ -1511,6 +1650,7 @@ function buildCollectorRows(
       averageMonthlyCollections,
       expectedCollections,
       efficiencyRatio,
+      activeEfficiencyRatio,
       productivityCount,
       completedLoans,
       missedPaymentCount,
@@ -1522,6 +1662,7 @@ function buildCollectorRows(
       consistencyScore,
       delinquencyControl,
       portfolioRecoveryRate,
+      liveRecoveryRate,
       activeInterestPotential,
       portfolioYieldRate,
       portfolioAtRiskAmount,
@@ -1615,19 +1756,19 @@ function takeTrendValues(rows: CollectorLeaderboardRow[], selector: (row: Collec
 }
 
 function buildOutputChart(rows: CollectorLeaderboardRow[]): AnalyticsChartModel {
-  const chartRows = rows.slice(0, 6).map((row) => ({
+  const chartRows = rows.slice(0, 10).map((row) => ({
     bucket: `#${row.rank}`,
     values: {
-      totalCollected: row.totalCollected,
-      averageMonthlyCollections: row.averageMonthlyCollections,
+      actualCollected: row.totalCollected,
+      expectedCollected: row.expectedCollections,
     },
   }));
 
   return {
     rows: chartRows,
     series: [
-      { key: "totalCollected", label: "Total Collected", color: "#16a34a" },
-      { key: "averageMonthlyCollections", label: "Avg Monthly", color: "#0ea5e9" },
+      { key: "actualCollected", label: "Actual Collected", color: "#16a34a" },
+      { key: "expectedCollected", label: "Expected Collected", color: "#0ea5e9" },
     ],
     noData: chartRows.length === 0,
   };
@@ -1756,7 +1897,7 @@ export async function loadCollectorsAnalyticsData(
   filters: CollectorsFilterState,
 ): Promise<CollectorsAnalyticsData> {
   const { baseCollectors, metrics, rankedMetrics, range } = buildCollectorAnalyticsMetricsSubqueries(access, filters);
-  const pageSize = COLLECTORS_PAGE_SIZE;
+  const pageSize = filters.pageSize || COLLECTORS_PAGE_SIZE;
   let summaryQueryError: string | null = null;
   const summaryRow = await db
     .select({
@@ -1818,7 +1959,7 @@ export async function loadCollectorsAnalyticsData(
       .select()
       .from(rankedMetrics)
       .orderBy(asc(rankedMetrics.rank))
-      .limit(7)
+      .limit(10)
       .catch(() => []),
     db
       .select()

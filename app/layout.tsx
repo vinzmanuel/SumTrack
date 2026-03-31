@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Toaster } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import "@fancyapps/ui/dist/fancybox/fancybox.css";
 import "./globals.css";
 
@@ -30,9 +31,11 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {children}
-        <Toaster />
-        <SpeedInsights />
+        <TooltipProvider delayDuration={0}>
+          {children}
+          <Toaster />
+          <SpeedInsights />
+        </TooltipProvider>
       </body>
     </html>
   );

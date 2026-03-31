@@ -73,6 +73,7 @@ export function CollectorProfileClientPage({
   const [appliedPeriod, setAppliedPeriod] = useState<CollectorProfilePeriodKey>(initialData.periodKey);
   const [isPending, setIsPending] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [hasMounted, setHasMounted] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -82,6 +83,10 @@ export function CollectorProfileClientPage({
     setAppliedPeriod(initialData.periodKey);
     setErrorMessage(null);
   }, [initialData, initialTab]);
+
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
@@ -211,7 +216,11 @@ export function CollectorProfileClientPage({
 
             {activeTab === "performance" ? (
               <div className="space-y-2">
-                <CollectorProfileFilters onPeriodChange={setPeriod} period={period} />
+                {hasMounted ? (
+                  <CollectorProfileFilters onPeriodChange={setPeriod} period={period} />
+                ) : (
+                  <div className="h-9 w-full rounded-md border border-border/70 bg-muted/20 sm:w-56" />
+                )}
                 <TremorDescription className="text-[13px]">{performanceStatusText}</TremorDescription>
               </div>
             ) : null}

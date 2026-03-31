@@ -25,8 +25,8 @@ export function formatCollectorsInteger(value: number) {
 
 export function formatCollectorsPercent(value: number) {
   return `${value.toLocaleString("en-PH", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
   })}%`;
 }
 
