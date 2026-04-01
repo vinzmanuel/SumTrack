@@ -55,7 +55,7 @@ export function CollectorsRankedMode({
       : "Ranked by average monthly collections";
 
   return (
-    <Card className="gap-0 overflow-hidden py-0 shadow-none">
+    <Card className="gap-0 overflow-hidden py-0">
         <CardHeader className="flex flex-col gap-3 pb-3 pt-5 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-1">
             <CardTitle className="text-base font-semibold">Ranked Collector Leaderboard</CardTitle>
@@ -136,11 +136,13 @@ export function CollectorsRankedMode({
         <CardContent className="space-y-4 px-5 pb-5 pt-3">
           <CollectorsTopPerformersStrip items={data.topPerformers} />
 
-          <CollectorsTable
-            basis={data.filters.selectedBasis}
-            onViewCollector={onViewCollector}
-            rows={data.rows}
-          />
+          <div className="pt-2">
+            <CollectorsTable
+              basis={data.filters.selectedBasis}
+              onViewCollector={onViewCollector}
+              rows={data.rows}
+            />
+          </div>
 
           <div className="flex flex-col gap-3 pt-2 text-sm xl:flex-row xl:items-center xl:justify-between">
             <div className="space-y-1">

@@ -1,5 +1,9 @@
 import { Badge } from "@/components/ui/badge";
-import { collectorRankBadgeClassName, collectorRankCardClassName } from "@/app/dashboard/collectors/collectors-rank-styles";
+import {
+  collectorRankBadgeClassName,
+  collectorRankCardClassName,
+  collectorRankMetricClassName,
+} from "@/app/dashboard/collectors/collectors-rank-styles";
 import { formatCollectorsCurrency, formatCollectorsInteger } from "@/app/dashboard/collectors/format";
 import type { CollectorsTopPerformerItem } from "@/app/dashboard/collectors/types";
 
@@ -14,26 +18,38 @@ export function CollectorsTopPerformersStrip({
 
   return (
     <div className="grid gap-3 lg:grid-cols-3">
-      {items.map((item, index) => (
-        <div className={`rounded-2xl border p-4 ${collectorRankCardClassName(item.rank)}`} key={item.collectorId}>
-          <div className="flex items-start justify-between gap-3">
-            <div className="space-y-1">
+      {items.map((item) => (
+        <div className={`relative overflow-hidden rounded-2xl border p-4 ${collectorRankCardClassName(item.rank)}`} key={item.collectorId}>
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-6 top-0 h-10 rounded-b-full bg-white/35 blur-xl"
+          />
+          <div className="flex items-start">
+            <div>
               <Badge className={collectorRankBadgeClassName(item.rank)} variant="outline">
                 #{item.rank}
               </Badge>
-              <p className="text-sm font-semibold text-foreground">{item.fullName}</p>
-              <p className="text-xs text-muted-foreground">
-                {item.branchName} / {item.areaLabel}
+              <p className="mt-2.5 text-sm leading-5 text-foreground">
+                <span className="font-semibold">{item.fullName}</span>{" "}
+                <span className="font-normal">({item.companyId})</span>
+              </p>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                {item.branchName}, {item.provinceName} / {item.areaLabel}
               </p>
             </div>
-            <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted-foreground">
-              Top {index + 1}
-            </p>
           </div>
 
           <div className="mt-4 grid gap-2 sm:grid-cols-2">
-            <Metric label="Collected" value={formatCollectorsCurrency(item.totalCollected)} />
-            <Metric label="Active Loans" value={formatCollectorsInteger(item.assignedActiveLoans)} />
+            <Metric
+              className={collectorRankMetricClassName(item.rank)}
+              label="Collected"
+              value={formatCollectorsCurrency(item.totalCollected)}
+            />
+            <Metric
+              className={collectorRankMetricClassName(item.rank)}
+              label="Active Loans"
+              value={formatCollectorsInteger(item.assignedActiveLoans)}
+            />
           </div>
         </div>
       ))}
@@ -42,15 +58,17 @@ export function CollectorsTopPerformersStrip({
 }
 
 function Metric({
+  className,
   label,
   value,
 }: {
+  className?: string;
   label: string;
   value: string;
 }) {
   return (
-    <div className="rounded-xl bg-muted/55 px-3 py-2">
-      <p className="text-[11px] uppercase tracking-[0.16em] text-muted-foreground">{label}</p>
+    <div className={`rounded-xl px-3 py-2 backdrop-blur-[1px] ${className ?? "border border-border/70 bg-muted/55"}`}>
+      <p className="text-sm font-medium text-muted-foreground">{label}</p>
       <p className="mt-1 text-sm font-semibold text-foreground">{value}</p>
     </div>
   );

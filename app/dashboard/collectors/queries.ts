@@ -97,6 +97,7 @@ type BaseCollectorRow = {
   dateCreated: string | null;
   branchId: number;
   branchName: string;
+  provinceName: string;
   areaId: number;
   areaNo: string;
   areaCode: string;
@@ -463,6 +464,7 @@ async function loadCollectorBaseRows(
       dateCreated: users.date_created,
       branchId: branch.branch_id,
       branchName: branch.branch_name,
+      provinceName: branch.province_name,
       areaId: areas.area_id,
       areaNo: areas.area_no,
       areaCode: areas.area_code,
@@ -752,6 +754,7 @@ function buildCollectorAnalyticsMetricsSubqueries(
       `.as("full_name"),
       branchId: branch.branch_id,
       branchName: branch.branch_name,
+      provinceName: branch.province_name,
       areaId: areas.area_id,
       areaCode: areas.area_code,
       areaLabel: sql<string>`concat('Area ', ${areas.area_no}, ' (', ${areas.area_code}, ')')`.as("area_label"),
@@ -1056,6 +1059,7 @@ function buildCollectorAnalyticsMetricsSubqueries(
       roleName: sql<"Collector">`'Collector'`.as("role_name"),
       branchId: baseCollectors.branchId,
       branchName: baseCollectors.branchName,
+      provinceName: baseCollectors.provinceName,
       areaId: baseCollectors.areaId,
       areaCode: baseCollectors.areaCode,
       areaLabel: baseCollectors.areaLabel,
@@ -1118,6 +1122,7 @@ function buildCollectorAnalyticsMetricsSubqueries(
       roleName: metrics.roleName,
       branchId: metrics.branchId,
       branchName: metrics.branchName,
+      provinceName: metrics.provinceName,
       areaId: metrics.areaId,
       areaCode: metrics.areaCode,
       areaLabel: metrics.areaLabel,
@@ -1636,6 +1641,7 @@ function buildCollectorRows(
       roleName: "Collector" as const,
       branchId: row.branchId,
       branchName: row.branchName,
+      provinceName: row.provinceName,
       areaId: row.areaId,
       areaCode: row.areaCode,
       areaLabel: `Area ${row.areaNo} (${row.areaCode})`,
@@ -1799,7 +1805,9 @@ function buildTopPerformers(rows: CollectorLeaderboardRow[]): CollectorsTopPerfo
   return rows.slice(0, 3).map((row) => ({
     collectorId: row.collectorId,
     fullName: row.fullName,
+    companyId: row.companyId,
     branchName: row.branchName,
+    provinceName: row.provinceName,
     areaLabel: row.areaLabel,
     totalCollected: row.totalCollected,
     completedLoans: row.completedLoans,

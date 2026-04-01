@@ -172,9 +172,12 @@ export function CollectorsTable({
                 </TableCell>
                 <TableCell className={cn("py-3 align-middle whitespace-normal", cellGroupDividerClassName)}>
                   <TableMetricStack>
-                    <p className="text-sm font-semibold leading-5 text-foreground">{row.fullName}</p>
+                    <p className="text-sm leading-5 text-foreground">
+                      <span className="font-semibold">{row.fullName}</span>{" "}
+                      <span className="font-normal">({row.companyId})</span>
+                    </p>
                     <p className="text-xs leading-4 text-muted-foreground">
-                      {row.companyId} - {row.branchName} / {row.areaLabel}
+                      {row.branchName}, {row.provinceName} / {row.areaLabel}
                     </p>
                   </TableMetricStack>
                 </TableCell>

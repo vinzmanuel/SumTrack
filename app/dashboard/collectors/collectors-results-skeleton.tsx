@@ -3,7 +3,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export function CollectorsResultsSkeleton() {
   return (
-    <Card className="gap-0 overflow-hidden py-0 shadow-none">
+    <Card className="gap-0 overflow-hidden py-0">
         <CardHeader className="flex flex-col gap-3 pb-3 pt-5 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-2">
             <Skeleton className="h-5 w-44" />

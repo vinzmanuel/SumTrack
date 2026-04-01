@@ -81,6 +81,7 @@ export type CollectorPerformanceRow = {
   roleName: "Collector";
   branchId: number;
   branchName: string;
+  provinceName: string;
   areaId: number;
   areaCode: string;
   areaLabel: string;
@@ -141,7 +142,9 @@ export type CollectorsSummaryTrends = {
 export type CollectorsTopPerformerItem = {
   collectorId: string;
   fullName: string;
+  companyId: string;
   branchName: string;
+  provinceName: string;
   areaLabel: string;
   totalCollected: number;
   completedLoans: number;
