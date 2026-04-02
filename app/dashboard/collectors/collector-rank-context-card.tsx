@@ -26,7 +26,7 @@ export function CollectorRankContextCard({
 }) {
   return (
     <Card className={cn("gap-0 overflow-hidden py-0", className)}>
-      <CardHeader className="pb-3 pt-4">
+      <CardHeader className="gap-0 pb-3 pt-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="space-y-1">
             <CardTitle className="text-base font-semibold tracking-tight">

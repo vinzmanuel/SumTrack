@@ -5,6 +5,7 @@ import { CollectorRankContextCard } from "@/app/dashboard/collectors/collector-r
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CollectorInfoHint } from "@/app/dashboard/collectors/collector-info-hint";
+import { resolveCollectorProfileDateRange } from "@/app/dashboard/collectors/profile-filters";
 import {
   formatCollectorsAxisCurrency,
   formatCollectorsCurrency,
@@ -37,6 +38,13 @@ export function CollectorProfilePanel({
     1,
   );
   const liveRatioScale = Math.max(data.liveRecoveryRate, data.activeEfficiencyRatio ?? 0, 100);
+  const periodDateRange = resolveCollectorProfileDateRange(data.periodKey);
+  const workingDaysInPeriod = periodDateRange
+    ? countCollectionWorkingDays(periodDateRange.start, periodDateRange.end)
+    : null;
+  const collectionDaysCoverage = workingDaysInPeriod && workingDaysInPeriod > 0
+    ? (data.collectionDays / workingDaysInPeriod) * 100
+    : null;
   const periodSignals = [
     {
       label: "Missed Rate",
@@ -53,6 +61,13 @@ export function CollectorProfilePanel({
       value: formatCollectorsNullablePercent(data.portfolioAtRiskRate, "No portfolio base"),
       helper: `${formatCollectorsCurrency(data.periodPortfolioAtRiskAmount)} overdue`,
     },
+    ...(collectionDaysCoverage !== null
+      ? [{
+          label: "Collection Days Coverage",
+          value: formatCollectorsPercent(collectionDaysCoverage),
+          helper: `${formatCollectorsInteger(data.collectionDays)} of ${formatCollectorsInteger(workingDaysInPeriod ?? 0)} working days`,
+        }]
+      : []),
   ] as const;
   const portfolioStatusItems = [
     {
@@ -115,61 +130,142 @@ export function CollectorProfilePanel({
           trailing={periodControl ? <div className="w-full sm:w-[220px]">{periodControl}</div> : null}
         />
 
-        <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.65fr)_minmax(320px,0.95fr)]">
-          <Card className="gap-0 py-0 shadow-sm">
-            <CardHeader className="pb-3 pt-5">
-              <CardTitle className="text-base font-semibold tracking-tight">Collections Trend</CardTitle>
-              <CardDescription className="text-sm leading-6">
-                Collected output against expected pace across the selected period.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="pb-5 pt-0">
-              <div className="rounded-2xl border border-border/70 bg-muted/10 p-4">
-                <CollectorProfileTrendChart
-                  axisFormatter={formatCollectorsAxisCurrency}
-                  chart={data.periodTrendChart}
-                  condensed
-                  valueFormatter={formatCollectorsCurrency}
+        <div className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,1.65fr)_minmax(320px,0.95fr)]">
+          <div className="grid h-full items-stretch gap-4 xl:grid-rows-[minmax(0,1.12fr)_minmax(0,0.88fr)]">
+            <Card className="h-full gap-0 py-0 shadow-sm">
+              <CardHeader className="gap-0 pb-2 pt-4">
+                <CardTitle className="text-base font-semibold tracking-tight">Collections Trend</CardTitle>
+                <CardDescription className="text-sm leading-6">
+                  Collected output against expected pace across the selected period.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pb-4 pt-0">
+                <div className="rounded-2xl border border-border/70 bg-muted/10 p-3">
+                  <CollectorProfileTrendChart
+                    axisFormatter={formatCollectorsAxisCurrency}
+                    chart={data.periodTrendChart}
+                    condensed
+                    valueFormatter={formatCollectorsCurrency}
                 />
               </div>
             </CardContent>
           </Card>
 
-          <div className="grid gap-4">
-            <ComparisonModule
-              description="Selected-period output against target dues."
-              footer={
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <InlineStat label="Efficiency" value={formatCollectorsNullablePercent(data.efficiencyRatio, "No scheduled due")} />
-                  <InlineStat label="Average per Collection" value={formatCollectorsCurrency(data.averageCollectionAmount)} />
-                </div>
-              }
-              rows={[
-                {
-                  label: "Actual collected",
-                  note: "Cash collected in the selected period",
-                  toneClassName: "bg-emerald-500",
-                  value: formatCollectorsCurrency(data.totalCollected),
-                  widthPercent: (data.totalCollected / selectedPeriodScale) * 100,
-                },
-                {
-                  label: "Expected collected",
-                  note: "Target amount inside the selected period",
-                  toneClassName: "bg-sky-500",
-                  value: formatCollectorsCurrency(data.expectedCollections),
-                  widthPercent: (data.expectedCollections / selectedPeriodScale) * 100,
-                },
-              ]}
-              title="Actual vs Expected"
-            />
+            <div className="grid h-full items-stretch gap-4 md:grid-cols-2">
+              <ComparisonModule
+                className="h-full"
+                description="Selected-period output against target dues."
+                footer={
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <InlineStat label="Efficiency" value={formatCollectorsNullablePercent(data.efficiencyRatio, "No scheduled due")} />
+                    <InlineStat label="Average per Collection" value={formatCollectorsCurrency(data.averageCollectionAmount)} />
+                  </div>
+                }
+                rows={[
+                  {
+                    label: "Actual collected",
+                    note: "Cash collected in the selected period",
+                    toneClassName: "bg-emerald-500",
+                    value: formatCollectorsCurrency(data.totalCollected),
+                    widthPercent: (data.totalCollected / selectedPeriodScale) * 100,
+                  },
+                  {
+                    label: "Expected collected",
+                    note: "Target amount inside the selected period",
+                    toneClassName: "bg-sky-500",
+                    value: formatCollectorsCurrency(data.expectedCollections),
+                    widthPercent: (data.expectedCollections / selectedPeriodScale) * 100,
+                  },
+                ]}
+                title="Actual vs Expected"
+              />
 
-            <ComparisonModule
-              description="Selected-period pace compared with the collector's longer-run monthly average."
-              footer={
+              <ComparisonModule
+                className="h-full"
+                description="Selected-period pace compared with lifetime monthly average."
+                footer={
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <InlineStat label="Collection Days" value={formatCollectorsInteger(data.collectionDays)} />
+                    <InlineStat
+                      label="Completed Due Loans"
+                      value={
+                        data.periodDueLoans > 0
+                          ? `${formatCollectorsInteger(data.periodCompletedLoans)} / ${formatCollectorsInteger(data.periodDueLoans)}`
+                          : "No due loans"
+                      }
+                    />
+                  </div>
+                }
+                rows={[
+                  {
+                    label: "Selected-period monthly avg",
+                    note: "Average monthly collections inside the active period",
+                    toneClassName: "bg-violet-500",
+                    value: formatCollectorsCurrency(data.averageMonthlyCollections),
+                    widthPercent: (data.averageMonthlyCollections / monthlyAverageScale) * 100,
+                  },
+                  {
+                    label: "Lifetime monthly avg",
+                    note: "Long-run monthly average across visible history",
+                    toneClassName: "bg-amber-500",
+                    value: formatCollectorsCurrency(data.lifetimeMetrics.lifetimeAverageMonthlyCollection),
+                    widthPercent: (data.lifetimeMetrics.lifetimeAverageMonthlyCollection / monthlyAverageScale) * 100,
+                  },
+                ]}
+                title="Monthly Pace vs Lifetime"
+              />
+            </div>
+          </div>
+
+          <div className="grid h-full items-stretch gap-4 xl:grid-rows-[auto_minmax(0,1fr)]">
+            {showRankContext ? (
+              <CollectorRankContextCard
+                basisLabel={`Ranked by average monthly collections in ${periodLabel}.`}
+                branchCollectorCount={data.branchCollectorCount}
+                branchName={data.branchName}
+                branchRank={data.branchRank}
+                className="shadow-sm"
+                nationwideRank={data.nationwideRank}
+                visibleCollectorCount={data.visibleCollectorCount}
+              />
+            ) : null}
+
+            <Card className="h-full gap-0 py-0 shadow-sm">
+              <CardHeader className="gap-0 pb-2 pt-4">
+                <CardTitle className="text-base font-semibold tracking-tight">Period Signals</CardTitle>
+                <CardDescription className="text-sm leading-6">
+                  Activity, risk, and selected-period portfolio signals that support the main chart.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3 pb-4 pt-0">
+                <div className="rounded-2xl border border-border/70 bg-muted/10 p-4">
+                  <p className="text-sm font-medium text-muted-foreground">Productivity</p>
+                  <p className="mt-1 text-3xl font-semibold tracking-tight text-foreground">
+                    {formatCollectorsInteger(data.productivityCount)} transactions
+                  </p>
+                  <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                    {formatCollectorsInteger(data.collectionDays)} collection days / {formatCollectorsInteger(data.collectionEntries)} entries in {periodLabel}.
+                  </p>
+                </div>
+
+                <div className="grid gap-2.5 sm:grid-cols-2">
+                  {periodSignals.map((signal) => (
+                    <SignalMetricCard
+                      helper={signal.helper}
+                      key={signal.label}
+                      label={signal.label}
+                      value={signal.value}
+                    />
+                  ))}
+                </div>
+
                 <div className="grid gap-2 sm:grid-cols-2">
-                  <InlineStat label="Collection Days" value={formatCollectorsInteger(data.collectionDays)} />
                   <InlineStat
-                    label="Completed Due Loans"
+                    label="Collection Entries"
+                    value={formatCollectorsInteger(data.collectionEntries)}
+                  />
+                  <InlineStat
+                    label="Due Loans Completed"
                     value={
                       data.periodDueLoans > 0
                         ? `${formatCollectorsInteger(data.periodCompletedLoans)} / ${formatCollectorsInteger(data.periodDueLoans)}`
@@ -177,86 +273,9 @@ export function CollectorProfilePanel({
                     }
                   />
                 </div>
-              }
-              rows={[
-                {
-                  label: "Selected-period monthly avg",
-                  note: "Average monthly collections inside the active period",
-                  toneClassName: "bg-violet-500",
-                  value: formatCollectorsCurrency(data.averageMonthlyCollections),
-                  widthPercent: (data.averageMonthlyCollections / monthlyAverageScale) * 100,
-                },
-                {
-                  label: "Lifetime monthly avg",
-                  note: "Long-run monthly average across visible history",
-                  toneClassName: "bg-amber-500",
-                  value: formatCollectorsCurrency(data.lifetimeMetrics.lifetimeAverageMonthlyCollection),
-                  widthPercent: (data.lifetimeMetrics.lifetimeAverageMonthlyCollection / monthlyAverageScale) * 100,
-                },
-              ]}
-              title="Monthly Pace vs Lifetime"
-            />
+              </CardContent>
+            </Card>
           </div>
-        </div>
-
-        <div className={showRankContext ? "grid items-start gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.95fr)]" : "grid gap-4"}>
-          <Card className="gap-0 py-0 shadow-sm">
-            <CardHeader className="pb-3 pt-5">
-              <CardTitle className="text-base font-semibold tracking-tight">Period Signals</CardTitle>
-              <CardDescription className="text-sm leading-6">
-                Activity, risk, and selected-period portfolio signals that support the main chart.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4 pb-5 pt-0">
-              <div className="rounded-2xl border border-border/70 bg-muted/10 p-4">
-                <p className="text-sm font-medium text-muted-foreground">Productivity</p>
-                <p className="mt-1 text-3xl font-semibold tracking-tight text-foreground">
-                  {formatCollectorsInteger(data.productivityCount)} transactions
-                </p>
-                <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                  {formatCollectorsInteger(data.collectionDays)} collection days / {formatCollectorsInteger(data.collectionEntries)} entries in {periodLabel}.
-                </p>
-              </div>
-
-              <div className="grid gap-3 md:grid-cols-3">
-                {periodSignals.map((signal) => (
-                  <SignalMetricCard
-                    helper={signal.helper}
-                    key={signal.label}
-                    label={signal.label}
-                    value={signal.value}
-                  />
-                ))}
-              </div>
-
-              <div className="grid gap-3 md:grid-cols-2">
-                <MetricRow
-                  label="Average per Collection"
-                  value={formatCollectorsCurrency(data.averageCollectionAmount)}
-                />
-                <MetricRow
-                  label="Due Loans Completed"
-                  value={
-                    data.periodDueLoans > 0
-                      ? `${formatCollectorsInteger(data.periodCompletedLoans)} / ${formatCollectorsInteger(data.periodDueLoans)}`
-                      : "No due loans"
-                  }
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          {showRankContext ? (
-            <CollectorRankContextCard
-              basisLabel={`Ranked by average monthly collections in ${periodLabel}.`}
-              branchCollectorCount={data.branchCollectorCount}
-              branchName={data.branchName}
-              branchRank={data.branchRank}
-              className="shadow-sm"
-              nationwideRank={data.nationwideRank}
-              visibleCollectorCount={data.visibleCollectorCount}
-            />
-          ) : null}
         </div>
       </section>
 
@@ -513,6 +532,7 @@ function ComparisonModule({
   description,
   rows,
   footer,
+  className,
 }: {
   title: string;
   description: string;
@@ -524,28 +544,57 @@ function ComparisonModule({
     toneClassName: string;
   }>;
   footer?: ReactNode;
+  className?: string;
 }) {
   return (
-    <Card className="gap-0 py-0 shadow-sm">
-      <CardHeader className="pb-3 pt-5">
+    <Card className={`flex h-full flex-col gap-0 py-0 shadow-sm ${className ?? ""}`}>
+      <CardHeader className="gap-0 pb-2 pt-4">
         <CardTitle className="text-base font-semibold tracking-tight">{title}</CardTitle>
         <CardDescription className="text-sm leading-6">{description}</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4 pb-5 pt-0">
-        {rows.map((row) => (
-          <ComparisonBarRow
-            key={`${title}-${row.label}`}
-            label={row.label}
-            note={row.note}
-            toneClassName={row.toneClassName}
-            value={row.value}
-            widthPercent={row.widthPercent}
-          />
-        ))}
-        {footer ? <div className="border-t border-border/60 pt-4">{footer}</div> : null}
+      <CardContent className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] gap-4 pb-4 pt-0">
+        <div className="flex min-h-0 flex-col justify-center gap-4">
+          {rows.map((row) => (
+            <ComparisonBarRow
+              key={`${title}-${row.label}`}
+              label={row.label}
+              note={row.note}
+              toneClassName={row.toneClassName}
+              value={row.value}
+              widthPercent={row.widthPercent}
+            />
+          ))}
+        </div>
+        {footer ? <div>{footer}</div> : null}
       </CardContent>
     </Card>
   );
+}
+
+function parseCollectorIsoDate(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function countCollectionWorkingDays(start: string, end: string) {
+  const cursor = parseCollectorIsoDate(start);
+  const last = parseCollectorIsoDate(end);
+
+  if (Number.isNaN(cursor.getTime()) || Number.isNaN(last.getTime()) || cursor > last) {
+    return 0;
+  }
+
+  let days = 0;
+
+  while (cursor <= last) {
+    if (cursor.getDay() !== 0) {
+      days += 1;
+    }
+
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  return days;
 }
 
 function ComparisonBarRow({
@@ -562,17 +611,17 @@ function ComparisonBarRow({
   widthPercent: number;
 }) {
   return (
-    <div className="space-y-2">
+    <div className="space-y-1.5">
       <div className="flex items-start justify-between gap-4">
         <div className="space-y-0.5">
           <p className="text-sm font-medium text-muted-foreground">{label}</p>
-          <p className="text-xs leading-5 text-muted-foreground">{note}</p>
+          <p className="text-xs leading-[1.1rem] text-muted-foreground">{note}</p>
         </div>
-        <p className="text-right text-lg font-semibold tracking-tight text-foreground">{value}</p>
+        <p className="text-right text-base font-semibold tracking-tight text-foreground md:text-lg">{value}</p>
       </div>
-      <div className="h-2 rounded-full bg-muted/80">
+      <div className="h-2.5 rounded-full bg-muted/80">
         <div
-          className={`h-2 rounded-full ${toneClassName}`}
+          className={`h-2.5 rounded-full ${toneClassName}`}
           style={{ width: `${Math.max(0, Math.min(widthPercent, 100))}%` }}
         />
       </div>
@@ -590,10 +639,10 @@ function SignalMetricCard({
   helper: string;
 }) {
   return (
-    <div className="rounded-2xl border border-border/70 bg-background p-4 shadow-sm">
+    <div className="rounded-2xl border border-border/70 bg-background p-3.5 shadow-sm">
       <p className="text-sm font-medium text-muted-foreground">{label}</p>
       <p className="mt-1 text-2xl font-semibold tracking-tight text-foreground">{value}</p>
-      <p className="mt-1 text-sm leading-6 text-muted-foreground">{helper}</p>
+      <p className="mt-1 text-sm leading-5 text-muted-foreground">{helper}</p>
     </div>
   );
 }
@@ -606,7 +655,7 @@ function InlineStat({
   value: string;
 }) {
   return (
-    <div className="rounded-xl border border-border/70 bg-muted/20 px-3 py-2">
+    <div className="rounded-xl border border-border/70 bg-muted/20 px-3 py-1.5">
       <p className="text-xs font-medium text-muted-foreground">{label}</p>
       <p className="mt-1 text-sm font-semibold text-foreground">{value}</p>
     </div>
@@ -621,7 +670,7 @@ function MetricRow({
   value: string;
 }) {
   return (
-    <div className="flex items-start justify-between gap-4 rounded-xl border border-border/70 bg-muted/20 px-4 py-3">
+    <div className="flex items-start justify-between gap-4 rounded-xl border border-border/70 bg-muted/20 px-4 py-2.5">
       <p className="text-sm font-medium text-muted-foreground">{label}</p>
       <p className="text-right text-sm font-semibold text-foreground">{value}</p>
     </div>

@@ -62,14 +62,14 @@ export function CollectorProfileTrendChart({
     <ChartContainer
       className={
         compact
-          ? "h-[220px] md:h-[240px]"
+          ? "h-[228px] md:h-[246px]"
           : condensed
-            ? "h-[240px] md:h-[270px]"
+            ? "h-[258px] md:h-[292px]"
             : "h-[300px] md:h-[340px]"
       }
       config={chartConfig}
     >
-      <ComposedChart data={data} margin={{ top: 8, right: 10, left: 4, bottom: 0 }}>
+      <ComposedChart data={data} margin={{ top: 4, right: 2, left: -10, bottom: -6 }}>
         <defs>
           {primarySeries ? (
             <linearGradient id={`${primarySeries.key}-fill`} x1="0" x2="0" y1="0" y2="1">
@@ -83,6 +83,7 @@ export function CollectorProfileTrendChart({
           axisLine={false}
           dataKey="bucket"
           minTickGap={24}
+          padding={{ left: 0, right: 0 }}
           tick={{ fill: "#6b7280", fontSize: 12 }}
           tickLine={false}
         />
@@ -91,13 +92,13 @@ export function CollectorProfileTrendChart({
           tick={{ fill: "#6b7280", fontSize: 12 }}
           tickFormatter={(value) => axisFormatter(Number(value ?? 0))}
           tickLine={false}
-          width={72}
+          width={54}
         />
         <ChartTooltip
           content={<ChartTooltipContent formatter={(value) => valueFormatter(Number(value ?? 0))} />}
           cursor={{ stroke: "#d4d4d8", strokeDasharray: "4 4" }}
         />
-        {!compact ? <ChartLegend content={<ChartLegendContent className="justify-center pt-3" />} /> : null}
+        {!compact ? <ChartLegend content={<ChartLegendContent className="justify-center pt-1" />} /> : null}
         {primarySeries ? (
           <Area
             dataKey={primarySeries.key}
