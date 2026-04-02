@@ -1,6 +1,7 @@
 "use client";
 
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { ThemeToggle } from "@/app/dashboard/_components/theme-toggle";
 import { Button } from "@/components/ui/button";
 
 type DashboardPageHeaderProps = {
@@ -15,11 +16,10 @@ export function DashboardPageHeader({
   onToggleCollapse,
 }: DashboardPageHeaderProps) {
   return (
-    <div className="flex h-14 items-stretch border-b bg-background">
+    <div className="flex h-14 items-stretch border-b bg-card">
       <div className="hidden h-full w-14 items-center justify-center border-r md:flex">
         <Button
           aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-          className="h-9 w-9 text-zinc-700 hover:bg-zinc-100 hover:text-zinc-900 focus-visible:ring-zinc-300"
           onClick={onToggleCollapse}
           size="icon"
           type="button"
@@ -30,6 +30,9 @@ export function DashboardPageHeader({
       </div>
       <div className="flex min-w-0 items-center px-3 md:px-4">
         <h1 className="text-2xl font-semibold">{title}</h1>
+      </div>
+      <div className="ml-auto flex items-center px-3 md:px-4">
+        <ThemeToggle />
       </div>
     </div>
   );

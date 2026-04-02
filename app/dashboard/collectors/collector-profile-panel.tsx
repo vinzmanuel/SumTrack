@@ -16,6 +16,13 @@ import {
 } from "@/app/dashboard/collectors/format";
 import type { CollectorProfileData } from "@/app/dashboard/collectors/types";
 
+type PeriodSignalItem = {
+  key: string;
+  label: ReactNode;
+  value: string;
+  helper?: string;
+};
+
 export function CollectorProfilePanel({
   data,
   showRankContext = true,
@@ -45,30 +52,66 @@ export function CollectorProfilePanel({
   const collectionDaysCoverage = workingDaysInPeriod && workingDaysInPeriod > 0
     ? (data.collectionDays / workingDaysInPeriod) * 100
     : null;
-  const periodSignals = [
+  const completionConversionPercent = formatCompletionConversionPercent(data.periodCompletedLoans, data.periodDueLoans);
+  const completionConversionHelper = formatCompletionConversionHelper(data.periodCompletedLoans, data.periodDueLoans);
+  const borrowerFollowThroughValue = formatBorrowerFollowThroughValue(
+    data.collectionEntries,
+    data.borrowersHandledCount,
+  );
+  const borrowerFollowThroughHelper = formatBorrowerFollowThroughHelper(data.borrowersHandledCount);
+  const periodSignals: PeriodSignalItem[] = [
     {
+      key: "missed-rate",
       label: "Missed Rate",
       value: formatCollectorsPercent(data.missedPaymentRate),
       helper: `${formatCollectorsInteger(data.missedPaymentCount)} missed payments`,
     },
     {
+      key: "portfolio-yield",
       label: "Portfolio Yield",
       value: formatCollectorsNullablePercent(data.portfolioYieldRate, "No portfolio base"),
       helper: `Base ${formatCollectorsCurrency(data.periodPortfolioPrincipal)}`,
     },
     {
+      key: "portfolio-at-risk",
       label: "Portfolio at Risk",
       value: formatCollectorsNullablePercent(data.portfolioAtRiskRate, "No portfolio base"),
       helper: `${formatCollectorsCurrency(data.periodPortfolioAtRiskAmount)} overdue`,
     },
-    ...(collectionDaysCoverage !== null
-      ? [{
-          label: "Collection Days Coverage",
-          value: formatCollectorsPercent(collectionDaysCoverage),
-          helper: `${formatCollectorsInteger(data.collectionDays)} of ${formatCollectorsInteger(workingDaysInPeriod ?? 0)} working days`,
-        }]
-      : []),
-  ] as const;
+    {
+      key: "collection-days-coverage",
+      label: "Collection Days Coverage",
+      value: collectionDaysCoverage !== null ? formatCollectorsPercent(collectionDaysCoverage) : "N/A",
+      helper: collectionDaysCoverage !== null
+        ? `${formatCollectorsInteger(data.collectionDays)} of ${formatCollectorsInteger(workingDaysInPeriod ?? 0)} working days`
+        : "No working-day coverage available",
+    },
+    {
+      key: "completion-conversion",
+      label: (
+        <CollectorInfoHint
+          help="Completed loans in the selected period out of all due loans handled in the selected period. Archived loans should count as completed for this calculation."
+          label="Completion Conversion"
+        />
+      ),
+      value: completionConversionPercent,
+      helper: completionConversionHelper,
+    },
+    {
+      key: "borrower-follow-through",
+      label: (
+        <CollectorInfoHint
+          help="Average number of collection entries recorded per borrower handled in the selected period."
+          label="Borrower Follow-Through"
+        />
+      ),
+      value: borrowerFollowThroughValue,
+      helper: borrowerFollowThroughHelper,
+    },
+  ];
+  const uniquePeriodSignals = Array.from(
+    new Map(periodSignals.map((signal) => [signal.key, signal])).values(),
+  );
   const portfolioStatusItems = [
     {
       key: "active",
@@ -108,13 +151,13 @@ export function CollectorProfilePanel({
         <SectionIntro
           badges={
             <>
-              <Badge className="border-emerald-200 bg-emerald-50 text-emerald-800" variant="outline">
+              <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700" variant="outline">
                 Status: {data.status === "active" ? "Active" : "Inactive"}
               </Badge>
-              <Badge className="border-emerald-200 bg-emerald-50 text-emerald-800" variant="outline">
+              <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700" variant="outline">
                 Period: {data.periodLabel}
               </Badge>
-              <Badge className="border-zinc-200 bg-background text-zinc-700" variant="outline">
+              <Badge className="border-border/70 bg-card text-zinc-700 shadow-xs" variant="outline">
                 {trendLabel}
               </Badge>
             </>
@@ -132,33 +175,35 @@ export function CollectorProfilePanel({
 
         <div className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,1.65fr)_minmax(320px,0.95fr)]">
           <div className="grid h-full items-stretch gap-4 xl:grid-rows-[minmax(0,1.12fr)_minmax(0,0.88fr)]">
-            <Card className="h-full gap-0 py-0 shadow-sm">
+            <Card className="flex h-full flex-col gap-0 py-0 shadow-sm">
               <CardHeader className="gap-0 pb-2 pt-4">
                 <CardTitle className="text-base font-semibold tracking-tight">Collections Trend</CardTitle>
                 <CardDescription className="text-sm leading-6">
                   Collected output against expected pace across the selected period.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="pb-4 pt-0">
-                <div className="rounded-2xl border border-border/70 bg-muted/10 p-3">
+              <CardContent className="flex min-h-0 flex-1 pb-6 pt-0">
+                <div className="flex min-h-0 w-full flex-1 rounded-2xl border border-border/70 bg-muted/10 p-3">
                   <CollectorProfileTrendChart
                     axisFormatter={formatCollectorsAxisCurrency}
                     chart={data.periodTrendChart}
                     condensed
+                    fillHeight
                     valueFormatter={formatCollectorsCurrency}
-                />
-              </div>
-            </CardContent>
-          </Card>
+                  />
+                </div>
+              </CardContent>
+            </Card>
 
             <div className="grid h-full items-stretch gap-4 md:grid-cols-2">
               <ComparisonModule
+                barHeightClassName="h-5"
                 className="h-full"
                 description="Selected-period output against target dues."
                 footer={
                   <div className="grid gap-2 sm:grid-cols-2">
                     <InlineStat label="Efficiency" value={formatCollectorsNullablePercent(data.efficiencyRatio, "No scheduled due")} />
-                    <InlineStat label="Average per Collection" value={formatCollectorsCurrency(data.averageCollectionAmount)} />
+                    <InlineStat label="Target Gap" value={formatTargetGapValue(data.totalCollected, data.expectedCollections)} />
                   </div>
                 }
                 rows={[
@@ -181,19 +226,19 @@ export function CollectorProfilePanel({
               />
 
               <ComparisonModule
+                barHeightClassName="h-5"
                 className="h-full"
                 description="Selected-period pace compared with lifetime monthly average."
                 footer={
                   <div className="grid gap-2 sm:grid-cols-2">
-                    <InlineStat label="Collection Days" value={formatCollectorsInteger(data.collectionDays)} />
                     <InlineStat
-                      label="Completed Due Loans"
-                      value={
-                        data.periodDueLoans > 0
-                          ? `${formatCollectorsInteger(data.periodCompletedLoans)} / ${formatCollectorsInteger(data.periodDueLoans)}`
-                          : "No due loans"
-                      }
+                      label="Pace Ratio"
+                      value={formatPaceRatioValue(
+                        data.averageMonthlyCollections,
+                        data.lifetimeMetrics.lifetimeAverageMonthlyCollection,
+                      )}
                     />
+                    <InlineStat label="Average per Collection" value={formatCollectorsCurrency(data.averageCollectionAmount)} />
                   </div>
                 }
                 rows={[
@@ -237,7 +282,7 @@ export function CollectorProfilePanel({
                   Activity, risk, and selected-period portfolio signals that support the main chart.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-3 pb-4 pt-0">
+              <CardContent className="space-y-3 pb-6 pt-0">
                 <div className="rounded-2xl border border-border/70 bg-muted/10 p-4">
                   <p className="text-sm font-medium text-muted-foreground">Productivity</p>
                   <p className="mt-1 text-3xl font-semibold tracking-tight text-foreground">
@@ -249,30 +294,16 @@ export function CollectorProfilePanel({
                 </div>
 
                 <div className="grid gap-2.5 sm:grid-cols-2">
-                  {periodSignals.map((signal) => (
+                  {uniquePeriodSignals.map((signal) => (
                     <SignalMetricCard
                       helper={signal.helper}
-                      key={signal.label}
+                      key={signal.key}
                       label={signal.label}
                       value={signal.value}
                     />
                   ))}
                 </div>
 
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <InlineStat
-                    label="Collection Entries"
-                    value={formatCollectorsInteger(data.collectionEntries)}
-                  />
-                  <InlineStat
-                    label="Due Loans Completed"
-                    value={
-                      data.periodDueLoans > 0
-                        ? `${formatCollectorsInteger(data.periodCompletedLoans)} / ${formatCollectorsInteger(data.periodDueLoans)}`
-                        : "No due loans"
-                    }
-                  />
-                </div>
               </CardContent>
             </Card>
           </div>
@@ -283,10 +314,10 @@ export function CollectorProfilePanel({
         <SectionIntro
           badges={
             <>
-              <Badge className="border-zinc-200 bg-background text-zinc-700" variant="outline">
+              <Badge className="border-border/70 bg-card text-zinc-700 shadow-xs" variant="outline">
                 {formatCollectorsInteger(data.loanPortfolio.total)} loans in view
               </Badge>
-              <Badge className="border-zinc-200 bg-background text-zinc-700" variant="outline">
+              <Badge className="border-border/70 bg-card text-zinc-700 shadow-xs" variant="outline">
                 Live operational context
               </Badge>
             </>
@@ -533,6 +564,7 @@ function ComparisonModule({
   rows,
   footer,
   className,
+  barHeightClassName,
 }: {
   title: string;
   description: string;
@@ -545,6 +577,7 @@ function ComparisonModule({
   }>;
   footer?: ReactNode;
   className?: string;
+  barHeightClassName?: string;
 }) {
   return (
     <Card className={`flex h-full flex-col gap-0 py-0 shadow-sm ${className ?? ""}`}>
@@ -552,11 +585,12 @@ function ComparisonModule({
         <CardTitle className="text-base font-semibold tracking-tight">{title}</CardTitle>
         <CardDescription className="text-sm leading-6">{description}</CardDescription>
       </CardHeader>
-      <CardContent className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] gap-4 pb-4 pt-0">
+      <CardContent className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)_auto] gap-4 pb-6 pt-0">
         <div className="flex min-h-0 flex-col justify-center gap-4">
           {rows.map((row) => (
             <ComparisonBarRow
               key={`${title}-${row.label}`}
+              barHeightClassName={barHeightClassName}
               label={row.label}
               note={row.note}
               toneClassName={row.toneClassName}
@@ -597,13 +631,57 @@ function countCollectionWorkingDays(start: string, end: string) {
   return days;
 }
 
+function formatTargetGapValue(actualCollected: number, expectedCollected: number) {
+  const gap = expectedCollected - actualCollected;
+
+  if (Math.abs(gap) < 0.005) {
+    return "On target";
+  }
+
+  return gap > 0
+    ? `${formatCollectorsCurrency(gap)} behind`
+    : `${formatCollectorsCurrency(Math.abs(gap))} ahead`;
+}
+
+function formatPaceRatioValue(selectedPeriodMonthlyAverage: number, lifetimeMonthlyAverage: number) {
+  if (lifetimeMonthlyAverage <= 0) {
+    return "No lifetime avg";
+  }
+
+  return `${formatCollectorsPercent((selectedPeriodMonthlyAverage / lifetimeMonthlyAverage) * 100)} of lifetime avg`;
+}
+
+function formatCompletionConversionPercent(completedLoans: number, dueLoans: number) {
+  const conversionPercent = dueLoans > 0 ? Math.round((completedLoans / dueLoans) * 100) : 0;
+  return `${formatCollectorsInteger(conversionPercent)}% conversion`;
+}
+
+function formatBorrowerFollowThroughValue(collectionEntries: number, borrowersHandledCount: number) {
+  const entriesPerBorrower = borrowersHandledCount > 0 ? collectionEntries / borrowersHandledCount : 0;
+  return `${entriesPerBorrower.toLocaleString("en-PH", {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  })} entries / borrower`;
+}
+
+function formatCompletionConversionHelper(completedLoans: number, dueLoans: number) {
+  return `${formatCollectorsInteger(completedLoans)} / ${formatCollectorsInteger(dueLoans)} loans completed`;
+}
+
+function formatBorrowerFollowThroughHelper(borrowersHandledCount: number) {
+  const borrowerLabel = borrowersHandledCount === 1 ? "borrower" : "borrowers";
+  return `Across ${formatCollectorsInteger(borrowersHandledCount)} ${borrowerLabel}`;
+}
+
 function ComparisonBarRow({
+  barHeightClassName,
   label,
   note,
   value,
   toneClassName,
   widthPercent,
 }: {
+  barHeightClassName?: string;
   label: string;
   note: string;
   value: string;
@@ -619,9 +697,9 @@ function ComparisonBarRow({
         </div>
         <p className="text-right text-base font-semibold tracking-tight text-foreground md:text-lg">{value}</p>
       </div>
-      <div className="h-2.5 rounded-full bg-muted/80">
+      <div className={`${barHeightClassName ?? "h-2.5"} rounded-full bg-[var(--app-background)]`}>
         <div
-          className={`h-2.5 rounded-full ${toneClassName}`}
+          className={`${barHeightClassName ?? "h-2.5"} rounded-full ${toneClassName}`}
           style={{ width: `${Math.max(0, Math.min(widthPercent, 100))}%` }}
         />
       </div>
@@ -634,15 +712,15 @@ function SignalMetricCard({
   value,
   helper,
 }: {
-  label: string;
+  label: ReactNode;
   value: string;
-  helper: string;
+  helper?: string;
 }) {
   return (
     <div className="rounded-2xl border border-border/70 bg-background p-3.5 shadow-sm">
       <p className="text-sm font-medium text-muted-foreground">{label}</p>
       <p className="mt-1 text-2xl font-semibold tracking-tight text-foreground">{value}</p>
-      <p className="mt-1 text-sm leading-5 text-muted-foreground">{helper}</p>
+      {helper ? <p className="mt-1 text-sm leading-5 text-muted-foreground">{helper}</p> : null}
     </div>
   );
 }

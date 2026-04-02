@@ -234,6 +234,7 @@ export function CollectorsTable({
                 <TableCell className="px-4 py-3 text-center align-middle whitespace-normal">
                   <div className="flex min-h-[3.75rem] items-center justify-center">
                     <Button
+                      className="bg-card hover:bg-accent"
                       onClick={(event) => {
                         event.stopPropagation();
                         onViewCollector(row);

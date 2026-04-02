@@ -21,7 +21,7 @@ export function CollectorProfileFilters({
     <label className="flex w-full flex-col gap-1 sm:w-[220px]">
       <p className="text-sm font-medium text-foreground">Period</p>
       <Select onValueChange={(value) => onPeriodChange(value as CollectorProfilePeriodKey)} value={period}>
-        <SelectTrigger className="w-full">
+            <SelectTrigger className="w-full bg-card">
           <SelectValue placeholder="Select period" />
         </SelectTrigger>
         <SelectContent>

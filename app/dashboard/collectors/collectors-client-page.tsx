@@ -233,13 +233,13 @@ export function CollectorsClientPage({
                 </CardDescription>
               </div>
               <div className="flex flex-wrap items-center gap-2 pt-2">
-                <Badge className="border-zinc-200 bg-background/80 text-zinc-700" variant="outline">
+                <Badge className="border-zinc-200 bg-card text-zinc-700" variant="outline">
                   {results?.totalCount ?? 0} collectors
                 </Badge>
-                <Badge className="border-zinc-200 bg-background/80 text-zinc-700" variant="outline">
+                <Badge className="border-zinc-200 bg-card text-zinc-700" variant="outline">
                   {results?.dateRangeLabel ?? initialData.dateRangeLabel}
                 </Badge>
-                <Badge className="border-zinc-200 bg-background/80 text-zinc-700" variant="outline">
+                <Badge className="border-zinc-200 bg-card text-zinc-700" variant="outline">
                   {scopeLabel}
                 </Badge>
               </div>

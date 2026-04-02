@@ -75,6 +75,10 @@ const COLLECTOR_ASSIGNED_LOAN_ARCHIVED_STORED_VALUES = [
   "archived",
   "abandoned",
 ] as const satisfies readonly StoredLoanStatus[];
+const COLLECTOR_PERIOD_COMPLETED_STORED_VALUES = [
+  "completed",
+  "archived",
+] as const satisfies readonly StoredLoanStatus[];
 const collectorAssignedLoanCollectionStats = db
   .select({
     loanId: collections.loan_id,
@@ -122,6 +126,7 @@ type CollectionStatsRow = {
   totalCollected: number;
   averageCollectionAmount: number;
   collectionEntries: number;
+  borrowersHandledCount: number;
   missedPaymentCount: number;
   collectionDays: number;
   activeWeeks: number;
@@ -605,6 +610,7 @@ async function loadCollectionStats(
       totalCollected: sql<number>`coalesce(sum(${collections.amount}), 0)`,
       averageCollectionAmount: sql<number>`coalesce(avg(${collections.amount}), 0)`,
       collectionEntries: sql<number>`count(*)`,
+      borrowersHandledCount: sql<number>`count(distinct ${loan_records.borrower_id})`,
       missedPaymentCount: sql<number>`sum(case when ${collections.amount} = 0 then 1 else 0 end)`,
       collectionDays: sql<number>`count(distinct ${collections.collection_date})`,
       activeWeeks: sql<number>`count(distinct date_trunc('week', ${collections.collection_date}))`,
@@ -629,6 +635,7 @@ async function loadCollectionStats(
       totalCollected: toNumber(row.totalCollected),
       averageCollectionAmount: toNumber(row.averageCollectionAmount),
       collectionEntries: toNumber(row.collectionEntries),
+      borrowersHandledCount: toNumber(row.borrowersHandledCount),
       missedPaymentCount: toNumber(row.missedPaymentCount),
       collectionDays: toNumber(row.collectionDays),
       activeWeeks: toNumber(row.activeWeeks),
@@ -660,7 +667,7 @@ async function loadPeriodPortfolioStats(
         periodInterestPotential: sql<number>`coalesce(sum((${loanMetrics.principal} * ${loanMetrics.interest}) / 100), 0)`,
         periodPortfolioAtRiskAmount: sql<number>`coalesce(sum(case when ${buildStoredLoanStatusEqualsSql(loanMetrics.storedStatus, "overdue")} then ${loanMetrics.principal} else 0 end), 0)`,
         dueLoans: sql<number>`count(*)`,
-        completedDueLoans: sql<number>`coalesce(sum(case when ${buildStoredLoanStatusEqualsSql(loanMetrics.storedStatus, "completed")} then 1 else 0 end), 0)`,
+        completedDueLoans: sql<number>`coalesce(sum(case when ${buildStoredLoanStatusInSql(loanMetrics.storedStatus, COLLECTOR_PERIOD_COMPLETED_STORED_VALUES)} then 1 else 0 end), 0)`,
       })
       .from(loanMetrics)
       .groupBy(loanMetrics.collectorId)
@@ -705,7 +712,7 @@ async function loadPeriodPortfolioStats(
       `,
       dueLoans: sql<number>`sum(case when ${dueInRange} then 1 else 0 end)`,
       completedDueLoans: sql<number>`
-        coalesce(sum(case when ${dueInRange} and ${buildStoredLoanStatusEqualsSql(loanMetrics.storedStatus, "completed")} then 1 else 0 end), 0)
+        coalesce(sum(case when ${dueInRange} and ${buildStoredLoanStatusInSql(loanMetrics.storedStatus, COLLECTOR_PERIOD_COMPLETED_STORED_VALUES)} then 1 else 0 end), 0)
       `,
     })
     .from(loanMetrics)
@@ -934,6 +941,7 @@ function buildCollectorAnalyticsMetricsSubqueries(
       totalCollected: sql<number>`coalesce(sum(${collections.amount}), 0)::double precision`.as("current_total_collected"),
       averageCollectionAmount: sql<number>`coalesce(avg(${collections.amount}), 0)::double precision`.as("average_collection_amount"),
       collectionEntries: sql<number>`count(*)::int`.as("collection_entries"),
+      borrowersHandledCount: sql<number>`count(distinct ${loan_records.borrower_id})::int`.as("borrowers_handled_count"),
       missedPaymentCount: sql<number>`
         coalesce(sum(case when ${collections.amount} = 0 then 1 else 0 end), 0)::int
       `.as("missed_payment_count"),
@@ -983,6 +991,7 @@ function buildCollectorAnalyticsMetricsSubqueries(
     coalesce(${currentCollectionStats.averageCollectionAmount}, 0)::double precision
   `;
   const collectionEntriesExpression = sql<number>`coalesce(${currentCollectionStats.collectionEntries}, 0)::int`;
+  const borrowersHandledCountExpression = sql<number>`coalesce(${currentCollectionStats.borrowersHandledCount}, 0)::int`;
   const missedPaymentCountExpression = sql<number>`coalesce(${currentCollectionStats.missedPaymentCount}, 0)::int`;
   const collectionDaysExpression = sql<number>`coalesce(${currentCollectionStats.collectionDays}, 0)::int`;
   const activeWeeksExpression = sql<number>`coalesce(${currentCollectionStats.activeWeeks}, 0)::int`;
@@ -1139,6 +1148,7 @@ function buildCollectorAnalyticsMetricsSubqueries(
       missedPaymentCount: missedPaymentCountExpression.as("missed_payment_count"),
       missedPaymentRate: missedPaymentRateExpression.as("missed_payment_rate"),
       collectionEntries: collectionEntriesExpression.as("collection_entries"),
+      borrowersHandledCount: borrowersHandledCountExpression.as("borrowers_handled_count"),
       collectionDays: collectionDaysExpression.as("collection_days"),
       activeWeeks: activeWeeksExpression.as("active_weeks"),
       completionRate: completionRateExpression.as("completion_rate"),
@@ -1549,6 +1559,7 @@ function normalizeCollectorLeaderboardRow(row: CollectorLeaderboardRow): Collect
     missedPaymentCount: toNumber(row.missedPaymentCount),
     missedPaymentRate: toNumber(row.missedPaymentRate),
     collectionEntries: toNumber(row.collectionEntries),
+    borrowersHandledCount: toNumber(row.borrowersHandledCount),
     collectionDays: toNumber(row.collectionDays),
     activeWeeks: toNumber(row.activeWeeks),
     completionRate: toNumber(row.completionRate),
@@ -1676,6 +1687,7 @@ function buildCollectorRows(
         ? totalCollected / activeCollectionMonths
         : 0;
     const collectionEntries = collectionStats?.collectionEntries ?? 0;
+    const borrowersHandledCount = collectionStats?.borrowersHandledCount ?? 0;
     const productivityCount = collectionEntries;
     const missedPaymentCount = collectionStats?.missedPaymentCount ?? 0;
     const missedPaymentRate = collectionEntries > 0 ? (missedPaymentCount / collectionEntries) * 100 : 0;
@@ -1721,6 +1733,7 @@ function buildCollectorRows(
       missedPaymentCount,
       missedPaymentRate,
       collectionEntries,
+      borrowersHandledCount,
       collectionDays,
       activeWeeks,
       completionRate,
@@ -2235,6 +2248,7 @@ export async function loadCollectorProfileData(
     missedPaymentCount: periodRow.missedPaymentCount,
     missedPaymentRate: periodRow.missedPaymentRate,
     collectionEntries: periodRow.collectionEntries,
+    borrowersHandledCount: periodRow.borrowersHandledCount,
     collectionDays: periodRow.collectionDays,
     activeWeeks: periodRow.activeWeeks,
     completionRate,

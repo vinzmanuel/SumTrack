@@ -42,7 +42,7 @@ export function CollectorRankContextCard({
           </Badge>
         </div>
       </CardHeader>
-      <CardContent className="grid gap-3 pb-5 pt-0 sm:grid-cols-2">
+      <CardContent className="grid gap-3 pb-6 pt-0 sm:grid-cols-2">
         <RankTile countLabel={`${visibleCollectorCount} visible collectors`} rank={nationwideRank} title="Nationwide" />
         <RankTile countLabel={`${branchCollectorCount} in ${branchName}`} rank={branchRank} title="Branch" />
       </CardContent>

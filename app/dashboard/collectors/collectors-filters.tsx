@@ -58,7 +58,7 @@ export function CollectorsFilters({
           </label>
         ) : null}
 
-        <Button className="h-9 px-4" onClick={onClear} type="button" variant="outline">
+        <Button className="h-9 bg-card px-4 hover:bg-accent" onClick={onClear} type="button" variant="outline">
           Clear
         </Button>
       </div>

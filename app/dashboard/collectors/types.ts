@@ -111,6 +111,7 @@ export type CollectorPerformanceRow = {
   missedPaymentCount: number;
   missedPaymentRate: number;
   collectionEntries: number;
+  borrowersHandledCount: number;
   collectionDays: number;
   activeWeeks: number;
   completionRate: number;
@@ -224,6 +225,7 @@ export type CollectorProfileData = {
   missedPaymentCount: number;
   missedPaymentRate: number;
   collectionEntries: number;
+  borrowersHandledCount: number;
   collectionDays: number;
   activeWeeks: number;
   completionRate: number;

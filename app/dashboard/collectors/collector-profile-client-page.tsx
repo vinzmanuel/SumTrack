@@ -145,6 +145,9 @@ export function CollectorProfileClientPage({
     });
   };
 
+  const headerBadgeBaseClassName =
+    "inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium leading-none shadow-xs";
+
   return (
     <div className="space-y-6">
       <DashboardBackLink href={backHref} label={backLabel} />
@@ -159,22 +162,22 @@ export function CollectorProfileClientPage({
               </div>
 
               <div className="flex flex-wrap gap-2 text-xs font-medium">
-                <span className="rounded-full border border-border/70 bg-background px-3 py-1 text-foreground">
+                <span className={`${headerBadgeBaseClassName} border-border/70 bg-card text-foreground`}>
                   Company ID: {data.companyId}
                 </span>
-                <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-blue-700">
+                <span className={`${headerBadgeBaseClassName} border-blue-200 bg-blue-50 text-blue-700`}>
                   Role: {data.roleName}
                 </span>
                 <span
                   className={
                     data.status === "active"
-                      ? "rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-emerald-800"
-                      : "rounded-full border border-zinc-200 bg-zinc-100 px-3 py-1 text-zinc-700"
+                      ? `${headerBadgeBaseClassName} border-emerald-200 bg-emerald-50 text-emerald-700`
+                      : `${headerBadgeBaseClassName} border-zinc-200 bg-card text-zinc-700`
                   }
                 >
                   Status: {data.status === "active" ? "Active" : "Inactive"}
                 </span>
-                <span className="rounded-full border border-border/70 bg-background px-3 py-1 text-foreground">
+                <span className={`${headerBadgeBaseClassName} border-border/70 bg-card text-foreground`}>
                   Area Code: {data.areaCode}
                 </span>
               </div>
@@ -253,7 +256,7 @@ function TabButton({
   return (
     <button
       className={`inline-flex rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-        active ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+        active ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
       }`}
       onClick={onClick}
       type="button"

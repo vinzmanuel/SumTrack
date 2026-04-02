@@ -31,16 +31,18 @@ export function CollectorProfileTrendChart({
   axisFormatter = valueFormatter,
   compact = false,
   condensed = false,
+  fillHeight = false,
 }: {
   chart: AnalyticsChartModel;
   valueFormatter: (value: number) => string;
   axisFormatter?: (value: number) => string;
   compact?: boolean;
   condensed?: boolean;
+  fillHeight?: boolean;
 }) {
   if (chart.noData) {
     return (
-      <div className="flex h-[260px] items-center justify-center rounded-xl border border-dashed border-border/70 bg-muted/20 px-6 text-center text-sm text-muted-foreground">
+      <div className={`${fillHeight ? "h-full min-h-0" : "h-[260px]"} flex items-center justify-center rounded-xl border border-dashed border-border/70 bg-muted/20 px-6 text-center text-sm text-muted-foreground`}>
         No chart data is available for this collector yet.
       </div>
     );
@@ -61,15 +63,17 @@ export function CollectorProfileTrendChart({
   return (
     <ChartContainer
       className={
-        compact
-          ? "h-[228px] md:h-[246px]"
-          : condensed
-            ? "h-[258px] md:h-[292px]"
-            : "h-[300px] md:h-[340px]"
+        fillHeight
+          ? "h-full min-h-0"
+          : compact
+            ? "h-[228px] md:h-[246px]"
+            : condensed
+              ? "h-[282px] md:h-[320px]"
+              : "h-[300px] md:h-[340px]"
       }
       config={chartConfig}
     >
-      <ComposedChart data={data} margin={{ top: 4, right: 2, left: -10, bottom: -6 }}>
+      <ComposedChart data={data} margin={{ top: 0, right: 0, left: -10, bottom: -6 }}>
         <defs>
           {primarySeries ? (
             <linearGradient id={`${primarySeries.key}-fill`} x1="0" x2="0" y1="0" y2="1">

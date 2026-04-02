@@ -27,6 +27,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ThemeToggle } from "@/app/dashboard/_components/theme-toggle";
 
 type NavItem = {
   href: string;
@@ -237,12 +238,15 @@ export function DashboardShell({ roleName, companyId, navItems, children }: Dash
   }, [normalizedItems, pathname]);
 
   return (
-    <div className="min-h-screen bg-background md:h-screen md:overflow-hidden">
-      <header className="sticky top-0 z-20 flex items-center justify-between border-b bg-background/95 px-4 py-3 backdrop-blur md:hidden">
+    <div className="min-h-screen bg-[var(--app-background)] md:h-screen md:overflow-hidden">
+      <header className="sticky top-0 z-20 flex items-center justify-between border-b bg-card px-4 py-3 md:hidden">
         <p className="text-sm font-semibold">SumTrack</p>
-        <Button onClick={() => setMobileOpen(true)} size="icon" type="button" variant="outline">
-          <Menu className="h-4 w-4" />
-        </Button>
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <Button onClick={() => setMobileOpen(true)} size="icon" type="button" variant="outline">
+            <Menu className="h-4 w-4" />
+          </Button>
+        </div>
       </header>
 
       <div className="flex w-full min-h-0 md:h-screen">
@@ -260,7 +264,7 @@ export function DashboardShell({ roleName, companyId, navItems, children }: Dash
             />
           </div>
         </aside>
-        <main className="min-h-0 min-w-0 flex-1 bg-zinc-50/60 md:h-screen md:overflow-y-auto">
+        <main className="min-h-0 min-w-0 flex-1 bg-[var(--app-background)] md:h-screen md:overflow-y-auto">
           <DashboardPageHeader
             isCollapsed={isCollapsed}
             onToggleCollapse={() => setIsCollapsed((prev) => !prev)}
