@@ -74,6 +74,15 @@ export type CollectorRadarMetric = {
   description: string;
 };
 
+export type CollectorLoanPortfolioCounts = {
+  active: number;
+  overdue: number;
+  completed: number;
+  archived: number;
+  abandoned: number;
+  total: number;
+};
+
 export type CollectorPerformanceRow = {
   collectorId: string;
   fullName: string;
@@ -208,6 +217,7 @@ export type CollectorProfileData = {
   averageMonthlyCollections: number;
   expectedCollections: number;
   efficiencyRatio: number | null;
+  activeEfficiencyRatio: number | null;
   productivityCount: number;
   assignedActiveLoans: number;
   completedLoans: number;
@@ -220,6 +230,7 @@ export type CollectorProfileData = {
   consistencyScore: number;
   delinquencyControl: number;
   portfolioRecoveryRate: number;
+  liveRecoveryRate: number;
   activeInterestPotential: number;
   portfolioYieldRate: number | null;
   portfolioAtRiskAmount: number;
@@ -231,6 +242,7 @@ export type CollectorProfileData = {
   previousTotalCollected: number;
   periodChangePercent: number | null;
   radarMetrics: CollectorRadarMetric[];
+  loanPortfolio: CollectorLoanPortfolioCounts;
   lifetimeMetrics: {
     lifetimeCollectionAmount: number;
     lifetimeAverageMonthlyCollection: number;

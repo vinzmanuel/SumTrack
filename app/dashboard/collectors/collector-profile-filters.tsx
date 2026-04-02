@@ -18,16 +18,10 @@ export function CollectorProfileFilters({
   onPeriodChange: (period: CollectorProfilePeriodKey) => void;
 }) {
   return (
-    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-      <div className="space-y-1">
-        <p className="text-sm font-medium text-foreground">Period</p>
-        <p className="text-xs text-muted-foreground">
-          Period-based cards and charts update from this filter. Lifetime metrics stay in their own section.
-        </p>
-      </div>
-
+    <label className="flex w-full flex-col gap-1 sm:w-[220px]">
+      <p className="text-sm font-medium text-foreground">Period</p>
       <Select onValueChange={(value) => onPeriodChange(value as CollectorProfilePeriodKey)} value={period}>
-        <SelectTrigger className="w-full min-w-52 sm:w-56">
+        <SelectTrigger className="w-full">
           <SelectValue placeholder="Select period" />
         </SelectTrigger>
         <SelectContent>
@@ -38,6 +32,6 @@ export function CollectorProfileFilters({
           ))}
         </SelectContent>
       </Select>
-    </div>
+    </label>
   );
 }

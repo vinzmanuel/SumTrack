@@ -1,4 +1,10 @@
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CollectorInfoHint } from "@/app/dashboard/collectors/collector-info-hint";
+import {
+  collectorRankBadgeClassName,
+  collectorRankCardClassName,
+} from "@/app/dashboard/collectors/collectors-rank-styles";
 import { cn } from "@/lib/utils";
 
 export function CollectorRankContextCard({
@@ -19,24 +25,28 @@ export function CollectorRankContextCard({
   basisLabel?: string;
 }) {
   return (
-    <section className={cn("rounded-2xl border border-border/70 bg-background p-5 shadow-sm", className)}>
-      <div className="space-y-1.5">
-        <h3 className="text-base font-semibold tracking-tight text-foreground">
-          <CollectorInfoHint
-            help="Ranks are based on average monthly collections. Nationwide rank is computed across all collectors visible to you. Branch rank is computed only inside this collector's branch."
-            label="Rank Context"
-          />
-        </h3>
-        <p className="text-sm leading-6 text-muted-foreground">
-          Ranking basis: {basisLabel}
-        </p>
-      </div>
-
-      <div className="mt-5 grid gap-3 sm:grid-cols-2">
-        <RankTile countLabel={`${visibleCollectorCount} visible collectors`} rank={nationwideRank} title="Nationwide Rank" />
-        <RankTile countLabel={`${branchCollectorCount} in ${branchName}`} rank={branchRank} title="Branch Rank" />
-      </div>
-    </section>
+    <Card className={cn("gap-0 overflow-hidden py-0", className)}>
+      <CardHeader className="pb-3 pt-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="space-y-1">
+            <CardTitle className="text-base font-semibold tracking-tight">
+              <CollectorInfoHint
+                help="Ranks are based on the active period view. Nationwide rank compares against every visible collector in your current scope. Branch rank compares only within this collector's branch."
+                label="Rank Context"
+              />
+            </CardTitle>
+            <CardDescription className="text-sm leading-6">{basisLabel}</CardDescription>
+          </div>
+          <Badge className="border-zinc-200 bg-zinc-50 text-zinc-700" variant="outline">
+            {visibleCollectorCount} visible
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="grid gap-3 pb-5 pt-0 sm:grid-cols-2">
+        <RankTile countLabel={`${visibleCollectorCount} visible collectors`} rank={nationwideRank} title="Nationwide" />
+        <RankTile countLabel={`${branchCollectorCount} in ${branchName}`} rank={branchRank} title="Branch" />
+      </CardContent>
+    </Card>
   );
 }
 
@@ -50,10 +60,12 @@ function RankTile({
   countLabel: string;
 }) {
   return (
-    <div className="rounded-xl border border-border/70 bg-muted/30 p-4">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">{title}</p>
-      <p className="mt-2 text-3xl font-semibold tracking-tight text-foreground">#{rank}</p>
-      <p className="mt-1 text-xs leading-5 text-muted-foreground">{countLabel}</p>
+    <div className={cn("rounded-2xl border p-4", collectorRankCardClassName(rank))}>
+      <p className="text-sm font-medium text-muted-foreground">{title}</p>
+      <Badge className={cn("mt-3 px-4 py-1.5 text-sm", collectorRankBadgeClassName(rank))} variant="outline">
+          #{rank}
+      </Badge>
+      <p className="mt-3 text-sm leading-6 text-muted-foreground">{countLabel}</p>
     </div>
   );
 }

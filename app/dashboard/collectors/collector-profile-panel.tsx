@@ -1,14 +1,12 @@
-import { TremorCard, TremorDescription } from "@/components/tremor/raw/metric-card";
-import { CollectionsAreaChart } from "@/app/dashboard/collections/collections-area-chart";
-import { CollectorBreakdownCard } from "@/app/dashboard/collectors/collector-breakdown-card";
-import { CollectorKpiCard } from "@/app/dashboard/collectors/collector-kpi-card";
-import { CollectorProfileBarChart } from "@/app/dashboard/collectors/collector-profile-bar-chart";
+import type { ReactNode } from "react";
+import { CollectorLoanPortfolioChart } from "@/app/dashboard/collectors/collector-loan-portfolio-chart";
+import { CollectorProfileTrendChart } from "@/app/dashboard/collectors/collector-profile-trend-chart";
 import { CollectorRankContextCard } from "@/app/dashboard/collectors/collector-rank-context-card";
-import { CollectorsChartCard } from "@/app/dashboard/collectors/collectors-chart-card";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { CollectorInfoHint } from "@/app/dashboard/collectors/collector-info-hint";
 import {
-  collectorsTrendTone,
   formatCollectorsAxisCurrency,
-  formatCollectorsAxisPercent,
   formatCollectorsCurrency,
   formatCollectorsInteger,
   formatCollectorsNullablePercent,
@@ -16,321 +14,591 @@ import {
   formatCollectorsSignedPercent,
 } from "@/app/dashboard/collectors/format";
 import type { CollectorProfileData } from "@/app/dashboard/collectors/types";
-import { cn } from "@/lib/utils";
 
 export function CollectorProfilePanel({
   data,
   showRankContext = true,
+  periodControl,
 }: {
   data: CollectorProfileData;
   showRankContext?: boolean;
+  periodControl?: ReactNode;
 }) {
-  const productivitySpark = data.collectionDays > 0
-    ? Math.min((data.productivityCount / data.collectionDays) * 12, 100)
-    : Math.min(data.productivityCount * 10, 100);
-  const efficiencySpark = data.efficiencyRatio ?? 0;
-  const yieldSpark = data.portfolioYieldRate ?? 0;
-  const riskSpark = data.portfolioAtRiskRate ?? 0;
+  const activeTotalPayableLoad = data.activePrincipalLoad + data.activeInterestPotential;
   const periodLabel = data.periodLabel.toLowerCase();
   const isLifetimeView = data.periodKey === "lifetime";
   const trendLabel = data.periodChangePercent === null
-    ? "No prior comparison"
-    : `${formatCollectorsSignedPercent(data.periodChangePercent)} vs previous matching period`;
+    ? "New activity vs previous equivalent period"
+    : `${formatCollectorsSignedPercent(data.periodChangePercent)} vs previous equivalent period`;
+  const selectedPeriodScale = Math.max(data.totalCollected, data.expectedCollections, 1);
+  const monthlyAverageScale = Math.max(
+    data.averageMonthlyCollections,
+    data.lifetimeMetrics.lifetimeAverageMonthlyCollection,
+    1,
+  );
+  const liveRatioScale = Math.max(data.liveRecoveryRate, data.activeEfficiencyRatio ?? 0, 100);
+  const periodSignals = [
+    {
+      label: "Missed Rate",
+      value: formatCollectorsPercent(data.missedPaymentRate),
+      helper: `${formatCollectorsInteger(data.missedPaymentCount)} missed payments`,
+    },
+    {
+      label: "Portfolio Yield",
+      value: formatCollectorsNullablePercent(data.portfolioYieldRate, "No portfolio base"),
+      helper: `Base ${formatCollectorsCurrency(data.periodPortfolioPrincipal)}`,
+    },
+    {
+      label: "Portfolio at Risk",
+      value: formatCollectorsNullablePercent(data.portfolioAtRiskRate, "No portfolio base"),
+      helper: `${formatCollectorsCurrency(data.periodPortfolioAtRiskAmount)} overdue`,
+    },
+  ] as const;
+  const portfolioStatusItems = [
+    {
+      key: "active",
+      label: "Active",
+      count: data.loanPortfolio.active,
+      toneClassName: "bg-emerald-500",
+    },
+    {
+      key: "overdue",
+      label: "Overdue",
+      count: data.loanPortfolio.overdue,
+      toneClassName: "bg-orange-500",
+    },
+    {
+      key: "completed",
+      label: "Completed",
+      count: data.loanPortfolio.completed,
+      toneClassName: "bg-blue-500",
+    },
+    {
+      key: "archived",
+      label: "Archived",
+      count: data.loanPortfolio.archived,
+      toneClassName: "bg-slate-500",
+    },
+    {
+      key: "abandoned",
+      label: "Abandoned",
+      count: data.loanPortfolio.abandoned,
+      toneClassName: "bg-violet-500",
+    },
+  ] as const;
 
   return (
-    <div className="space-y-6">
-      <TremorCard className="overflow-hidden p-0">
-        <div className="bg-gradient-to-r from-slate-50 via-white to-emerald-50/60 p-6">
-          <div className="space-y-4">
-            <div className="space-y-1.5">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-indigo-600">
-                Collector KPI Dashboard
-              </p>
-              <h2 className="text-2xl font-semibold tracking-tight text-foreground">Performance Snapshot</h2>
-              <TremorDescription>
-                Period-based analytics for this collector stay here, separate from the account profile tab.
-              </TremorDescription>
-            </div>
-
-            <div className="flex flex-wrap gap-2 text-xs font-medium">
-              <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-emerald-800">
+    <div className="space-y-8">
+      <section className="space-y-4">
+        <SectionIntro
+          badges={
+            <>
+              <Badge className="border-emerald-200 bg-emerald-50 text-emerald-800" variant="outline">
                 Status: {data.status === "active" ? "Active" : "Inactive"}
-              </span>
-              <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-sky-800">
+              </Badge>
+              <Badge className="border-emerald-200 bg-emerald-50 text-emerald-800" variant="outline">
                 Period: {data.periodLabel}
-              </span>
-              <span className={cn("rounded-full border px-3 py-1", collectorsTrendTone(data.periodChangePercent))}>
+              </Badge>
+              <Badge className="border-zinc-200 bg-background text-zinc-700" variant="outline">
                 {trendLabel}
-              </span>
-            </div>
-          </div>
-        </div>
-      </TremorCard>
-
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <CollectorKpiCard
-          accentClassName="bg-sky-500"
-          barPercent={productivitySpark}
-          footer={`${formatCollectorsInteger(data.collectionDays)} collection days / ${formatCollectorsInteger(data.collectionEntries)} entries`}
-          help="Shows how active this collector was in the current filter."
-          subtitle={`Collection activity recorded during ${periodLabel}.`}
-          title="Productivity"
-          value={`${formatCollectorsInteger(data.productivityCount)} transactions`}
-        />
-        <CollectorKpiCard
-          accentClassName="bg-emerald-500"
-          barPercent={efficiencySpark}
-          footer={`Expected ${formatCollectorsCurrency(data.expectedCollections)}`}
-          help="Shows how much of the expected cash was actually collected in the current filter."
-          subtitle={`Cash collected versus expected dues during ${periodLabel}.`}
-          title="Efficiency"
-          value={formatCollectorsNullablePercent(data.efficiencyRatio, "No scheduled due")}
-        />
-        <CollectorKpiCard
-          accentClassName="bg-violet-500"
-          barPercent={yieldSpark}
-          footer={`Portfolio base ${formatCollectorsCurrency(data.periodPortfolioPrincipal)}`}
-          help="Shows how much earning potential the loans in this view still carry."
-          subtitle={`Interest potential inside the ${periodLabel} portfolio view.`}
-          title="Portfolio Yield"
-          value={formatCollectorsNullablePercent(data.portfolioYieldRate, "No portfolio base")}
-        />
-        <CollectorKpiCard
-          accentClassName="bg-rose-500"
-          barPercent={riskSpark}
-          footer={`${formatCollectorsCurrency(data.periodPortfolioAtRiskAmount)} overdue principal`}
-          help="Shows how much handled money is at risk because overdue accounts are inside this view."
-          subtitle={`Overdue share of the ${periodLabel} portfolio base.`}
-          title="Portfolio at Risk"
-          value={formatCollectorsNullablePercent(data.portfolioAtRiskRate, "No portfolio base")}
-        />
-      </div>
-
-      <div className="grid gap-6 xl:grid-cols-12">
-        <CollectorsChartCard
-          className={showRankContext ? "xl:col-span-8" : "xl:col-span-12"}
-          chart={(
-            <CollectionsAreaChart
-              chart={data.periodTrendChart}
-              valueFormatter={formatCollectorsCurrency}
-              axisFormatter={formatCollectorsAxisCurrency}
-            />
-          )}
+              </Badge>
+            </>
+          }
           description={
             isLifetimeView
-              ? "Monthly collection history with the collector's lifetime average monthly pace."
-              : `Collected cash and expected pace across ${periodLabel}.`
+              ? "Career totals and long-run collection pace across the collector's visible history."
+              : `Period-based analytics for this collector during ${periodLabel}.`
           }
-          title={isLifetimeView ? "Lifetime Collection Trend" : "Collection Trend"}
+          eyebrow="Selected period"
+          title="Performance Snapshot"
+          toneClassName="text-indigo-600"
+          trailing={periodControl ? <div className="w-full sm:w-[220px]">{periodControl}</div> : null}
         />
 
-        {showRankContext ? (
-          <CollectorRankContextCard
-            basisLabel={`Average monthly collections in ${periodLabel}.`}
-            branchCollectorCount={data.branchCollectorCount}
-            branchName={data.branchName}
-            branchRank={data.branchRank}
-            className="xl:col-span-4"
-            nationwideRank={data.nationwideRank}
-            visibleCollectorCount={data.visibleCollectorCount}
-          />
-        ) : null}
-      </div>
+        <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.65fr)_minmax(320px,0.95fr)]">
+          <Card className="gap-0 py-0 shadow-sm">
+            <CardHeader className="pb-3 pt-5">
+              <CardTitle className="text-base font-semibold tracking-tight">Collections Trend</CardTitle>
+              <CardDescription className="text-sm leading-6">
+                Collected output against expected pace across the selected period.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pb-5 pt-0">
+              <div className="rounded-2xl border border-border/70 bg-muted/10 p-4">
+                <CollectorProfileTrendChart
+                  axisFormatter={formatCollectorsAxisCurrency}
+                  chart={data.periodTrendChart}
+                  condensed
+                  valueFormatter={formatCollectorsCurrency}
+                />
+              </div>
+            </CardContent>
+          </Card>
 
-      <div className="grid gap-6 xl:grid-cols-12">
-        <CollectorsChartCard
-          className="xl:col-span-7"
-          chart={(
-            <CollectorProfileBarChart
-              chart={data.outputComparisonChart}
-              valueFormatter={formatCollectorsCurrency}
-              axisFormatter={formatCollectorsAxisCurrency}
+          <div className="grid gap-4">
+            <ComparisonModule
+              description="Selected-period output against target dues."
+              footer={
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <InlineStat label="Efficiency" value={formatCollectorsNullablePercent(data.efficiencyRatio, "No scheduled due")} />
+                  <InlineStat label="Average per Collection" value={formatCollectorsCurrency(data.averageCollectionAmount)} />
+                </div>
+              }
+              rows={[
+                {
+                  label: "Actual collected",
+                  note: "Cash collected in the selected period",
+                  toneClassName: "bg-emerald-500",
+                  value: formatCollectorsCurrency(data.totalCollected),
+                  widthPercent: (data.totalCollected / selectedPeriodScale) * 100,
+                },
+                {
+                  label: "Expected collected",
+                  note: "Target amount inside the selected period",
+                  toneClassName: "bg-sky-500",
+                  value: formatCollectorsCurrency(data.expectedCollections),
+                  widthPercent: (data.expectedCollections / selectedPeriodScale) * 100,
+                },
+              ]}
+              title="Actual vs Expected"
             />
-          )}
-          description="Quick cash comparison between what came in, what was expected, and the collector's current pace."
-          title="Output vs Expected"
-        />
 
-        <CollectorsChartCard
-          className="xl:col-span-5"
-          chart={(
-            <CollectorProfileBarChart
-              chart={data.rateComparisonChart}
-              valueFormatter={formatCollectorsPercent}
-              axisFormatter={formatCollectorsAxisPercent}
+            <ComparisonModule
+              description="Selected-period pace compared with the collector's longer-run monthly average."
+              footer={
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <InlineStat label="Collection Days" value={formatCollectorsInteger(data.collectionDays)} />
+                  <InlineStat
+                    label="Completed Due Loans"
+                    value={
+                      data.periodDueLoans > 0
+                        ? `${formatCollectorsInteger(data.periodCompletedLoans)} / ${formatCollectorsInteger(data.periodDueLoans)}`
+                        : "No due loans"
+                    }
+                  />
+                </div>
+              }
+              rows={[
+                {
+                  label: "Selected-period monthly avg",
+                  note: "Average monthly collections inside the active period",
+                  toneClassName: "bg-violet-500",
+                  value: formatCollectorsCurrency(data.averageMonthlyCollections),
+                  widthPercent: (data.averageMonthlyCollections / monthlyAverageScale) * 100,
+                },
+                {
+                  label: "Lifetime monthly avg",
+                  note: "Long-run monthly average across visible history",
+                  toneClassName: "bg-amber-500",
+                  value: formatCollectorsCurrency(data.lifetimeMetrics.lifetimeAverageMonthlyCollection),
+                  widthPercent: (data.lifetimeMetrics.lifetimeAverageMonthlyCollection / monthlyAverageScale) * 100,
+                },
+              ]}
+              title="Monthly Pace vs Lifetime"
             />
-          )}
-          description="Management view of efficiency, yield, risk, completion, and missed-payment control."
-          title="Rate Snapshot"
+          </div>
+        </div>
+
+        <div className={showRankContext ? "grid items-start gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.95fr)]" : "grid gap-4"}>
+          <Card className="gap-0 py-0 shadow-sm">
+            <CardHeader className="pb-3 pt-5">
+              <CardTitle className="text-base font-semibold tracking-tight">Period Signals</CardTitle>
+              <CardDescription className="text-sm leading-6">
+                Activity, risk, and selected-period portfolio signals that support the main chart.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4 pb-5 pt-0">
+              <div className="rounded-2xl border border-border/70 bg-muted/10 p-4">
+                <p className="text-sm font-medium text-muted-foreground">Productivity</p>
+                <p className="mt-1 text-3xl font-semibold tracking-tight text-foreground">
+                  {formatCollectorsInteger(data.productivityCount)} transactions
+                </p>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                  {formatCollectorsInteger(data.collectionDays)} collection days / {formatCollectorsInteger(data.collectionEntries)} entries in {periodLabel}.
+                </p>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-3">
+                {periodSignals.map((signal) => (
+                  <SignalMetricCard
+                    helper={signal.helper}
+                    key={signal.label}
+                    label={signal.label}
+                    value={signal.value}
+                  />
+                ))}
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-2">
+                <MetricRow
+                  label="Average per Collection"
+                  value={formatCollectorsCurrency(data.averageCollectionAmount)}
+                />
+                <MetricRow
+                  label="Due Loans Completed"
+                  value={
+                    data.periodDueLoans > 0
+                      ? `${formatCollectorsInteger(data.periodCompletedLoans)} / ${formatCollectorsInteger(data.periodDueLoans)}`
+                      : "No due loans"
+                  }
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {showRankContext ? (
+            <CollectorRankContextCard
+              basisLabel={`Ranked by average monthly collections in ${periodLabel}.`}
+              branchCollectorCount={data.branchCollectorCount}
+              branchName={data.branchName}
+              branchRank={data.branchRank}
+              className="shadow-sm"
+              nationwideRank={data.nationwideRank}
+              visibleCollectorCount={data.visibleCollectorCount}
+            />
+          ) : null}
+        </div>
+      </section>
+
+      <section className="space-y-4">
+        <SectionIntro
+          badges={
+            <>
+              <Badge className="border-zinc-200 bg-background text-zinc-700" variant="outline">
+                {formatCollectorsInteger(data.loanPortfolio.total)} loans in view
+              </Badge>
+              <Badge className="border-zinc-200 bg-background text-zinc-700" variant="outline">
+                Live operational context
+              </Badge>
+            </>
+          }
+          description="Current loan-state composition, live workload, and recovery context for this collector's assigned book."
+          eyebrow="Current portfolio"
+          title="Loan Portfolio"
+          toneClassName="text-sky-700"
         />
-      </div>
 
-      <div className="grid gap-6 xl:grid-cols-12">
-        <CollectorBreakdownCard
-          className="xl:col-span-4"
-          description="Supporting period numbers that explain the KPI row above."
-          help="These numbers follow the active filter. They explain collected cash, days worked, missed payments, and completion output."
-          items={[
-            {
-              label: "Total Collected",
-              percent: data.expectedCollections > 0 ? Math.min((data.totalCollected / data.expectedCollections) * 100, 100) : 8,
-              toneClassName: "bg-emerald-500",
-              value: formatCollectorsCurrency(data.totalCollected),
-            },
-            {
-              label: "Average Monthly Collections",
-              percent: data.lifetimeMetrics.lifetimeAverageMonthlyCollection > 0
-                ? Math.min((data.averageMonthlyCollections / data.lifetimeMetrics.lifetimeAverageMonthlyCollection) * 100, 100)
-                : 8,
-              toneClassName: "bg-sky-500",
-              value: formatCollectorsCurrency(data.averageMonthlyCollections),
-            },
-            {
-              label: "Completion Rate",
-              percent: data.completionRate,
-              toneClassName: "bg-violet-500",
-              value: formatCollectorsPercent(data.completionRate),
-            },
-            {
-              label: "Period Change",
-              percent: data.periodChangePercent === null ? 8 : Math.min(Math.abs(data.periodChangePercent), 100),
-              toneClassName: "bg-amber-500",
-              value: formatCollectorsSignedPercent(data.periodChangePercent),
-            },
-          ]}
-          title="Period Snapshot"
+        <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(340px,0.95fr)]">
+          <Card className="gap-0 py-0 shadow-sm">
+            <CardHeader className="pb-3 pt-5">
+              <CardTitle className="text-base font-semibold tracking-tight">Portfolio Mix</CardTitle>
+              <CardDescription className="text-sm leading-6">
+                Current loan-state composition for this collector&apos;s assigned book right now.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4 pb-5 pt-0">
+              <div className="rounded-2xl border border-border/70 bg-muted/10 p-4">
+                <CollectorLoanPortfolioChart compact counts={data.loanPortfolio} />
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {portfolioStatusItems.map((item) => (
+                  <StatusStatCard
+                    count={item.count}
+                    key={item.key}
+                    label={item.label}
+                    percentage={
+                      data.loanPortfolio.total > 0
+                        ? formatCollectorsPercent((item.count / data.loanPortfolio.total) * 100)
+                        : "0.0%"
+                    }
+                    toneClassName={item.toneClassName}
+                  />
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="gap-0 py-0 shadow-sm">
+            <CardHeader className="pb-3 pt-5">
+              <CardTitle className="text-base font-semibold tracking-tight">Operational Snapshot</CardTitle>
+              <CardDescription className="text-sm leading-6">
+                Current workload, exposure, and live collection context tied to the active loan book.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4 pb-5 pt-0">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <ProfileStatCard
+                  description="Active and overdue accounts still assigned."
+                  title="Active Assigned Loans"
+                  value={formatCollectorsInteger(data.assignedActiveLoans)}
+                />
+                <ProfileStatCard
+                  description="Remaining interest potential on active loans."
+                  title="Interest Potential"
+                  value={formatCollectorsCurrency(data.activeInterestPotential)}
+                />
+                <ProfileStatCard
+                  description="Total payable load on currently active loans."
+                  title="Current Load"
+                  value={formatCollectorsCurrency(activeTotalPayableLoad)}
+                />
+                <ProfileStatCard
+                  description="Overdue principal inside the live loan book."
+                  title="Overdue Exposure"
+                  value={formatCollectorsCurrency(data.portfolioAtRiskAmount)}
+                />
+              </div>
+
+              <div className="rounded-2xl border border-border/70 bg-muted/10 p-4">
+                <p className="text-base font-semibold tracking-tight text-foreground">
+                  <CollectorInfoHint
+                    help="Live Recovery shows how much has been collected so far against the total payable of currently active loans. Live Efficiency shows how much has been collected so far against what those same active loans should have reached by today."
+                    label="Live Recovery vs Live Efficiency"
+                  />
+                </p>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                  Current collection ratios against the active loan book.
+                </p>
+
+                <div className="mt-4 space-y-4">
+                  <ComparisonBarRow
+                    label="Live recovery"
+                    note="Collected so far versus current active-loan total payable"
+                    toneClassName="bg-emerald-500"
+                    value={formatCollectorsPercent(data.liveRecoveryRate)}
+                    widthPercent={(data.liveRecoveryRate / liveRatioScale) * 100}
+                  />
+                  <ComparisonBarRow
+                    label="Live efficiency"
+                    note="Collected so far versus what active loans should have reached by today"
+                    toneClassName="bg-sky-500"
+                    value={formatCollectorsNullablePercent(data.activeEfficiencyRatio, "No active pace")}
+                    widthPercent={((data.activeEfficiencyRatio ?? 0) / liveRatioScale) * 100}
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </section>
+
+      <section className="space-y-4">
+        <SectionIntro
+          description="Career trend and long-run pace, kept quieter than the selected-period view above."
+          eyebrow="Lifetime context"
+          title="Long-Run Collection Context"
+          toneClassName="text-violet-700"
         />
 
-        <CollectorBreakdownCard
-          className="xl:col-span-4"
-          description="Current live workload and exposure still assigned to this collector right now."
-          help="These are live portfolio numbers, separate from the active period filter."
-          items={[
-            {
-              label: "Assigned Active Loans",
-              percent: data.branchCollectorCount > 0 ? Math.min((data.assignedActiveLoans / Math.max(data.branchCollectorCount * 4, 1)) * 100, 100) : 8,
-              toneClassName: "bg-cyan-500",
-              value: formatCollectorsInteger(data.assignedActiveLoans),
-            },
-            {
-              label: "Active Principal Load",
-              percent: 100,
-              toneClassName: "bg-slate-500",
-              value: formatCollectorsCurrency(data.activePrincipalLoad),
-            },
-            {
-              label: "Active Interest Potential",
-              percent: data.activePrincipalLoad > 0
-                ? Math.min((data.activeInterestPotential / data.activePrincipalLoad) * 100, 100)
-                : 8,
-              toneClassName: "bg-violet-500",
-              value: formatCollectorsCurrency(data.activeInterestPotential),
-            },
-            {
-              label: "Current Overdue Principal",
-              percent: data.activePrincipalLoad > 0
-                ? Math.min((data.portfolioAtRiskAmount / data.activePrincipalLoad) * 100, 100)
-                : 8,
-              toneClassName: "bg-rose-500",
-              value: formatCollectorsCurrency(data.portfolioAtRiskAmount),
-            },
-          ]}
-          title="Live Portfolio Snapshot"
-        />
+        <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.85fr)]">
+          <Card className="gap-0 py-0 shadow-sm">
+            <CardHeader className="pb-3 pt-5">
+              <CardTitle className="text-base font-semibold tracking-tight">Lifetime Trend</CardTitle>
+              <CardDescription className="text-sm leading-6">
+                Long-run collection movement across the collector&apos;s visible history.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pb-5 pt-0">
+              <div className="rounded-2xl border border-border/70 bg-muted/10 p-4">
+                <CollectorProfileTrendChart
+                  axisFormatter={formatCollectorsAxisCurrency}
+                  chart={data.lifetimeTrendChart}
+                  compact
+                  valueFormatter={formatCollectorsCurrency}
+                />
+              </div>
+            </CardContent>
+          </Card>
 
-        <TremorCard className="xl:col-span-4">
-          <div className="space-y-5 p-6">
-            <div className="space-y-1.5">
-              <h3 className="text-base font-semibold tracking-tight text-foreground">Lifetime Metrics</h3>
-              <TremorDescription className="text-[13px]">
-                Career totals stay visible here even when the active filter changes above.
-              </TremorDescription>
-            </div>
-
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-              <LifetimeMetric
-                label="Lifetime Collection Amount"
+          <Card className="gap-0 py-0 shadow-sm">
+            <CardHeader className="pb-3 pt-5">
+              <CardTitle className="text-base font-semibold tracking-tight">Lifetime Metrics</CardTitle>
+              <CardDescription className="text-sm leading-6">
+                Reference context for how this collector performs over time.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3 pb-5 pt-0">
+              <MetricRow
+                label="Lifetime Collected"
                 value={formatCollectorsCurrency(data.lifetimeMetrics.lifetimeCollectionAmount)}
               />
-              <LifetimeMetric
-                label="Average Monthly Collection"
+              <MetricRow
+                label="Lifetime Avg Monthly"
                 value={formatCollectorsCurrency(data.lifetimeMetrics.lifetimeAverageMonthlyCollection)}
               />
-              <LifetimeMetric
-                label="Average Collected per Day"
+              <MetricRow
+                label="Avg Collected per Day"
                 value={formatCollectorsCurrency(data.lifetimeMetrics.lifetimeAverageCollectedPerDay)}
               />
-              <LifetimeMetric
-                label="Average Amount per Collection"
-                value={formatCollectorsCurrency(data.lifetimeMetrics.lifetimeAverageAmountPerCollection)}
-              />
-              <LifetimeMetric
+              <MetricRow
                 label="Missed Payment Ratio"
                 value={formatCollectorsPercent(data.lifetimeMetrics.lifetimeMissedPaymentRatio)}
               />
-              <LifetimeMetric
+              <MetricRow
                 label="Lifetime Entries"
                 value={formatCollectorsInteger(data.lifetimeMetrics.lifetimeCollectionEntries)}
               />
-            </div>
-          </div>
-        </TremorCard>
+            </CardContent>
+          </Card>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function ProfileStatCard({
+  title,
+  value,
+  description,
+}: {
+  title: ReactNode;
+  value: string;
+  description: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-border/70 bg-background p-4 shadow-sm">
+      <p className="text-sm font-medium text-muted-foreground">{title}</p>
+      <p className="mt-1 text-2xl font-semibold tracking-tight text-foreground">{value}</p>
+      <p className="mt-1 text-sm leading-6 text-muted-foreground">{description}</p>
+    </div>
+  );
+}
+
+function StatusStatCard({
+  label,
+  count,
+  percentage,
+  toneClassName,
+}: {
+  label: string;
+  count: number;
+  percentage: string;
+  toneClassName: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-border/70 bg-background p-4 shadow-sm">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <span className={`size-2.5 rounded-full ${toneClassName}`} />
+          <p className="text-sm font-medium text-muted-foreground">{label}</p>
+        </div>
+        <p className="text-lg font-semibold tracking-tight text-foreground">{formatCollectorsInteger(count)}</p>
       </div>
+      <p className="mt-2 text-sm text-muted-foreground">{percentage} of current portfolio</p>
+    </div>
+  );
+}
 
-      <div className="grid gap-6 xl:grid-cols-12">
-        <CollectorBreakdownCard
-          className={isLifetimeView ? "xl:col-span-12" : "xl:col-span-4"}
-          description="Risk and control signals tied to the active filter."
-          help="These numbers show missed-payment pressure, steady field work, and how well difficult accounts stayed under control."
-          items={[
-            {
-              label: "Missed-Payment Rate",
-              percent: 100 - Math.min(data.missedPaymentRate, 100),
-              toneClassName: "bg-rose-500",
-              value: formatCollectorsPercent(data.missedPaymentRate),
-            },
-            {
-              label: "Delinquency Control",
-              percent: data.delinquencyControl,
-              toneClassName: "bg-orange-500",
-              value: formatCollectorsPercent(data.delinquencyControl),
-            },
-            {
-              label: "Consistency",
-              percent: data.consistencyScore,
-              toneClassName: "bg-indigo-500",
-              value: formatCollectorsPercent(data.consistencyScore),
-            },
-            {
-              label: "Active Weeks",
-              percent: Math.min(data.activeWeeks * 20, 100),
-              toneClassName: "bg-sky-500",
-              value: formatCollectorsInteger(data.activeWeeks),
-            },
-          ]}
-          title="Risk and Control"
-        />
+function SectionIntro({
+  eyebrow,
+  title,
+  description,
+  badges,
+  trailing,
+  toneClassName,
+}: {
+  eyebrow: string;
+  title: string;
+  description: string;
+  badges?: ReactNode;
+  trailing?: ReactNode;
+  toneClassName: string;
+}) {
+  return (
+    <div className="flex flex-wrap items-start justify-between gap-4">
+      <div className="space-y-1">
+        <p className={`text-xs font-semibold uppercase tracking-[0.18em] ${toneClassName}`}>{eyebrow}</p>
+        <h2 className="text-2xl font-semibold tracking-tight text-foreground">{title}</h2>
+        <p className="text-sm leading-6 text-muted-foreground">{description}</p>
+        {badges ? <div className="flex flex-wrap items-center gap-2 pt-2">{badges}</div> : null}
+      </div>
+      {trailing}
+    </div>
+  );
+}
 
-        {isLifetimeView ? null : (
-          <CollectorsChartCard
-            className="xl:col-span-8"
-            chart={(
-              <CollectionsAreaChart
-                chart={data.lifetimeTrendChart}
-                valueFormatter={formatCollectorsCurrency}
-                axisFormatter={formatCollectorsAxisCurrency}
-              />
-            )}
-            description="Monthly collection history with the collector's lifetime average monthly pace."
-            title="Lifetime Collection Trend"
+function ComparisonModule({
+  title,
+  description,
+  rows,
+  footer,
+}: {
+  title: string;
+  description: string;
+  rows: Array<{
+    label: string;
+    note: string;
+    value: string;
+    widthPercent: number;
+    toneClassName: string;
+  }>;
+  footer?: ReactNode;
+}) {
+  return (
+    <Card className="gap-0 py-0 shadow-sm">
+      <CardHeader className="pb-3 pt-5">
+        <CardTitle className="text-base font-semibold tracking-tight">{title}</CardTitle>
+        <CardDescription className="text-sm leading-6">{description}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4 pb-5 pt-0">
+        {rows.map((row) => (
+          <ComparisonBarRow
+            key={`${title}-${row.label}`}
+            label={row.label}
+            note={row.note}
+            toneClassName={row.toneClassName}
+            value={row.value}
+            widthPercent={row.widthPercent}
           />
-        )}
+        ))}
+        {footer ? <div className="border-t border-border/60 pt-4">{footer}</div> : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+function ComparisonBarRow({
+  label,
+  note,
+  value,
+  toneClassName,
+  widthPercent,
+}: {
+  label: string;
+  note: string;
+  value: string;
+  toneClassName: string;
+  widthPercent: number;
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-start justify-between gap-4">
+        <div className="space-y-0.5">
+          <p className="text-sm font-medium text-muted-foreground">{label}</p>
+          <p className="text-xs leading-5 text-muted-foreground">{note}</p>
+        </div>
+        <p className="text-right text-lg font-semibold tracking-tight text-foreground">{value}</p>
+      </div>
+      <div className="h-2 rounded-full bg-muted/80">
+        <div
+          className={`h-2 rounded-full ${toneClassName}`}
+          style={{ width: `${Math.max(0, Math.min(widthPercent, 100))}%` }}
+        />
       </div>
     </div>
   );
 }
 
-function LifetimeMetric({
+function SignalMetricCard({
+  label,
+  value,
+  helper,
+}: {
+  label: string;
+  value: string;
+  helper: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-border/70 bg-background p-4 shadow-sm">
+      <p className="text-sm font-medium text-muted-foreground">{label}</p>
+      <p className="mt-1 text-2xl font-semibold tracking-tight text-foreground">{value}</p>
+      <p className="mt-1 text-sm leading-6 text-muted-foreground">{helper}</p>
+    </div>
+  );
+}
+
+function InlineStat({
   label,
   value,
 }: {
@@ -338,9 +606,24 @@ function LifetimeMetric({
   value: string;
 }) {
   return (
-    <div className="rounded-xl border border-border/70 bg-muted/20 p-4">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">{label}</p>
-      <p className="mt-2 text-lg font-semibold tracking-tight text-foreground">{value}</p>
+    <div className="rounded-xl border border-border/70 bg-muted/20 px-3 py-2">
+      <p className="text-xs font-medium text-muted-foreground">{label}</p>
+      <p className="mt-1 text-sm font-semibold text-foreground">{value}</p>
+    </div>
+  );
+}
+
+function MetricRow({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-4 rounded-xl border border-border/70 bg-muted/20 px-4 py-3">
+      <p className="text-sm font-medium text-muted-foreground">{label}</p>
+      <p className="text-right text-sm font-semibold text-foreground">{value}</p>
     </div>
   );
 }

@@ -1,13 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { DashboardBackLink } from "@/app/dashboard/_components/dashboard-back-link";
-import { TremorCard, TremorDescription } from "@/components/tremor/raw/metric-card";
 import { CollectorAccountOverviewTab } from "@/app/dashboard/collectors/collector-account-overview-tab";
 import { CollectorAssignedLoansTab } from "@/app/dashboard/collectors/collector-assigned-loans-tab";
 import { CollectorProfileFilters } from "@/app/dashboard/collectors/collector-profile-filters";
 import { CollectorProfilePanel } from "@/app/dashboard/collectors/collector-profile-panel";
+import { Card, CardDescription } from "@/components/ui/card";
 import type {
   CollectorAssignedLoansData,
   CollectorAssignedLoansFilters,
@@ -136,29 +136,26 @@ export function CollectorProfileClientPage({
     void loadResults(period);
   }, [appliedPeriod, loadResults, period]);
 
-  const performanceStatusText = useMemo(() => {
-    if (isPending) {
-      return "Refreshing period analytics...";
-    }
-
-    if (errorMessage) {
-      return errorMessage;
-    }
-
-    return "Period-based cards and charts refresh below without remounting the full page.";
-  }, [errorMessage, isPending]);
+  const handleTabChange = (nextTab: string) => {
+    const normalizedTab = nextTab as CollectorDetailTabKey;
+    setActiveTab(normalizedTab);
+    replacePageUrl({
+      period,
+      tab: normalizedTab,
+    });
+  };
 
   return (
     <div className="space-y-6">
       <DashboardBackLink href={backHref} label={backLabel} />
 
-      <TremorCard className="overflow-hidden p-0">
-        <div className="bg-gradient-to-r from-slate-50 via-white to-emerald-50/60 p-6">
+      <Card className="gap-0 overflow-hidden py-0">
+        <div className="bg-linear-to-r from-slate-50 via-white to-emerald-50/60 p-6">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
             <div className="space-y-3">
               <div className="space-y-1">
                 <h1 className="text-3xl font-semibold tracking-tight text-foreground">{data.fullName}</h1>
-                <TremorDescription>{`${data.branchName} / ${data.areaLabel}`}</TremorDescription>
+                <CardDescription>{`${data.branchName} / ${data.areaLabel}`}</CardDescription>
               </div>
 
               <div className="flex flex-wrap gap-2 text-xs font-medium">
@@ -168,8 +165,17 @@ export function CollectorProfileClientPage({
                 <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-blue-700">
                   Role: {data.roleName}
                 </span>
-                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-emerald-800">
+                <span
+                  className={
+                    data.status === "active"
+                      ? "rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-emerald-800"
+                      : "rounded-full border border-zinc-200 bg-zinc-100 px-3 py-1 text-zinc-700"
+                  }
+                >
                   Status: {data.status === "active" ? "Active" : "Inactive"}
+                </span>
+                <span className="rounded-full border border-border/70 bg-background px-3 py-1 text-foreground">
+                  Area Code: {data.areaCode}
                 </span>
               </div>
             </div>
@@ -177,72 +183,53 @@ export function CollectorProfileClientPage({
         </div>
 
         <div className="border-t border-border/70 p-6">
-          <div className="space-y-5">
-            <div className="inline-flex flex-wrap gap-2 rounded-xl border border-border/70 bg-muted/30 p-1">
+          <div className="inline-flex flex-wrap gap-2 rounded-xl border border-border/70 bg-muted/30 p-1">
               <TabButton
                 active={activeTab === "profile"}
                 label="Profile"
-                onClick={() => {
-                  setActiveTab("profile");
-                  replacePageUrl({
-                    period,
-                    tab: "profile",
-                  });
-                }}
+                onClick={() => handleTabChange("profile")}
               />
               <TabButton
                 active={activeTab === "performance"}
                 label="Collector Performance"
-                onClick={() => {
-                  setActiveTab("performance");
-                  replacePageUrl({
-                    period,
-                    tab: "performance",
-                  });
-                }}
+                onClick={() => handleTabChange("performance")}
               />
               <TabButton
                 active={activeTab === "assigned-loans"}
                 label="Assigned Loans"
-                onClick={() => {
-                  setActiveTab("assigned-loans");
-                  replacePageUrl({
-                    period,
-                    tab: "assigned-loans",
-                  });
-                }}
+                onClick={() => handleTabChange("assigned-loans")}
               />
-            </div>
-
-            {activeTab === "performance" ? (
-              <div className="space-y-2">
-                {hasMounted ? (
-                  <CollectorProfileFilters onPeriodChange={setPeriod} period={period} />
-                ) : (
-                  <div className="h-9 w-full rounded-md border border-border/70 bg-muted/20 sm:w-56" />
-                )}
-                <TremorDescription className="text-[13px]">{performanceStatusText}</TremorDescription>
-              </div>
-            ) : null}
           </div>
         </div>
-      </TremorCard>
+      </Card>
 
       {activeTab === "profile" ? (
         <CollectorAccountOverviewTab data={data} />
       ) : activeTab === "performance" ? (
-        <div className="relative">
-          {isPending ? (
-            <div className="absolute inset-0 z-10 flex items-start justify-end rounded-3xl bg-background/45 p-4 backdrop-blur-[1px]">
-              <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background px-3 py-1.5 text-xs font-medium text-muted-foreground shadow-sm">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                Refreshing analytics
+        <>
+          <div className="relative">
+            {isPending ? (
+              <div className="absolute inset-0 z-10 flex items-start justify-end rounded-3xl bg-background/45 p-4 backdrop-blur-[1px]">
+                <div className="inline-flex items-center gap-2 rounded-full border border-border/70 bg-background px-3 py-1.5 text-xs font-medium text-muted-foreground shadow-sm">
+                  <Loader2 className="size-3.5 animate-spin" />
+                  Refreshing analytics
+                </div>
               </div>
-            </div>
-          ) : null}
+            ) : null}
 
-          <CollectorProfilePanel data={data} />
-        </div>
+            <CollectorProfilePanel
+              data={data}
+              periodControl={
+                hasMounted ? (
+                  <CollectorProfileFilters onPeriodChange={setPeriod} period={period} />
+                ) : (
+                  <div className="h-9 w-full rounded-md border border-border/70 bg-muted/20 sm:w-[220px]" />
+                )
+              }
+            />
+          </div>
+          {errorMessage ? <p className="mt-3 text-sm text-destructive">{errorMessage}</p> : null}
+        </>
       ) : (
         <CollectorAssignedLoansTab
           collectorId={collectorId}
@@ -265,7 +252,7 @@ function TabButton({
 }) {
   return (
     <button
-      className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+      className={`inline-flex rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
         active ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
       }`}
       onClick={onClick}

@@ -145,16 +145,14 @@ export default async function CollectorProfilePage({
   });
 
   return (
-    <div className="space-y-6">
-      <CollectorProfileClientPage
-        backLabel={backNavigation.label}
-        backHref={backNavigation.href}
-        collectorId={routeParams.collectorId}
-        initialAssignedLoansData={assignedLoans}
-        initialAssignedLoansFilters={assignedLoansFilters}
-        initialData={profile}
-        initialTab={detailTab}
-      />
-    </div>
+    <CollectorProfileClientPage
+      backLabel={backNavigation.label}
+      backHref={backNavigation.href}
+      collectorId={routeParams.collectorId}
+      initialAssignedLoansData={assignedLoans}
+      initialAssignedLoansFilters={assignedLoansFilters}
+      initialData={profile}
+      initialTab={detailTab}
+    />
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { Info } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 export function CollectorInfoHint({
   label,
@@ -10,16 +11,19 @@ export function CollectorInfoHint({
   help: string;
 }) {
   return (
-    <span className="inline-flex items-center gap-1.5">
-      <span>{label}</span>
-      <button
-        aria-label={help}
-        className="inline-flex h-4 w-4 items-center justify-center rounded-full bg-transparent p-0 text-muted-foreground outline-none"
-        title={help}
-        type="button"
-      >
-        <Info className="h-3.5 w-3.5" />
-      </button>
-    </span>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          className="inline-flex items-center gap-1.5 text-left"
+          type="button"
+        >
+          <span>{label}</span>
+          <Info className="size-3.5 text-muted-foreground" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-72 whitespace-normal">
+        {help}
+      </TooltipContent>
+    </Tooltip>
   );
 }

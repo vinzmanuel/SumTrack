@@ -138,6 +138,15 @@ type PeriodPortfolioStatsRow = {
   completedDueLoans: number;
 };
 
+type CollectorLoanPortfolioCountsRow = {
+  collectorId: string | null;
+  active: number;
+  overdue: number;
+  completed: number;
+  archived: number;
+  abandoned: number;
+};
+
 type CollectionTrendBucketRow = {
   bucketKey: string;
   totalCollected: number;
@@ -715,6 +724,56 @@ async function loadPeriodPortfolioStats(
     periodPortfolioAtRiskAmount: toNumber(row.periodPortfolioAtRiskAmount),
     dueLoans: toNumber(row.dueLoans),
     completedDueLoans: toNumber(row.completedDueLoans),
+  };
+}
+
+async function loadCollectorLoanPortfolioCounts(
+  access: AnalyticsAccess,
+  collectorId: string,
+) {
+  const loanMetrics = buildLoanDerivedMetricsSubquery({
+    aliasName: "collector_profile_loan_portfolio_metrics",
+    currentDate: getManilaTodayDateString(),
+    where: whereFrom(buildLoanScopeFilters(access, [collectorId])),
+  });
+
+  const rows = await db
+    .select({
+      collectorId: loanMetrics.collectorId,
+      active: sql<number>`
+        coalesce(sum(case when ${buildStoredLoanStatusEqualsSql(loanMetrics.storedStatus, "active")} then 1 else 0 end), 0)
+      `,
+      overdue: sql<number>`
+        coalesce(sum(case when ${buildStoredLoanStatusEqualsSql(loanMetrics.storedStatus, "overdue")} then 1 else 0 end), 0)
+      `,
+      completed: sql<number>`
+        coalesce(sum(case when ${buildStoredLoanStatusEqualsSql(loanMetrics.storedStatus, "completed")} then 1 else 0 end), 0)
+      `,
+      archived: sql<number>`
+        coalesce(sum(case when ${buildStoredLoanStatusEqualsSql(loanMetrics.storedStatus, "archived")} then 1 else 0 end), 0)
+      `,
+      abandoned: sql<number>`
+        coalesce(sum(case when ${buildStoredLoanStatusEqualsSql(loanMetrics.storedStatus, "abandoned")} then 1 else 0 end), 0)
+      `,
+    })
+    .from(loanMetrics)
+    .groupBy(loanMetrics.collectorId)
+    .catch(() => []);
+
+  const row = rows[0] as CollectorLoanPortfolioCountsRow | undefined;
+
+  return {
+    active: toNumber(row?.active),
+    overdue: toNumber(row?.overdue),
+    completed: toNumber(row?.completed),
+    archived: toNumber(row?.archived),
+    abandoned: toNumber(row?.abandoned),
+    total:
+      toNumber(row?.active) +
+      toNumber(row?.overdue) +
+      toNumber(row?.completed) +
+      toNumber(row?.archived) +
+      toNumber(row?.abandoned),
   };
 }
 
@@ -2096,7 +2155,7 @@ export async function loadCollectorProfileData(
     includePrevious: periodKey !== "lifetime",
     mode: periodKey === "lifetime" ? ("career" as const) : ("window" as const),
   };
-  const [periodResult, lifetimeResult, periodPortfolioStats, periodTrendRows, lifetimeTrendRows] = await Promise.all([
+  const [periodResult, lifetimeResult, periodPortfolioStats, loanPortfolio, periodTrendRows, lifetimeTrendRows] = await Promise.all([
     loadAllCollectorRows(access, periodFilters, undefined, periodOptions),
     periodKey === "lifetime"
       ? Promise.resolve(null)
@@ -2109,6 +2168,7 @@ export async function loadCollectorProfileData(
       collectorId,
       periodKey === "lifetime" ? null : resolveCollectorsDateRange(periodFilters),
     ),
+    loadCollectorLoanPortfolioCounts(access, collectorId),
     loadCollectionTrendBuckets(
       access,
       collectorId,
@@ -2168,6 +2228,7 @@ export async function loadCollectorProfileData(
     averageMonthlyCollections: periodRow.averageMonthlyCollections,
     expectedCollections: periodRow.expectedCollections,
     efficiencyRatio: periodRow.efficiencyRatio,
+    activeEfficiencyRatio: periodRow.activeEfficiencyRatio,
     productivityCount: periodRow.productivityCount,
     assignedActiveLoans: periodRow.assignedActiveLoans,
     completedLoans: periodRow.completedLoans,
@@ -2180,6 +2241,7 @@ export async function loadCollectorProfileData(
     consistencyScore: periodRow.consistencyScore,
     delinquencyControl: periodRow.delinquencyControl,
     portfolioRecoveryRate,
+    liveRecoveryRate: periodRow.liveRecoveryRate,
     activeInterestPotential: periodRow.activeInterestPotential,
     portfolioYieldRate,
     portfolioAtRiskAmount: periodRow.portfolioAtRiskAmount,
@@ -2191,6 +2253,7 @@ export async function loadCollectorProfileData(
     previousTotalCollected: periodRow.previousTotalCollected,
     periodChangePercent: periodKey === "lifetime" ? null : periodRow.periodChangePercent,
     radarMetrics: periodRow.radarMetrics,
+    loanPortfolio,
     lifetimeMetrics: {
       lifetimeCollectionAmount: lifetimeRow.totalCollected,
       lifetimeAverageMonthlyCollection: lifetimeRow.averageMonthlyCollections,
