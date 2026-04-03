@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { CollectorLoanPortfolioChart } from "@/app/dashboard/collectors/collector-loan-portfolio-chart";
+import { CollectorProfileBarChart } from "@/app/dashboard/collectors/collector-profile-bar-chart";
 import { CollectorProfileTrendChart } from "@/app/dashboard/collectors/collector-profile-trend-chart";
 import { CollectorRankContextCard } from "@/app/dashboard/collectors/collector-rank-context-card";
 import { Badge } from "@/components/ui/badge";
@@ -508,51 +509,52 @@ export function CollectorProfilePanel({
           toneClassName="text-violet-700"
         />
 
-        <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.85fr)]">
-          <Card className="gap-0 py-0 shadow-sm">
-            <CardHeader className="pb-3 pt-5">
-              <CardTitle className="text-base font-semibold tracking-tight">Lifetime Trend</CardTitle>
+        <div className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,1.28fr)_minmax(320px,0.88fr)]">
+          <Card className="flex h-full flex-col gap-0 py-0 shadow-sm">
+            <CardHeader className="gap-0 pb-2 pt-4">
+              <CardTitle className="text-base font-semibold tracking-tight">Monthly Collection History</CardTitle>
               <CardDescription className="text-sm leading-6">
-                Long-run collection movement across the collector&apos;s visible history.
+                Total collected per month across visible history, with the lifetime monthly average overlaid for reference.
               </CardDescription>
             </CardHeader>
-            <CardContent className="pb-5 pt-0">
-              <div className="rounded-2xl border border-border/70 bg-muted/10 p-4">
-                <CollectorProfileTrendChart
+            <CardContent className="flex min-h-0 flex-1 pb-6 pt-0">
+              <div className="flex min-h-0 w-full flex-1 rounded-2xl border border-border/70 bg-muted/10 p-3">
+                <CollectorProfileBarChart
                   axisFormatter={formatCollectorsAxisCurrency}
                   chart={data.lifetimeTrendChart}
-                  compact
+                  className="h-full min-h-0"
                   valueFormatter={formatCollectorsCurrency}
                 />
               </div>
             </CardContent>
           </Card>
 
-          <Card className="gap-0 py-0 shadow-sm">
-            <CardHeader className="pb-3 pt-5">
-              <CardTitle className="text-base font-semibold tracking-tight">Lifetime Metrics</CardTitle>
+          <Card className="flex h-full flex-col gap-0 py-0 shadow-sm">
+            <CardHeader className="gap-0 pb-2 pt-4">
+              <CardTitle className="text-base font-semibold tracking-tight">Lifetime Summary</CardTitle>
               <CardDescription className="text-sm leading-6">
                 Reference context for how this collector performs over time.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3 pb-5 pt-0">
-              <MetricRow
+            <CardContent className="grid min-h-0 flex-1 gap-3 pb-6 pt-0 sm:grid-cols-2">
+              <LifetimeMetricCard
+                featured
                 label="Lifetime Collected"
                 value={formatCollectorsCurrency(data.lifetimeMetrics.lifetimeCollectionAmount)}
               />
-              <MetricRow
+              <LifetimeMetricCard
                 label="Lifetime Avg Monthly"
                 value={formatCollectorsCurrency(data.lifetimeMetrics.lifetimeAverageMonthlyCollection)}
               />
-              <MetricRow
+              <LifetimeMetricCard
                 label="Avg Collected per Day"
                 value={formatCollectorsCurrency(data.lifetimeMetrics.lifetimeAverageCollectedPerDay)}
               />
-              <MetricRow
+              <LifetimeMetricCard
                 label="Missed Payment Ratio"
                 value={formatCollectorsPercent(data.lifetimeMetrics.lifetimeMissedPaymentRatio)}
               />
-              <MetricRow
+              <LifetimeMetricCard
                 label="Lifetime Entries"
                 value={formatCollectorsInteger(data.lifetimeMetrics.lifetimeCollectionEntries)}
               />
@@ -816,17 +818,29 @@ function InlineStat({
   );
 }
 
-function MetricRow({
+function LifetimeMetricCard({
   label,
   value,
+  featured = false,
 }: {
   label: string;
   value: string;
+  featured?: boolean;
 }) {
   return (
-    <div className="flex items-start justify-between gap-4 rounded-xl border border-border/70 bg-muted/20 px-4 py-2.5">
+    <div
+      className={`rounded-2xl border border-border/70 shadow-sm ${
+        featured ? "bg-muted/10 p-4 sm:col-span-2" : "bg-background p-3.5"
+      }`}
+    >
       <p className="text-sm font-medium text-muted-foreground">{label}</p>
-      <p className="text-right text-sm font-semibold text-foreground">{value}</p>
+      <p
+        className={`mt-1 font-semibold tracking-tight text-foreground ${
+          featured ? "text-3xl" : "text-2xl"
+        }`}
+      >
+        {value}
+      </p>
     </div>
   );
 }
