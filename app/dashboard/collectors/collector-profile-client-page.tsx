@@ -7,6 +7,7 @@ import { CollectorAccountOverviewTab } from "@/app/dashboard/collectors/collecto
 import { CollectorAssignedLoansTab } from "@/app/dashboard/collectors/collector-assigned-loans-tab";
 import { CollectorProfileFilters } from "@/app/dashboard/collectors/collector-profile-filters";
 import { CollectorProfilePanel } from "@/app/dashboard/collectors/collector-profile-panel";
+import { resolveCollectorProfileMinimumYear } from "@/app/dashboard/collectors/profile-filters";
 import { Card, CardDescription } from "@/components/ui/card";
 import type {
   CollectorAssignedLoansData,
@@ -224,7 +225,12 @@ export function CollectorProfileClientPage({
               data={data}
               periodControl={
                 hasMounted ? (
-                  <CollectorProfileFilters onPeriodChange={setPeriod} period={period} />
+                  <CollectorProfileFilters
+                    minYear={resolveCollectorProfileMinimumYear(data.dateCreated)}
+                    onPeriodChange={setPeriod}
+                    period={period}
+                    periodAvailability={data.periodAvailability}
+                  />
                 ) : (
                   <div className="h-9 w-full rounded-md border border-border/70 bg-muted/20 sm:w-[220px]" />
                 )

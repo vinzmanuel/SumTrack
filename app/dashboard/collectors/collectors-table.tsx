@@ -58,10 +58,12 @@ const headerGroupDividerClassName = "border-r border-border/70";
 
 export function CollectorsTable({
   basis,
+  emptyMessage = "No collectors matched the selected filters.",
   rows,
   onViewCollector,
 }: {
   basis: "total-collected" | "average-monthly-collections";
+  emptyMessage?: string;
   rows: CollectorPerformanceRow[];
   onViewCollector: (collector: CollectorPerformanceRow) => void;
 }) {
@@ -150,7 +152,7 @@ export function CollectorsTable({
           {rows.length === 0 ? (
             <TableRow>
               <TableCell className="py-8 text-center text-muted-foreground" colSpan={9}>
-                No collectors matched the selected filters.
+                {emptyMessage}
               </TableCell>
             </TableRow>
           ) : (

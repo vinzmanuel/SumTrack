@@ -3,14 +3,12 @@
 import { ChevronLeft, ChevronRight, CircleHelp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CollectorsPeriodFilter } from "@/app/dashboard/collectors/collectors-period-filter";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { COLLECTORS_DATE_RANGE_OPTIONS, supportsAverageMonthlyCollections } from "@/app/dashboard/collectors/filters";
+  isCollectorsSpecificPeriodSelection,
+  supportsAverageMonthlyCollectionsSelection,
+} from "@/app/dashboard/collectors/filters";
 import { CollectorsTable } from "@/app/dashboard/collectors/collectors-table";
 import { CollectorsTopPerformersStrip } from "@/app/dashboard/collectors/collectors-top-performers-strip";
 import { Label } from "@/components/ui/label";
@@ -48,11 +46,22 @@ export function CollectorsRankedMode({
 }) {
   const totalPages = Math.max(Math.ceil(data.totalCount / data.pageSize), 1);
   const safePage = data.page;
-  const canUseAverageMonthly = supportsAverageMonthlyCollections(data.filters.selectedRange);
+  const canUseAverageMonthly = supportsAverageMonthlyCollectionsSelection({
+    range: data.filters.selectedRange,
+    from: data.filters.fromRaw,
+    to: data.filters.toRaw,
+  });
   const basisLabel =
     data.filters.selectedBasis === "total-collected"
       ? "Ranked by total collections"
       : "Ranked by average monthly collections";
+  const emptyMessage = isCollectorsSpecificPeriodSelection({
+    range: data.filters.selectedRange,
+    from: data.filters.fromRaw,
+    to: data.filters.toRaw,
+  })
+    ? "No collector data is available for the chosen period."
+    : "No collectors matched the selected filters.";
 
   return (
     <Card className="gap-0 overflow-hidden py-0">
@@ -64,7 +73,7 @@ export function CollectorsRankedMode({
             </CardDescription>
           </div>
           <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-end">
-            <label className="flex w-full flex-col gap-1 sm:w-[240px]">
+            <div className="flex w-full flex-col gap-1 sm:w-[240px]">
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
@@ -72,7 +81,7 @@ export function CollectorsRankedMode({
                     className="inline-flex w-fit items-center gap-1 text-left text-sm font-medium text-foreground"
                     type="button"
                   >
-                    <Label className="cursor-help">Date Range</Label>
+                      <Label className="cursor-help">Period</Label>
                     <CircleHelp className="size-3.5 text-muted-foreground" />
                   </button>
                 </TooltipTrigger>
@@ -87,30 +96,18 @@ export function CollectorsRankedMode({
                     <br />
                     - Actual vs Expected Collected
                   </p>
-                </TooltipContent>
-              </Tooltip>
-              <Select
-                onValueChange={(value) =>
-                  onRangeChange({
-                    range: value as CollectorsFilterInput["range"],
-                    from: "",
-                    to: "",
-                  })
-                }
-                value={data.filters.selectedRange}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {COLLECTORS_DATE_RANGE_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </label>
+                  </TooltipContent>
+                </Tooltip>
+                <CollectorsPeriodFilter
+                  from={data.filters.fromRaw}
+                  label="Period"
+                  onRangeChange={onRangeChange}
+                  periodAvailability={data.periodAvailability}
+                  range={data.filters.selectedRange}
+                showLabel={false}
+                to={data.filters.toRaw}
+              />
+            </div>
 
             <label className="flex w-full flex-col gap-1 sm:w-[240px]">
               <Label>Ranking Basis</Label>
@@ -139,6 +136,7 @@ export function CollectorsRankedMode({
           <div className="pt-2">
             <CollectorsTable
               basis={data.filters.selectedBasis}
+              emptyMessage={emptyMessage}
               onViewCollector={onViewCollector}
               rows={data.rows}
             />

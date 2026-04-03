@@ -7,7 +7,6 @@ import type {
 } from "@/app/dashboard/collectors/types";
 
 export const COLLECTORS_DATE_RANGE_OPTIONS: AnalyticsSelectOption[] = [
-  { value: "this-week", label: "Past week" },
   { value: "last-30-days", label: "Past 30 days" },
   { value: "this-month", label: "This month" },
   { value: "past-3-months", label: "Past 3 months" },
@@ -25,6 +24,14 @@ export function supportsAverageMonthlyCollections(range: AnalyticsDateRangeKey) 
   );
 }
 
+function formatMonthLabel(value: string) {
+  return new Intl.DateTimeFormat("en-PH", {
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(`${value}-01T00:00:00.000Z`));
+}
+
 function isIsoDate(value: string) {
   return /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
@@ -33,7 +40,15 @@ function parsePositiveInt(value: string | undefined) {
   return /^\d+$/.test(String(value ?? "")) ? Number(value) : null;
 }
 
-function normalizeRange(value: string | undefined): AnalyticsDateRangeKey {
+function normalizeRange(
+  value: string | undefined,
+  fromRaw: string,
+  toRaw: string,
+): AnalyticsDateRangeKey {
+  if (value === "custom" && isIsoDate(fromRaw) && isIsoDate(toRaw)) {
+    return "custom";
+  }
+
   return COLLECTORS_DATE_RANGE_OPTIONS.some((option) => option.value === value)
     ? (value as AnalyticsDateRangeKey)
     : "this-month";
@@ -75,6 +90,12 @@ function firstDayOfYear(value: string) {
   return `${value.slice(0, 4)}-01-01`;
 }
 
+function lastDayOfMonth(value: string) {
+  const [year, month] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month, 0));
+  return date.toISOString().slice(0, 10);
+}
+
 function addMonths(value: string, amount: number) {
   const [year, month, day] = value.split("-").map(Number);
   const date = new Date(Date.UTC(year, month - 1, day));
@@ -91,21 +112,154 @@ function startOfWeek(value: string) {
   return date.toISOString().slice(0, 10);
 }
 
+function isExactMonthRange(from: string, to: string) {
+  if (!isIsoDate(from) || !isIsoDate(to)) {
+    return null;
+  }
+
+  if (from.slice(0, 7) !== to.slice(0, 7) || !from.endsWith("-01")) {
+    return null;
+  }
+
+  const today = todayInManila();
+  const monthValue = from.slice(0, 7);
+  const expectedEnd = monthValue === today.slice(0, 7) ? today : lastDayOfMonth(monthValue);
+
+  if (to !== expectedEnd) {
+    return null;
+  }
+
+  return monthValue;
+}
+
+function isExactYearRange(from: string, to: string) {
+  if (!isIsoDate(from) || !isIsoDate(to)) {
+    return null;
+  }
+
+  const year = from.slice(0, 4);
+  if (from !== `${year}-01-01`) {
+    return null;
+  }
+
+  const today = todayInManila();
+  const expectedEnd = year === today.slice(0, 4) ? today : `${year}-12-31`;
+
+  if (to !== expectedEnd) {
+    return null;
+  }
+
+  return Number(year);
+}
+
+export function isCollectorsSpecificMonthSelection(params: {
+  range: AnalyticsDateRangeKey;
+  from?: string;
+  to?: string;
+}) {
+  return params.range === "custom" && Boolean(params.from && params.to && isExactMonthRange(params.from, params.to));
+}
+
+export function isCollectorsSpecificYearSelection(params: {
+  range: AnalyticsDateRangeKey;
+  from?: string;
+  to?: string;
+}) {
+  return params.range === "custom" && Boolean(params.from && params.to && isExactYearRange(params.from, params.to));
+}
+
+export function isCollectorsSpecificPeriodSelection(params: {
+  range: AnalyticsDateRangeKey;
+  from?: string;
+  to?: string;
+}) {
+  return isCollectorsSpecificMonthSelection(params) || isCollectorsSpecificYearSelection(params);
+}
+
+export function buildCollectorsMonthRange(year: number, month: number) {
+  const monthValue = `${year}-${String(month).padStart(2, "0")}`;
+  const start = `${monthValue}-01`;
+  const today = todayInManila();
+  const end = monthValue === today.slice(0, 7) ? today : lastDayOfMonth(monthValue);
+
+  return {
+    range: "custom" as const,
+    from: start,
+    to: end,
+  };
+}
+
+export function buildCollectorsYearRange(year: number) {
+  const today = todayInManila();
+  const end = String(year) === today.slice(0, 4) ? today : `${year}-12-31`;
+
+  return {
+    range: "custom" as const,
+    from: `${year}-01-01`,
+    to: end,
+  };
+}
+
+export function resolveCollectorsPeriodTriggerLabel(params: {
+  range: AnalyticsDateRangeKey;
+  from?: string;
+  to?: string;
+}) {
+  if (params.range === "custom" && params.from && params.to) {
+    const monthValue = isExactMonthRange(params.from, params.to);
+    if (monthValue) {
+      return formatMonthLabel(monthValue);
+    }
+
+    const yearValue = isExactYearRange(params.from, params.to);
+    if (yearValue) {
+      return `Year: ${yearValue}`;
+    }
+
+    return "Custom Range";
+  }
+
+  return COLLECTORS_DATE_RANGE_OPTIONS.find((option) => option.value === params.range)?.label ?? "This month";
+}
+
+export function supportsAverageMonthlyCollectionsSelection(params: {
+  range: AnalyticsDateRangeKey;
+  from?: string;
+  to?: string;
+}) {
+  if (params.range !== "custom") {
+    return supportsAverageMonthlyCollections(params.range);
+  }
+
+  return Boolean(params.from && params.to && isExactYearRange(params.from, params.to));
+}
+
+export function resolveCollectorsMinimumYear() {
+  return Number(todayInManila().slice(0, 4)) - 10;
+}
+
 export function parseCollectorsFilters(
   params: Awaited<CollectorsPageProps["searchParams"]> | Record<string, string | undefined>,
 ): CollectorsFilterState & { requestedBranchId: number | null } {
-  const selectedRange = normalizeRange(params?.range);
+  const fromRaw = isIsoDate(String(params?.from ?? "")) ? String(params?.from) : "";
+  const toRaw = isIsoDate(String(params?.to ?? "")) ? String(params?.to) : "";
+  const selectedRange = normalizeRange(params?.range, fromRaw, toRaw);
   const selectedBasis = normalizeBasis(params?.basis);
 
   return {
     requestedBranchId: parsePositiveInt(params?.branch),
     selectedBranchRaw: String(params?.branch ?? "all"),
     selectedRange,
-    fromRaw: isIsoDate(String(params?.from ?? "")) ? String(params?.from) : "",
-    toRaw: isIsoDate(String(params?.to ?? "")) ? String(params?.to) : "",
+    fromRaw,
+    toRaw,
     searchQuery: normalizeQuery(params?.query),
     selectedBasis:
-      selectedBasis === "average-monthly-collections" && !supportsAverageMonthlyCollections(selectedRange)
+      selectedBasis === "average-monthly-collections" &&
+      !supportsAverageMonthlyCollectionsSelection({
+        range: selectedRange,
+        from: fromRaw,
+        to: toRaw,
+      })
         ? "total-collected"
         : selectedBasis,
     page: Math.max(parsePositiveInt(params?.page) ?? 1, 1),
@@ -119,7 +273,15 @@ export function resolveCollectorsDateRange(filters: CollectorsFilterState): Coll
   if (filters.selectedRange === "custom" && filters.fromRaw && filters.toRaw) {
     const start = filters.fromRaw <= filters.toRaw ? filters.fromRaw : filters.toRaw;
     const end = filters.fromRaw <= filters.toRaw ? filters.toRaw : filters.fromRaw;
-    return { start, end, label: "custom range" };
+    return {
+      start,
+      end,
+      label: resolveCollectorsPeriodTriggerLabel({
+        range: "custom",
+        from: start,
+        to: end,
+      }).toLowerCase(),
+    };
   }
 
   if (filters.selectedRange === "this-week") {

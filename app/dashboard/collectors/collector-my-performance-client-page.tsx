@@ -5,6 +5,7 @@ import { Loader2 } from "lucide-react";
 import { TremorCard, TremorDescription } from "@/components/tremor/raw/metric-card";
 import { CollectorProfileFilters } from "@/app/dashboard/collectors/collector-profile-filters";
 import { CollectorProfilePanel } from "@/app/dashboard/collectors/collector-profile-panel";
+import { resolveCollectorProfileMinimumYear } from "@/app/dashboard/collectors/profile-filters";
 import type {
   CollectorProfileData,
   CollectorProfilePeriodKey,
@@ -118,7 +119,12 @@ export function CollectorMyPerformanceClientPage({
         </div>
 
         <div className="mt-5 border-t border-border/70 pt-5">
-          <CollectorProfileFilters onPeriodChange={setPeriod} period={period} />
+          <CollectorProfileFilters
+            minYear={resolveCollectorProfileMinimumYear(data.dateCreated)}
+            onPeriodChange={setPeriod}
+            period={period}
+            periodAvailability={data.periodAvailability}
+          />
         </div>
       </TremorCard>
 

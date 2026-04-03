@@ -217,7 +217,7 @@ export function CollectorProfilePanel({
               eyebrow="Selected period"
               title="Performance Snapshot"
               toneClassName="text-indigo-600"
-              trailing={periodControl ? <div className="w-full sm:w-[220px]">{periodControl}</div> : null}
+              trailing={periodControl ? <div className="w-full sm:w-[240px]">{periodControl}</div> : null}
             />
           ) : null}
 

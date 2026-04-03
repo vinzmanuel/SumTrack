@@ -17,11 +17,27 @@ export type CollectorsPageProps = {
 
 export type CollectorLeaderboardBasis = "total-collected" | "average-monthly-collections";
 
-export type CollectorProfilePeriodKey =
+export type CollectorProfilePresetPeriodKey =
   | "this-month"
   | "last-30-days"
+  | "past-3-months"
+  | "past-6-months"
   | "this-year"
   | "lifetime";
+
+export type CollectorProfileMonthPeriodKey = `month:${number}-${number}`;
+
+export type CollectorProfileYearPeriodKey = `year:${number}`;
+
+export type CollectorProfilePeriodKey =
+  | CollectorProfilePresetPeriodKey
+  | CollectorProfileMonthPeriodKey
+  | CollectorProfileYearPeriodKey;
+
+export type CollectorProfilePeriodAvailability = {
+  years: number[];
+  monthsByYear: Record<string, number[]>;
+};
 
 export type CollectorDetailTabKey = "profile" | "performance" | "assigned-loans";
 
@@ -258,6 +274,7 @@ export type CollectorProfileData = {
   lifetimeTrendChart: AnalyticsChartModel;
   outputComparisonChart: AnalyticsChartModel;
   rateComparisonChart: AnalyticsChartModel;
+  periodAvailability: CollectorProfilePeriodAvailability;
 };
 
 export type CollectorAssignedLoansFilters = {
@@ -276,6 +293,7 @@ export type CollectorAssignedLoansData = {
 export type CollectorsAnalyticsData = {
   filters: CollectorsFilterState;
   dateRangeLabel: string;
+  periodAvailability: CollectorProfilePeriodAvailability;
   summary: CollectorsSummaryStats;
   summaryTrends: CollectorsSummaryTrends;
   rows: CollectorPerformanceRow[];

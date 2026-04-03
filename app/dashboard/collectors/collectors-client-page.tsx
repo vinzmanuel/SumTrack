@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardTitle } from "@/components/ui/card";
 import { CollectorsFilters } from "@/app/dashboard/collectors/collectors-filters";
-import { supportsAverageMonthlyCollections } from "@/app/dashboard/collectors/filters";
+import { resolveCollectorsPeriodTriggerLabel, supportsAverageMonthlyCollectionsSelection } from "@/app/dashboard/collectors/filters";
 import { CollectorsResultsSection } from "@/app/dashboard/collectors/collectors-results-section";
 import type {
   CollectorsAnalyticsData,
@@ -237,7 +237,11 @@ export function CollectorsClientPage({
                   {results?.totalCount ?? 0} collectors
                 </Badge>
                 <Badge className="border-zinc-200 bg-card text-zinc-700" variant="outline">
-                  {results?.dateRangeLabel ?? initialData.dateRangeLabel}
+                  {resolveCollectorsPeriodTriggerLabel({
+                    range: filters.range,
+                    from: filters.from,
+                    to: filters.to,
+                  })}
                 </Badge>
                 <Badge className="border-zinc-200 bg-card text-zinc-700" variant="outline">
                   {scopeLabel}
@@ -312,7 +316,11 @@ export function CollectorsClientPage({
             to: value.to,
             basis:
               previous.basis === "average-monthly-collections" &&
-              !supportsAverageMonthlyCollections(value.range)
+              !supportsAverageMonthlyCollectionsSelection({
+                range: value.range,
+                from: value.from,
+                to: value.to,
+              })
                 ? "total-collected"
                 : previous.basis,
             page: 1,

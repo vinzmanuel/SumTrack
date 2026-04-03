@@ -43,13 +43,20 @@ import {
   branch,
 } from "@/db/schema";
 import { alias } from "drizzle-orm/pg-core";
-import { resolveCollectorsDateRange } from "@/app/dashboard/collectors/filters";
 import {
+  isCollectorsSpecificPeriodSelection,
+  resolveCollectorsDateRange,
+} from "@/app/dashboard/collectors/filters";
+import {
+  buildCollectorProfileMonthPeriod,
+  buildCollectorProfileYearPeriod,
   buildCollectorsFiltersForProfilePeriod,
+  isCollectorProfileYearPeriod,
   resolveCollectorProfilePeriodLabel,
 } from "@/app/dashboard/collectors/profile-filters";
 import type {
   CollectorProfilePeriodKey,
+  CollectorProfilePeriodAvailability,
   CollectorAssignedLoansData,
   CollectorAssignedLoansFilters,
   CollectorsExecutionItem,
@@ -404,11 +411,46 @@ function buildCollectorAssignedLoanVisibleStatusWhere(
   return eq(loan_records.status, "abandoned");
 }
 
-function mapLeaderboardRangeToProfilePeriod(
-  rangeKey: AnalyticsDateRangeKey,
-): CollectorProfilePeriodKey | null {
-  if (rangeKey === "this-month" || rangeKey === "last-30-days" || rangeKey === "this-year") {
+function mapLeaderboardRangeToProfilePeriod(params: {
+  rangeKey: AnalyticsDateRangeKey;
+  fromRaw?: string;
+  toRaw?: string;
+}): CollectorProfilePeriodKey | null {
+  const { rangeKey, fromRaw = "", toRaw = "" } = params;
+  if (
+    rangeKey === "this-month" ||
+    rangeKey === "last-30-days" ||
+    rangeKey === "past-3-months" ||
+    rangeKey === "past-6-months" ||
+    rangeKey === "this-year"
+  ) {
     return rangeKey;
+  }
+
+  if (
+    rangeKey === "custom" &&
+    /^\d{4}-\d{2}-01$/.test(fromRaw) &&
+    /^\d{4}-\d{2}-\d{2}$/.test(toRaw) &&
+    fromRaw.slice(0, 7) === toRaw.slice(0, 7)
+  ) {
+    const [year, month] = fromRaw.slice(0, 7).split("-").map(Number);
+
+    if (Number.isInteger(year) && Number.isInteger(month)) {
+      return buildCollectorProfileMonthPeriod(year, month);
+    }
+  }
+
+  if (
+    rangeKey === "custom" &&
+    /^\d{4}-01-01$/.test(fromRaw) &&
+    /^\d{4}-\d{2}-\d{2}$/.test(toRaw) &&
+    fromRaw.slice(0, 4) === toRaw.slice(0, 4)
+  ) {
+    const year = Number(fromRaw.slice(0, 4));
+
+    if (Number.isInteger(year)) {
+      return buildCollectorProfileYearPeriod(year);
+    }
   }
 
   return null;
@@ -1129,7 +1171,7 @@ function buildCollectorAnalyticsMetricsSubqueries(
     )::double precision
   `;
 
-  const metrics = db
+  const metricsBase = db
     .select({
       collectorId: baseCollectors.collectorId,
       fullName: baseCollectors.fullName,
@@ -1177,7 +1219,21 @@ function buildCollectorAnalyticsMetricsSubqueries(
     .leftJoin(loanStats, eq(loanStats.collectorId, baseCollectors.collectorId))
     .leftJoin(currentCollectionStats, eq(currentCollectionStats.collectorId, baseCollectors.collectorId))
     .leftJoin(previousCollectionStats, eq(previousCollectionStats.collectorId, baseCollectors.collectorId))
-    .as("collector_analytics_metrics");
+    .as("collector_analytics_metrics_base");
+
+  const metrics = isCollectorsSpecificPeriodSelection({
+    range: filters.selectedRange,
+    from: filters.fromRaw,
+    to: filters.toRaw,
+  })
+    ? db
+      .select()
+      .from(metricsBase)
+      .where(
+        sql`${metricsBase.totalCollected} > 0 or ${metricsBase.expectedCollections} > 0 or ${metricsBase.productivityCount} > 0`,
+      )
+      .as("collector_analytics_metrics")
+    : metricsBase;
 
   const primaryRankingMetric =
     filters.selectedBasis === "total-collected"
@@ -1258,7 +1314,15 @@ function buildCollectorAnalyticsMetricsSubqueries(
 }
 
 function chartGranularityForPeriod(periodKey: CollectorProfilePeriodKey) {
-  return periodKey === "this-year" || periodKey === "lifetime" ? "month" : "day";
+  return (
+    periodKey === "this-year" ||
+    periodKey === "past-3-months" ||
+    periodKey === "past-6-months" ||
+    periodKey === "lifetime" ||
+    isCollectorProfileYearPeriod(periodKey)
+  )
+    ? "month"
+    : "day";
 }
 
 function startOfMonth(value: string) {
@@ -1483,6 +1547,80 @@ function buildLifetimeTrendChart(
     ],
     noData: chartRows.every((row) => Number(row.values.collected ?? 0) === 0),
   };
+}
+
+function buildCollectorProfilePeriodAvailability(
+  rows: CollectionTrendBucketRow[],
+  fallbackYear: number,
+): CollectorProfilePeriodAvailability {
+  const monthsByYear = new Map<number, Set<number>>();
+
+  for (const row of rows) {
+    if (!/^\d{4}-\d{2}-01$/.test(row.bucketKey)) {
+      continue;
+    }
+
+    const year = Number(row.bucketKey.slice(0, 4));
+    const month = Number(row.bucketKey.slice(5, 7));
+
+    if (!Number.isInteger(year) || !Number.isInteger(month)) {
+      continue;
+    }
+
+    const months = monthsByYear.get(year) ?? new Set<number>();
+    months.add(month);
+    monthsByYear.set(year, months);
+  }
+
+  if (monthsByYear.size === 0) {
+    return {
+      years: [fallbackYear],
+      monthsByYear: {},
+    };
+  }
+
+  const years = Array.from(monthsByYear.keys()).sort((left, right) => right - left);
+
+  return {
+    years,
+    monthsByYear: Object.fromEntries(
+      years.map((year) => [
+        String(year),
+        Array.from(monthsByYear.get(year) ?? []).sort((left, right) => left - right),
+      ]),
+    ),
+  };
+}
+
+async function loadCollectorsPeriodAvailability(
+  collectorIds: string[],
+): Promise<CollectorProfilePeriodAvailability> {
+  if (collectorIds.length === 0) {
+    return {
+      years: [],
+      monthsByYear: {},
+    };
+  }
+
+  const bucketExpression = sql<string>`to_char(date_trunc('month', ${collections.collection_date}), 'YYYY-MM-01')`;
+  const rows = await db
+    .select({
+      bucketKey: bucketExpression,
+      totalCollected: sql<number>`coalesce(sum(${collections.amount}), 0)`,
+    })
+    .from(collections)
+    .where(inArray(collections.collector_id, collectorIds))
+    .groupBy(bucketExpression)
+    .orderBy(asc(bucketExpression))
+    .catch(() => []);
+
+  return buildCollectorProfilePeriodAvailability(
+    rows.map((row) => ({
+      bucketKey: row.bucketKey,
+      totalCollected: toNumber(row.totalCollected),
+    })),
+    Number(getManilaTodayDateString().slice(0, 4)),
+  );
 }
 
 function daysInRange(range: CollectorsDateRange) {
@@ -1987,6 +2125,11 @@ export async function loadCollectorsAnalyticsData(
   filters: CollectorsFilterState,
 ): Promise<CollectorsAnalyticsData> {
   const { baseCollectors, metrics, rankedMetrics, range } = buildCollectorAnalyticsMetricsSubqueries(access, filters);
+  const availabilityCollectorIds = await db
+    .select({ collectorId: baseCollectors.collectorId })
+    .from(baseCollectors)
+    .then((rows) => rows.map((row) => row.collectorId).filter(Boolean))
+    .catch(() => []);
   const pageSize = filters.pageSize || COLLECTORS_PAGE_SIZE;
   let summaryQueryError: string | null = null;
   const summaryRow = await db
@@ -2037,6 +2180,7 @@ export async function loadCollectorsAnalyticsData(
     rawExecutionRows,
     rawHighestPortfolioRows,
     rawBestRecoveryRows,
+    periodAvailability,
   ] = await Promise.all([
     db
       .select()
@@ -2092,6 +2236,7 @@ export async function loadCollectorsAnalyticsData(
       )
       .limit(1)
       .catch(() => []),
+    loadCollectorsPeriodAvailability(availabilityCollectorIds),
   ]);
   const maxima: CollectorRadarMaxima = {
     totalCollected: toNumber(summaryRow?.maxTotalCollected),
@@ -2118,8 +2263,12 @@ export async function loadCollectorsAnalyticsData(
   const totalCollectionsChangePercent = percentChange(totalCollectionsAttributed, previousTotalCollectionsAttributed);
   const topCollector = orderedRows[0];
   const focusedCollectorProfileData = totalCount === 1 && rows[0]
-    ? await (async () => {
-        const profilePeriodKey = mapLeaderboardRangeToProfilePeriod(filters.selectedRange);
+      ? await (async () => {
+        const profilePeriodKey = mapLeaderboardRangeToProfilePeriod({
+          rangeKey: filters.selectedRange,
+          fromRaw: filters.fromRaw,
+          toRaw: filters.toRaw,
+        });
 
         if (!profilePeriodKey) {
           return null;
@@ -2135,6 +2284,7 @@ export async function loadCollectorsAnalyticsData(
       page,
     },
     dateRangeLabel: range.label,
+    periodAvailability,
     summary: {
       activeCollectors,
       totalCollectionsAttributed,
@@ -2236,6 +2386,11 @@ export async function loadCollectorProfileData(
   const portfolioAtRiskRate = percentOf(periodPortfolioAtRiskAmount, periodPortfolioPrincipal);
   const portfolioRecoveryRate = percentOf(periodRow.totalCollected, periodPortfolioPrincipal) ?? 0;
   const periodLabel = resolveCollectorProfilePeriodLabel(periodKey);
+  const fallbackAvailabilityYear = Number(periodRow.dateCreated?.slice(0, 4)) || Number(getManilaTodayDateString().slice(0, 4));
+  const periodAvailability = buildCollectorProfilePeriodAvailability(
+    lifetimeTrendRows,
+    fallbackAvailabilityYear,
+  );
 
   return {
     collectorId: periodRow.collectorId,
@@ -2324,9 +2479,10 @@ export async function loadCollectorProfileData(
       portfolioYieldRate,
       portfolioAtRiskRate,
       completionRate,
-      missedPaymentRate: periodRow.missedPaymentRate,
-      delinquencyControl: periodRow.delinquencyControl,
-    }),
+        missedPaymentRate: periodRow.missedPaymentRate,
+        delinquencyControl: periodRow.delinquencyControl,
+      }),
+    periodAvailability,
   };
 }
 
