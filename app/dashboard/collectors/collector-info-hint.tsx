@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { Info } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
@@ -7,8 +8,8 @@ export function CollectorInfoHint({
   label,
   help,
 }: {
-  label: string;
-  help: string;
+  label: ReactNode;
+  help: ReactNode;
 }) {
   return (
     <Tooltip>
@@ -21,7 +22,7 @@ export function CollectorInfoHint({
           <Info className="size-3.5 text-muted-foreground" />
         </button>
       </TooltipTrigger>
-      <TooltipContent className="max-w-72 whitespace-normal">
+      <TooltipContent className="max-w-80 whitespace-normal rounded-xl p-3">
         {help}
       </TooltipContent>
     </Tooltip>

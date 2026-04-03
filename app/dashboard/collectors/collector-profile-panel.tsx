@@ -68,13 +68,51 @@ export function CollectorProfilePanel({
     },
     {
       key: "portfolio-yield",
-      label: "Portfolio Yield",
+      label: (
+        <CollectorInfoHint
+          help={(
+            <CollectorMetricTooltip
+              summary="Shows interest potential relative to the selected-period portfolio base."
+              rows={[
+                {
+                  label: "Value",
+                  value: "Yield percentage based on the selected-period portfolio.",
+                },
+                {
+                  label: "Base line",
+                  value: "The subline shows the selected-period portfolio base in pesos.",
+                },
+              ]}
+            />
+          )}
+          label="Portfolio Yield"
+        />
+      ),
       value: formatCollectorsNullablePercent(data.portfolioYieldRate, "No portfolio base"),
       helper: `Base ${formatCollectorsCurrency(data.periodPortfolioPrincipal)}`,
     },
     {
       key: "portfolio-at-risk",
-      label: "Portfolio at Risk",
+      label: (
+        <CollectorInfoHint
+          help={(
+            <CollectorMetricTooltip
+              summary="Shows how much of the selected-period portfolio base is currently overdue."
+              rows={[
+                {
+                  label: "Value",
+                  value: "Overdue share as a percentage of the selected-period portfolio base.",
+                },
+                {
+                  label: "Subline",
+                  value: "The helper line shows the peso amount currently overdue.",
+                },
+              ]}
+            />
+          )}
+          label="Portfolio at Risk"
+        />
+      ),
       value: formatCollectorsNullablePercent(data.portfolioAtRiskRate, "No portfolio base"),
       helper: `${formatCollectorsCurrency(data.periodPortfolioAtRiskAmount)} overdue`,
     },
@@ -90,7 +128,21 @@ export function CollectorProfilePanel({
       key: "completion-conversion",
       label: (
         <CollectorInfoHint
-          help="Completed loans in the selected period out of all due loans handled in the selected period. Archived loans should count as completed for this calculation."
+          help={(
+            <CollectorMetricTooltip
+              summary="Measures how many due loans were completed during the selected period."
+              rows={[
+                {
+                  label: "Value",
+                  value: "Conversion percentage for due loans handled in the selected period.",
+                },
+                {
+                  label: "Subline",
+                  value: "Completed loans out of all due loans handled in the selected period. Archived loans count as completed.",
+                },
+              ]}
+            />
+          )}
           label="Completion Conversion"
         />
       ),
@@ -101,7 +153,21 @@ export function CollectorProfilePanel({
       key: "borrower-follow-through",
       label: (
         <CollectorInfoHint
-          help="Average number of collection entries recorded per borrower handled in the selected period."
+          help={(
+            <CollectorMetricTooltip
+              summary="Shows how consistently collection activity is being recorded across borrowers handled in the selected period."
+              rows={[
+                {
+                  label: "Value",
+                  value: "Average collection entries recorded per borrower handled in the selected period.",
+                },
+                {
+                  label: "Subline",
+                  value: "The helper line shows how many distinct borrowers were handled.",
+                },
+              ]}
+            />
+          )}
           label="Borrower Follow-Through"
         />
       ),
@@ -112,39 +178,6 @@ export function CollectorProfilePanel({
   const uniquePeriodSignals = Array.from(
     new Map(periodSignals.map((signal) => [signal.key, signal])).values(),
   );
-  const portfolioStatusItems = [
-    {
-      key: "active",
-      label: "Active",
-      count: data.loanPortfolio.active,
-      toneClassName: "bg-emerald-500",
-    },
-    {
-      key: "overdue",
-      label: "Overdue",
-      count: data.loanPortfolio.overdue,
-      toneClassName: "bg-orange-500",
-    },
-    {
-      key: "completed",
-      label: "Completed",
-      count: data.loanPortfolio.completed,
-      toneClassName: "bg-blue-500",
-    },
-    {
-      key: "archived",
-      label: "Archived",
-      count: data.loanPortfolio.archived,
-      toneClassName: "bg-slate-500",
-    },
-    {
-      key: "abandoned",
-      label: "Abandoned",
-      count: data.loanPortfolio.abandoned,
-      toneClassName: "bg-violet-500",
-    },
-  ] as const;
-
   return (
     <div className="space-y-8">
       <section className="space-y-4">
@@ -328,98 +361,142 @@ export function CollectorProfilePanel({
           toneClassName="text-sky-700"
         />
 
-        <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(340px,0.95fr)]">
-          <Card className="gap-0 py-0 shadow-sm">
-            <CardHeader className="pb-3 pt-5">
-              <CardTitle className="text-base font-semibold tracking-tight">Portfolio Mix</CardTitle>
+        <div className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(340px,0.95fr)]">
+          <Card className="flex h-full flex-col gap-0 py-0 shadow-sm">
+            <CardHeader className="gap-0 pb-2 pt-4">
+              <CardTitle className="text-base font-semibold tracking-tight">Portfolio Composition</CardTitle>
               <CardDescription className="text-sm leading-6">
-                Current loan-state composition for this collector&apos;s assigned book right now.
+                Total history of loans assigned to this collector, grouped by their current status within the system.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4 pb-5 pt-0">
-              <div className="rounded-2xl border border-border/70 bg-muted/10 p-4">
-                <CollectorLoanPortfolioChart compact counts={data.loanPortfolio} />
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                {portfolioStatusItems.map((item) => (
-                  <StatusStatCard
-                    count={item.count}
-                    key={item.key}
-                    label={item.label}
-                    percentage={
-                      data.loanPortfolio.total > 0
-                        ? formatCollectorsPercent((item.count / data.loanPortfolio.total) * 100)
-                        : "0.0%"
-                    }
-                    toneClassName={item.toneClassName}
-                  />
-                ))}
-              </div>
+            <CardContent className="flex min-h-0 flex-1 pb-6 pt-0">
+              <CollectorLoanPortfolioChart compact counts={data.loanPortfolio} />
             </CardContent>
           </Card>
 
-          <Card className="gap-0 py-0 shadow-sm">
-            <CardHeader className="pb-3 pt-5">
-              <CardTitle className="text-base font-semibold tracking-tight">Operational Snapshot</CardTitle>
-              <CardDescription className="text-sm leading-6">
-                Current workload, exposure, and live collection context tied to the active loan book.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4 pb-5 pt-0">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <ProfileStatCard
-                  description="Active and overdue accounts still assigned."
-                  title="Active Assigned Loans"
+          <div className="grid content-start gap-4">
+            <Card className="gap-0 py-0 shadow-sm">
+              <CardHeader className="gap-0 pb-2 pt-4">
+                <CardTitle className="text-base font-semibold tracking-tight">Operational Snapshot</CardTitle>
+                <CardDescription className="text-sm leading-6">
+                  Current workload and exposure tied to the active loan book.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-3 pb-6 pt-0 sm:grid-cols-2">
+                <PortfolioMetricTile
+                  description="Active and overdue accounts."
+                  title="Live Assigned Loans"
                   value={formatCollectorsInteger(data.assignedActiveLoans)}
                 />
-                <ProfileStatCard
-                  description="Remaining interest potential on active loans."
-                  title="Interest Potential"
+                <PortfolioMetricTile
+                  description="Potential profit on active loans."
+                  title={(
+                    <CollectorInfoHint
+                      help={(
+                        <CollectorMetricTooltip
+                          summary="Shows the remaining interest still tied to the currently active loan book."
+                          rows={[
+                            {
+                              label: "Value",
+                              value: "Peso amount of remaining interest still collectible from active loans.",
+                            },
+                          ]}
+                        />
+                      )}
+                      label="Interest Potential"
+                    />
+                  )}
                   value={formatCollectorsCurrency(data.activeInterestPotential)}
                 />
-                <ProfileStatCard
-                  description="Total payable load on currently active loans."
-                  title="Current Load"
+                <PortfolioMetricTile
+                  description="Total payable load on current loans."
+                  title={(
+                    <CollectorInfoHint
+                      help={(
+                        <CollectorMetricTooltip
+                          summary="Shows the full remaining load of the current active loan book."
+                          rows={[
+                            {
+                              label: "Value",
+                              value: "Total payable amount still sitting in the active loan book, including principal and interest.",
+                            },
+                          ]}
+                        />
+                      )}
+                      label="Current Load"
+                    />
+                  )}
                   value={formatCollectorsCurrency(activeTotalPayableLoad)}
                 />
-                <ProfileStatCard
-                  description="Overdue principal inside the live loan book."
-                  title="Overdue Exposure"
+                <PortfolioMetricTile
+                  description="Overdue principal of live loan book."
+                  title={(
+                    <CollectorInfoHint
+                      help={(
+                        <CollectorMetricTooltip
+                          summary="Shows how much overdue principal is currently sitting inside the live loan portfolio."
+                          rows={[
+                            {
+                              label: "Value",
+                              value: "Peso amount of overdue principal currently exposed inside the live loan book.",
+                            },
+                          ]}
+                        />
+                      )}
+                      label="Overdue Exposure"
+                    />
+                  )}
                   value={formatCollectorsCurrency(data.portfolioAtRiskAmount)}
                 />
-              </div>
+              </CardContent>
+            </Card>
 
-              <div className="rounded-2xl border border-border/70 bg-muted/10 p-4">
-                <p className="text-base font-semibold tracking-tight text-foreground">
+            <Card className="gap-0 py-0 shadow-sm">
+              <CardHeader className="gap-0 pb-7 pt-4">
+                <CardTitle className="text-base font-semibold tracking-tight">
                   <CollectorInfoHint
-                    help="Live Recovery shows how much has been collected so far against the total payable of currently active loans. Live Efficiency shows how much has been collected so far against what those same active loans should have reached by today."
+                    help={(
+                      <CollectorMetricTooltip
+                        summary="Compares current collections against the active loan book in two ways: total remaining load and expected pace-to-date."
+                        rows={[
+                          {
+                            label: "Live recovery",
+                            value: "Collected so far versus the total payable amount of currently active loans.",
+                          },
+                          {
+                            label: "Live efficiency",
+                            value: "Collected so far versus what those same active loans should have reached by today.",
+                          },
+                        ]}
+                      />
+                    )}
                     label="Live Recovery vs Live Efficiency"
                   />
-                </p>
-                <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                </CardTitle>
+                <CardDescription className="text-sm leading-6">
                   Current collection ratios against the active loan book.
-                </p>
-
-                <div className="mt-4 space-y-4">
-                  <ComparisonBarRow
-                    label="Live recovery"
-                    note="Collected so far versus current active-loan total payable"
-                    toneClassName="bg-emerald-500"
-                    value={formatCollectorsPercent(data.liveRecoveryRate)}
-                    widthPercent={(data.liveRecoveryRate / liveRatioScale) * 100}
-                  />
-                  <ComparisonBarRow
-                    label="Live efficiency"
-                    note="Collected so far versus what active loans should have reached by today"
-                    toneClassName="bg-sky-500"
-                    value={formatCollectorsNullablePercent(data.activeEfficiencyRatio, "No active pace")}
-                    widthPercent={((data.activeEfficiencyRatio ?? 0) / liveRatioScale) * 100}
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4 pb-6 pt-0">
+                <ComparisonBarRow
+                  barHeightClassName="h-5"
+                  label="Live recovery"
+                  note="Collected so far versus current active-loan total payable"
+                  toneClassName="bg-emerald-500"
+                  value={formatCollectorsPercent(data.liveRecoveryRate)}
+                  widthPercent={(data.liveRecoveryRate / liveRatioScale) * 100}
+                />
+                <ComparisonBarRow
+                  barHeightClassName="h-5"
+                  label="Live efficiency"
+                  note="Collected so far versus what active loans should have reached by today"
+                  toneClassName="bg-sky-500"
+                  value={formatCollectorsNullablePercent(data.activeEfficiencyRatio, "No active pace")}
+                  widthPercent={((data.activeEfficiencyRatio ?? 0) / liveRatioScale) * 100}
+                />
+              </CardContent>
+            </Card>
+          </div>
         </div>
       </section>
 
@@ -487,7 +564,7 @@ export function CollectorProfilePanel({
   );
 }
 
-function ProfileStatCard({
+function PortfolioMetricTile({
   title,
   value,
   description,
@@ -501,31 +578,6 @@ function ProfileStatCard({
       <p className="text-sm font-medium text-muted-foreground">{title}</p>
       <p className="mt-1 text-2xl font-semibold tracking-tight text-foreground">{value}</p>
       <p className="mt-1 text-sm leading-6 text-muted-foreground">{description}</p>
-    </div>
-  );
-}
-
-function StatusStatCard({
-  label,
-  count,
-  percentage,
-  toneClassName,
-}: {
-  label: string;
-  count: number;
-  percentage: string;
-  toneClassName: string;
-}) {
-  return (
-    <div className="rounded-2xl border border-border/70 bg-background p-4 shadow-sm">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <span className={`size-2.5 rounded-full ${toneClassName}`} />
-          <p className="text-sm font-medium text-muted-foreground">{label}</p>
-        </div>
-        <p className="text-lg font-semibold tracking-tight text-foreground">{formatCollectorsInteger(count)}</p>
-      </div>
-      <p className="mt-2 text-sm text-muted-foreground">{percentage} of current portfolio</p>
     </div>
   );
 }
@@ -558,6 +610,30 @@ function SectionIntro({
   );
 }
 
+function CollectorMetricTooltip({
+  summary,
+  rows,
+}: {
+  summary: string;
+  rows: Array<{ label: string; value: string }>;
+}) {
+  return (
+    <div className="space-y-2 text-sm">
+      <p className="font-medium leading-5 text-primary-foreground">{summary}</p>
+      <div className="space-y-1.5">
+        {rows.map((row) => (
+          <div className="space-y-0.5" key={row.label}>
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary-foreground/70">
+              {row.label}
+            </p>
+            <p className="leading-5 text-primary-foreground/90">{row.value}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ComparisonModule({
   title,
   description,
@@ -566,7 +642,7 @@ function ComparisonModule({
   className,
   barHeightClassName,
 }: {
-  title: string;
+  title: ReactNode;
   description: string;
   rows: Array<{
     label: string;
@@ -589,7 +665,7 @@ function ComparisonModule({
         <div className="flex min-h-0 flex-col justify-center gap-4">
           {rows.map((row) => (
             <ComparisonBarRow
-              key={`${title}-${row.label}`}
+              key={`${row.label}-${row.note}`}
               barHeightClassName={barHeightClassName}
               label={row.label}
               note={row.note}
@@ -653,7 +729,7 @@ function formatPaceRatioValue(selectedPeriodMonthlyAverage: number, lifetimeMont
 
 function formatCompletionConversionPercent(completedLoans: number, dueLoans: number) {
   const conversionPercent = dueLoans > 0 ? Math.round((completedLoans / dueLoans) * 100) : 0;
-  return `${formatCollectorsInteger(conversionPercent)}% conversion`;
+  return `${formatCollectorsInteger(conversionPercent)}%`;
 }
 
 function formatBorrowerFollowThroughValue(collectionEntries: number, borrowersHandledCount: number) {
@@ -661,7 +737,7 @@ function formatBorrowerFollowThroughValue(collectionEntries: number, borrowersHa
   return `${entriesPerBorrower.toLocaleString("en-PH", {
     minimumFractionDigits: 1,
     maximumFractionDigits: 1,
-  })} entries / borrower`;
+  })} / borrower`;
 }
 
 function formatCompletionConversionHelper(completedLoans: number, dueLoans: number) {
