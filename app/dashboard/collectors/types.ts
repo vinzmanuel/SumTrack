@@ -288,6 +288,7 @@ export type CollectorsAnalyticsData = {
   page: number;
   pageSize: number;
   totalCount: number;
+  focusedCollectorProfileData?: CollectorProfileData | null;
 };
 
 export type CollectorsBranchOption = AnalyticsSelectOption;

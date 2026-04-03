@@ -63,7 +63,7 @@ import type {
   CollectorsFilterState,
   CollectorsTopPerformerItem,
 } from "@/app/dashboard/collectors/types";
-import type { AnalyticsChartModel } from "@/components/analytics/types";
+import type { AnalyticsChartModel, AnalyticsDateRangeKey } from "@/components/analytics/types";
 import type { LoanListRow } from "@/app/dashboard/loans/types";
 
 type AnalyticsAccess = Extract<CollectorsAccessState, { view: "analytics" }>;
@@ -402,6 +402,16 @@ function buildCollectorAssignedLoanVisibleStatusWhere(
   }
 
   return eq(loan_records.status, "abandoned");
+}
+
+function mapLeaderboardRangeToProfilePeriod(
+  rangeKey: AnalyticsDateRangeKey,
+): CollectorProfilePeriodKey | null {
+  if (rangeKey === "this-month" || rangeKey === "last-30-days" || rangeKey === "this-year") {
+    return rangeKey;
+  }
+
+  return null;
 }
 
 function buildCollectionScopeFilters(
@@ -2107,6 +2117,17 @@ export async function loadCollectorsAnalyticsData(
   const averagePortfolioRecoveryRate = toNumber(summaryRow?.averagePortfolioRecoveryRate);
   const totalCollectionsChangePercent = percentChange(totalCollectionsAttributed, previousTotalCollectionsAttributed);
   const topCollector = orderedRows[0];
+  const focusedCollectorProfileData = totalCount === 1 && rows[0]
+    ? await (async () => {
+        const profilePeriodKey = mapLeaderboardRangeToProfilePeriod(filters.selectedRange);
+
+        if (!profilePeriodKey) {
+          return null;
+        }
+
+        return loadCollectorProfileData(access, rows[0].collectorId, profilePeriodKey);
+      })()
+    : null;
 
   return {
     filters: {
@@ -2150,10 +2171,11 @@ export async function loadCollectorsAnalyticsData(
           eyebrow: "No collector activity",
           title: "No collectors matched the selected filters",
           description: "Adjust the branch, date range, or search query to inspect collector performance.",
-        },
+    },
     page,
     pageSize,
     totalCount,
+    focusedCollectorProfileData,
   };
 }
 

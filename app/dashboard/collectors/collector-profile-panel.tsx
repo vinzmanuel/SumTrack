@@ -28,11 +28,22 @@ export function CollectorProfilePanel({
   data,
   showRankContext = true,
   periodControl,
+  visibleSections,
+  showSectionIntros = true,
 }: {
   data: CollectorProfileData;
   showRankContext?: boolean;
   periodControl?: ReactNode;
+  visibleSections?: {
+    selectedPeriod?: boolean;
+    currentPortfolio?: boolean;
+    lifetime?: boolean;
+  };
+  showSectionIntros?: boolean;
 }) {
+  const selectedPeriodVisible = visibleSections?.selectedPeriod ?? true;
+  const currentPortfolioVisible = visibleSections?.currentPortfolio ?? true;
+  const lifetimeVisible = visibleSections?.lifetime ?? true;
   const activeTotalPayableLoad = data.activePrincipalLoad + data.activeInterestPotential;
   const periodLabel = data.periodLabel.toLowerCase();
   const isLifetimeView = data.periodKey === "lifetime";
@@ -181,31 +192,34 @@ export function CollectorProfilePanel({
   );
   return (
     <div className="space-y-8">
-      <section className="space-y-4">
-        <SectionIntro
-          badges={
-            <>
-              <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700" variant="outline">
-                Status: {data.status === "active" ? "Active" : "Inactive"}
-              </Badge>
-              <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700" variant="outline">
-                Period: {data.periodLabel}
-              </Badge>
-              <Badge className="border-border/70 bg-card text-zinc-700 shadow-xs" variant="outline">
-                {trendLabel}
-              </Badge>
-            </>
-          }
-          description={
-            isLifetimeView
-              ? "Career totals and long-run collection pace across the collector's visible history."
-              : `Period-based analytics for this collector during ${periodLabel}.`
-          }
-          eyebrow="Selected period"
-          title="Performance Snapshot"
-          toneClassName="text-indigo-600"
-          trailing={periodControl ? <div className="w-full sm:w-[220px]">{periodControl}</div> : null}
-        />
+      {selectedPeriodVisible ? (
+        <section className="space-y-4">
+          {showSectionIntros ? (
+            <SectionIntro
+              badges={
+                <>
+                  <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700" variant="outline">
+                    Status: {data.status === "active" ? "Active" : "Inactive"}
+                  </Badge>
+                  <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700" variant="outline">
+                    Period: {data.periodLabel}
+                  </Badge>
+                  <Badge className="border-border/70 bg-card text-zinc-700 shadow-xs" variant="outline">
+                    {trendLabel}
+                  </Badge>
+                </>
+              }
+              description={
+                isLifetimeView
+                  ? "Career totals and long-run collection pace across the collector's visible history."
+                  : `Period-based analytics for this collector during ${periodLabel}.`
+              }
+              eyebrow="Selected period"
+              title="Performance Snapshot"
+              toneClassName="text-indigo-600"
+              trailing={periodControl ? <div className="w-full sm:w-[220px]">{periodControl}</div> : null}
+            />
+          ) : null}
 
         <div className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,1.65fr)_minmax(320px,0.95fr)]">
           <div className="grid h-full items-stretch gap-4 xl:grid-rows-[minmax(0,1.12fr)_minmax(0,0.88fr)]">
@@ -342,9 +356,11 @@ export function CollectorProfilePanel({
             </Card>
           </div>
         </div>
-      </section>
+        </section>
+      ) : null}
 
-      <section className="space-y-4">
+      {currentPortfolioVisible ? (
+        <section className="space-y-4">
         <SectionIntro
           badges={
             <>
@@ -499,9 +515,11 @@ export function CollectorProfilePanel({
             </Card>
           </div>
         </div>
-      </section>
+        </section>
+      ) : null}
 
-      <section className="space-y-4">
+      {lifetimeVisible ? (
+        <section className="space-y-4">
         <SectionIntro
           description="Career trend and long-run pace, kept quieter than the selected-period view above."
           eyebrow="Lifetime context"
@@ -561,7 +579,8 @@ export function CollectorProfilePanel({
             </CardContent>
           </Card>
         </div>
-      </section>
+        </section>
+      ) : null}
     </div>
   );
 }
@@ -600,14 +619,16 @@ function SectionIntro({
   toneClassName: string;
 }) {
   return (
-    <div className="flex flex-wrap items-start justify-between gap-4">
-      <div className="space-y-1">
-        <p className={`text-xs font-semibold uppercase tracking-[0.18em] ${toneClassName}`}>{eyebrow}</p>
-        <h2 className="text-2xl font-semibold tracking-tight text-foreground">{title}</h2>
-        <p className="text-sm leading-6 text-muted-foreground">{description}</p>
-        {badges ? <div className="flex flex-wrap items-center gap-2 pt-2">{badges}</div> : null}
+    <div className="rounded-2xl border border-border/70 bg-background px-5 py-4 shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="space-y-1">
+          <p className={`text-xs font-semibold uppercase tracking-[0.18em] ${toneClassName}`}>{eyebrow}</p>
+          <h2 className="text-2xl font-semibold tracking-tight text-foreground">{title}</h2>
+          <p className="text-sm leading-6 text-muted-foreground">{description}</p>
+          {badges ? <div className="flex flex-wrap items-center gap-2 pt-2">{badges}</div> : null}
+        </div>
+        {trailing}
       </div>
-      {trailing}
     </div>
   );
 }

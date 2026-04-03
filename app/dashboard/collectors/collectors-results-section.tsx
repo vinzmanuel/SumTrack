@@ -77,7 +77,12 @@ export function CollectorsResultsSection({
           collector={data.rows[0]}
           dateRangeLabel={data.dateRangeLabel}
           errorMessage={errorMessage}
+          focusedProfileData={data.focusedCollectorProfileData ?? null}
+          onBasisChange={onBasisChange}
+          onRangeChange={onRangeChange}
           profileHref={buildProfileHref(filters, data.rows[0].collectorId)}
+          selectedBasis={filters.basis}
+          selectedRange={filters.range}
         />
       ) : (
         <CollectorsRankedMode
