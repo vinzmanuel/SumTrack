@@ -71,6 +71,12 @@ export function CollectorProfilePanel({
     data.borrowersHandledCount,
   );
   const borrowerFollowThroughHelper = formatBorrowerFollowThroughHelper(data.borrowersHandledCount);
+  const rankContextBasisLabel =
+    data.selectedBasis === "total-collected"
+      ? "Ranked by total collections"
+      : data.selectedBasis === "incentives"
+        ? "Ranked by total incentive"
+        : "Ranked by average monthly collections";
   const periodSignals: PeriodSignalItem[] = [
     {
       key: "missed-rate",
@@ -217,7 +223,7 @@ export function CollectorProfilePanel({
               eyebrow="Selected period"
               title="Performance Snapshot"
               toneClassName="text-indigo-600"
-              trailing={periodControl ? <div className="w-full sm:w-[240px]">{periodControl}</div> : null}
+              trailing={periodControl ? <div className="w-full sm:w-auto sm:shrink-0">{periodControl}</div> : null}
             />
           ) : null}
 
@@ -313,7 +319,7 @@ export function CollectorProfilePanel({
           <div className="grid h-full items-stretch gap-4 xl:grid-rows-[auto_minmax(0,1fr)]">
             {showRankContext ? (
               <CollectorRankContextCard
-                basisLabel={`Ranked by average monthly collections in ${periodLabel}.`}
+                basisLabel={rankContextBasisLabel}
                 branchCollectorCount={data.branchCollectorCount}
                 branchName={data.branchName}
                 branchRank={data.branchRank}
@@ -620,8 +626,8 @@ function SectionIntro({
 }) {
   return (
     <div className="rounded-2xl border border-border/70 bg-background px-5 py-4 shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="space-y-1">
+      <div className="flex flex-wrap items-start justify-between gap-4 sm:flex-nowrap sm:items-end">
+        <div className="min-w-0 flex-1 space-y-1">
           <p className={`text-xs font-semibold uppercase tracking-[0.18em] ${toneClassName}`}>{eyebrow}</p>
           <h2 className="text-2xl font-semibold tracking-tight text-foreground">{title}</h2>
           <p className="text-sm leading-6 text-muted-foreground">{description}</p>

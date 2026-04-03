@@ -37,6 +37,9 @@ import {
   collections,
   employee_area_assignment,
   employee_info,
+  incentive_payout_batches,
+  incentive_payout_history,
+  incentive_rules,
   loan_records,
   roles,
   users,
@@ -46,6 +49,7 @@ import { alias } from "drizzle-orm/pg-core";
 import {
   isCollectorsSpecificPeriodSelection,
   resolveCollectorsDateRange,
+  supportsIncentivesSelection,
 } from "@/app/dashboard/collectors/filters";
 import {
   buildCollectorProfileMonthPeriod,
@@ -55,6 +59,7 @@ import {
   resolveCollectorProfilePeriodLabel,
 } from "@/app/dashboard/collectors/profile-filters";
 import type {
+  CollectorLeaderboardBasis,
   CollectorProfilePeriodKey,
   CollectorProfilePeriodAvailability,
   CollectorAssignedLoansData,
@@ -162,6 +167,35 @@ type CollectorLoanPortfolioCountsRow = {
 type CollectionTrendBucketRow = {
   bucketKey: string;
   totalCollected: number;
+};
+
+type CollectorIncentiveCollectionMonthRow = {
+  collectorId: string | null;
+  branchId: number;
+  monthKey: string;
+  totalCollected: number;
+};
+
+type CollectorHistoricalIncentiveMonthRow = {
+  collectorId: string;
+  branchId: number;
+  monthKey: string;
+  totalIncentive: number;
+};
+
+type FinalizedIncentiveMonthRow = {
+  branchId: number;
+  monthKey: string;
+};
+
+type CollectorIncentiveRuleVersionRow = {
+  ruleId: number;
+  branchId: number;
+  percentValue: number;
+  flatAmount: number;
+  effectiveStart: string;
+  effectiveEnd: string | null;
+  createdAt: string;
 };
 
 type CollectorRowMode = "window" | "career";
@@ -699,6 +733,221 @@ async function loadCollectionStats(
   return result;
 }
 
+function lastDayOfMonthForKey(monthKey: string) {
+  const [year, month] = monthKey.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month, 0));
+  return date.toISOString().slice(0, 10);
+}
+
+function collectorMonthKey(collectorId: string, monthKey: string) {
+  return `${collectorId}:${monthKey}`;
+}
+
+function branchMonthKey(branchId: number, monthKey: string) {
+  return `${branchId}:${monthKey}`;
+}
+
+function resolveApplicableCollectorIncentiveRule(
+  rulesByBranch: Map<number, CollectorIncentiveRuleVersionRow[]>,
+  branchId: number,
+  monthKey: string,
+) {
+  const rules = rulesByBranch.get(branchId) ?? [];
+  const monthStart = `${monthKey}-01`;
+  const monthEnd = lastDayOfMonthForKey(monthKey);
+
+  return (
+    rules.find((rule) => {
+      if (rule.effectiveStart > monthStart) {
+        return false;
+      }
+
+      return !rule.effectiveEnd || rule.effectiveEnd >= monthEnd;
+    }) ?? null
+  );
+}
+
+async function loadCollectorIncentiveTotals(
+  access: AnalyticsAccess,
+  collectorIds: string[],
+  range: CollectorsDateRange,
+): Promise<Map<string, number>> {
+  if (collectorIds.length === 0) {
+    return new Map();
+  }
+
+  const collectionScopeFilters: SQL[] = [
+    inArray(loan_records.collector_id, collectorIds),
+    gte(collections.collection_date, range.start),
+    lte(collections.collection_date, range.end),
+  ];
+
+  if (access.selectedBranchId) {
+    collectionScopeFilters.push(eq(loan_records.branch_id, access.selectedBranchId));
+  } else if (access.allowedBranchIds.length > 0) {
+    collectionScopeFilters.push(inArray(loan_records.branch_id, access.allowedBranchIds));
+  } else {
+    collectionScopeFilters.push(eq(loan_records.loan_id, -1));
+  }
+
+  const monthlyCollectionRows = await db
+    .select({
+      collectorId: loan_records.collector_id,
+      branchId: loan_records.branch_id,
+      monthKey: sql<string>`to_char(date_trunc('month', ${collections.collection_date}), 'YYYY-MM')`,
+      totalCollected: sql<number>`coalesce(sum(${collections.amount}), 0)::double precision`,
+    })
+    .from(collections)
+    .innerJoin(loan_records, eq(loan_records.loan_id, collections.loan_id))
+    .where(whereFrom(collectionScopeFilters))
+    .groupBy(
+      loan_records.collector_id,
+      loan_records.branch_id,
+      sql`date_trunc('month', ${collections.collection_date})`,
+    )
+    .catch(() => [] as CollectorIncentiveCollectionMonthRow[]);
+
+  const payoutBatchScopeFilters: SQL[] = [
+    gte(incentive_payout_batches.period_end, range.start),
+    lte(incentive_payout_batches.period_start, range.end),
+  ];
+
+  if (access.selectedBranchId) {
+    payoutBatchScopeFilters.push(eq(incentive_payout_batches.branch_id, access.selectedBranchId));
+  } else if (access.allowedBranchIds.length > 0) {
+    payoutBatchScopeFilters.push(inArray(incentive_payout_batches.branch_id, access.allowedBranchIds));
+  } else {
+    payoutBatchScopeFilters.push(eq(incentive_payout_batches.batch_id, -1));
+  }
+
+  const [finalizedMonthRows, historicalRows, collectorRoleRow] = await Promise.all([
+    db
+      .select({
+        branchId: incentive_payout_batches.branch_id,
+        monthKey: sql<string>`to_char(${incentive_payout_batches.period_start}, 'YYYY-MM')`,
+      })
+      .from(incentive_payout_batches)
+      .where(whereFrom(payoutBatchScopeFilters))
+      .catch(() => [] as FinalizedIncentiveMonthRow[]),
+    db
+      .select({
+        collectorId: incentive_payout_history.employee_user_id,
+        branchId: incentive_payout_batches.branch_id,
+        monthKey: sql<string>`to_char(${incentive_payout_batches.period_start}, 'YYYY-MM')`,
+        totalIncentive: sql<number>`coalesce(sum(${incentive_payout_history.computed_incentive}), 0)::double precision`,
+      })
+      .from(incentive_payout_history)
+      .innerJoin(
+        incentive_payout_batches,
+        eq(incentive_payout_batches.batch_id, incentive_payout_history.batch_id),
+      )
+      .where(
+        whereFrom([
+          inArray(incentive_payout_history.employee_user_id, collectorIds),
+          ...payoutBatchScopeFilters,
+        ]),
+      )
+      .groupBy(
+        incentive_payout_history.employee_user_id,
+        incentive_payout_batches.branch_id,
+        sql`date_trunc('month', ${incentive_payout_batches.period_start})`,
+      )
+      .catch(() => [] as CollectorHistoricalIncentiveMonthRow[]),
+    db
+      .select({
+        roleId: roles.role_id,
+      })
+      .from(roles)
+      .where(eq(roles.role_name, "Collector"))
+      .limit(1)
+      .then((rows) => rows[0] ?? null)
+      .catch(() => null),
+  ]);
+
+  const finalizedMonths = new Set(finalizedMonthRows.map((row) => branchMonthKey(row.branchId, row.monthKey)));
+  const historicalAmountByCollectorMonth = new Map(
+    historicalRows.map((row) => [collectorMonthKey(row.collectorId, row.monthKey), toNumber(row.totalIncentive)]),
+  );
+  const branchIds = Array.from(new Set(monthlyCollectionRows.map((row) => row.branchId)));
+  const liveMonths = Array.from(new Set(monthlyCollectionRows.map((row) => row.monthKey))).sort();
+  const ruleRows = !collectorRoleRow || branchIds.length === 0 || liveMonths.length === 0
+    ? []
+    : await db
+        .select({
+          ruleId: incentive_rules.rule_id,
+          branchId: incentive_rules.branch_id,
+          percentValue: incentive_rules.percent_value,
+          flatAmount: incentive_rules.flat_amount,
+          effectiveStart: incentive_rules.effective_start,
+          effectiveEnd: incentive_rules.effective_end,
+          createdAt: incentive_rules.created_at,
+        })
+        .from(incentive_rules)
+        .where(
+          whereFrom([
+            inArray(incentive_rules.branch_id, branchIds),
+            eq(incentive_rules.role_id, collectorRoleRow.roleId),
+            lte(incentive_rules.effective_start, `${liveMonths[liveMonths.length - 1]}-01`),
+            sql`${incentive_rules.effective_end} is null or ${incentive_rules.effective_end} >= ${`${liveMonths[0]}-01`}`,
+          ]),
+        )
+        .orderBy(
+          asc(incentive_rules.branch_id),
+          desc(incentive_rules.effective_start),
+          desc(incentive_rules.created_at),
+          desc(incentive_rules.rule_id),
+        )
+        .catch(() => [] as CollectorIncentiveRuleVersionRow[]);
+
+  const rulesByBranch = new Map<number, CollectorIncentiveRuleVersionRow[]>();
+  for (const row of ruleRows) {
+    const current = rulesByBranch.get(row.branchId) ?? [];
+    current.push({
+      ruleId: row.ruleId,
+      branchId: row.branchId,
+      percentValue: toNumber(row.percentValue),
+      flatAmount: toNumber(row.flatAmount),
+      effectiveStart: row.effectiveStart,
+      effectiveEnd: row.effectiveEnd,
+      createdAt: row.createdAt,
+    });
+    rulesByBranch.set(row.branchId, current);
+  }
+
+  const totalsByCollector = new Map<string, number>();
+
+  for (const row of historicalRows) {
+    totalsByCollector.set(
+      row.collectorId,
+      (totalsByCollector.get(row.collectorId) ?? 0) + toNumber(row.totalIncentive),
+    );
+  }
+
+  for (const row of monthlyCollectionRows) {
+    if (!row.collectorId) {
+      continue;
+    }
+
+    const monthCollectorKey = collectorMonthKey(row.collectorId, row.monthKey);
+    const monthBranchKey = branchMonthKey(row.branchId, row.monthKey);
+    if (historicalAmountByCollectorMonth.has(monthCollectorKey) || finalizedMonths.has(monthBranchKey)) {
+      continue;
+    }
+
+    const applicableRule = resolveApplicableCollectorIncentiveRule(rulesByBranch, row.branchId, row.monthKey);
+    const liveIncentive = applicableRule
+      ? (toNumber(row.totalCollected) * applicableRule.percentValue) / 100 + applicableRule.flatAmount
+      : 0;
+
+    totalsByCollector.set(
+      row.collectorId,
+      (totalsByCollector.get(row.collectorId) ?? 0) + liveIncentive,
+    );
+  }
+
+  return totalsByCollector;
+}
+
 async function loadPeriodPortfolioStats(
   access: AnalyticsAccess,
   collectorId: string,
@@ -1192,6 +1441,7 @@ function buildCollectorAnalyticsMetricsSubqueries(
       totalCollected: totalCollectedExpression.as("total_collected"),
       averageCollectionAmount: averageCollectionAmountExpression.as("average_collection_amount"),
       averageMonthlyCollections: averageMonthlyCollectionsExpression.as("average_monthly_collections"),
+      periodIncentiveTotal: sql<number>`0::double precision`.as("period_incentive_total"),
       expectedCollections: expectedCollectionsExpression.as("expected_collections"),
       efficiencyRatio: efficiencyRatioExpression.as("efficiency_ratio"),
       activeEfficiencyRatio: activeEfficiencyRatioExpression.as("active_efficiency_ratio"),
@@ -1238,7 +1488,9 @@ function buildCollectorAnalyticsMetricsSubqueries(
   const primaryRankingMetric =
     filters.selectedBasis === "total-collected"
       ? metrics.totalCollected
-      : metrics.averageMonthlyCollections;
+      : filters.selectedBasis === "incentives"
+        ? metrics.periodIncentiveTotal
+        : metrics.averageMonthlyCollections;
 
   const performanceOrderSql = sql`
     ${primaryRankingMetric} desc,
@@ -1270,6 +1522,7 @@ function buildCollectorAnalyticsMetricsSubqueries(
       totalCollected: metrics.totalCollected,
       averageCollectionAmount: metrics.averageCollectionAmount,
       averageMonthlyCollections: metrics.averageMonthlyCollections,
+      periodIncentiveTotal: metrics.periodIncentiveTotal,
       expectedCollections: metrics.expectedCollections,
       efficiencyRatio: metrics.efficiencyRatio,
       activeEfficiencyRatio: metrics.activeEfficiencyRatio,
@@ -1667,6 +1920,28 @@ function previousEquivalentRange(range: CollectorsDateRange): CollectorsDateRang
   };
 }
 
+function resolveCollectorsIncentiveDateRange(filters: CollectorsFilterState): CollectorsDateRange {
+  const today = getManilaTodayDateString();
+
+  if (filters.selectedRange === "past-3-months") {
+    return {
+      start: startOfMonth(addMonths(today, -2)),
+      end: today,
+      label: "past 3 months",
+    };
+  }
+
+  if (filters.selectedRange === "past-6-months") {
+    return {
+      start: startOfMonth(addMonths(today, -5)),
+      end: today,
+      label: "past 6 months",
+    };
+  }
+
+  return resolveCollectorsDateRange(filters);
+}
+
 function percentChange(current: number, previous: number) {
   if (previous <= 0) {
     return current > 0 ? null : 0;
@@ -1699,6 +1974,7 @@ function normalizeCollectorLeaderboardRow(row: CollectorLeaderboardRow): Collect
     totalCollected: toNumber(row.totalCollected),
     averageCollectionAmount: toNumber(row.averageCollectionAmount),
     averageMonthlyCollections: toNumber(row.averageMonthlyCollections),
+    periodIncentiveTotal: toNumber(row.periodIncentiveTotal),
     expectedCollections: toNumber(row.expectedCollections),
     efficiencyRatio: row.efficiencyRatio === null ? null : toNumber(row.efficiencyRatio),
     activeEfficiencyRatio: row.activeEfficiencyRatio === null ? null : toNumber(row.activeEfficiencyRatio),
@@ -1786,7 +2062,9 @@ function buildCollectorRows(
   loanStatsMap: Map<string, LoanStatsRow>,
   collectionStatsMap: Map<string, CollectionStatsRow>,
   previousCollectionStatsMap: Map<string, CollectionStatsRow>,
+  incentiveTotalsMap: Map<string, number>,
   range: CollectorsDateRange,
+  selectedBasis: CollectorLeaderboardBasis,
   mode: CollectorRowMode = "window",
 ): CollectorPerformanceRow[] {
   const sharedVisibleDays = daysInRange(range);
@@ -1834,6 +2112,7 @@ function buildCollectorRows(
       totalCollected > 0 && activeCollectionMonths > 0
         ? totalCollected / activeCollectionMonths
         : 0;
+    const periodIncentiveTotal = incentiveTotalsMap.get(row.collectorId) ?? 0;
     const collectionEntries = collectionStats?.collectionEntries ?? 0;
     const borrowersHandledCount = collectionStats?.borrowersHandledCount ?? 0;
     const productivityCount = collectionEntries;
@@ -1873,6 +2152,7 @@ function buildCollectorRows(
       totalCollected,
       averageCollectionAmount,
       averageMonthlyCollections,
+      periodIncentiveTotal,
       expectedCollections,
       efficiencyRatio,
       activeEfficiencyRatio,
@@ -1904,9 +2184,24 @@ function buildCollectorRows(
     };
   });
 
+  const primaryMetricSelector = (row: CollectorPerformanceRow) => {
+    if (selectedBasis === "total-collected") {
+      return row.totalCollected;
+    }
+
+    if (selectedBasis === "incentives") {
+      return row.periodIncentiveTotal;
+    }
+
+    return row.averageMonthlyCollections;
+  };
+
   const sorted = combined.sort((left, right) => {
-    if (right.averageMonthlyCollections !== left.averageMonthlyCollections) {
-      return right.averageMonthlyCollections - left.averageMonthlyCollections;
+    const rightPrimaryMetric = primaryMetricSelector(right);
+    const leftPrimaryMetric = primaryMetricSelector(left);
+
+    if (rightPrimaryMetric !== leftPrimaryMetric) {
+      return rightPrimaryMetric - leftPrimaryMetric;
     }
     if (right.totalCollected !== left.totalCollected) {
       return right.totalCollected - left.totalCollected;
@@ -1943,8 +2238,11 @@ function buildCollectorRows(
     if (left.branchId !== right.branchId) {
       return left.branchId - right.branchId;
     }
-    if (right.averageMonthlyCollections !== left.averageMonthlyCollections) {
-      return right.averageMonthlyCollections - left.averageMonthlyCollections;
+    const rightPrimaryMetric = primaryMetricSelector(right);
+    const leftPrimaryMetric = primaryMetricSelector(left);
+
+    if (rightPrimaryMetric !== leftPrimaryMetric) {
+      return rightPrimaryMetric - leftPrimaryMetric;
     }
     if (right.totalCollected !== left.totalCollected) {
       return right.totalCollected - left.totalCollected;
@@ -1964,6 +2262,43 @@ function buildCollectorRows(
       ...row,
       nationwideRank: index + 1,
       branchRank: branchRanks.get(`${row.branchId}:${row.collectorId}`) ?? index + 1,
+      visibleCollectorCount: totalVisibleCollectors,
+      branchCollectorCount: branchCollectorCounts.get(row.branchId) ?? 1,
+      rank: index + 1,
+    };
+
+    return {
+      ...rankedRow,
+      radarMetrics: buildCollectorRadarMetrics(rankedRow, maxima),
+    };
+  });
+}
+
+function rerankCollectorRows(rows: CollectorPerformanceRow[]) {
+  const maxima = {
+    totalCollected: Math.max(...rows.map((row) => row.totalCollected), 0),
+    completionRate: Math.max(...rows.map((row) => row.completionRate), 0),
+    consistencyScore: Math.max(...rows.map((row) => row.consistencyScore), 0),
+    averageMonthlyCollections: Math.max(...rows.map((row) => row.averageMonthlyCollections), 0),
+    portfolioRecoveryRate: Math.max(...rows.map((row) => row.portfolioRecoveryRate), 0),
+    delinquencyControl: Math.max(...rows.map((row) => row.delinquencyControl), 0),
+  };
+  const totalVisibleCollectors = rows.length;
+  const branchCollectorCounts = new Map<number, number>();
+  const branchRanks = new Map<number, number>();
+
+  for (const row of rows) {
+    branchCollectorCounts.set(row.branchId, (branchCollectorCounts.get(row.branchId) ?? 0) + 1);
+  }
+
+  return rows.map((row, index) => {
+    const branchRank = (branchRanks.get(row.branchId) ?? 0) + 1;
+    branchRanks.set(row.branchId, branchRank);
+
+    const rankedRow: CollectorLeaderboardRow = {
+      ...row,
+      nationwideRank: index + 1,
+      branchRank,
       visibleCollectorCount: totalVisibleCollectors,
       branchCollectorCount: branchCollectorCounts.get(row.branchId) ?? 1,
       rank: index + 1,
@@ -2075,24 +2410,43 @@ async function loadAllCollectorRows(
   options?: {
     includePrevious?: boolean;
     mode?: CollectorRowMode;
+    selectedBasis?: CollectorLeaderboardBasis;
   },
 ) {
   const range = resolveCollectorsDateRange(filters);
+  const incentiveRange = resolveCollectorsIncentiveDateRange(filters);
   const includePrevious = options?.includePrevious ?? true;
   const mode = options?.mode ?? "window";
+  const selectedBasis = options?.selectedBasis ?? filters.selectedBasis;
   const previousRange = includePrevious ? previousEquivalentRange(range) : range;
   const baseRows = await loadCollectorBaseRows(access, filters, collectorId);
   const collectorIds = baseRows.map((row) => row.collectorId);
-  const [loanStatsMap, collectionStatsMap, previousCollectionStatsMap] = await Promise.all([
+  const [loanStatsMap, collectionStatsMap, previousCollectionStatsMap, incentiveTotalsMap] = await Promise.all([
     loadLoanStats(access, collectorIds, range),
     loadCollectionStats(access, collectorIds, range),
     includePrevious ? loadCollectionStats(access, collectorIds, previousRange) : Promise.resolve(new Map<string, CollectionStatsRow>()),
+    selectedBasis === "incentives" && supportsIncentivesSelection({
+      range: filters.selectedRange,
+      from: filters.fromRaw,
+      to: filters.toRaw,
+    })
+      ? loadCollectorIncentiveTotals(access, collectorIds, incentiveRange)
+      : Promise.resolve(new Map<string, number>()),
   ]);
 
   return {
     range,
     previousRange,
-    rows: buildCollectorRows(baseRows, loanStatsMap, collectionStatsMap, previousCollectionStatsMap, range, mode),
+    rows: buildCollectorRows(
+      baseRows,
+      loanStatsMap,
+      collectionStatsMap,
+      previousCollectionStatsMap,
+      incentiveTotalsMap,
+      range,
+      selectedBasis,
+      mode,
+    ),
   };
 }
 
@@ -2120,10 +2474,152 @@ export async function loadCollectorsBranchOptions(
   return [{ value: "all", label: "All visible branches" }, ...rows];
 }
 
+async function loadCollectorsAnalyticsDataForIncentives(
+  access: AnalyticsAccess,
+  filters: CollectorsFilterState,
+): Promise<CollectorsAnalyticsData> {
+  const { range, rows: rawRows } = await loadAllCollectorRows(access, filters, undefined, {
+    selectedBasis: "incentives",
+  });
+  const filteredRows = isCollectorsSpecificPeriodSelection({
+    range: filters.selectedRange,
+    from: filters.fromRaw,
+    to: filters.toRaw,
+  })
+    ? rawRows.filter(
+        (row) =>
+          row.totalCollected > 0 ||
+          row.expectedCollections > 0 ||
+          row.productivityCount > 0 ||
+          row.periodIncentiveTotal > 0,
+      )
+    : rawRows;
+  const allRows = rerankCollectorRows(filteredRows);
+  const pageSize = filters.pageSize || COLLECTORS_PAGE_SIZE;
+  const totalCount = allRows.length;
+  const totalPages = Math.max(Math.ceil(totalCount / pageSize), 1);
+  const page = Math.min(Math.max(filters.page, 1), totalPages);
+  const offset = (page - 1) * pageSize;
+  const rows = allRows.slice(offset, offset + pageSize);
+  const orderedRows = allRows.slice(0, 10);
+  const comparisonRows = [...allRows]
+    .sort((left, right) => {
+      if (right.assignedActiveLoans !== left.assignedActiveLoans) {
+        return right.assignedActiveLoans - left.assignedActiveLoans;
+      }
+      if (right.totalCollected !== left.totalCollected) {
+        return right.totalCollected - left.totalCollected;
+      }
+      return left.fullName.localeCompare(right.fullName);
+    })
+    .slice(0, 6);
+  const executionRows = [...allRows]
+    .sort((left, right) => {
+      const rightExecutionScore = right.completionRate + right.consistencyScore + right.delinquencyControl;
+      const leftExecutionScore = left.completionRate + left.consistencyScore + left.delinquencyControl;
+
+      if (rightExecutionScore !== leftExecutionScore) {
+        return rightExecutionScore - leftExecutionScore;
+      }
+      if (right.totalCollected !== left.totalCollected) {
+        return right.totalCollected - left.totalCollected;
+      }
+      return left.fullName.localeCompare(right.fullName);
+    })
+    .slice(0, 6);
+  const highestPortfolio = [...allRows]
+    .sort((left, right) => {
+      if (right.assignedActiveLoans !== left.assignedActiveLoans) {
+        return right.assignedActiveLoans - left.assignedActiveLoans;
+      }
+      if (right.totalCollected !== left.totalCollected) {
+        return right.totalCollected - left.totalCollected;
+      }
+      return left.fullName.localeCompare(right.fullName);
+    })[0];
+  const bestRecovery = [...allRows]
+    .filter((row) => row.activePrincipalLoad > 0)
+    .sort((left, right) => {
+      if (right.portfolioRecoveryRate !== left.portfolioRecoveryRate) {
+        return right.portfolioRecoveryRate - left.portfolioRecoveryRate;
+      }
+      if (right.totalCollected !== left.totalCollected) {
+        return right.totalCollected - left.totalCollected;
+      }
+      return left.fullName.localeCompare(right.fullName);
+    })[0];
+  const periodAvailability = await loadCollectorsPeriodAvailability(allRows.map((row) => row.collectorId));
+  const profilePeriodKey = mapLeaderboardRangeToProfilePeriod({
+    rangeKey: filters.selectedRange,
+    fromRaw: filters.fromRaw,
+    toRaw: filters.toRaw,
+  });
+  const focusedCollectorProfileData = totalCount === 1 && rows[0] && profilePeriodKey
+    ? await loadCollectorProfileData(access, rows[0].collectorId, profilePeriodKey, filters.selectedBasis)
+    : null;
+  const totalCollectionsAttributed = allRows.reduce((sum, row) => sum + row.totalCollected, 0);
+  const previousTotalCollectionsAttributed = allRows.reduce((sum, row) => sum + row.previousTotalCollected, 0);
+  const averagePortfolioRecoveryRate = totalCount > 0
+    ? allRows.reduce((sum, row) => sum + row.portfolioRecoveryRate, 0) / totalCount
+    : 0;
+  const topCollector = orderedRows[0];
+
+  return {
+    filters: {
+      ...filters,
+      page,
+    },
+    dateRangeLabel: range.label,
+    periodAvailability,
+    summary: {
+      activeCollectors: totalCount,
+      totalCollectionsAttributed,
+      totalCollectionsChangePercent: percentChange(totalCollectionsAttributed, previousTotalCollectionsAttributed),
+      averagePortfolioRecoveryRate,
+      topCollectorName: topCollector?.fullName ?? "No collector data",
+      topCollectorAmount: topCollector?.periodIncentiveTotal ?? 0,
+    },
+    summaryTrends: {
+      activeCollectors: takeTrendValues(orderedRows, (row) => row.assignedActiveLoans),
+      totalCollectionsAttributed: takeTrendValues(orderedRows, (row) => row.totalCollected),
+      averagePortfolioRecoveryRate: takeTrendValues(orderedRows, (row) => row.portfolioRecoveryRate),
+      topCollector: takeTrendValues(orderedRows, (row) => row.periodIncentiveTotal),
+    },
+    rows,
+    topPerformers: buildTopPerformers(orderedRows),
+    comparison: buildComparisonRows(comparisonRows),
+    execution: buildExecutionRows(executionRows),
+    outputChart: buildOutputChart(orderedRows),
+    executionChart: buildExecutionChart(orderedRows),
+    insight: topCollector
+      ? {
+          eyebrow: "Incentive leader",
+          title: `${topCollector.fullName} leads the incentive ranking`,
+          description: `${topCollector.fullName} is currently #1 by hybrid incentives, posting \u20B1${topCollector.periodIncentiveTotal.toLocaleString("en-PH", {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })} across ${range.label}. Finalized payout months use saved history, while open months use live incentive computation. ${highestPortfolio ? `${highestPortfolio.fullName} is carrying the heaviest live portfolio at \u20B1${highestPortfolio.activePrincipalLoad.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}.` : ""}${bestRecovery ? ` ${bestRecovery.fullName} is posting the strongest portfolio recovery rate at ${bestRecovery.portfolioRecoveryRate.toLocaleString("en-PH", { maximumFractionDigits: 1 })}%.` : ""}`,
+        }
+      : {
+          eyebrow: "No collector activity",
+          title: "No collectors matched the selected filters",
+          description: "Adjust the branch, period, or search query to inspect collector performance.",
+        },
+    page,
+    pageSize,
+    totalCount,
+    focusedCollectorProfileData,
+  };
+}
+
 export async function loadCollectorsAnalyticsData(
   access: AnalyticsAccess,
   filters: CollectorsFilterState,
 ): Promise<CollectorsAnalyticsData> {
+  if (filters.selectedBasis === "incentives") {
+    return loadCollectorsAnalyticsDataForIncentives(access, filters);
+  }
+
   const { baseCollectors, metrics, rankedMetrics, range } = buildCollectorAnalyticsMetricsSubqueries(access, filters);
   const availabilityCollectorIds = await db
     .select({ collectorId: baseCollectors.collectorId })
@@ -2274,7 +2770,7 @@ export async function loadCollectorsAnalyticsData(
           return null;
         }
 
-        return loadCollectorProfileData(access, rows[0].collectorId, profilePeriodKey);
+        return loadCollectorProfileData(access, rows[0].collectorId, profilePeriodKey, filters.selectedBasis);
       })()
     : null;
 
@@ -2333,12 +2829,14 @@ export async function loadCollectorProfileData(
   access: AnalyticsAccess,
   collectorId: string,
   periodKey: CollectorProfilePeriodKey,
+  selectedBasis: CollectorLeaderboardBasis = "average-monthly-collections",
 ): Promise<CollectorProfileData | null> {
   const periodFilters = buildCollectorsFiltersForProfilePeriod(periodKey);
   const lifetimeFilters = buildCollectorsFiltersForProfilePeriod("lifetime");
   const periodOptions = {
     includePrevious: periodKey !== "lifetime",
     mode: periodKey === "lifetime" ? ("career" as const) : ("window" as const),
+    selectedBasis,
   };
   const [periodResult, lifetimeResult, periodPortfolioStats, loanPortfolio, periodTrendRows, lifetimeTrendRows] = await Promise.all([
     loadAllCollectorRows(access, periodFilters, undefined, periodOptions),
@@ -2367,7 +2865,24 @@ export async function loadCollectorProfileData(
       "month",
     ),
   ]);
-  const periodRow = periodResult.rows.find((item) => item.collectorId === collectorId);
+  const rawPeriodRow = periodResult.rows.find((item) => item.collectorId === collectorId);
+  const rankedPeriodRows = isCollectorsSpecificPeriodSelection({
+    range: periodFilters.selectedRange,
+    from: periodFilters.fromRaw,
+    to: periodFilters.toRaw,
+  })
+    ? rerankCollectorRows(
+        periodResult.rows.filter(
+          (row) =>
+            row.totalCollected > 0 ||
+            row.expectedCollections > 0 ||
+            row.productivityCount > 0 ||
+            (selectedBasis === "incentives" && row.periodIncentiveTotal > 0),
+        ),
+      )
+    : periodResult.rows;
+  const periodRankRow = rankedPeriodRows.find((item) => item.collectorId === collectorId);
+  const periodRow = periodRankRow ?? rawPeriodRow;
   const lifetimeRow = periodKey === "lifetime"
     ? periodRow
     : lifetimeResult?.rows.find((item) => item.collectorId === collectorId);
@@ -2406,6 +2921,7 @@ export async function loadCollectorProfileData(
     contactNo: periodRow.contactNo,
     email: periodRow.email,
     dateCreated: periodRow.dateCreated,
+    selectedBasis,
     rank: periodRow.rank,
     periodPortfolioPrincipal,
     periodInterestPotential,
@@ -2416,6 +2932,7 @@ export async function loadCollectorProfileData(
     totalCollected: periodRow.totalCollected,
     averageCollectionAmount: periodRow.averageCollectionAmount,
     averageMonthlyCollections: periodRow.averageMonthlyCollections,
+    periodIncentiveTotal: periodRow.periodIncentiveTotal,
     expectedCollections: periodRow.expectedCollections,
     efficiencyRatio: periodRow.efficiencyRatio,
     activeEfficiencyRatio: periodRow.activeEfficiencyRatio,

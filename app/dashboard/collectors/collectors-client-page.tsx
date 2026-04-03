@@ -4,7 +4,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardTitle } from "@/components/ui/card";
 import { CollectorsFilters } from "@/app/dashboard/collectors/collectors-filters";
-import { resolveCollectorsPeriodTriggerLabel, supportsAverageMonthlyCollectionsSelection } from "@/app/dashboard/collectors/filters";
+import {
+  resolveCollectorsPeriodTriggerLabel,
+  supportsAverageMonthlyCollectionsSelection,
+  supportsIncentivesSelection,
+} from "@/app/dashboard/collectors/filters";
 import { CollectorsResultsSection } from "@/app/dashboard/collectors/collectors-results-section";
 import type {
   CollectorsAnalyticsData,
@@ -322,7 +326,14 @@ export function CollectorsClientPage({
                 to: value.to,
               })
                 ? "total-collected"
-                : previous.basis,
+                : previous.basis === "incentives" &&
+                    !supportsIncentivesSelection({
+                      range: value.range,
+                      from: value.from,
+                      to: value.to,
+                    })
+                  ? "total-collected"
+                  : previous.basis,
             page: 1,
           }))
         }

@@ -55,7 +55,11 @@ function normalizeRange(
 }
 
 function normalizeBasis(value: string | undefined): CollectorLeaderboardBasis {
-  return value === "total-collected" ? "total-collected" : "average-monthly-collections";
+  if (value === "total-collected" || value === "average-monthly-collections" || value === "incentives") {
+    return value;
+  }
+
+  return "average-monthly-collections";
 }
 
 function normalizePageSize(value: string | undefined) {
@@ -234,6 +238,32 @@ export function supportsAverageMonthlyCollectionsSelection(params: {
   return Boolean(params.from && params.to && isExactYearRange(params.from, params.to));
 }
 
+export function supportsIncentivesSelection(params: {
+  range: AnalyticsDateRangeKey;
+  from?: string;
+  to?: string;
+}) {
+  if (
+    params.range === "this-month" ||
+    params.range === "past-3-months" ||
+    params.range === "past-6-months" ||
+    params.range === "this-year" ||
+    params.range === "lifetime"
+  ) {
+    return true;
+  }
+
+  if (params.range !== "custom") {
+    return false;
+  }
+
+  return Boolean(
+    params.from &&
+    params.to &&
+    (isExactMonthRange(params.from, params.to) || isExactYearRange(params.from, params.to)),
+  );
+}
+
 export function resolveCollectorsMinimumYear() {
   return Number(todayInManila().slice(0, 4)) - 10;
 }
@@ -261,7 +291,14 @@ export function parseCollectorsFilters(
         to: toRaw,
       })
         ? "total-collected"
-        : selectedBasis,
+        : selectedBasis === "incentives" &&
+            !supportsIncentivesSelection({
+              range: selectedRange,
+              from: fromRaw,
+              to: toRaw,
+            })
+          ? "total-collected"
+          : selectedBasis,
     page: Math.max(parsePositiveInt(params?.page) ?? 1, 1),
     pageSize: normalizePageSize(params?.pageSize),
   };

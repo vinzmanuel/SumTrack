@@ -15,7 +15,10 @@ export type CollectorsPageProps = {
   }>;
 };
 
-export type CollectorLeaderboardBasis = "total-collected" | "average-monthly-collections";
+export type CollectorLeaderboardBasis =
+  | "total-collected"
+  | "average-monthly-collections"
+  | "incentives";
 
 export type CollectorProfilePresetPeriodKey =
   | "this-month"
@@ -119,6 +122,7 @@ export type CollectorPerformanceRow = {
   totalCollected: number;
   averageCollectionAmount: number;
   averageMonthlyCollections: number;
+  periodIncentiveTotal: number;
   expectedCollections: number;
   efficiencyRatio: number | null;
   activeEfficiencyRatio: number | null;
@@ -222,6 +226,7 @@ export type CollectorProfileData = {
   contactNo: string | null;
   email: string | null;
   dateCreated: string | null;
+  selectedBasis: CollectorLeaderboardBasis;
   rank: number;
   periodPortfolioPrincipal: number;
   periodInterestPotential: number;
@@ -232,6 +237,7 @@ export type CollectorProfileData = {
   totalCollected: number;
   averageCollectionAmount: number;
   averageMonthlyCollections: number;
+  periodIncentiveTotal: number;
   expectedCollections: number;
   efficiencyRatio: number | null;
   activeEfficiencyRatio: number | null;

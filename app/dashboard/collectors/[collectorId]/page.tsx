@@ -8,7 +8,10 @@ import {
 } from "@/app/dashboard/collectors/detail-filters";
 import { parseCollectorsFilters } from "@/app/dashboard/collectors/filters";
 import { CollectorProfileClientPage } from "@/app/dashboard/collectors/collector-profile-client-page";
-import { parseCollectorProfilePeriod } from "@/app/dashboard/collectors/profile-filters";
+import {
+  parseCollectorProfilePeriod,
+  resolveCollectorProfileSelectedBasis,
+} from "@/app/dashboard/collectors/profile-filters";
 import {
   loadCollectorAssignedLoansData,
   loadCollectorProfileData,
@@ -29,6 +32,7 @@ export default async function CollectorProfilePage({
     from?: string;
     to?: string;
     query?: string;
+    basis?: string;
     loanStatus?: string;
     loanQuery?: string;
     loansPage?: string;
@@ -63,6 +67,7 @@ export default async function CollectorProfilePage({
       ? "performance"
       : "profile";
   const period = parseCollectorProfilePeriod(currentSearchParams.period);
+  const selectedBasis = resolveCollectorProfileSelectedBasis(period, currentSearchParams.basis);
   const assignedLoansFilters = parseCollectorAssignedLoansFilters(currentSearchParams);
   const access = resolveCollectorsPageAccess(auth, { requestedBranchId: null });
 
@@ -80,7 +85,7 @@ export default async function CollectorProfilePage({
   }
 
   const [profile, assignedLoans] = await Promise.all([
-    loadCollectorProfileData(access, routeParams.collectorId, period),
+    loadCollectorProfileData(access, routeParams.collectorId, period, selectedBasis),
     loadCollectorAssignedLoansData(access, routeParams.collectorId, assignedLoansFilters),
   ]);
   if (!profile) {
@@ -115,6 +120,9 @@ export default async function CollectorProfilePage({
   }
   if (filters.searchQuery) {
     backParams.set("query", filters.searchQuery);
+  }
+  if (filters.selectedBasis !== "average-monthly-collections") {
+    backParams.set("basis", filters.selectedBasis);
   }
   const backQuery = backParams.toString();
 

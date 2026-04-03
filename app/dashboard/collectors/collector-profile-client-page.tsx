@@ -7,20 +7,43 @@ import { CollectorAccountOverviewTab } from "@/app/dashboard/collectors/collecto
 import { CollectorAssignedLoansTab } from "@/app/dashboard/collectors/collector-assigned-loans-tab";
 import { CollectorProfileFilters } from "@/app/dashboard/collectors/collector-profile-filters";
 import { CollectorProfilePanel } from "@/app/dashboard/collectors/collector-profile-panel";
-import { resolveCollectorProfileMinimumYear } from "@/app/dashboard/collectors/profile-filters";
+import {
+  buildCollectorsFiltersForProfilePeriod,
+  resolveCollectorProfileMinimumYear,
+} from "@/app/dashboard/collectors/profile-filters";
+import {
+  supportsAverageMonthlyCollectionsSelection,
+  supportsIncentivesSelection,
+} from "@/app/dashboard/collectors/filters";
 import { Card, CardDescription } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import type {
   CollectorAssignedLoansData,
   CollectorAssignedLoansFilters,
   CollectorDetailTabKey,
+  CollectorLeaderboardBasis,
   CollectorProfileData,
   CollectorProfilePeriodKey,
 } from "@/app/dashboard/collectors/types";
 
-function buildPerformanceDataUrl(collectorId: string, period: CollectorProfilePeriodKey) {
+const PROFILE_BASIS_OPTIONS: Array<{ value: CollectorLeaderboardBasis; label: string }> = [
+  { value: "total-collected", label: "Total Collections" },
+  { value: "average-monthly-collections", label: "Average Monthly Collections" },
+  { value: "incentives", label: "Incentives" },
+];
+
+function buildPerformanceDataUrl(
+  collectorId: string,
+  period: CollectorProfilePeriodKey,
+  basis: CollectorLeaderboardBasis,
+) {
   const params = new URLSearchParams();
   if (period !== "this-month") {
     params.set("period", period);
+  }
+  if (basis !== "average-monthly-collections") {
+    params.set("basis", basis);
   }
 
   const queryString = params.toString();
@@ -32,6 +55,7 @@ function buildPerformanceDataUrl(collectorId: string, period: CollectorProfilePe
 function replacePageUrl(next: {
   period: CollectorProfilePeriodKey;
   tab: CollectorDetailTabKey;
+  basis: CollectorLeaderboardBasis;
 }) {
   const url = new URL(window.location.href);
 
@@ -45,6 +69,12 @@ function replacePageUrl(next: {
     url.searchParams.delete("tab");
   } else {
     url.searchParams.set("tab", next.tab);
+  }
+
+  if (next.basis === "average-monthly-collections") {
+    url.searchParams.delete("basis");
+  } else {
+    url.searchParams.set("basis", next.basis);
   }
 
   const query = url.searchParams.toString();
@@ -72,6 +102,8 @@ export function CollectorProfileClientPage({
   const [activeTab, setActiveTab] = useState<CollectorDetailTabKey>(initialTab);
   const [period, setPeriod] = useState<CollectorProfilePeriodKey>(initialData.periodKey);
   const [appliedPeriod, setAppliedPeriod] = useState<CollectorProfilePeriodKey>(initialData.periodKey);
+  const [basis, setBasis] = useState<CollectorLeaderboardBasis>(initialData.selectedBasis);
+  const [appliedBasis, setAppliedBasis] = useState<CollectorLeaderboardBasis>(initialData.selectedBasis);
   const [isPending, setIsPending] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [hasMounted, setHasMounted] = useState(false);
@@ -82,6 +114,8 @@ export function CollectorProfileClientPage({
     setActiveTab(initialTab);
     setPeriod(initialData.periodKey);
     setAppliedPeriod(initialData.periodKey);
+    setBasis(initialData.selectedBasis);
+    setAppliedBasis(initialData.selectedBasis);
     setErrorMessage(null);
   }, [initialData, initialTab]);
 
@@ -91,7 +125,10 @@ export function CollectorProfileClientPage({
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
-  const loadResults = useCallback(async (nextPeriod: CollectorProfilePeriodKey) => {
+  const loadResults = useCallback(async (
+    nextPeriod: CollectorProfilePeriodKey,
+    nextBasis: CollectorLeaderboardBasis,
+  ) => {
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
@@ -99,7 +136,7 @@ export function CollectorProfileClientPage({
     setErrorMessage(null);
 
     try {
-      const response = await fetch(buildPerformanceDataUrl(collectorId, nextPeriod), {
+      const response = await fetch(buildPerformanceDataUrl(collectorId, nextPeriod, nextBasis), {
         cache: "no-store",
         credentials: "same-origin",
         signal: controller.signal,
@@ -112,9 +149,11 @@ export function CollectorProfileClientPage({
       const nextData = (await response.json()) as CollectorProfileData;
       setData(nextData);
       setAppliedPeriod(nextData.periodKey);
+      setAppliedBasis(nextData.selectedBasis);
       replacePageUrl({
         period: nextData.periodKey,
         tab: activeTab,
+        basis: nextData.selectedBasis,
       });
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") {
@@ -130,24 +169,36 @@ export function CollectorProfileClientPage({
   }, [activeTab, collectorId]);
 
   useEffect(() => {
-    if (period === appliedPeriod) {
+    if (period === appliedPeriod && basis === appliedBasis) {
       return;
     }
 
-    void loadResults(period);
-  }, [appliedPeriod, loadResults, period]);
+    void loadResults(period, basis);
+  }, [appliedBasis, appliedPeriod, basis, loadResults, period]);
 
   const handleTabChange = (nextTab: string) => {
     const normalizedTab = nextTab as CollectorDetailTabKey;
     setActiveTab(normalizedTab);
     replacePageUrl({
       period,
+      basis,
       tab: normalizedTab,
     });
   };
 
   const headerBadgeBaseClassName =
     "inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium leading-none shadow-xs";
+  const periodFilters = buildCollectorsFiltersForProfilePeriod(period);
+  const canUseAverageMonthly = supportsAverageMonthlyCollectionsSelection({
+    range: periodFilters.selectedRange,
+    from: periodFilters.fromRaw,
+    to: periodFilters.toRaw,
+  });
+  const canUseIncentives = supportsIncentivesSelection({
+    range: periodFilters.selectedRange,
+    from: periodFilters.fromRaw,
+    to: periodFilters.toRaw,
+  });
 
   return (
     <div className="space-y-6">
@@ -225,14 +276,65 @@ export function CollectorProfileClientPage({
               data={data}
               periodControl={
                 hasMounted ? (
-                  <CollectorProfileFilters
-                    minYear={resolveCollectorProfileMinimumYear(data.dateCreated)}
-                    onPeriodChange={setPeriod}
-                    period={period}
-                    periodAvailability={data.periodAvailability}
-                  />
+                  <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-end sm:justify-end">
+                    <CollectorProfileFilters
+                      minYear={resolveCollectorProfileMinimumYear(data.dateCreated)}
+                      onPeriodChange={(nextPeriod) => {
+                        setPeriod(nextPeriod);
+                        setBasis((previous) => {
+                          const nextPeriodFilters = buildCollectorsFiltersForProfilePeriod(nextPeriod);
+                          const nextPeriodParams = {
+                            range: nextPeriodFilters.selectedRange,
+                            from: nextPeriodFilters.fromRaw,
+                            to: nextPeriodFilters.toRaw,
+                          };
+
+                          if (
+                            previous === "average-monthly-collections" &&
+                            !supportsAverageMonthlyCollectionsSelection(nextPeriodParams)
+                          ) {
+                            return "total-collected";
+                          }
+
+                          if (previous === "incentives" && !supportsIncentivesSelection(nextPeriodParams)) {
+                            return "total-collected";
+                          }
+
+                          return previous;
+                        });
+                      }}
+                      period={period}
+                      periodAvailability={data.periodAvailability}
+                    />
+
+                    <label className="flex w-full flex-col gap-1 sm:w-[240px]">
+                      <Label>Ranking Basis</Label>
+                      <Select onValueChange={(value) => setBasis(value as CollectorLeaderboardBasis)} value={basis}>
+                        <SelectTrigger className="w-full bg-card">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PROFILE_BASIS_OPTIONS.map((option) => (
+                            <SelectItem
+                              disabled={
+                                (option.value === "average-monthly-collections" && !canUseAverageMonthly) ||
+                                (option.value === "incentives" && !canUseIncentives)
+                              }
+                              key={option.value}
+                              value={option.value}
+                            >
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </label>
+                  </div>
                 ) : (
-                  <div className="h-9 w-full rounded-md border border-border/70 bg-muted/20 sm:w-[220px]" />
+                  <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-end sm:justify-end">
+                    <div className="h-9 w-full rounded-md border border-border/70 bg-muted/20 sm:w-[240px]" />
+                    <div className="h-9 w-full rounded-md border border-border/70 bg-muted/20 sm:w-[240px]" />
+                  </div>
                 )
               }
             />

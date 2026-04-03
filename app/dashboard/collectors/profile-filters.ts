@@ -1,5 +1,10 @@
 import { resolveCollectorsDateRange } from "@/app/dashboard/collectors/filters";
+import {
+  supportsAverageMonthlyCollectionsSelection,
+  supportsIncentivesSelection,
+} from "@/app/dashboard/collectors/filters";
 import type {
+  CollectorLeaderboardBasis,
   CollectorProfilePeriodKey,
   CollectorProfilePresetPeriodKey,
   CollectorsDateRange,
@@ -202,6 +207,35 @@ export function resolveCollectorProfilePeriodTriggerLabel(periodKey: CollectorPr
   }
 
   return resolveCollectorProfilePeriodLabel(periodKey);
+}
+
+export function resolveCollectorProfileSelectedBasis(
+  periodKey: CollectorProfilePeriodKey,
+  basisRaw: string | undefined,
+): CollectorLeaderboardBasis {
+  const normalizedBasis =
+    basisRaw === "total-collected" || basisRaw === "average-monthly-collections" || basisRaw === "incentives"
+      ? basisRaw
+      : "average-monthly-collections";
+  const periodFilters = buildCollectorsFiltersForProfilePeriod(periodKey);
+  const periodParams = {
+    range: periodFilters.selectedRange,
+    from: periodFilters.fromRaw,
+    to: periodFilters.toRaw,
+  };
+
+  if (
+    normalizedBasis === "average-monthly-collections" &&
+    !supportsAverageMonthlyCollectionsSelection(periodParams)
+  ) {
+    return "total-collected";
+  }
+
+  if (normalizedBasis === "incentives" && !supportsIncentivesSelection(periodParams)) {
+    return "total-collected";
+  }
+
+  return normalizedBasis;
 }
 
 export function resolveCollectorProfileDateRange(periodKey: CollectorProfilePeriodKey): CollectorsDateRange | null {

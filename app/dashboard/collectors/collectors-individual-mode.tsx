@@ -7,7 +7,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TremorCard, TremorDescription } from "@/components/tremor/raw/metric-card";
 import { CollectorProfilePanel } from "@/app/dashboard/collectors/collector-profile-panel";
-import { supportsAverageMonthlyCollectionsSelection } from "@/app/dashboard/collectors/filters";
+import {
+  supportsAverageMonthlyCollectionsSelection,
+  supportsIncentivesSelection,
+} from "@/app/dashboard/collectors/filters";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type {
   CollectorLeaderboardBasis,
@@ -20,6 +23,7 @@ import type {
 const BASIS_OPTIONS: Array<{ value: CollectorLeaderboardBasis; label: string }> = [
   { value: "total-collected", label: "Total Collections" },
   { value: "average-monthly-collections", label: "Average Monthly Collections" },
+  { value: "incentives", label: "Incentives" },
 ];
 
 export function CollectorsIndividualMode({
@@ -54,11 +58,16 @@ export function CollectorsIndividualMode({
     from: selectedFrom,
     to: selectedTo,
   });
+  const canUseIncentives = supportsIncentivesSelection({
+    range: selectedRange,
+    from: selectedFrom,
+    to: selectedTo,
+  });
 
   return (
     <div className="space-y-6">
       <TremorCard className="p-6">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-stretch xl:justify-between">
           <div className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-indigo-600">
               Focused Collector Summary
@@ -74,7 +83,7 @@ export function CollectorsIndividualMode({
             {errorMessage ? <p className="text-sm text-destructive">{errorMessage}</p> : null}
           </div>
 
-          <div className="flex w-full flex-col gap-3 xl:w-auto xl:min-w-[520px]">
+          <div className="flex w-full flex-col gap-3 xl:w-auto xl:min-w-[520px] xl:self-stretch xl:justify-between">
             <div className="flex justify-start xl:justify-end">
               <Link href={profileHref}>
                 <Button type="button">View Profile</Button>
@@ -127,7 +136,10 @@ export function CollectorsIndividualMode({
                   <SelectContent>
                     {BASIS_OPTIONS.map((option) => (
                       <SelectItem
-                        disabled={option.value === "average-monthly-collections" && !canUseAverageMonthly}
+                        disabled={
+                          (option.value === "average-monthly-collections" && !canUseAverageMonthly) ||
+                          (option.value === "incentives" && !canUseIncentives)
+                        }
                         key={option.value}
                         value={option.value}
                       >

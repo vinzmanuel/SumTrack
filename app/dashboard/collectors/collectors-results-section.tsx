@@ -33,6 +33,9 @@ function buildProfileHref(filters: CollectorsFilterInput, collectorId: string) {
   if (filters.query.trim()) {
     params.set("query", filters.query.trim());
   }
+  if (filters.basis !== "average-monthly-collections") {
+    params.set("basis", filters.basis);
+  }
 
   const queryString = params.toString();
   return queryString

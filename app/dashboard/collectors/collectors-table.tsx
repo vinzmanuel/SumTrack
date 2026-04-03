@@ -62,7 +62,7 @@ export function CollectorsTable({
   rows,
   onViewCollector,
 }: {
-  basis: "total-collected" | "average-monthly-collections";
+  basis: "total-collected" | "average-monthly-collections" | "incentives";
   emptyMessage?: string;
   rows: CollectorPerformanceRow[];
   onViewCollector: (collector: CollectorPerformanceRow) => void;
@@ -95,8 +95,8 @@ export function CollectorsTable({
           <TableRow className="border-border/70">
             <TableHead className="align-middle">Rank</TableHead>
             <TableHead className={cn("align-middle", headerGroupDividerClassName)}>Collector</TableHead>
-            <TableHead className={cn("px-4", basis === "total-collected" ? "text-foreground" : "text-muted-foreground")}>
-              Total Collected
+            <TableHead className={cn("px-4", basis === "average-monthly-collections" ? "text-muted-foreground" : "text-foreground")}>
+              {basis === "incentives" ? "Total Incentives" : "Total Collected"}
             </TableHead>
             <TableHead className="px-4">
               <TableLabelWithTooltip
@@ -185,7 +185,9 @@ export function CollectorsTable({
                 </TableCell>
                 <TableCell className="px-4 py-3 align-middle whitespace-normal">
                   <TableMetricStack>
-                    <p className="text-sm font-semibold leading-5 text-foreground">{formatCollectorsCurrency(row.totalCollected)}</p>
+                    <p className="text-sm font-semibold leading-5 text-foreground">
+                      {formatCollectorsCurrency(basis === "incentives" ? row.periodIncentiveTotal : row.totalCollected)}
+                    </p>
                     <p aria-hidden="true" className="invisible text-xs font-medium leading-4">
                       &nbsp;
                     </p>

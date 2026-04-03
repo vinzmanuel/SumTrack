@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { CollectorsPeriodFilter } from "@/app/dashboard/collectors/collectors-period-filter";
 import {
   isCollectorsSpecificPeriodSelection,
+  supportsIncentivesSelection,
   supportsAverageMonthlyCollectionsSelection,
 } from "@/app/dashboard/collectors/filters";
 import { CollectorsTable } from "@/app/dashboard/collectors/collectors-table";
@@ -23,6 +24,7 @@ import type {
 const BASIS_OPTIONS: Array<{ value: CollectorLeaderboardBasis; label: string }> = [
   { value: "total-collected", label: "Total Collections" },
   { value: "average-monthly-collections", label: "Average Monthly Collections" },
+  { value: "incentives", label: "Incentives" },
 ];
 
 export function CollectorsRankedMode({
@@ -51,10 +53,17 @@ export function CollectorsRankedMode({
     from: data.filters.fromRaw,
     to: data.filters.toRaw,
   });
+  const canUseIncentives = supportsIncentivesSelection({
+    range: data.filters.selectedRange,
+    from: data.filters.fromRaw,
+    to: data.filters.toRaw,
+  });
   const basisLabel =
     data.filters.selectedBasis === "total-collected"
       ? "Ranked by total collections"
-      : "Ranked by average monthly collections";
+      : data.filters.selectedBasis === "incentives"
+        ? "Ranked by hybrid incentives"
+        : "Ranked by average monthly collections";
   const emptyMessage = isCollectorsSpecificPeriodSelection({
     range: data.filters.selectedRange,
     from: data.filters.fromRaw,
@@ -118,7 +127,10 @@ export function CollectorsRankedMode({
                 <SelectContent>
                   {BASIS_OPTIONS.map((option) => (
                     <SelectItem
-                      disabled={option.value === "average-monthly-collections" && !canUseAverageMonthly}
+                      disabled={
+                        (option.value === "average-monthly-collections" && !canUseAverageMonthly) ||
+                        (option.value === "incentives" && !canUseIncentives)
+                      }
                       key={option.value}
                       value={option.value}
                     >
