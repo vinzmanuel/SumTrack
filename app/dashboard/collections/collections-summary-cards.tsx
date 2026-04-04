@@ -1,29 +1,46 @@
-import { TremorCard, TremorDescription, TremorMetric, TremorTitle } from "@/components/tremor/raw/metric-card";
-import { formatCollectionsCurrency, formatCollectionsInteger } from "@/app/dashboard/collections/format";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  formatCollectionsCurrency,
+  formatCollectionsInteger,
+  formatCollectionsPercent,
+} from "@/app/dashboard/collections/format";
 import type { CollectionsSummaryStats } from "@/app/dashboard/collections/types";
 
 export function CollectionsSummaryCards({ summary }: { summary: CollectionsSummaryStats }) {
   return (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="grid gap-3 xl:items-start xl:grid-cols-[minmax(0,1.2fr)_repeat(3,minmax(0,1fr))]">
+      <Card className="gap-0 overflow-hidden py-0 shadow-sm">
+        <CardHeader className="gap-0 pb-1.5 pt-3.5">
+          <CardTitle className="text-sm font-medium text-muted-foreground">Total Amount Collected</CardTitle>
+          <CardDescription className="pt-1 text-[13px] leading-5">
+            Collected amount across the selected branch scope and period.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-2.5 pb-4.5 pt-0">
+          <p className="text-2xl font-semibold tracking-tight text-foreground sm:text-[2rem]">
+            {formatCollectionsCurrency(summary.totalAmount)}
+          </p>
+          <div className="inline-flex items-center gap-2 self-start rounded-full border border-border/70 bg-muted/20 px-2.5 py-1 text-xs text-muted-foreground">
+            <span className="font-medium text-foreground">Avg per entry</span>
+            <span>{formatCollectionsCurrency(summary.averageAmount)}</span>
+          </div>
+        </CardContent>
+      </Card>
+
       <SummaryCard
-        description="Collected amount across the selected scope and period."
-        title="Total Amount Collected"
-        value={formatCollectionsCurrency(summary.totalAmount)}
-      />
-      <SummaryCard
-        description="Recorded collection and missed-payment entries."
+        description="Recorded collection and missed-payment entries in the selected period."
         title="Total Collection Entries"
         value={formatCollectionsInteger(summary.totalEntries)}
       />
       <SummaryCard
-        description="Average amount per collection entry in the selected period."
-        title="Average Collection Amount"
-        value={formatCollectionsCurrency(summary.averageAmount)}
-      />
-      <SummaryCard
-        description="Collection entries recorded as missed payments."
+        description="Entries recorded as missed or zero-amount collections."
         title="Missed Payments"
         value={formatCollectionsInteger(summary.missedPayments)}
+      />
+      <SummaryCard
+        description="Share of collection entries that were recorded as missed payments."
+        title="Missed Payment Rate"
+        value={formatCollectionsPercent(summary.missedPaymentRate)}
       />
     </div>
   );
@@ -39,10 +56,14 @@ function SummaryCard({
   description: string;
 }) {
   return (
-    <TremorCard className="p-5">
-      <TremorTitle>{title}</TremorTitle>
-      <TremorMetric>{value}</TremorMetric>
-      <TremorDescription className="mt-2 text-[13px]">{description}</TremorDescription>
-    </TremorCard>
+    <Card className="gap-0 overflow-hidden py-0 shadow-sm">
+      <CardHeader className="gap-0 pb-1.5 pt-3.5">
+        <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
+        <CardDescription className="pt-1 text-[13px] leading-5">{description}</CardDescription>
+      </CardHeader>
+      <CardContent className="pb-4.5 pt-0">
+        <p className="text-2xl font-semibold tracking-tight text-foreground sm:text-[2rem]">{value}</p>
+      </CardContent>
+    </Card>
   );
 }

@@ -99,7 +99,7 @@ export const ANALYTICS_REPORT_TEMPLATES: AnalyticsTemplateDefinition[] = [
     category: "financials",
     reportCategory: "analytics",
     description:
-      "Flexible financial reporting template for collections, expenses, and net totals across the selected date range.",
+      "Financial overview across the selected date range, covering cashflow, recovery/income signals, and live portfolio context.",
     allowedRoles: ["Admin", "Auditor", "Branch Manager"],
     generationMode: "manual",
     dateMode: "range",

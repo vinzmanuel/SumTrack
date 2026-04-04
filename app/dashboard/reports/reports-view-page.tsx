@@ -71,6 +71,19 @@ function formatSummaryValue(item: ReportsSnapshotSummaryItem) {
   return String(item.value);
 }
 
+type FinancialOverviewViewerBucketMode = "day" | "week" | "month";
+type FinancialOverviewAggregatedRow = {
+  bucketKey: string;
+  bucket: string;
+  collectionsAmount: number;
+  loanDisbursementsAmount: number;
+  expensesAmount: number;
+  cashNetAmount: number;
+  principalRecoveredAmount: number;
+  realizedInterestAmount: number;
+  operatingResultAmount: number;
+};
+
 const MONEY_FIELD_LABELS = new Set([
   "Amount",
   "Amount Paid",
@@ -111,6 +124,208 @@ function getRowNumber(row: Record<string, number | string>, key: string) {
 function getRowString(row: Record<string, number | string>, key: string) {
   const value = row[key];
   return typeof value === "string" && value.trim() ? value : "-";
+}
+
+function countInclusiveViewerDays(dateFrom: string, dateTo: string) {
+  const start = new Date(`${dateFrom}T00:00:00Z`);
+  const end = new Date(`${dateTo}T00:00:00Z`);
+
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) {
+    return 0;
+  }
+
+  return Math.floor((end.getTime() - start.getTime()) / 86400000) + 1;
+}
+
+function resolveFinancialOverviewViewerBucketMode(report: ReportsViewerPageData): FinancialOverviewViewerBucketMode | null {
+  if (!report.dateFrom || !report.dateTo) {
+    return null;
+  }
+
+  const inclusiveDays = countInclusiveViewerDays(report.dateFrom, report.dateTo);
+
+  if (inclusiveDays <= 14) {
+    return "day";
+  }
+
+  if (inclusiveDays <= 60) {
+    return "week";
+  }
+
+  return "month";
+}
+
+function startOfViewerIsoWeek(dateValue: string) {
+  const parsed = new Date(`${dateValue}T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime())) {
+    return dateValue;
+  }
+
+  const dayOfWeek = parsed.getUTCDay();
+  const offset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  parsed.setUTCDate(parsed.getUTCDate() + offset);
+  return parsed.toISOString().slice(0, 10);
+}
+
+function bucketKeyForFinancialOverviewViewer(dateValue: string, mode: FinancialOverviewViewerBucketMode) {
+  if (mode === "day") {
+    return dateValue;
+  }
+
+  if (mode === "week") {
+    return startOfViewerIsoWeek(dateValue);
+  }
+
+  return dateValue.slice(0, 7);
+}
+
+function labelForFinancialOverviewViewerBucket(bucketKey: string, mode: FinancialOverviewViewerBucketMode) {
+  if (mode === "day") {
+    const parsed = new Date(`${bucketKey}T00:00:00Z`);
+    if (Number.isNaN(parsed.getTime())) {
+      return bucketKey;
+    }
+
+    return new Intl.DateTimeFormat("en-PH", {
+      month: "short",
+      day: "2-digit",
+      timeZone: "UTC",
+    }).format(parsed);
+  }
+
+  if (mode === "week") {
+    const parsed = new Date(`${bucketKey}T00:00:00Z`);
+    if (Number.isNaN(parsed.getTime())) {
+      return bucketKey;
+    }
+
+    const end = new Date(parsed);
+    end.setUTCDate(end.getUTCDate() + 6);
+
+    const startLabel = new Intl.DateTimeFormat("en-PH", {
+      month: "short",
+      day: "2-digit",
+      timeZone: "UTC",
+    }).format(parsed);
+    const endLabel = new Intl.DateTimeFormat("en-PH", {
+      month: "short",
+      day: "2-digit",
+      timeZone: "UTC",
+    }).format(end);
+
+    return `${startLabel} - ${endLabel}`;
+  }
+
+  const parsed = new Date(`${bucketKey}-01T00:00:00Z`);
+  if (Number.isNaN(parsed.getTime())) {
+    return bucketKey;
+  }
+
+  return new Intl.DateTimeFormat("en-PH", {
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(parsed);
+}
+
+function getBucketKeyFromFinancialRow(row: Record<string, number | string>) {
+  const directKey = row["bucketKey"];
+  return typeof directKey === "string" && directKey.trim() ? directKey : null;
+}
+
+function buildFinancialOverviewViewerRows(report: ReportsViewerPageData) {
+  const periodBreakdown = findTableSection(report.snapshot, "periodBreakdown");
+  const periodRecoveryDetail = findTableSection(report.snapshot, "periodRecoveryDetail");
+  const viewerMode = resolveFinancialOverviewViewerBucketMode(report);
+
+  if (!periodBreakdown || !periodRecoveryDetail || !viewerMode) {
+    return null;
+  }
+
+  const baseRows = periodBreakdown.rows
+    .filter((row) => getRowString(row, "bucket") !== "Total")
+    .map((row) => {
+      const bucketKey = getBucketKeyFromFinancialRow(row);
+      if (!bucketKey) {
+        return null;
+      }
+
+      const recoveryRow =
+        periodRecoveryDetail.rows.find((candidate) => getBucketKeyFromFinancialRow(candidate) === bucketKey) ?? null;
+
+      return {
+        bucketKey,
+        bucket: getRowString(row, "bucket"),
+        collectionsAmount: getRowNumber(row, "collectionsAmount"),
+        loanDisbursementsAmount: getRowNumber(row, "loanDisbursementsAmount"),
+        expensesAmount: getRowNumber(row, "expensesAmount"),
+        cashNetAmount: getRowNumber(row, "cashNetAmount"),
+        principalRecoveredAmount: recoveryRow ? getRowNumber(recoveryRow, "principalRecoveredAmount") : 0,
+        realizedInterestAmount: recoveryRow ? getRowNumber(recoveryRow, "realizedInterestAmount") : 0,
+        operatingResultAmount: recoveryRow ? getRowNumber(recoveryRow, "operatingResultAmount") : 0,
+      } satisfies FinancialOverviewAggregatedRow;
+    })
+    .filter((row): row is FinancialOverviewAggregatedRow => Boolean(row));
+
+  if (baseRows.length === 0) {
+    return null;
+  }
+
+  const sampleBucketKey = baseRows[0]?.bucketKey ?? "";
+  const storedMode: FinancialOverviewViewerBucketMode = sampleBucketKey.length === 7 ? "month" : "day";
+
+  if (storedMode === viewerMode) {
+    return {
+      viewerMode,
+      rows: baseRows,
+    };
+  }
+
+  const aggregatedRows = new Map<string, FinancialOverviewAggregatedRow>();
+
+  for (const row of baseRows) {
+    const aggregateKey = bucketKeyForFinancialOverviewViewer(row.bucketKey, viewerMode);
+    const existing = aggregatedRows.get(aggregateKey) ?? {
+      bucketKey: aggregateKey,
+      bucket: labelForFinancialOverviewViewerBucket(aggregateKey, viewerMode),
+      collectionsAmount: 0,
+      loanDisbursementsAmount: 0,
+      expensesAmount: 0,
+      cashNetAmount: 0,
+      principalRecoveredAmount: 0,
+      realizedInterestAmount: 0,
+      operatingResultAmount: 0,
+    };
+
+    existing.collectionsAmount += row.collectionsAmount;
+    existing.loanDisbursementsAmount += row.loanDisbursementsAmount;
+    existing.expensesAmount += row.expensesAmount;
+    existing.cashNetAmount += row.cashNetAmount;
+    existing.principalRecoveredAmount += row.principalRecoveredAmount;
+    existing.realizedInterestAmount += row.realizedInterestAmount;
+    existing.operatingResultAmount += row.operatingResultAmount;
+    aggregatedRows.set(aggregateKey, existing);
+  }
+
+  return {
+    viewerMode,
+    rows: Array.from(aggregatedRows.values()).sort((left, right) => left.bucketKey.localeCompare(right.bucketKey)),
+  };
+}
+
+function buildFinancialOverviewViewerTableSection(params: {
+  key: string;
+  title: string;
+  rows: Array<Record<string, number | string>>;
+  columns: ReportsSnapshotTableSection["columns"];
+}) {
+  return {
+    key: params.key,
+    title: params.title,
+    type: "table" as const,
+    columns: params.columns,
+    rows: params.rows,
+  };
 }
 
 function isChartSection(section: ReportsSnapshotSection): section is ReportsSnapshotChartSection {
@@ -355,7 +570,44 @@ function deriveFinancialOverviewChart(snapshot: SavedReportSnapshot): ReportsSna
     return null;
   }
 
+  const hasModernCashflow = branchTable.rows.some(
+    (row) =>
+      typeof row["loanDisbursementsAmount"] === "number" ||
+      typeof row["cashNetAmount"] === "number",
+  );
   const hasSavedIncentives = branchTable.rows.some((row) => typeof row["incentivesAmount"] === "number");
+
+  if (hasModernCashflow) {
+    return {
+      key: "financialTrendFallback",
+      title: "Cashflow Trend",
+      type: "chart",
+      chartType: "composed",
+      valueFormat: "currency",
+      note: "This saved report did not include period buckets, so the chart is using branch totals.",
+      series: [
+        { key: "collections", label: "Collections", color: "#16a34a", type: "bar" },
+        { key: "loanDisbursements", label: "Loan Disbursements", color: "#0ea5e9", type: "bar" },
+        { key: "expenses", label: "Expenses", color: "#f59e0b", type: "bar" },
+        { key: "cashNet", label: "Cash Net", color: "#0f172a", type: "line" },
+      ],
+      rows: branchTable.rows.map((row) => ({
+        bucket: getRowString(row, "branchName"),
+        values: {
+          collections: getRowNumber(row, "collectionsAmount"),
+          loanDisbursements: getRowNumber(row, "loanDisbursementsAmount"),
+          expenses: getRowNumber(row, "expensesAmount"),
+          cashNet:
+            typeof row["cashNetAmount"] === "number"
+              ? getRowNumber(row, "cashNetAmount")
+              : getRowNumber(row, "collectionsAmount") -
+                getRowNumber(row, "loanDisbursementsAmount") -
+                getRowNumber(row, "expensesAmount"),
+        },
+      })),
+    };
+  }
+
   const series = [
     { key: "collections", label: "Collections", color: "#16a34a", type: "bar" as const },
     { key: "expenses", label: "Expenses", color: "#f59e0b", type: "bar" as const },
@@ -594,34 +846,216 @@ function DocumentHeader(props: { title: string; subtitle: string }) {
 }
 
 function renderFinancialOverview(report: ReportsViewerPageData) {
-  const chart = findChartSection(report.snapshot, "financialTrend") ?? deriveFinancialOverviewChart(report.snapshot);
-  const periodBreakdown =
+  const baseChart = findChartSection(report.snapshot, "financialTrend") ?? deriveFinancialOverviewChart(report.snapshot);
+  const viewerRows = buildFinancialOverviewViewerRows(report);
+  const chart = viewerRows
+    ? {
+        key: "financialTrendViewer",
+        title: "Cashflow Trend",
+        type: "chart" as const,
+        chartType: "composed" as const,
+        valueFormat: "currency" as const,
+        series: [
+          { key: "collections", label: "Collections", color: "#16a34a", type: "bar" as const },
+          { key: "loanDisbursements", label: "Loan Disbursements", color: "#0ea5e9", type: "bar" as const },
+          { key: "expenses", label: "Expenses", color: "#f59e0b", type: "bar" as const },
+          { key: "cashNetRunning", label: "Cash Net (Running)", color: "#0f172a", type: "line" as const },
+        ],
+        rows: (() => {
+          let runningCashNet = 0;
+
+          return viewerRows.rows.map((row) => {
+            runningCashNet += row.cashNetAmount;
+
+            return {
+              bucket: row.bucket,
+              values: {
+                collections: row.collectionsAmount,
+                loanDisbursements: row.loanDisbursementsAmount,
+                expenses: row.expensesAmount,
+                cashNetRunning: runningCashNet,
+              },
+            };
+          });
+        })(),
+      }
+    : baseChart;
+  const basePeriodBreakdown =
     findTableSection(report.snapshot, "periodBreakdown") ?? findTableSection(report.snapshot, "branchFinancialSummary");
-  const rawTables = getTableSections(report.snapshot).filter((section) => section.key !== periodBreakdown?.key);
+  const periodBreakdown = viewerRows
+    ? buildFinancialOverviewViewerTableSection({
+        key: "periodBreakdownViewer",
+        title: "Period Breakdown",
+        columns: [
+          { key: "bucket", label: "Period Bucket" },
+          { key: "collectionsAmount", label: "Collections", format: "currency" },
+          { key: "loanDisbursementsAmount", label: "Loan Disbursements", format: "currency" },
+          { key: "expensesAmount", label: "Expenses", format: "currency" },
+          { key: "cashNetAmount", label: "Cash Net", format: "currency" },
+        ],
+        rows: (() => {
+          const filteredRows = viewerRows.rows.filter(
+            (row) =>
+              row.collectionsAmount !== 0 ||
+              row.loanDisbursementsAmount !== 0 ||
+              row.expensesAmount !== 0 ||
+              row.cashNetAmount !== 0,
+          );
+          const visibleRows = filteredRows.length > 0 ? filteredRows : viewerRows.rows;
+          const totalRow = {
+            bucket: "Total",
+            collectionsAmount: visibleRows.reduce((sum, row) => sum + row.collectionsAmount, 0),
+            loanDisbursementsAmount: visibleRows.reduce((sum, row) => sum + row.loanDisbursementsAmount, 0),
+            expensesAmount: visibleRows.reduce((sum, row) => sum + row.expensesAmount, 0),
+            cashNetAmount: visibleRows.reduce((sum, row) => sum + row.cashNetAmount, 0),
+          };
+
+          return [
+            ...visibleRows.map((row) => ({
+              bucket: row.bucket,
+              collectionsAmount: row.collectionsAmount,
+              loanDisbursementsAmount: row.loanDisbursementsAmount,
+              expensesAmount: row.expensesAmount,
+              cashNetAmount: row.cashNetAmount,
+            })),
+            totalRow,
+          ];
+        })(),
+      })
+    : basePeriodBreakdown;
+  const basePeriodRecoveryDetail = findTableSection(report.snapshot, "periodRecoveryDetail");
+  const periodRecoveryDetail = viewerRows
+    ? buildFinancialOverviewViewerTableSection({
+        key: "periodRecoveryDetailViewer",
+        title: "Recovery / Income Detail",
+        columns: [
+          { key: "bucket", label: "Period Bucket" },
+          { key: "principalRecoveredAmount", label: "Principal Recovered", format: "currency" },
+          { key: "realizedInterestAmount", label: "Realized Interest", format: "currency" },
+          { key: "operatingResultAmount", label: "Net Earnings", format: "currency" },
+        ],
+        rows: (() => {
+          const filteredRows = viewerRows.rows.filter(
+            (row) =>
+              row.principalRecoveredAmount !== 0 ||
+              row.realizedInterestAmount !== 0 ||
+              row.operatingResultAmount !== 0,
+          );
+          const visibleRows = filteredRows.length > 0 ? filteredRows : viewerRows.rows;
+          const totalRow = {
+            bucket: "Total",
+            principalRecoveredAmount: visibleRows.reduce((sum, row) => sum + row.principalRecoveredAmount, 0),
+            realizedInterestAmount: visibleRows.reduce((sum, row) => sum + row.realizedInterestAmount, 0),
+            operatingResultAmount: visibleRows.reduce((sum, row) => sum + row.operatingResultAmount, 0),
+          };
+
+          return [
+            ...visibleRows.map((row) => ({
+              bucket: row.bucket,
+              principalRecoveredAmount: row.principalRecoveredAmount,
+              realizedInterestAmount: row.realizedInterestAmount,
+              operatingResultAmount: row.operatingResultAmount,
+            })),
+            totalRow,
+          ];
+        })(),
+      })
+    : basePeriodRecoveryDetail;
+  const branchFinancialSummary =
+    findTableSection(report.snapshot, "branchFinancialSummary") ??
+    (periodBreakdown?.key === "branchFinancialSummary" ? periodBreakdown : null);
+  const branchFinancialDetail = findTableSection(report.snapshot, "branchFinancialDetail");
+  const livePortfolioContext = findTableSection(report.snapshot, "livePortfolioContext");
+  const cashflowSummary = pickSummaryItems(report.snapshot, FINANCIAL_OVERVIEW_CASHFLOW_KEYS);
+  const recoverySummary = pickSummaryItems(report.snapshot, FINANCIAL_OVERVIEW_RECOVERY_KEYS);
+  const showLegacySummary = cashflowSummary.length === 0 && recoverySummary.length === 0;
+  const primaryBranchRows =
+    branchFinancialSummary?.rows.filter((row) => getRowString(row, "branchName") !== "Total") ?? [];
+  const isSingleBranchScope = primaryBranchRows.length === 1;
+  const singleBranchFinancialFieldList =
+    isSingleBranchScope && branchFinancialSummary
+      ? buildFieldListSectionFromTableRow({
+          key: "singleBranchFinancialSummary",
+          title: branchFinancialSummary.title,
+          row: primaryBranchRows[0],
+          section: branchFinancialSummary,
+        })
+      : null;
+  const singleBranchFinancialDetailFieldList =
+    isSingleBranchScope && branchFinancialDetail
+      ? buildFieldListSectionFromTableRow({
+          key: "singleBranchFinancialDetail",
+          title: branchFinancialDetail.title,
+          row: branchFinancialDetail.rows.find((row) => getRowString(row, "branchName") !== "Total") ?? branchFinancialDetail.rows[0],
+          section: branchFinancialDetail,
+        })
+      : null;
 
   return (
     <div className="space-y-8">
-      <CompactSummary items={report.snapshot.summaryCards} title="Summary" />
+      {showLegacySummary ? (
+        <CompactSummary items={report.snapshot.summaryCards} title="Summary" />
+      ) : (
+        <div className="space-y-6">
+          <CompactSummary items={cashflowSummary} title="Cashflow Summary" />
+          <FinancialOverviewRecoverySummary items={recoverySummary} />
+        </div>
+      )}
       {chart ? (
-        <ReportSection title="Financial Chart">
+        <ReportSection
+          title={chart.title || "Cashflow Trend"}
+          description="Bars show per-period cash movement. The Cash Net line tracks the running cumulative position across the reporting window."
+        >
           <ReportsViewerChart chart={chart} />
         </ReportSection>
       ) : null}
       {periodBreakdown ? (
-        <ReportSection title={periodBreakdown.title}>
-          <ReportsViewerDataTable section={periodBreakdown} />
+        <ReportSection
+          title={periodBreakdown.title}
+          description="Primary period cashflow view across the reporting window, with a total row at the bottom."
+        >
+          <ReportsViewerDataTable section={periodBreakdown} emphasizeRowsWithValues={["Total"]} />
         </ReportSection>
       ) : null}
-      {rawTables.length > 0 ? (
-        <ReportSection title="Raw Data">
-          <div className="space-y-6">
-            {rawTables.map((section) => (
-              <div className="space-y-3" key={section.key}>
-                <h3 className="text-sm font-medium text-foreground">{section.title}</h3>
-                <ReportsViewerDataTable section={section} />
-              </div>
-            ))}
-          </div>
+      {periodRecoveryDetail ? (
+        <ReportSection
+          title={periodRecoveryDetail.title}
+          description="Deeper recovery and income detail for the same period buckets."
+        >
+          <ReportsViewerDataTable section={periodRecoveryDetail} emphasizeRowsWithValues={["Total"]} />
+        </ReportSection>
+      ) : null}
+      {isSingleBranchScope && singleBranchFinancialFieldList ? (
+        <div className="space-y-6">
+          <FieldListBlock section={singleBranchFinancialFieldList} columns={2} />
+          {singleBranchFinancialDetailFieldList ? (
+            <FieldListBlock section={singleBranchFinancialDetailFieldList} columns={2} />
+          ) : null}
+        </div>
+      ) : branchFinancialSummary && branchFinancialSummary.key !== periodBreakdown?.key ? (
+        <div className="space-y-6">
+          <ReportSection
+            title={branchFinancialSummary.title}
+            description="Branch-level period financials with realized interest and operating result kept in the main view."
+          >
+            <ReportsViewerDataTable section={branchFinancialSummary} emphasizeRowsWithValues={["Total"]} />
+          </ReportSection>
+          {branchFinancialDetail ? (
+            <ReportSection
+              title={branchFinancialDetail.title}
+              description="Secondary branch-level detail for principal recovery and support ratios."
+            >
+              <ReportsViewerDataTable section={branchFinancialDetail} emphasizeRowsWithValues={["Total"]} />
+            </ReportSection>
+          ) : null}
+        </div>
+      ) : null}
+      {livePortfolioContext ? (
+        <ReportSection
+          title={livePortfolioContext.title}
+          description="Current live loan-state context for the selected branches. These figures are live/current and are intentionally separate from period-scoped financial totals."
+        >
+          <ReportsViewerDataTable section={livePortfolioContext} />
         </ReportSection>
       ) : null}
     </div>
@@ -1037,6 +1471,97 @@ function renderCollectionReceipt(report: ReportsViewerPageData) {
       </div>
     </ReceiptPaper>
   );
+}
+
+function formatTableFieldValue(value: number | string, format?: "currency" | "number" | "text") {
+  if (typeof value === "number") {
+    if (format === "currency") {
+      return formatMoney(value);
+    }
+
+    if (format === "number") {
+      return value.toLocaleString("en-PH");
+    }
+  }
+
+  return value === "" ? "-" : String(value);
+}
+
+function buildFieldListSectionFromTableRow(params: {
+  key: string;
+  title: string;
+  row: Record<string, number | string>;
+  section: ReportsSnapshotTableSection;
+}) {
+  return {
+    key: params.key,
+    title: params.title,
+    type: "field_list" as const,
+    rows: params.section.columns.map((column) => ({
+      label: column.label,
+      value: formatTableFieldValue((params.row[column.key] ?? "-") as number | string, column.format),
+    })),
+  };
+}
+
+function FinancialOverviewRecoverySummary(props: { items: ReportsSnapshotSummaryItem[] }) {
+  if (props.items.length === 0) {
+    return null;
+  }
+
+  const operatingResult = props.items.find((item) => item.key === "operatingResult") ?? null;
+  const supportItems = props.items.filter((item) => item.key !== "operatingResult");
+
+  return (
+    <section className="space-y-3">
+      <h2 className="text-base font-semibold text-foreground">Recovery / Income Summary</h2>
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)]">
+        {operatingResult ? (
+          <div className="rounded-lg border border-border/70 bg-muted/10 p-5">
+            <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">Bottom Line</p>
+            <p className="mt-2 text-sm font-medium text-foreground">{operatingResult.label}</p>
+            <p className="mt-3 text-3xl font-semibold tracking-tight text-foreground">
+              {formatSummaryValue(operatingResult)}
+            </p>
+          </div>
+        ) : null}
+        {supportItems.length > 0 ? (
+          <div className="rounded-lg border border-border/70">
+            <div className="grid gap-x-8 gap-y-4 p-4 text-sm sm:grid-cols-2">
+              {supportItems.map((item) => (
+                <div className="space-y-1" key={item.key}>
+                  <p className="text-xs uppercase tracking-[0.14em] text-muted-foreground">{item.label}</p>
+                  <p className="font-medium text-foreground">{formatSummaryValue(item)}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+const FINANCIAL_OVERVIEW_CASHFLOW_KEYS = [
+  "collections",
+  "loanDisbursements",
+  "expenses",
+  "cashNet",
+  "net",
+];
+
+const FINANCIAL_OVERVIEW_RECOVERY_KEYS = [
+  "operatingResult",
+  "principalRecovered",
+  "realizedInterest",
+  "expenseRatio",
+  "netMargin",
+];
+
+function pickSummaryItems(snapshot: SavedReportSnapshot, keys: string[]) {
+  return keys
+    .map((key) => snapshot.summaryCards.find((item) => item.key === key) ?? null)
+    .filter((item): item is ReportsSnapshotSummaryItem => Boolean(item));
 }
 
 function renderLoanReceiptSummary(report: ReportsViewerPageData) {

@@ -1,5 +1,4 @@
-import { TremorCard, TremorDescription } from "@/components/tremor/raw/metric-card";
-import { formatCollectionsCurrency, formatCollectionsInteger } from "@/app/dashboard/collections/format";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { CollectionsRankedCardData } from "@/app/dashboard/collections/types";
 
 export function CollectionsRankedCard({
@@ -16,39 +15,38 @@ export function CollectionsRankedCard({
   const maxValue = Math.max(...data.items.map((item) => item.value), 0);
 
   return (
-    <TremorCard className={className}>
-      <div className="space-y-5 p-6">
-        <div className="space-y-1.5">
-          <h3 className="text-base font-semibold tracking-tight text-foreground">{data.title}</h3>
-          <TremorDescription className="text-[13px]">{data.description}</TremorDescription>
-        </div>
-
+    <Card className={`gap-0 overflow-hidden py-0 shadow-sm ${className ?? ""}`}>
+      <CardHeader className="gap-0 pb-1.5 pt-3.5">
+        <CardTitle className="text-base font-semibold tracking-tight">{data.title}</CardTitle>
+        <CardDescription className="text-sm leading-5">{data.description}</CardDescription>
+      </CardHeader>
+      <CardContent className="pb-4 pt-0">
         {data.items.length === 0 ? (
           <p className="text-sm text-muted-foreground">{data.emptyMessage}</p>
         ) : (
-          <div className="space-y-4">
+          <div className="flex flex-col gap-2.5">
             {data.items.map((item) => {
               const width = maxValue > 0 ? Math.max((item.value / maxValue) * 100, 8) : 8;
 
               return (
-                <div className="space-y-2" key={`${data.title}-${item.label}`}>
+                <div className="rounded-2xl border border-border/70 bg-muted/10 p-2.5 shadow-sm" key={`${data.title}-${item.label}`}>
                   <div className="flex items-start justify-between gap-3">
-                    <div>
+                    <div className="min-w-0 space-y-0.5">
                       <p className="text-sm font-medium text-foreground">{item.label}</p>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-xs leading-4.5 text-muted-foreground">
                         {data.secondaryLabel}: {secondaryFormatter(item.secondaryValue)}
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-semibold text-foreground">
+                      <p className="text-sm font-semibold tracking-tight text-foreground sm:text-[15px]">
                         {valueFormatter(item.value)}
                       </p>
                       <p className="text-xs text-muted-foreground">{data.valueLabel}</p>
                     </div>
                   </div>
-                  <div className="h-2 rounded-full bg-muted">
+                  <div className="mt-2.5 h-2 rounded-full bg-[var(--app-background)]">
                     <div
-                      className="h-2 rounded-full bg-emerald-500/75"
+                      className="h-2 rounded-full bg-emerald-500"
                       style={{ width: `${width}%` }}
                     />
                   </div>
@@ -57,10 +55,7 @@ export function CollectionsRankedCard({
             })}
           </div>
         )}
-      </div>
-    </TremorCard>
+      </CardContent>
+    </Card>
   );
 }
-
-export const formatRankedCurrency = formatCollectionsCurrency;
-export const formatRankedInteger = formatCollectionsInteger;

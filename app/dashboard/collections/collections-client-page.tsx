@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { TremorCard, TremorDescription } from "@/components/tremor/raw/metric-card";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardDescription, CardTitle } from "@/components/ui/card";
 import { CollectionsFilters } from "@/app/dashboard/collections/collections-filters";
 import { CollectionsResultsSection } from "@/app/dashboard/collections/collections-results-section";
 import type {
@@ -54,6 +55,10 @@ function buildCollectionsDataUrl(filters: CollectionsFilterInput) {
   }
 
   return `/dashboard/collections/data?${params.toString()}`;
+}
+
+function startCaseLabel(value: string) {
+  return value.replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
 export function CollectionsClientPage({
@@ -117,21 +122,40 @@ export function CollectionsClientPage({
     return () => abortRef.current?.abort();
   }, [initialData]);
 
+  const scopeLabel = canChooseBranch
+    ? results?.filters.selectedBranchRaw && results.filters.selectedBranchRaw !== "all"
+      ? branchOptions.find((option) => option.value === results.filters.selectedBranchRaw)?.label ?? "Selected branch"
+      : "All visible branches"
+    : fixedBranchName ?? "Assigned branch";
+
   return (
-    <div className="space-y-6">
-      <TremorCard className="p-6">
-        <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
-          <div className="space-y-1.5">
-            <h2 className="text-lg font-semibold tracking-tight text-foreground">
-              Collections Analytics
-            </h2>
-            <TremorDescription className="text-[13px]">
-              {canChooseBranch
-                ? "Track collected amount, missed-payment signals, and branch-level performance trends."
-                : `Track collected amount, missed-payment signals, and operational patterns for ${fixedBranchName ?? "your branch"}.`}
-            </TremorDescription>
+    <div className="w-full max-w-none space-y-4 px-4 pb-6 pt-1 sm:px-6 sm:pb-6 sm:pt-2">
+      <Card className="gap-0 overflow-hidden py-0">
+        <div className="bg-gradient-to-r from-slate-50 via-background to-emerald-50/60 px-5 py-5 sm:px-6">
+          <div className="flex flex-col gap-3">
+            <div className="space-y-1">
+              <div className="space-y-1">
+                <CardTitle className="text-[1.75rem] font-semibold tracking-tight sm:text-3xl">Collections</CardTitle>
+                <CardDescription className="text-sm leading-5">
+                  Analyze collection volume, missed-payment behavior, and comparison patterns across the selected branch scope.
+                </CardDescription>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 pt-1.5">
+                <Badge className="border-zinc-200 bg-background/80 px-2.5 py-1 text-zinc-700" variant="outline">
+                  {scopeLabel}
+                </Badge>
+                <Badge className="border-zinc-200 bg-background/80 px-2.5 py-1 text-zinc-700" variant="outline">
+                  {results ? startCaseLabel(results.dateRangeLabel) : "Selected period"}
+                </Badge>
+                <Badge className="border-zinc-200 bg-background/80 px-2.5 py-1 text-zinc-700" variant="outline">
+                  {results ? `${results.summary.totalEntries.toLocaleString("en-PH")} entries` : "Collections analytics"}
+                </Badge>
+              </div>
+            </div>
           </div>
-          <div className="w-full xl:max-w-3xl">
+        </div>
+        <CardContent className="border-t border-border/70 px-5 pb-3.5 pt-2.5 sm:px-6">
+          <div className="flex w-full justify-end">
             <CollectionsFilters
               branchFilterLabel={branchFilterLabel}
               branchOptions={branchOptions}
@@ -141,8 +165,8 @@ export function CollectionsClientPage({
               onApply={loadResults}
             />
           </div>
-        </div>
-      </TremorCard>
+        </CardContent>
+      </Card>
 
       <CollectionsResultsSection
         data={results}

@@ -55,6 +55,7 @@ export type CollectionsSummaryStats = {
   totalEntries: number;
   averageAmount: number;
   missedPayments: number;
+  missedPaymentRate: number;
 };
 
 export type CollectionsRankedItem = {
@@ -72,12 +73,6 @@ export type CollectionsRankedCardData = {
   emptyMessage: string;
 };
 
-export type CollectionsInsightCard = {
-  eyebrow: string;
-  title: string;
-  description: string;
-};
-
 export type CollectionsAnalyticsData = {
   filters: CollectionsFilterState;
   dateRangeLabel: string;
@@ -85,8 +80,6 @@ export type CollectionsAnalyticsData = {
   collectionsTrend: AnalyticsChartModel;
   missedPaymentsTrend: AnalyticsChartModel;
   comparison: CollectionsRankedCardData;
-  breakdown: CollectionsRankedCardData;
-  insight: CollectionsInsightCard;
 };
 
 export type CollectionsBranchOption = AnalyticsSelectOption;

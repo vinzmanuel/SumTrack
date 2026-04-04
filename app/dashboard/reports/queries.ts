@@ -28,6 +28,7 @@ import {
 } from "@/app/dashboard/loans/loan-derived-status-sql";
 import {
   buildLoanComputedState,
+  calculateLoanTotalPayable,
   getVisibleLoanStatusFromStoredStatus,
   isLoanPaidOff,
 } from "@/app/dashboard/loans/loan-state";
@@ -168,8 +169,8 @@ function countInclusiveDays(dateFrom: string, dateTo: string) {
   return Math.floor((end.getTime() - start.getTime()) / 86400000) + 1;
 }
 
-function resolveDateBucketMode(dateFrom: string, dateTo: string): DateBucketMode {
-  return countInclusiveDays(dateFrom, dateTo) <= 45 ? "day" : "month";
+function resolveFinancialOverviewStorageBucketMode(dateFrom: string, dateTo: string): DateBucketMode {
+  return countInclusiveDays(dateFrom, dateTo) <= 60 ? "day" : "month";
 }
 
 function resolveAdaptiveRangeBucketMode(dateFrom: string, dateTo: string): DateBucketMode {
@@ -1262,6 +1263,72 @@ async function loadLiveLoanBranchMetrics(branchIds: number[]) {
   );
 }
 
+function calculatePrincipalRecoveredAsOf(totalCollected: number, principal: number) {
+  return Math.min(Math.max(totalCollected, 0), Math.max(principal, 0));
+}
+
+function calculateRealizedInterestAsOf(
+  totalCollected: number,
+  principal: number,
+  interestCap: number,
+) {
+  return Math.min(
+    Math.max(Math.max(totalCollected, 0) - Math.max(principal, 0), 0),
+    Math.max(interestCap, 0),
+  );
+}
+
+function calculateRecoveryDelta(params: {
+  amountCollectedBefore: number;
+  amountCollectedAfter: number;
+  principal: number;
+  interestCap: number;
+}) {
+  const principalRecoveredBefore = calculatePrincipalRecoveredAsOf(
+    params.amountCollectedBefore,
+    params.principal,
+  );
+  const principalRecoveredAfter = calculatePrincipalRecoveredAsOf(
+    params.amountCollectedAfter,
+    params.principal,
+  );
+  const realizedInterestBefore = calculateRealizedInterestAsOf(
+    params.amountCollectedBefore,
+    params.principal,
+    params.interestCap,
+  );
+  const realizedInterestAfter = calculateRealizedInterestAsOf(
+    params.amountCollectedAfter,
+    params.principal,
+    params.interestCap,
+  );
+
+  return {
+    principalRecovered: Math.max(principalRecoveredAfter - principalRecoveredBefore, 0),
+    realizedInterest: Math.max(realizedInterestAfter - realizedInterestBefore, 0),
+  };
+}
+
+function addToNumericMap<TKey extends number | string>(
+  target: Map<TKey, number>,
+  key: TKey,
+  amount: number,
+) {
+  if (!Number.isFinite(amount) || amount === 0) {
+    return;
+  }
+
+  target.set(key, (target.get(key) ?? 0) + amount);
+}
+
+function calculateFinancialRatio(numerator: number, denominator: number) {
+  if (!Number.isFinite(numerator) || !Number.isFinite(denominator) || denominator <= 0) {
+    return null;
+  }
+
+  return numerator / denominator;
+}
+
 async function loadFinancialOverviewData(
   branchRows: Array<{ branchId: number; branchName: string }>,
   dateFrom: string | null,
@@ -1269,25 +1336,42 @@ async function loadFinancialOverviewData(
 ) {
   const branchIds = branchRows.map((row) => row.branchId);
   const liveLoanMetrics = await loadLiveLoanBranchMetrics(branchIds);
-  const collectionConditions: SQL[] = [inArray(loan_records.branch_id, branchIds)];
   const expenseConditions: SQL[] = [inArray(expenses.branch_id, branchIds)];
+  const collectionCutoffDate = dateTo;
 
   if (dateFrom && dateTo) {
-    collectionConditions.push(gte(collections.collection_date, dateFrom), lte(collections.collection_date, dateTo));
     expenseConditions.push(gte(expenses.expense_date, dateFrom), lte(expenses.expense_date, dateTo));
   }
 
-  const [collectionRows, expenseRows] = await Promise.all([
+  const [loanRows, collectionRows, expenseRows] = await Promise.all([
     db
       .select({
+        loanId: loan_records.loan_id,
         branchId: loan_records.branch_id,
+        principal: loan_records.principal,
+        interest: loan_records.interest,
+        startDate: loan_records.start_date,
+      })
+      .from(loan_records)
+      .where(inArray(loan_records.branch_id, branchIds))
+      .catch(() => []),
+    db
+      .select({
+        loanId: collections.loan_id,
         activityDate: collections.collection_date,
-        totalAmount: sql<number>`coalesce(sum(${collections.amount}), 0)`,
+        amount: collections.amount,
       })
       .from(collections)
       .innerJoin(loan_records, eq(loan_records.loan_id, collections.loan_id))
-      .where(and(...collectionConditions))
-      .groupBy(loan_records.branch_id, collections.collection_date)
+      .where(
+        collectionCutoffDate
+          ? and(
+              inArray(loan_records.branch_id, branchIds),
+              lte(collections.collection_date, collectionCutoffDate),
+            )
+          : inArray(loan_records.branch_id, branchIds),
+      )
+      .orderBy(asc(collections.loan_id), asc(collections.collection_date), asc(collections.collection_id))
       .catch(() => []),
     db
       .select({
@@ -1302,42 +1386,150 @@ async function loadFinancialOverviewData(
   ]);
 
   const collectionTotals = new Map<number, number>();
+  const disbursementTotals = new Map<number, number>();
   const expenseTotals = new Map<number, number>();
+  const principalRecoveredTotals = new Map<number, number>();
+  const realizedInterestTotals = new Map<number, number>();
   const bucketCollectionTotals = new Map<string, number>();
+  const bucketDisbursementTotals = new Map<string, number>();
   const bucketExpenseTotals = new Map<string, number>();
+  const bucketPrincipalRecoveredTotals = new Map<string, number>();
+  const bucketRealizedInterestTotals = new Map<string, number>();
   const activityDates = new Set<string>();
+  const scopedDateFrom = dateFrom;
+  const scopedDateTo = dateTo;
+
+  for (const row of loanRows) {
+    const principal = toNumber(row.principal);
+
+    if (!scopedDateFrom || !scopedDateTo || (row.startDate >= scopedDateFrom && row.startDate <= scopedDateTo)) {
+      addToNumericMap(disbursementTotals, row.branchId, principal);
+      activityDates.add(row.startDate);
+    }
+  }
+
+  const loanMetaById = new Map(
+    loanRows.map((row) => [
+      row.loanId,
+      {
+        branchId: row.branchId,
+        principal: toNumber(row.principal),
+        interestCap: Math.max(calculateLoanTotalPayable(toNumber(row.principal), toNumber(row.interest)) - toNumber(row.principal), 0),
+      },
+    ] as const),
+  );
+
+  const cumulativeCollectionsByLoanId = new Map<number, number>();
 
   for (const row of collectionRows) {
+    const loanMeta = loanMetaById.get(row.loanId);
+    if (!loanMeta) {
+      continue;
+    }
+
+    const amount = toNumber(row.amount);
+    const previousCollected = cumulativeCollectionsByLoanId.get(row.loanId) ?? 0;
+    const nextCollected = previousCollected + amount;
+
+    cumulativeCollectionsByLoanId.set(row.loanId, nextCollected);
+
+    const isInsideSelectedPeriod =
+      (!scopedDateFrom || row.activityDate >= scopedDateFrom) &&
+      (!scopedDateTo || row.activityDate <= scopedDateTo);
+
+    if (!isInsideSelectedPeriod) {
+      if (!scopedDateFrom && !scopedDateTo) {
+        activityDates.add(row.activityDate);
+      }
+
+      continue;
+    }
+
+    const recoveryDelta = calculateRecoveryDelta({
+      amountCollectedBefore: previousCollected,
+      amountCollectedAfter: nextCollected,
+      principal: loanMeta.principal,
+      interestCap: loanMeta.interestCap,
+    });
+
+    addToNumericMap(collectionTotals, loanMeta.branchId, amount);
+    addToNumericMap(principalRecoveredTotals, loanMeta.branchId, recoveryDelta.principalRecovered);
+    addToNumericMap(realizedInterestTotals, loanMeta.branchId, recoveryDelta.realizedInterest);
     activityDates.add(row.activityDate);
   }
 
   for (const row of expenseRows) {
+    const amount = toNumber(row.totalAmount);
+    addToNumericMap(expenseTotals, row.branchId, amount);
     activityDates.add(row.activityDate);
   }
 
   const sortedActivityDates = Array.from(activityDates).sort((left, right) => left.localeCompare(right));
   const effectiveDateFrom = dateFrom ?? sortedActivityDates[0] ?? currentManilaIsoDate();
   const effectiveDateTo = dateTo ?? sortedActivityDates.at(-1) ?? currentManilaIsoDate();
-  const bucketMode = resolveDateBucketMode(effectiveDateFrom, effectiveDateTo);
+  const bucketMode = resolveFinancialOverviewStorageBucketMode(effectiveDateFrom, effectiveDateTo);
   const bucketLabels = enumerateBucketLabels(effectiveDateFrom, effectiveDateTo, bucketMode);
 
+  for (const row of loanRows) {
+    if (dateFrom && dateTo && (row.startDate < dateFrom || row.startDate > dateTo)) {
+      continue;
+    }
+
+    const principal = toNumber(row.principal);
+    const bucketKey = bucketKeyForIsoDate(row.startDate, bucketMode);
+    addToNumericMap(bucketDisbursementTotals, bucketKey, principal);
+  }
+
+  cumulativeCollectionsByLoanId.clear();
+
   for (const row of collectionRows) {
-    const amount = toNumber(row.totalAmount);
-    collectionTotals.set(row.branchId, (collectionTotals.get(row.branchId) ?? 0) + amount);
+    const loanMeta = loanMetaById.get(row.loanId);
+    if (!loanMeta) {
+      continue;
+    }
+
+    const amount = toNumber(row.amount);
+    const previousCollected = cumulativeCollectionsByLoanId.get(row.loanId) ?? 0;
+    const nextCollected = previousCollected + amount;
+    cumulativeCollectionsByLoanId.set(row.loanId, nextCollected);
+
+    const isInsideSelectedPeriod =
+      (!dateFrom || row.activityDate >= dateFrom) &&
+      (!dateTo || row.activityDate <= dateTo);
+
+    if (!isInsideSelectedPeriod) {
+      continue;
+    }
+
     const bucketKey = bucketKeyForIsoDate(row.activityDate, bucketMode);
-    bucketCollectionTotals.set(bucketKey, (bucketCollectionTotals.get(bucketKey) ?? 0) + amount);
+    const recoveryDelta = calculateRecoveryDelta({
+      amountCollectedBefore: previousCollected,
+      amountCollectedAfter: nextCollected,
+      principal: loanMeta.principal,
+      interestCap: loanMeta.interestCap,
+    });
+
+    addToNumericMap(bucketCollectionTotals, bucketKey, amount);
+    addToNumericMap(bucketPrincipalRecoveredTotals, bucketKey, recoveryDelta.principalRecovered);
+    addToNumericMap(bucketRealizedInterestTotals, bucketKey, recoveryDelta.realizedInterest);
   }
 
   for (const row of expenseRows) {
     const amount = toNumber(row.totalAmount);
-    expenseTotals.set(row.branchId, (expenseTotals.get(row.branchId) ?? 0) + amount);
     const bucketKey = bucketKeyForIsoDate(row.activityDate, bucketMode);
-    bucketExpenseTotals.set(bucketKey, (bucketExpenseTotals.get(bucketKey) ?? 0) + amount);
+    addToNumericMap(bucketExpenseTotals, bucketKey, amount);
   }
 
   const branchSummaryRows = branchRows.map((row) => {
     const collectionsAmount = collectionTotals.get(row.branchId) ?? 0;
+    const loanDisbursementsAmount = disbursementTotals.get(row.branchId) ?? 0;
     const expensesAmount = expenseTotals.get(row.branchId) ?? 0;
+    const principalRecoveredAmount = principalRecoveredTotals.get(row.branchId) ?? 0;
+    const realizedInterestAmount = realizedInterestTotals.get(row.branchId) ?? 0;
+    const cashNetAmount = collectionsAmount - loanDisbursementsAmount - expensesAmount;
+    const operatingResultAmount = realizedInterestAmount - expensesAmount;
+    const expenseRatio = calculateFinancialRatio(expensesAmount, realizedInterestAmount);
+    const netMargin = calculateFinancialRatio(operatingResultAmount, realizedInterestAmount);
     const loanMetrics = liveLoanMetrics.get(row.branchId) ?? {
       activeLoans: 0,
       overdueLoans: 0,
@@ -1349,43 +1541,89 @@ async function loadFinancialOverviewData(
     return {
       branchName: row.branchName,
       collectionsAmount,
+      loanDisbursementsAmount,
       expensesAmount,
-      netAmount: collectionsAmount - expensesAmount,
-      activeLoans: loanMetrics.activeLoans,
-      overdueLoans: loanMetrics.overdueLoans,
-      outstandingBalance: loanMetrics.outstandingBalance,
+      cashNetAmount,
+      principalRecoveredAmount,
+      realizedInterestAmount,
+      operatingResultAmount,
+      expenseRatio,
+      netMargin,
+      livePortfolioContext: {
+        branchName: row.branchName,
+        activeLoans: loanMetrics.activeLoans,
+        overdueLoans: loanMetrics.overdueLoans,
+        outstandingBalance: loanMetrics.outstandingBalance,
+      },
     };
   });
 
   const periodRows = bucketLabels.map((bucket) => {
     const collectionsAmount = bucketCollectionTotals.get(bucket.key) ?? 0;
+    const loanDisbursementsAmount = bucketDisbursementTotals.get(bucket.key) ?? 0;
     const expensesAmount = bucketExpenseTotals.get(bucket.key) ?? 0;
+    const principalRecoveredAmount = bucketPrincipalRecoveredTotals.get(bucket.key) ?? 0;
+    const realizedInterestAmount = bucketRealizedInterestTotals.get(bucket.key) ?? 0;
+    const cashNetAmount = collectionsAmount - loanDisbursementsAmount - expensesAmount;
+    const operatingResultAmount = realizedInterestAmount - expensesAmount;
 
     return {
+      bucketKey: bucket.key,
       bucket: bucket.label,
       collectionsAmount,
+      loanDisbursementsAmount,
       expensesAmount,
-      netAmount: collectionsAmount - expensesAmount,
+      cashNetAmount,
+      principalRecoveredAmount,
+      realizedInterestAmount,
+      operatingResultAmount,
     };
   });
 
-  const summary = branchSummaryRows.reduce(
+  const livePortfolioContextRows = branchSummaryRows.map((row) => row.livePortfolioContext);
+  const financialBranchRows = branchSummaryRows.map((row) => ({
+    branchName: row.branchName,
+    collectionsAmount: row.collectionsAmount,
+    loanDisbursementsAmount: row.loanDisbursementsAmount,
+    expensesAmount: row.expensesAmount,
+    cashNetAmount: row.cashNetAmount,
+    principalRecoveredAmount: row.principalRecoveredAmount,
+    realizedInterestAmount: row.realizedInterestAmount,
+    operatingResultAmount: row.operatingResultAmount,
+    expenseRatio: row.expenseRatio,
+    netMargin: row.netMargin,
+  }));
+
+  const summary = financialBranchRows.reduce(
     (totals, row) => ({
       collectionsTotal: totals.collectionsTotal + row.collectionsAmount,
+      loanDisbursementsTotal: totals.loanDisbursementsTotal + row.loanDisbursementsAmount,
       expensesTotal: totals.expensesTotal + row.expensesAmount,
-      netTotal: totals.netTotal + row.netAmount,
+      cashNetTotal: totals.cashNetTotal + row.cashNetAmount,
+      principalRecoveredTotal: totals.principalRecoveredTotal + row.principalRecoveredAmount,
+      realizedInterestTotal: totals.realizedInterestTotal + row.realizedInterestAmount,
+      operatingResultTotal: totals.operatingResultTotal + row.operatingResultAmount,
     }),
     {
       collectionsTotal: 0,
+      loanDisbursementsTotal: 0,
       expensesTotal: 0,
-      netTotal: 0,
+      cashNetTotal: 0,
+      principalRecoveredTotal: 0,
+      realizedInterestTotal: 0,
+      operatingResultTotal: 0,
     },
   );
 
   return {
-    summary,
+    summary: {
+      ...summary,
+      expenseRatio: calculateFinancialRatio(summary.expensesTotal, summary.realizedInterestTotal),
+      netMargin: calculateFinancialRatio(summary.operatingResultTotal, summary.realizedInterestTotal),
+    },
     periodRows,
-    branchRows: branchSummaryRows,
+    branchRows: financialBranchRows,
+    livePortfolioContextRows,
   };
 }
 
@@ -4159,6 +4397,7 @@ async function generateAnalyticsReportInternal(
       summary: reportData.summary,
       periodRows: reportData.periodRows,
       branchRows: reportData.branchRows,
+      livePortfolioContextRows: reportData.livePortfolioContextRows,
     });
   } else if (template.key === "collections_summary") {
     const reportData = await loadCollectionsSummaryData(selectedBranchRows, dateFrom, dateTo);

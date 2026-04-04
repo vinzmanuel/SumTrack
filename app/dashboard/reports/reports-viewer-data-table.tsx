@@ -24,6 +24,7 @@ export function ReportsViewerDataTable(props: {
   columnWidths?: Partial<Record<string, string>>;
   cellClassNames?: Partial<Record<string, string>>;
   headerClassNames?: Partial<Record<string, string>>;
+  emphasizeRowsWithValues?: string[];
 }) {
   if (props.section.rows.length === 0) {
     return (
@@ -67,7 +68,17 @@ export function ReportsViewerDataTable(props: {
           </thead>
           <tbody className="divide-y divide-border/60 bg-background">
             {props.section.rows.map((row, index) => (
-              <tr className="align-top" key={index}>
+              <tr
+                className={cn(
+                  "align-top",
+                  props.emphasizeRowsWithValues?.some((targetValue) =>
+                    Object.values(row).some((value) => value === targetValue),
+                  )
+                    ? "bg-muted/10 font-semibold text-foreground"
+                    : null,
+                )}
+                key={index}
+              >
                 {props.section.columns.map((column, columnIndex) => (
                   <td
                     className={cn(

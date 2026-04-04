@@ -51,31 +51,183 @@ function buildDocumentSnapshot(params: {
   };
 }
 
+function formatRatioPercent(value: number | null) {
+  if (value === null || !Number.isFinite(value)) {
+    return "N/A";
+  }
+
+  return `${(value * 100).toLocaleString("en-PH", {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  })}%`;
+}
+
+function buildFinancialTotalRow(params: {
+  labelKey: string;
+  label: string;
+  rows: Array<Record<string, number | string>>;
+  sumKeys: string[];
+  derivedValues?: Record<string, number | string>;
+}) {
+  const totalRow: Record<string, number | string> = {
+    [params.labelKey]: params.label,
+    ...(params.derivedValues ?? {}),
+  };
+
+  for (const key of params.sumKeys) {
+    totalRow[key] = params.rows.reduce((sum, row) => sum + (typeof row[key] === "number" ? Number(row[key]) : 0), 0);
+  }
+
+  return totalRow;
+}
+
 export function buildFinancialOverviewSnapshot(params: {
   title: string;
   generatedLabel: string;
   scopeLabel: string;
   summary: {
     collectionsTotal: number;
+    loanDisbursementsTotal: number;
     expensesTotal: number;
-    netTotal: number;
+    cashNetTotal: number;
+    principalRecoveredTotal: number;
+    realizedInterestTotal: number;
+    operatingResultTotal: number;
+    expenseRatio: number | null;
+    netMargin: number | null;
   };
   periodRows: Array<{
+    bucketKey: string;
     bucket: string;
     collectionsAmount: number;
+    loanDisbursementsAmount: number;
     expensesAmount: number;
-    netAmount: number;
+    cashNetAmount: number;
+    principalRecoveredAmount: number;
+    realizedInterestAmount: number;
+    operatingResultAmount: number;
   }>;
   branchRows: Array<{
     branchName: string;
     collectionsAmount: number;
+    loanDisbursementsAmount: number;
     expensesAmount: number;
-    netAmount: number;
+    cashNetAmount: number;
+    principalRecoveredAmount: number;
+    realizedInterestAmount: number;
+    operatingResultAmount: number;
+    expenseRatio: number | null;
+    netMargin: number | null;
+  }>;
+  livePortfolioContextRows: Array<{
+    branchName: string;
     activeLoans: number;
     overdueLoans: number;
     outstandingBalance: number;
   }>;
 }) {
+  let runningCashNetAmount = 0;
+  const chartRows = params.periodRows.map((row) => {
+    runningCashNetAmount += row.cashNetAmount;
+
+    return {
+      bucket: row.bucket,
+      values: {
+        collections: row.collectionsAmount,
+        loanDisbursements: row.loanDisbursementsAmount,
+        expenses: row.expensesAmount,
+        cashNetRunning: runningCashNetAmount,
+      },
+    };
+  });
+
+  const periodBreakdownRows = params.periodRows.map((row) => ({
+    bucketKey: row.bucketKey,
+    bucket: row.bucket,
+    collectionsAmount: row.collectionsAmount,
+    loanDisbursementsAmount: row.loanDisbursementsAmount,
+    expensesAmount: row.expensesAmount,
+    cashNetAmount: row.cashNetAmount,
+  }));
+  const periodRecoveryDetailRows = params.periodRows.map((row) => ({
+    bucketKey: row.bucketKey,
+    bucket: row.bucket,
+    principalRecoveredAmount: row.principalRecoveredAmount,
+    realizedInterestAmount: row.realizedInterestAmount,
+    operatingResultAmount: row.operatingResultAmount,
+  }));
+  const branchFinancialSummaryRows = params.branchRows.map((row) => ({
+    branchName: row.branchName,
+    collectionsAmount: row.collectionsAmount,
+    loanDisbursementsAmount: row.loanDisbursementsAmount,
+    expensesAmount: row.expensesAmount,
+    cashNetAmount: row.cashNetAmount,
+    realizedInterestAmount: row.realizedInterestAmount,
+    operatingResultAmount: row.operatingResultAmount,
+  }));
+  const branchFinancialDetailRows = params.branchRows.map((row) => ({
+    branchName: row.branchName,
+    principalRecoveredAmount: row.principalRecoveredAmount,
+    expenseRatioLabel: formatRatioPercent(row.expenseRatio),
+    netMarginLabel: formatRatioPercent(row.netMargin),
+  }));
+
+  periodBreakdownRows.push(
+    buildFinancialTotalRow({
+      labelKey: "bucket",
+      label: "Total",
+      rows: periodBreakdownRows,
+      sumKeys: [
+        "collectionsAmount",
+        "loanDisbursementsAmount",
+        "expensesAmount",
+        "cashNetAmount",
+      ],
+    }) as (typeof periodBreakdownRows)[number],
+  );
+  periodRecoveryDetailRows.push(
+    buildFinancialTotalRow({
+      labelKey: "bucket",
+      label: "Total",
+      rows: periodRecoveryDetailRows,
+      sumKeys: [
+        "principalRecoveredAmount",
+        "realizedInterestAmount",
+        "operatingResultAmount",
+      ],
+    }) as (typeof periodRecoveryDetailRows)[number],
+  );
+
+  if (params.branchRows.length > 1) {
+    branchFinancialSummaryRows.push(
+      buildFinancialTotalRow({
+        labelKey: "branchName",
+        label: "Total",
+        rows: branchFinancialSummaryRows,
+        sumKeys: [
+          "collectionsAmount",
+          "loanDisbursementsAmount",
+          "expensesAmount",
+          "cashNetAmount",
+          "realizedInterestAmount",
+          "operatingResultAmount",
+        ],
+      }) as (typeof branchFinancialSummaryRows)[number],
+    );
+    branchFinancialDetailRows.push(
+      buildFinancialTotalRow({
+        labelKey: "branchName",
+        label: "Total",
+        rows: branchFinancialDetailRows,
+        sumKeys: ["principalRecoveredAmount"],
+        derivedValues: {
+          expenseRatioLabel: formatRatioPercent(params.summary.expenseRatio),
+          netMarginLabel: formatRatioPercent(params.summary.netMargin),
+        },
+      }) as (typeof branchFinancialDetailRows)[number],
+    );
+  }
+
   return buildBaseSnapshot({
     templateKey: "financial_overview",
     title: params.title,
@@ -83,29 +235,59 @@ export function buildFinancialOverviewSnapshot(params: {
     scopeLabel: params.scopeLabel,
     summaryCards: [
       { key: "collections", label: "Collections", value: params.summary.collectionsTotal, format: "currency" },
+      {
+        key: "loanDisbursements",
+        label: "Loan Disbursements",
+        value: params.summary.loanDisbursementsTotal,
+        format: "currency",
+      },
       { key: "expenses", label: "Expenses", value: params.summary.expensesTotal, format: "currency" },
-      { key: "net", label: "Net", value: params.summary.netTotal, format: "currency" },
+      { key: "cashNet", label: "Cash Net", value: params.summary.cashNetTotal, format: "currency" },
+      {
+        key: "principalRecovered",
+        label: "Principal Recovered",
+        value: params.summary.principalRecoveredTotal,
+        format: "currency",
+      },
+      {
+        key: "realizedInterest",
+        label: "Realized Interest",
+        value: params.summary.realizedInterestTotal,
+        format: "currency",
+      },
+      {
+        key: "operatingResult",
+        label: "Net Earnings",
+        value: params.summary.operatingResultTotal,
+        format: "currency",
+      },
+      {
+        key: "expenseRatio",
+        label: "Expense Ratio",
+        value: formatRatioPercent(params.summary.expenseRatio),
+        format: "text",
+      },
+      {
+        key: "netMargin",
+        label: "Net Margin",
+        value: formatRatioPercent(params.summary.netMargin),
+        format: "text",
+      },
     ],
     sections: [
       {
         key: "financialTrend",
-        title: "Financial Trend",
+        title: "Cashflow Trend",
         type: "chart",
         chartType: "composed",
         valueFormat: "currency",
         series: [
           { key: "collections", label: "Collections", color: "#16a34a", type: "bar" },
+          { key: "loanDisbursements", label: "Loan Disbursements", color: "#0ea5e9", type: "bar" },
           { key: "expenses", label: "Expenses", color: "#f59e0b", type: "bar" },
-          { key: "net", label: "Net", color: "#0f172a", type: "line" },
+          { key: "cashNetRunning", label: "Cash Net (Running)", color: "#0f172a", type: "line" },
         ],
-        rows: params.periodRows.map((row) => ({
-          bucket: row.bucket,
-          values: {
-            collections: row.collectionsAmount,
-            expenses: row.expensesAmount,
-            net: row.netAmount,
-          },
-        })),
+        rows: chartRows,
       },
       {
         key: "periodBreakdown",
@@ -114,10 +296,23 @@ export function buildFinancialOverviewSnapshot(params: {
         columns: [
           { key: "bucket", label: "Period Bucket" },
           { key: "collectionsAmount", label: "Collections", format: "currency" },
+          { key: "loanDisbursementsAmount", label: "Loan Disbursements", format: "currency" },
           { key: "expensesAmount", label: "Expenses", format: "currency" },
-          { key: "netAmount", label: "Net", format: "currency" },
+          { key: "cashNetAmount", label: "Cash Net", format: "currency" },
         ],
-        rows: params.periodRows,
+        rows: periodBreakdownRows,
+      },
+      {
+        key: "periodRecoveryDetail",
+        title: "Recovery / Income Detail",
+        type: "table",
+        columns: [
+          { key: "bucket", label: "Period Bucket" },
+          { key: "principalRecoveredAmount", label: "Principal Recovered", format: "currency" },
+          { key: "realizedInterestAmount", label: "Realized Interest", format: "currency" },
+          { key: "operatingResultAmount", label: "Net Earnings", format: "currency" },
+        ],
+        rows: periodRecoveryDetailRows,
       },
       {
         key: "branchFinancialSummary",
@@ -126,18 +321,43 @@ export function buildFinancialOverviewSnapshot(params: {
         columns: [
           { key: "branchName", label: "Branch" },
           { key: "collectionsAmount", label: "Collections", format: "currency" },
+          { key: "loanDisbursementsAmount", label: "Loan Disbursements", format: "currency" },
           { key: "expensesAmount", label: "Expenses", format: "currency" },
-          { key: "netAmount", label: "Net", format: "currency" },
+          { key: "cashNetAmount", label: "Cash Net", format: "currency" },
+          { key: "realizedInterestAmount", label: "Realized Interest", format: "currency" },
+          { key: "operatingResultAmount", label: "Net Earnings", format: "currency" },
+        ],
+        rows: branchFinancialSummaryRows,
+      },
+      {
+        key: "branchFinancialDetail",
+        title: "Branch Financial Detail",
+        type: "table",
+        columns: [
+          { key: "branchName", label: "Branch" },
+          { key: "principalRecoveredAmount", label: "Principal Recovered", format: "currency" },
+          { key: "expenseRatioLabel", label: "Expense Ratio" },
+          { key: "netMarginLabel", label: "Net Margin" },
+        ],
+        rows: branchFinancialDetailRows,
+      },
+      {
+        key: "livePortfolioContext",
+        title: "Live Portfolio Context",
+        type: "table",
+        columns: [
+          { key: "branchName", label: "Branch" },
           { key: "activeLoans", label: "Active Loans", format: "number" },
           { key: "overdueLoans", label: "Overdue Loans", format: "number" },
           { key: "outstandingBalance", label: "Outstanding Balance", format: "currency" },
         ],
-        rows: params.branchRows,
+        rows: params.livePortfolioContextRows,
       },
     ],
     meta: {
-      branchCount: params.branchRows.length,
+      branchCount: params.livePortfolioContextRows.length,
       bucketCount: params.periodRows.length,
+      financialModel: "cashflow-recovery-live-context",
     },
   });
 }

@@ -14,7 +14,7 @@ import {
 } from "drizzle-orm";
 import { db } from "@/db";
 import { branch, collections, loan_records } from "@/db/schema";
-import { formatCollectionsCurrency, formatCollectionsDisplayDate, formatCollectionsMonthLabel, formatCollectionsShortDate } from "@/app/dashboard/collections/format";
+import { formatCollectionsMonthLabel, formatCollectionsShortDate } from "@/app/dashboard/collections/format";
 import { resolveCollectionsDateRange } from "@/app/dashboard/collections/filters";
 import type {
   CollectionsAnalyticsAccessState,
@@ -177,17 +177,24 @@ async function loadSummary(access: AnalyticsAccess, range: CollectionsDateRange)
     .innerJoin(loan_records, eq(loan_records.loan_id, collections.loan_id))
     .where(whereFrom(conditions))
     .limit(1)
-    .then((rows) => ({
-      totalAmount: toNumber(rows[0]?.totalAmount),
-      totalEntries: toNumber(rows[0]?.totalEntries),
-      averageAmount: toNumber(rows[0]?.averageAmount),
-      missedPayments: toNumber(rows[0]?.missedPayments),
-    }))
+    .then((rows) => {
+      const totalEntries = toNumber(rows[0]?.totalEntries);
+      const missedPayments = toNumber(rows[0]?.missedPayments);
+
+      return {
+        totalAmount: toNumber(rows[0]?.totalAmount),
+        totalEntries,
+        averageAmount: toNumber(rows[0]?.averageAmount),
+        missedPayments,
+        missedPaymentRate: totalEntries > 0 ? (missedPayments / totalEntries) * 100 : 0,
+      };
+    })
     .catch(() => ({
       totalAmount: 0,
       totalEntries: 0,
       averageAmount: 0,
       missedPayments: 0,
+      missedPaymentRate: 0,
     }));
 }
 
@@ -280,6 +287,7 @@ async function loadCollectionsByWeekday(access: AnalyticsAccess, range: Collecti
     .catch(() => []);
 }
 
+/* Legacy distribution/insight helpers kept nearby for reference during future analytics expansion.
 async function loadCollectionSizeBuckets(access: AnalyticsAccess, range: CollectionsDateRange): Promise<CollectionsRankedItem[]> {
   const bucketOrder = sql<number>`case
     when ${collections.amount} = 0 then 0
@@ -376,10 +384,10 @@ async function loadTopMissedPaymentDay(access: AnalyticsAccess, range: Collectio
     })
     .catch(() => null);
 }
+*/
 
 function buildComparisonCard(
   access: AnalyticsAccess,
-  filters: CollectionsFilterState,
   branchItems: CollectionsRankedItem[],
   weekdayItems: CollectionsRankedItem[],
 ): CollectionsRankedCardData {
@@ -413,6 +421,7 @@ function buildComparisonCard(
   };
 }
 
+/* Legacy secondary analytics surfaces intentionally removed from the active Collections page.
 function buildBreakdownCard(items: CollectionsRankedItem[]): CollectionsRankedCardData {
   return {
     title: "Collection Breakdown",
@@ -468,6 +477,7 @@ function buildInsightCard(
     description: "Adjust the filters to inspect another period or branch scope.",
   };
 }
+*/
 
 export async function loadCollectionsAnalyticsData(
   access: AnalyticsAccess,
@@ -482,22 +492,15 @@ export async function loadCollectionsAnalyticsData(
     missedTrendRows,
     branchItems,
     weekdayItems,
-    bucketItems,
-    topCollectionDay,
-    topMissedPaymentDay,
   ] = await Promise.all([
     loadSummary(access, dateRange),
     loadCollectionsTrend(access, dateRange),
     loadMissedPaymentsTrend(access, dateRange),
     loadCollectionsByBranch(access, dateRange),
     loadCollectionsByWeekday(access, dateRange),
-    loadCollectionSizeBuckets(access, dateRange),
-    loadTopCollectionDay(access, dateRange),
-    loadTopMissedPaymentDay(access, dateRange),
   ]);
 
-  const comparison = buildComparisonCard(access, filters, branchItems, weekdayItems);
-  const breakdown = buildBreakdownCard(bucketItems);
+  const comparison = buildComparisonCard(access, branchItems, weekdayItems);
 
   return {
     filters,
@@ -510,7 +513,5 @@ export async function loadCollectionsAnalyticsData(
       { key: "missed", label: "Missed Payments", color: "#f59e0b" },
     ]),
     comparison,
-    breakdown,
-    insight: buildInsightCard(comparison, topCollectionDay, topMissedPaymentDay),
   };
 }

@@ -1,4 +1,5 @@
-import { TremorCard } from "@/components/tremor/raw/metric-card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export function CollectionsResultsSkeleton({
   errorMessage,
@@ -6,56 +7,70 @@ export function CollectionsResultsSkeleton({
   errorMessage?: string | null;
 }) {
   return (
-    <div className="space-y-6">
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div className="space-y-4">
+      <div className="grid gap-3 xl:items-start xl:grid-cols-[minmax(0,1.2fr)_repeat(3,minmax(0,1fr))]">
         {Array.from({ length: 4 }).map((_, index) => (
-          <TremorCard className="p-5" key={index}>
-            <div className="space-y-3">
-              <div className="h-4 w-32 animate-pulse rounded bg-muted" />
-              <div className="h-8 w-28 animate-pulse rounded bg-muted" />
-              <div className="h-4 w-full animate-pulse rounded bg-muted" />
-            </div>
-          </TremorCard>
+          <Card className="gap-0 overflow-hidden py-0 shadow-sm" key={index}>
+            <CardHeader className="gap-0 pb-1.5 pt-3.5">
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="mt-2 h-4 w-full" />
+            </CardHeader>
+            <CardContent className="pb-4.5 pt-0">
+              <Skeleton className="h-8 w-32" />
+              {index === 0 ? <Skeleton className="mt-2.5 h-6 w-36 rounded-full" /> : null}
+            </CardContent>
+          </Card>
         ))}
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-12">
-        <TremorCard className="xl:col-span-8">
-          <div className="space-y-5 p-6">
-            <div className="space-y-2">
-              <div className="h-5 w-52 animate-pulse rounded bg-muted" />
-              <div className="h-4 w-72 animate-pulse rounded bg-muted" />
-            </div>
-            <div className="h-[380px] animate-pulse rounded-xl bg-muted" />
+      <Card className="gap-0 overflow-hidden py-0 shadow-sm">
+        <CardHeader className="gap-0 pb-1.5 pt-3.5">
+          <Skeleton className="h-5 w-40" />
+          <Skeleton className="mt-2 h-4 w-80 max-w-full" />
+        </CardHeader>
+        <CardContent className="pb-4.5 pt-0">
+          <div className="rounded-2xl border border-border/70 p-2.5">
+            <Skeleton className="h-[250px] rounded-xl md:h-[290px]" />
           </div>
-        </TremorCard>
+        </CardContent>
+      </Card>
 
-        <TremorCard className="xl:col-span-4">
-          <div className="space-y-5 p-6">
-            <div className="space-y-2">
-              <div className="h-5 w-44 animate-pulse rounded bg-muted" />
-              <div className="h-4 w-60 animate-pulse rounded bg-muted" />
+      <div className="grid gap-4 xl:items-start xl:grid-cols-[minmax(260px,0.72fr)_minmax(0,1.28fr)]">
+        <Card className="gap-0 overflow-hidden py-0 shadow-sm">
+          <CardHeader className="gap-0 pb-1.5 pt-3.5">
+            <Skeleton className="h-5 w-44" />
+            <Skeleton className="mt-2 h-4 w-64 max-w-full" />
+          </CardHeader>
+          <CardContent className="pb-4 pt-0">
+            <div className="rounded-2xl border border-border/70 p-2.5">
+              <Skeleton className="h-[160px] rounded-xl md:h-[180px]" />
             </div>
-            <div className="h-[380px] animate-pulse rounded-xl bg-muted" />
-          </div>
-        </TremorCard>
+          </CardContent>
+        </Card>
 
-        {Array.from({ length: 3 }).map((_, index) => (
-          <TremorCard className={index === 0 ? "xl:col-span-5" : index === 1 ? "xl:col-span-4" : "xl:col-span-3"} key={index}>
-            <div className="space-y-4 p-6">
-              <div className="h-5 w-40 animate-pulse rounded bg-muted" />
-              <div className="h-4 w-64 animate-pulse rounded bg-muted" />
-              <div className="space-y-3">
-                {Array.from({ length: 4 }).map((__, itemIndex) => (
-                  <div className="space-y-2" key={itemIndex}>
-                    <div className="h-4 w-full animate-pulse rounded bg-muted" />
-                    <div className="h-2 w-full animate-pulse rounded bg-muted" />
+        <Card className="gap-0 overflow-hidden py-0 shadow-sm">
+          <CardHeader className="gap-0 pb-1.5 pt-3.5">
+            <Skeleton className="h-5 w-40" />
+            <Skeleton className="mt-2 h-4 w-72 max-w-full" />
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2.5 pb-4 pt-0">
+            {Array.from({ length: 4 }).map((_, itemIndex) => (
+              <div className="rounded-2xl border border-border/70 p-2.5" key={itemIndex}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="space-y-1">
+                    <Skeleton className="h-4 w-28" />
+                    <Skeleton className="h-3.5 w-20" />
                   </div>
-                ))}
+                  <div className="space-y-1">
+                    <Skeleton className="ml-auto h-5 w-24" />
+                    <Skeleton className="ml-auto h-3.5 w-14" />
+                  </div>
+                </div>
+                <Skeleton className="mt-2.5 h-2 w-full rounded-full" />
               </div>
-            </div>
-          </TremorCard>
-        ))}
+            ))}
+          </CardContent>
+        </Card>
       </div>
 
       {errorMessage ? <p className="text-sm text-destructive">{errorMessage}</p> : null}

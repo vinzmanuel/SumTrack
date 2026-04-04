@@ -19,13 +19,13 @@ export function CollectionsResultsSection({
   }
 
   return (
-    <div className="relative space-y-6">
+    <div className="relative space-y-4">
       <CollectionsSummaryCards summary={data.summary} />
       <CollectionsBentoGrid data={data} />
       {errorMessage ? <p className="text-sm text-destructive">{errorMessage}</p> : null}
       {isPending ? (
-        <div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-background/55 backdrop-blur-[1px]">
-          <div className="rounded-md border bg-background px-3 py-2 text-sm text-muted-foreground shadow-sm">
+        <div className="absolute inset-0 flex items-start justify-end rounded-2xl bg-background/45 p-3 backdrop-blur-[1px]">
+          <div className="rounded-full border border-border/70 bg-background px-3 py-1.5 text-sm text-muted-foreground shadow-sm">
             Updating collections analytics...
           </div>
         </div>

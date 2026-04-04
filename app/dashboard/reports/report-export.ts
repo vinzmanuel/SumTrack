@@ -6,6 +6,11 @@ import type {
   ReportsViewerPageData,
 } from "@/app/dashboard/reports/types";
 
+type CsvDataset = {
+  columns: Array<{ key: string; label: string }>;
+  rows: Array<Record<string, number | string>>;
+};
+
 function slugify(value: string) {
   return value
     .toLowerCase()
@@ -27,14 +32,6 @@ function resolveCsvTable(report: ReportsViewerPageData): ReportsSnapshotTableSec
   const tableSections = report.snapshot.sections.filter(
     (section): section is ReportsSnapshotTableSection => section.type === "table",
   );
-
-  if (report.templateKey === "financial_overview") {
-    return (
-      tableSections.find((section) => section.key === "periodBreakdown") ??
-      tableSections.find((section) => section.key === "branchFinancialSummary") ??
-      null
-    );
-  }
 
   if (report.templateKey === "collections_summary" || report.templateKey === "monthly_collections_summary") {
     return (
@@ -112,25 +109,76 @@ function resolveCsvTable(report: ReportsViewerPageData): ReportsSnapshotTableSec
   return null;
 }
 
+function datasetFromTable(table: ReportsSnapshotTableSection): CsvDataset {
+  return {
+    columns: table.columns.map((column) => ({ key: column.key, label: column.label })),
+    rows: table.rows,
+  };
+}
+
+function resolveFinancialOverviewCsvDataset(report: ReportsViewerPageData): CsvDataset | null {
+  const tableSections = report.snapshot.sections.filter(
+    (section): section is ReportsSnapshotTableSection => section.type === "table",
+  );
+  const preferredSections = tableSections;
+
+  if (preferredSections.length === 0) {
+    return null;
+  }
+
+  const columns: CsvDataset["columns"] = [{ key: "section", label: "Section" }];
+  const seenColumnKeys = new Set(["section"]);
+
+  for (const section of preferredSections) {
+    for (const column of section.columns) {
+      if (seenColumnKeys.has(column.key)) {
+        continue;
+      }
+
+      columns.push({ key: column.key, label: column.label });
+      seenColumnKeys.add(column.key);
+    }
+  }
+
+  return {
+    columns,
+    rows: preferredSections.flatMap((section) =>
+      section.rows.map((row) => ({
+        section: section.title,
+        ...row,
+      })),
+    ),
+  };
+}
+
+function resolveCsvDataset(report: ReportsViewerPageData): CsvDataset | null {
+  if (report.templateKey === "financial_overview") {
+    return resolveFinancialOverviewCsvDataset(report);
+  }
+
+  const table = resolveCsvTable(report);
+  return table ? datasetFromTable(table) : null;
+}
+
 export function canExportCsv(report: ReportsViewerPageData) {
   if (report.templateKey === "collection_receipt") {
     return false;
   }
 
-  return resolveCsvTable(report) !== null;
+  return resolveCsvDataset(report) !== null;
 }
 
 export function exportReportCsv(report: ReportsViewerPageData) {
-  const table = resolveCsvTable(report);
+  const dataset = resolveCsvDataset(report);
 
-  if (!table) {
+  if (!dataset) {
     toast.error("CSV export is not available for this saved report.");
     return;
   }
 
-  const header = table.columns.map((column) => formatCsvCell(column.label)).join(",");
-  const rows = table.rows.map((row) =>
-    table.columns
+  const header = dataset.columns.map((column) => formatCsvCell(column.label)).join(",");
+  const rows = dataset.rows.map((row) =>
+    dataset.columns
       .map((column) => formatCsvCell(row[column.key] ?? ""))
       .join(","),
   );

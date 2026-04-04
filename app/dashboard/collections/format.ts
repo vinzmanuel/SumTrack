@@ -16,6 +16,13 @@ export function formatCollectionsInteger(value: number) {
   return value.toLocaleString("en-PH");
 }
 
+export function formatCollectionsPercent(value: number) {
+  return `${value.toLocaleString("en-PH", {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  })}%`;
+}
+
 export function formatCollectionsDisplayDate(value: string) {
   const [year, month, day] = value.split("-").map(Number);
   const date = new Date(Date.UTC(year, month - 1, day));

@@ -1,10 +1,6 @@
-import { TremorCard, TremorDescription } from "@/components/tremor/raw/metric-card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CollectionsAreaChart } from "@/app/dashboard/collections/collections-area-chart";
-import {
-  CollectionsRankedCard,
-  formatRankedCurrency,
-  formatRankedInteger,
-} from "@/app/dashboard/collections/collections-ranked-card";
+import { CollectionsRankedCard } from "@/app/dashboard/collections/collections-ranked-card";
 import {
   formatCollectionsAxisCurrency,
   formatCollectionsCurrency,
@@ -14,88 +10,54 @@ import type { CollectionsAnalyticsData } from "@/app/dashboard/collections/types
 
 export function CollectionsBentoGrid({ data }: { data: CollectionsAnalyticsData }) {
   return (
-    <div className="grid gap-6 xl:grid-cols-12">
-      <TremorCard className="xl:col-span-8">
-        <ChartCard
-          chart={
+    <div className="space-y-4">
+      <Card className="gap-0 overflow-hidden py-0 shadow-sm">
+        <CardHeader className="gap-0 pb-1.5 pt-3.5">
+          <CardTitle className="text-base font-semibold tracking-tight">Collections Trend</CardTitle>
+          <CardDescription className="text-sm leading-5">
+            Collected amount across {data.dateRangeLabel}, shown as the main volume signal for the selected scope.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pb-4.5 pt-0">
+          <div className="rounded-2xl border border-border/70 bg-muted/10 p-2.5">
             <CollectionsAreaChart
               axisFormatter={formatCollectionsAxisCurrency}
               chart={data.collectionsTrend}
-              className="h-[340px] md:h-[380px]"
+              className="h-[250px] md:h-[290px]"
+              emptyMessage="No collection volume matched the selected branch scope and period."
               valueFormatter={formatCollectionsCurrency}
             />
-          }
-          description={`Collected amount over ${data.dateRangeLabel}.`}
-          title="Collections Trend Over Time"
-        />
-      </TremorCard>
-
-      <TremorCard className="xl:col-span-4">
-        <ChartCard
-          chart={
-            <CollectionsAreaChart
-              chart={data.missedPaymentsTrend}
-              className="h-[340px] md:h-[380px]"
-              valueFormatter={formatCollectionsInteger}
-            />
-          }
-          description={`Missed-payment entries over ${data.dateRangeLabel}.`}
-          title="Missed Payments Trend"
-        />
-      </TremorCard>
-
-      <CollectionsRankedCard
-        className="xl:col-span-5"
-        data={data.comparison}
-        secondaryFormatter={formatRankedInteger}
-        valueFormatter={formatRankedCurrency}
-      />
-
-      <CollectionsRankedCard
-        className="xl:col-span-4"
-        data={data.breakdown}
-        secondaryFormatter={formatRankedCurrency}
-        valueFormatter={formatRankedInteger}
-      />
-
-      <TremorCard className="xl:col-span-3">
-        <div className="flex h-full flex-col justify-between gap-4 p-6">
-          <div className="space-y-1.5">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-600">
-              {data.insight.eyebrow}
-            </p>
-            <h3 className="text-lg font-semibold tracking-tight text-foreground">
-              {data.insight.title}
-            </h3>
-            <TremorDescription className="text-[13px]">
-              {data.insight.description}
-            </TremorDescription>
           </div>
-          <div className="rounded-xl bg-emerald-50 p-4 text-sm text-emerald-900">
-            Use this view to compare current collection pressure, missed-payment signals, and where follow-up should start.
-          </div>
-        </div>
-      </TremorCard>
-    </div>
-  );
-}
+        </CardContent>
+      </Card>
 
-function ChartCard({
-  title,
-  description,
-  chart,
-}: {
-  title: string;
-  description: string;
-  chart: React.ReactNode;
-}) {
-  return (
-    <div className="space-y-5 p-6">
-      <div className="space-y-1.5">
-        <h3 className="text-base font-semibold tracking-tight text-foreground">{title}</h3>
-        <TremorDescription className="text-[13px]">{description}</TremorDescription>
+      <div className="grid gap-4 xl:items-start xl:grid-cols-[minmax(260px,0.72fr)_minmax(0,1.28fr)]">
+        <Card className="self-start gap-0 overflow-hidden py-0 shadow-sm">
+          <CardHeader className="gap-0 pb-1.5 pt-3.5">
+            <CardTitle className="text-base font-semibold tracking-tight">Missed Payments Trend</CardTitle>
+            <CardDescription className="text-sm leading-5">
+              Discrete missed-payment events across {data.dateRangeLabel}, kept as a smaller exception-monitoring surface.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pb-4 pt-0">
+            <div className="rounded-2xl border border-border/70 bg-muted/10 p-2.5">
+              <CollectionsAreaChart
+                chart={data.missedPaymentsTrend}
+                className="h-[160px] md:h-[180px]"
+                emptyMessage="No missed-payment events were recorded for the selected period."
+                valueFormatter={formatCollectionsInteger}
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        <CollectionsRankedCard
+          className="self-start"
+          data={data.comparison}
+          secondaryFormatter={formatCollectionsInteger}
+          valueFormatter={formatCollectionsCurrency}
+        />
       </div>
-      {chart}
     </div>
   );
 }
