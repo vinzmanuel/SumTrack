@@ -22,7 +22,7 @@ export function CollectorsTopPerformersStrip({
         <div className={`relative overflow-hidden rounded-2xl border p-4 ${collectorRankCardClassName(item.rank)}`} key={item.collectorId}>
           <div
             aria-hidden="true"
-            className="pointer-events-none absolute inset-x-6 top-0 h-10 rounded-b-full bg-white/35 blur-xl"
+            className="pointer-events-none absolute inset-x-6 top-0 h-10 rounded-b-full bg-white/35 blur-xl dark:bg-white/8"
           />
           <div className="flex items-start">
             <div>

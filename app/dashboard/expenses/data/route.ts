@@ -15,6 +15,7 @@ export async function GET(request: Request) {
     month: url.searchParams.get("month") ?? undefined,
     category: url.searchParams.get("category") ?? undefined,
     page: url.searchParams.get("page") ?? undefined,
+    pageSize: url.searchParams.get("pageSize") ?? undefined,
   });
   const access = resolveExpensesPageAccess(auth, filters);
 

@@ -28,7 +28,7 @@ function TableMetricStack({
   children: React.ReactNode;
   className?: string;
 }) {
-  return <div className={cn("flex min-h-15 flex-col items-start justify-center gap-0.5", className)}>{children}</div>;
+  return <div className={cn("flex min-h-10 flex-col items-start justify-center gap-0.5", className)}>{children}</div>;
 }
 
 function TableLabelWithTooltip({
@@ -55,6 +55,7 @@ function TableLabelWithTooltip({
 
 const cellGroupDividerClassName = "border-r border-border/70";
 const headerGroupDividerClassName = "border-r border-border/70";
+const headerRowClassName = "border-border/70 bg-[var(--app-table-header)]";
 
 export function CollectorsTable({
   basis,
@@ -82,7 +83,7 @@ export function CollectorsTable({
           <col style={{ width: "5rem" }} />
         </colgroup>
         <TableHeader>
-          <TableRow className="border-border/70">
+          <TableRow className={headerRowClassName}>
             <TableHead className={cn("h-10 border-b border-border/70", headerGroupDividerClassName)} colSpan={2} />
             <TableHead className={cn("h-10 px-4 text-center align-middle font-semibold", headerGroupDividerClassName)} colSpan={4}>
               Period-Based
@@ -92,7 +93,7 @@ export function CollectorsTable({
             </TableHead>
             <TableHead className="h-10 border-b border-border/70" />
           </TableRow>
-          <TableRow className="border-border/70">
+          <TableRow className={headerRowClassName}>
             <TableHead className="align-middle">Rank</TableHead>
             <TableHead className={cn("align-middle", headerGroupDividerClassName)}>Collector</TableHead>
             <TableHead className={cn("px-4", basis === "average-monthly-collections" ? "text-muted-foreground" : "text-foreground")}>
@@ -165,14 +166,14 @@ export function CollectorsTable({
                 key={row.collectorId}
                 onClick={() => onViewCollector(row)}
               >
-                <TableCell className="py-3 align-middle whitespace-normal">
-                  <div className="flex min-h-[3.75rem] items-center">
+                <TableCell className="py-2 align-middle whitespace-normal">
+                  <div className="flex min-h-10 items-center">
                     <Badge className={collectorRankBadgeClassName(row.rank)} variant="outline">
                       #{formatCollectorsInteger(row.rank)}
                     </Badge>
                   </div>
                 </TableCell>
-                <TableCell className={cn("py-3 align-middle whitespace-normal", cellGroupDividerClassName)}>
+                <TableCell className={cn("py-2 align-middle whitespace-normal", cellGroupDividerClassName)}>
                   <TableMetricStack>
                     <p className="text-sm leading-5 text-foreground">
                       <span className="font-semibold">{row.fullName}</span>{" "}
@@ -183,17 +184,14 @@ export function CollectorsTable({
                     </p>
                   </TableMetricStack>
                 </TableCell>
-                <TableCell className="px-4 py-3 align-middle whitespace-normal">
+                <TableCell className="px-4 py-2 align-middle whitespace-normal">
                   <TableMetricStack>
                     <p className="text-sm font-semibold leading-5 text-foreground">
                       {formatCollectorsCurrency(basis === "incentives" ? row.periodIncentiveTotal : row.totalCollected)}
                     </p>
-                    <p aria-hidden="true" className="invisible text-xs font-medium leading-4">
-                      &nbsp;
-                    </p>
                   </TableMetricStack>
                 </TableCell>
-                <TableCell className="px-4 py-3 align-middle whitespace-normal">
+                <TableCell className="px-4 py-2 align-middle whitespace-normal">
                   <TableMetricStack>
                     <p className="text-sm font-semibold leading-5 text-foreground">{formatCollectorsCurrency(row.expectedCollections)}</p>
                     <p className="text-xs leading-4 text-muted-foreground">
@@ -203,7 +201,7 @@ export function CollectorsTable({
                     </p>
                   </TableMetricStack>
                 </TableCell>
-                <TableCell className="px-4 py-3 align-middle whitespace-normal">
+                <TableCell className="px-4 py-2 align-middle whitespace-normal">
                   <TableMetricStack>
                     <p className="text-sm font-semibold leading-5 text-foreground">{formatCollectorsPercent(row.missedPaymentRate)}</p>
                     <p className="text-xs leading-4 text-muted-foreground">
@@ -211,15 +209,12 @@ export function CollectorsTable({
                     </p>
                   </TableMetricStack>
                 </TableCell>
-                <TableCell className={cn("px-4 py-3 align-middle whitespace-normal", cellGroupDividerClassName)}>
+                <TableCell className={cn("px-4 py-2 align-middle whitespace-normal", cellGroupDividerClassName)}>
                   <TableMetricStack>
                     <p className="text-sm font-semibold leading-5 text-foreground">{formatCollectorsCurrency(row.averageMonthlyCollections)}</p>
-                    <p aria-hidden="true" className="invisible text-xs leading-4">
-                      &nbsp;
-                    </p>
                   </TableMetricStack>
                 </TableCell>
-                <TableCell className="px-4 py-3 align-middle whitespace-normal">
+                <TableCell className="px-4 py-2 align-middle whitespace-normal">
                   <TableMetricStack>
                     <p className="text-sm font-semibold leading-5 text-foreground">{formatCollectorsInteger(row.assignedActiveLoans)}</p>
                     <p className="text-xs leading-4 text-muted-foreground">
@@ -227,7 +222,7 @@ export function CollectorsTable({
                     </p>
                   </TableMetricStack>
                 </TableCell>
-                <TableCell className={cn("px-4 py-3 align-middle whitespace-normal", cellGroupDividerClassName)}>
+                <TableCell className={cn("px-4 py-2 align-middle whitespace-normal", cellGroupDividerClassName)}>
                   <TableMetricStack>
                     <p className="text-sm font-semibold leading-5 text-foreground">{formatCollectorsPercent(row.liveRecoveryRate)}</p>
                     <p className="text-xs leading-4 text-muted-foreground">
@@ -235,8 +230,8 @@ export function CollectorsTable({
                     </p>
                   </TableMetricStack>
                 </TableCell>
-                <TableCell className="px-4 py-3 text-center align-middle whitespace-normal">
-                  <div className="flex min-h-[3.75rem] items-center justify-center">
+                <TableCell className="px-4 py-2 text-center align-middle whitespace-normal">
+                  <div className="flex min-h-10 items-center justify-center">
                     <Button
                       className="bg-card hover:bg-accent"
                       onClick={(event) => {

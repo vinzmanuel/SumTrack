@@ -50,6 +50,13 @@
 :root {
   --radius: 0.625rem;
   --app-background: #f5f5f5;
+  --app-hero-start: oklch(0.985 0.004 255);
+  --app-hero-mid: oklch(1 0 0);
+  --app-hero-end: oklch(0.985 0.03 160 / 60%);
+  --app-header-badge-bg: oklch(1 0 0);
+  --app-header-badge-border: oklch(0.922 0 0);
+  --app-header-badge-text: oklch(0.37 0 0);
+  --app-table-header: var(--app-background);
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -85,6 +92,13 @@
 
 .dark {
   --app-background: oklch(0.145 0 0);
+  --app-hero-start: oklch(0.16 0 0);
+  --app-hero-mid: oklch(0.185 0 0);
+  --app-hero-end: oklch(0.245 0.045 160 / 85%);
+  --app-header-badge-bg: oklch(0.24 0 0);
+  --app-header-badge-border: oklch(1 0 0 / 12%);
+  --app-header-badge-text: oklch(0.94 0 0);
+  --app-table-header: #262626;
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.205 0 0);

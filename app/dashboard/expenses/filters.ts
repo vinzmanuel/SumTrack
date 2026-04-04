@@ -11,6 +11,9 @@ export const EXPENSE_CATEGORIES = [
   "Miscellaneous",
 ] as const;
 
+export const EXPENSES_PAGE_SIZE_OPTIONS = [10, 20, 50] as const;
+const DEFAULT_EXPENSES_PAGE_SIZE = 20;
+
 function resolveMonthRange(month: string) {
   if (!/^\d{4}-\d{2}$/.test(month)) {
     return null;
@@ -40,6 +43,11 @@ export function parseExpensesFilters(
   const selectedBranchRaw = String(params?.branch ?? "all");
   const selectedMonthRaw = String(params?.month ?? "");
   const selectedCategoryRaw = String(params?.category ?? "all");
+  const pageSizeRaw = String(params?.pageSize ?? "");
+  const parsedPageSize = /^\d+$/.test(pageSizeRaw) ? Number(pageSizeRaw) : DEFAULT_EXPENSES_PAGE_SIZE;
+  const pageSize = EXPENSES_PAGE_SIZE_OPTIONS.includes(parsedPageSize as (typeof EXPENSES_PAGE_SIZE_OPTIONS)[number])
+    ? parsedPageSize
+    : DEFAULT_EXPENSES_PAGE_SIZE;
 
   return {
     selectedBranchRaw,
@@ -50,6 +58,7 @@ export function parseExpensesFilters(
       ? selectedCategoryRaw
       : "all",
     page: Math.max(/^\d+$/.test(String(params?.page ?? "")) ? Number(params?.page) : 1, 1),
+    pageSize,
     monthRange: selectedMonthRaw ? resolveMonthRange(selectedMonthRaw) : null,
   };
 }
@@ -92,6 +101,7 @@ export function resolveExpensesPageAccess(
     selectedMonthRaw: filters.selectedMonthRaw,
     selectedCategory: filters.selectedCategory,
     page: filters.page,
+    pageSize: filters.pageSize,
     monthRange: filters.monthRange,
     fixedBranchName: isBranchManager ? auth.activeBranchName : null,
     resolvedBranchId: isBranchManager

@@ -225,7 +225,7 @@ export function CollectorsClientPage({
   return (
     <div className="w-full max-w-none space-y-5 px-4 pb-6 pt-1 sm:px-6 sm:pb-6 sm:pt-2">
       <Card className="gap-0 overflow-hidden py-0">
-        <div className="bg-linear-to-r from-slate-50 via-white to-emerald-50/60 p-6">
+        <div className="bg-gradient-to-r from-slate-50 via-background to-emerald-50/60 p-6 dark:from-zinc-950 dark:via-background dark:to-emerald-950/45">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
             <div className="space-y-1">
               <div className="space-y-1">
@@ -237,17 +237,26 @@ export function CollectorsClientPage({
                 </CardDescription>
               </div>
               <div className="flex flex-wrap items-center gap-2 pt-2">
-                <Badge className="border-zinc-200 bg-card text-zinc-700" variant="outline">
+                <Badge
+                  className="border-zinc-200 bg-background/80 text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100"
+                  variant="outline"
+                >
                   {results?.totalCount ?? 0} collectors
                 </Badge>
-                <Badge className="border-zinc-200 bg-card text-zinc-700" variant="outline">
+                <Badge
+                  className="border-zinc-200 bg-background/80 text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100"
+                  variant="outline"
+                >
                   {resolveCollectorsPeriodTriggerLabel({
                     range: filters.range,
                     from: filters.from,
                     to: filters.to,
                   })}
                 </Badge>
-                <Badge className="border-zinc-200 bg-card text-zinc-700" variant="outline">
+                <Badge
+                  className="border-zinc-200 bg-background/80 text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100"
+                  variant="outline"
+                >
                   {scopeLabel}
                 </Badge>
               </div>

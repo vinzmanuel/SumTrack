@@ -9,7 +9,6 @@ import type {
   ExpensesPageAccessState,
   ExpensesResultsData,
 } from "@/app/dashboard/expenses/types";
-const EXPENSES_PAGE_SIZE = 20;
 type ReadyExpensesAccess = Extract<ExpensesPageAccessState, { view: "ready" }>;
 
 function whereFrom(filters: SQL[]) {
@@ -119,6 +118,7 @@ export async function loadExpensesResultsData(
   const expenseFilters = buildExpenseFilters(access);
   const whereCondition = whereFrom(expenseFilters);
   const requestedPage = Math.max(access.page, 1);
+  const pageSize = access.pageSize;
 
   const totalsRow = await db
     .select({
@@ -131,9 +131,9 @@ export async function loadExpensesResultsData(
     .catch(() => ({ total_expenses: 0, total_amount: 0 }));
 
   const totalExpenses = Number(totalsRow.total_expenses) || 0;
-  const totalPages = Math.max(Math.ceil(totalExpenses / EXPENSES_PAGE_SIZE), 1);
+  const totalPages = Math.max(Math.ceil(totalExpenses / pageSize), 1);
   const page = Math.min(requestedPage, totalPages);
-  const offset = (page - 1) * EXPENSES_PAGE_SIZE;
+  const offset = (page - 1) * pageSize;
 
   const expenseRows = await db
     .select({
@@ -158,7 +158,7 @@ export async function loadExpensesResultsData(
     .leftJoin(employee_info, eq(employee_info.user_id, users.user_id))
     .where(whereCondition)
     .orderBy(desc(expenses.expense_date), desc(expenses.expense_id))
-    .limit(EXPENSES_PAGE_SIZE)
+    .limit(pageSize)
     .offset(offset)
     .catch(() => []);
 
@@ -167,6 +167,6 @@ export async function loadExpensesResultsData(
     totalExpenses,
     totalAmount: Number(totalsRow.total_amount) || 0,
     page,
-    pageSize: EXPENSES_PAGE_SIZE,
+    pageSize,
   };
 }

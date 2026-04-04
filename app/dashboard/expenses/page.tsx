@@ -73,6 +73,7 @@ export default async function ExpensesPage({ searchParams }: ExpensesPageProps) 
         month: access.selectedMonthRaw,
         category: access.selectedCategory,
         page: access.page,
+        pageSize: access.pageSize,
       }}
       initialResults={initialResults}
     />

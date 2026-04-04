@@ -4,6 +4,7 @@ export type ExpensesPageProps = {
     month?: string;
     category?: string;
     page?: string;
+    pageSize?: string;
   }>;
 };
 
@@ -33,6 +34,7 @@ export type ExpensesFiltersState = {
   selectedMonthRaw: string;
   selectedCategory: string;
   page: number;
+  pageSize: number;
   monthRange: {
     start: string;
     end: string;
@@ -44,6 +46,7 @@ export type ExpensesFilterInput = {
   month: string;
   category: string;
   page: number;
+  pageSize: number;
 };
 
 export type ExpensesPageAccessState =
@@ -66,6 +69,7 @@ export type ExpensesPageAccessState =
       selectedMonthRaw: string;
       selectedCategory: string;
       page: number;
+      pageSize: number;
       monthRange: {
         start: string;
         end: string;

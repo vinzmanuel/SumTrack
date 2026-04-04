@@ -7,7 +7,7 @@ import { appendBackNavigationToHref } from "@/app/dashboard/back-navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { EXPENSE_CATEGORIES } from "@/app/dashboard/expenses/filters";
+import { EXPENSES_PAGE_SIZE_OPTIONS, EXPENSE_CATEGORIES } from "@/app/dashboard/expenses/filters";
 import { ExpensesFilters } from "@/app/dashboard/expenses/expenses-filters";
 import { ExpensesResultsSection } from "@/app/dashboard/expenses/expenses-results-section";
 import type {
@@ -45,6 +45,10 @@ function buildExpensesPageUrl(filters: ExpensesFilterInput) {
     params.set("page", String(filters.page));
   }
 
+  if (filters.pageSize !== EXPENSES_PAGE_SIZE_OPTIONS[1]) {
+    params.set("pageSize", String(filters.pageSize));
+  }
+
   const queryString = params.toString();
   return queryString ? `/dashboard/expenses?${queryString}` : "/dashboard/expenses";
 }
@@ -66,6 +70,10 @@ function buildExpensesDataUrl(filters: ExpensesFilterInput) {
 
   if (filters.page > 1) {
     params.set("page", String(filters.page));
+  }
+
+  if (filters.pageSize !== EXPENSES_PAGE_SIZE_OPTIONS[1]) {
+    params.set("pageSize", String(filters.pageSize));
   }
 
   const queryString = params.toString();
@@ -101,8 +109,9 @@ export function ExpensesClientPage({
       month: initialFilters.month,
       category: initialFilters.category,
       page: initialResults.page,
+      pageSize: initialResults.pageSize,
     }),
-    [initialFilters.branch, initialFilters.category, initialFilters.month, initialResults.page],
+    [initialFilters.branch, initialFilters.category, initialFilters.month, initialResults.page, initialResults.pageSize],
   );
 
   const [results, setResults] = useState(initialResults);
@@ -136,6 +145,7 @@ export function ExpensesClientPage({
         month: nextFilters.month,
         category: nextFilters.category,
         page: nextData.page,
+        pageSize: nextData.pageSize,
       };
       setResults(nextData);
       setFilters(normalizedFilters);
@@ -168,7 +178,8 @@ export function ExpensesClientPage({
       filters.branch === appliedFilters.branch &&
       filters.month === appliedFilters.month &&
       filters.category === appliedFilters.category &&
-      filters.page === appliedFilters.page
+      filters.page === appliedFilters.page &&
+      filters.pageSize === appliedFilters.pageSize
     ) {
       return;
     }
@@ -190,8 +201,9 @@ export function ExpensesClientPage({
       month: "",
       category: "all",
       page: 1,
+      pageSize: normalizedInitialFilters.pageSize,
     });
-  }, [canChooseBranch, normalizedInitialFilters.branch]);
+  }, [canChooseBranch, normalizedInitialFilters.branch, normalizedInitialFilters.pageSize]);
 
   const currentReturnTo = buildExpensesPageUrl(filters);
   const scopeLabel = canChooseBranch
@@ -268,6 +280,7 @@ export function ExpensesClientPage({
         errorMessage={errorMessage}
         isPending={isPending}
         onPageChange={(page) => updateFilters({ page })}
+        onPageSizeChange={(pageSize) => updateFilters({ pageSize })}
       />
     </div>
   );
