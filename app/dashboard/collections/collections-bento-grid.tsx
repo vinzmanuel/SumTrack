@@ -1,5 +1,5 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { CollectionsAreaChart } from "@/app/dashboard/collections/collections-area-chart";
+import { CollectionsChart } from "@/app/dashboard/collections/collections-area-chart";
 import { CollectionsRankedCard } from "@/app/dashboard/collections/collections-ranked-card";
 import {
   formatCollectionsAxisCurrency,
@@ -13,51 +13,49 @@ export function CollectionsBentoGrid({ data }: { data: CollectionsAnalyticsData 
     <div className="space-y-4">
       <Card className="gap-0 overflow-hidden py-0 shadow-sm">
         <CardHeader className="gap-0 pb-1.5 pt-3.5">
-          <CardTitle className="text-base font-semibold tracking-tight">Collections Trend</CardTitle>
+          <CardTitle className="text-base font-semibold tracking-tight">Collections Composition Trend</CardTitle>
           <CardDescription className="text-sm leading-5">
-            Collected amount across {data.dateRangeLabel}, shown as the main volume signal for the selected scope.
+            Principal recovery and realized interest across {data.dateRangeLabel}, shown as the main composition signal for the selected scope.
           </CardDescription>
         </CardHeader>
         <CardContent className="pb-4.5 pt-0">
           <div className="rounded-2xl border border-border/70 bg-muted/10 p-2.5">
-            <CollectionsAreaChart
+            <CollectionsChart
               axisFormatter={formatCollectionsAxisCurrency}
-              chart={data.collectionsTrend}
-              className="h-[250px] md:h-[290px]"
-              emptyMessage="No collection volume matched the selected branch scope and period."
+              chart={data.compositionTrend}
+              className="h-[260px] md:h-[300px]"
+              emptyMessage="No collection composition matched the selected branch scope and period."
+              includeTotalInTooltip
+              showLegend
+              stacked
               valueFormatter={formatCollectionsCurrency}
             />
           </div>
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 xl:items-start xl:grid-cols-[minmax(260px,0.72fr)_minmax(0,1.28fr)]">
-        <Card className="self-start gap-0 overflow-hidden py-0 shadow-sm">
-          <CardHeader className="gap-0 pb-1.5 pt-3.5">
-            <CardTitle className="text-base font-semibold tracking-tight">Missed Payments Trend</CardTitle>
-            <CardDescription className="text-sm leading-5">
-              Discrete missed-payment events across {data.dateRangeLabel}, kept as a smaller exception-monitoring surface.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pb-4 pt-0">
-            <div className="rounded-2xl border border-border/70 bg-muted/10 p-2.5">
-              <CollectionsAreaChart
-                chart={data.missedPaymentsTrend}
-                className="h-[160px] md:h-[180px]"
-                emptyMessage="No missed-payment events were recorded for the selected period."
-                valueFormatter={formatCollectionsInteger}
-              />
-            </div>
-          </CardContent>
-        </Card>
+      <Card className="gap-0 overflow-hidden py-0 shadow-sm">
+        <CardHeader className="gap-0 pb-1.5 pt-3.5">
+          <CardTitle className="text-base font-semibold tracking-tight">Missed Payments Trend</CardTitle>
+          <CardDescription className="text-sm leading-5">
+            Missed-payment events across {data.dateRangeLabel}, shown at the same scale as the composition chart so reliability is easier to inspect.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pb-4.5 pt-0">
+          <div className="rounded-2xl border border-border/70 bg-muted/10 p-2.5">
+            <CollectionsChart
+              chart={data.missedPaymentsTrend}
+              className="h-[260px] md:h-[300px]"
+              emptyMessage="No missed-payment events were recorded for the selected period."
+              valueFormatter={formatCollectionsInteger}
+            />
+          </div>
+        </CardContent>
+      </Card>
 
-        <CollectionsRankedCard
-          className="self-start"
-          data={data.comparison}
-          secondaryFormatter={formatCollectionsInteger}
-          valueFormatter={formatCollectionsCurrency}
-        />
-      </div>
+      {data.comparison.items.length > 0 ? (
+        <CollectionsRankedCard data={data.comparison} />
+      ) : null}
     </div>
   );
 }

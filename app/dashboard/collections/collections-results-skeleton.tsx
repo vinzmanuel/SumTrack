@@ -8,8 +8,8 @@ export function CollectionsResultsSkeleton({
 }) {
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 xl:items-start xl:grid-cols-[minmax(0,1.2fr)_repeat(3,minmax(0,1fr))]">
-        {Array.from({ length: 4 }).map((_, index) => (
+      <div className="grid gap-3 xl:items-start xl:grid-cols-[minmax(0,1.35fr)_repeat(4,minmax(0,1fr))]">
+        {Array.from({ length: 5 }).map((_, index) => (
           <Card className="gap-0 overflow-hidden py-0 shadow-sm" key={index}>
             <CardHeader className="gap-0 pb-1.5 pt-3.5">
               <Skeleton className="h-4 w-32" />
@@ -17,7 +17,12 @@ export function CollectionsResultsSkeleton({
             </CardHeader>
             <CardContent className="pb-4.5 pt-0">
               <Skeleton className="h-8 w-32" />
-              {index === 0 ? <Skeleton className="mt-2.5 h-6 w-36 rounded-full" /> : null}
+              {index === 0 ? (
+                <div className="mt-2.5 flex flex-wrap gap-2">
+                  <Skeleton className="h-6 w-24 rounded-full" />
+                  <Skeleton className="h-6 w-32 rounded-full" />
+                </div>
+              ) : null}
             </CardContent>
           </Card>
         ))}
@@ -25,53 +30,55 @@ export function CollectionsResultsSkeleton({
 
       <Card className="gap-0 overflow-hidden py-0 shadow-sm">
         <CardHeader className="gap-0 pb-1.5 pt-3.5">
-          <Skeleton className="h-5 w-40" />
+          <Skeleton className="h-5 w-52" />
           <Skeleton className="mt-2 h-4 w-80 max-w-full" />
         </CardHeader>
         <CardContent className="pb-4.5 pt-0">
           <div className="rounded-2xl border border-border/70 p-2.5">
-            <Skeleton className="h-[250px] rounded-xl md:h-[290px]" />
+            <Skeleton className="h-[260px] rounded-xl md:h-[300px]" />
           </div>
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 xl:items-start xl:grid-cols-[minmax(260px,0.72fr)_minmax(0,1.28fr)]">
-        <Card className="gap-0 overflow-hidden py-0 shadow-sm">
-          <CardHeader className="gap-0 pb-1.5 pt-3.5">
-            <Skeleton className="h-5 w-44" />
-            <Skeleton className="mt-2 h-4 w-64 max-w-full" />
-          </CardHeader>
-          <CardContent className="pb-4 pt-0">
-            <div className="rounded-2xl border border-border/70 p-2.5">
-              <Skeleton className="h-[160px] rounded-xl md:h-[180px]" />
-            </div>
-          </CardContent>
-        </Card>
+      <Card className="gap-0 overflow-hidden py-0 shadow-sm">
+        <CardHeader className="gap-0 pb-1.5 pt-3.5">
+          <Skeleton className="h-5 w-44" />
+          <Skeleton className="mt-2 h-4 w-80 max-w-full" />
+        </CardHeader>
+        <CardContent className="pb-4.5 pt-0">
+          <div className="rounded-2xl border border-border/70 p-2.5">
+            <Skeleton className="h-[260px] rounded-xl md:h-[300px]" />
+          </div>
+        </CardContent>
+      </Card>
 
-        <Card className="gap-0 overflow-hidden py-0 shadow-sm">
-          <CardHeader className="gap-0 pb-1.5 pt-3.5">
-            <Skeleton className="h-5 w-40" />
-            <Skeleton className="mt-2 h-4 w-72 max-w-full" />
-          </CardHeader>
-          <CardContent className="flex flex-col gap-2.5 pb-4 pt-0">
-            {Array.from({ length: 4 }).map((_, itemIndex) => (
-              <div className="rounded-2xl border border-border/70 p-2.5" key={itemIndex}>
-                <div className="flex items-start justify-between gap-3">
-                  <div className="space-y-1">
-                    <Skeleton className="h-4 w-28" />
-                    <Skeleton className="h-3.5 w-20" />
-                  </div>
-                  <div className="space-y-1">
-                    <Skeleton className="ml-auto h-5 w-24" />
-                    <Skeleton className="ml-auto h-3.5 w-14" />
-                  </div>
+      <Card className="gap-0 overflow-hidden py-0 shadow-sm">
+        <CardHeader className="gap-0 pb-1.5 pt-3.5">
+          <Skeleton className="h-5 w-40" />
+          <Skeleton className="mt-2 h-4 w-72 max-w-full" />
+        </CardHeader>
+        <CardContent className="flex flex-col gap-2.5 pb-4 pt-0">
+          {Array.from({ length: 4 }).map((_, itemIndex) => (
+            <div className="border-b border-border/60 px-3 py-2.5 last:border-b-0" key={itemIndex}>
+              <div className="flex items-start justify-between gap-3">
+                <div className="space-y-1">
+                  <Skeleton className="h-4 w-28" />
+                  <Skeleton className="h-3.5 w-44" />
                 </div>
-                <Skeleton className="mt-2.5 h-2 w-full rounded-full" />
+                <div className="space-y-1">
+                  <Skeleton className="ml-auto h-5 w-24" />
+                  <Skeleton className="ml-auto h-3.5 w-14" />
+                </div>
               </div>
-            ))}
-          </CardContent>
-        </Card>
-      </div>
+              <Skeleton className="mt-2 h-1.5 w-full rounded-full" />
+              <div className="mt-2 flex items-center justify-between">
+                <Skeleton className="h-3.5 w-20" />
+                <Skeleton className="h-3.5 w-24" />
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
 
       {errorMessage ? <p className="text-sm text-destructive">{errorMessage}</p> : null}
     </div>

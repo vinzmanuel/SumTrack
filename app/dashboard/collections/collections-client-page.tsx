@@ -137,7 +137,7 @@ export function CollectionsClientPage({
               <div className="space-y-1">
                 <CardTitle className="text-[1.75rem] font-semibold tracking-tight sm:text-3xl">Collections</CardTitle>
                 <CardDescription className="text-sm leading-5">
-                  Analyze collection volume, missed-payment behavior, and comparison patterns across the selected branch scope.
+                  Analyze collection composition, reliability, and pattern behavior across the selected branch scope.
                 </CardDescription>
               </div>
               <div className="flex flex-wrap items-center gap-2 pt-1.5">
@@ -148,7 +148,9 @@ export function CollectionsClientPage({
                   {results ? startCaseLabel(results.dateRangeLabel) : "Selected period"}
                 </Badge>
                 <Badge className="border-zinc-200 bg-background/80 px-2.5 py-1 text-zinc-700" variant="outline">
-                  {results ? `${results.summary.totalEntries.toLocaleString("en-PH")} entries` : "Collections analytics"}
+                  {results
+                    ? `${results.summary.activeCollectionDays.toLocaleString("en-PH")} active days`
+                    : "Collections analytics"}
                 </Badge>
               </div>
             </div>

@@ -58,6 +58,28 @@ export function calculateLoanTotalPayable(principal: number, interest: number) {
   return fromMoneyCents(Math.round((safePrincipal + (safePrincipal * safeInterest) / 100) * 100));
 }
 
+export function calculateLoanInterestCap(principal: number, interest: number) {
+  const safePrincipal = clampMoney(principal);
+  return Math.max(calculateLoanTotalPayable(safePrincipal, interest) - safePrincipal, 0);
+}
+
+export function calculateLoanPrincipalRecoveredAsOf(totalCollected: number, principal: number) {
+  return Math.min(clampMoney(totalCollected), clampMoney(principal));
+}
+
+export function calculateLoanRealizedInterestAsOf(
+  totalCollected: number,
+  principal: number,
+  interestCap: number,
+) {
+  const recoveredAbovePrincipal = Math.max(
+    clampMoney(totalCollected) - clampMoney(principal),
+    0,
+  );
+
+  return Math.min(recoveredAbovePrincipal, clampMoney(interestCap));
+}
+
 export function calculateLoanRemainingBalance(totalPayable: number, totalCollected: number) {
   const payableCents = toMoneyCents(totalPayable);
   const collectedCents = toMoneyCents(totalCollected);

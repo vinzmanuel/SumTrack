@@ -52,24 +52,31 @@ export type CollectionsAnalyticsAccessState =
 
 export type CollectionsSummaryStats = {
   totalAmount: number;
+  principalRecovered: number;
+  realizedInterest: number;
   totalEntries: number;
   averageAmount: number;
   missedPayments: number;
   missedPaymentRate: number;
+  activeCollectionDays: number;
+  averagePerActiveDay: number;
 };
 
-export type CollectionsRankedItem = {
+export type CollectionsComparisonItem = {
   label: string;
-  value: number;
-  secondaryValue: number;
+  totalAmount: number;
+  principalRecovered: number;
+  realizedInterest: number;
+  entryCount: number;
+  missedPayments: number;
+  missedPaymentRate: number;
 };
 
-export type CollectionsRankedCardData = {
+export type CollectionsComparisonData = {
+  mode: "branch" | "weekday";
   title: string;
   description: string;
-  valueLabel: string;
-  secondaryLabel: string;
-  items: CollectionsRankedItem[];
+  items: CollectionsComparisonItem[];
   emptyMessage: string;
 };
 
@@ -77,9 +84,9 @@ export type CollectionsAnalyticsData = {
   filters: CollectionsFilterState;
   dateRangeLabel: string;
   summary: CollectionsSummaryStats;
-  collectionsTrend: AnalyticsChartModel;
+  compositionTrend: AnalyticsChartModel;
   missedPaymentsTrend: AnalyticsChartModel;
-  comparison: CollectionsRankedCardData;
+  comparison: CollectionsComparisonData;
 };
 
 export type CollectionsBranchOption = AnalyticsSelectOption;
