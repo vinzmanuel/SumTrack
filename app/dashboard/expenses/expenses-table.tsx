@@ -82,7 +82,7 @@ export function ExpensesTable({ expenses }: { expenses: ExpenseListRow[] }) {
       <div className="rounded-xl border border-dashed bg-muted/20 px-5 py-12 text-center">
         <p className="text-base font-medium text-foreground">No expenses found for the selected filters.</p>
         <p className="mt-2 text-sm text-muted-foreground">
-          Try adjusting the branch, month, or category to widen the result set.
+          Try adjusting the branch, period, or category to widen the result set.
         </p>
       </div>
     );

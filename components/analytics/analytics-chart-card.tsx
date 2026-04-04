@@ -24,7 +24,7 @@ export function AnalyticsChartCard({
   noDataMessage: string;
 }) {
   return (
-    <TremorCard className="min-h-[470px] p-6">
+    <TremorCard className="w-full min-h-[470px] p-6">
       <div className="flex flex-col gap-6">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div className="space-y-1.5">

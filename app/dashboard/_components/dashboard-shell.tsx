@@ -15,6 +15,7 @@ import {
   Menu,
   ReceiptText,
   Settings,
+  UserCog,
   UserPlus,
   Users,
   Wallet,
@@ -40,6 +41,7 @@ type NavItem = {
     | "bar-chart-3"
     | "building-2"
     | "users"
+    | "user-cog"
     | "receipt-text"
     | "banknote-arrow-down"
     | "wallet"
@@ -91,6 +93,7 @@ function NavContent({
     if (icon === "bar-chart-3") return <BarChart3 className="h-4 w-4 shrink-0" />;
     if (icon === "building-2") return <Building2 className="h-4 w-4 shrink-0" />;
     if (icon === "users") return <Users className="h-4 w-4 shrink-0" />;
+    if (icon === "user-cog") return <UserCog className="h-4 w-4 shrink-0" />;
     if (icon === "receipt-text") return <ReceiptText className="h-4 w-4 shrink-0" />;
     if (icon === "banknote-arrow-down") return <BanknoteArrowDown className="h-4 w-4 shrink-0" />;
     if (icon === "wallet") return <Wallet className="h-4 w-4 shrink-0" />;

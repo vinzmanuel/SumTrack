@@ -42,7 +42,7 @@ import { deleteAuthUserSafely } from "@/app/dashboard/create-account/action-iden
 import { LIVE_STORED_LOAN_STATUSES } from "@/app/dashboard/loans/loan-state";
 import { resolveReportsSystemUser } from "@/app/dashboard/reports/queries";
 
-const MANAGE_USERS_PAGE_SIZE = 20;
+const DEFAULT_MANAGE_USERS_PAGE_SIZE = 20;
 const EDITABLE_EMPLOYEE_ROLE_NAMES = [
   "Admin",
   "Auditor",
@@ -93,6 +93,27 @@ type ManagedUserMutationResult =
 
 function formatFullName(firstName: string | null, middleName: string | null, lastName: string | null) {
   return [firstName, middleName, lastName].filter(Boolean).join(" ").trim() || "N/A";
+}
+
+function formatManagedUserDisplayName(
+  firstName: string | null,
+  middleName: string | null,
+  lastName: string | null,
+) {
+  const safeFirstName = firstName?.trim();
+  const safeMiddleName = middleName?.trim();
+  const safeLastName = lastName?.trim();
+
+  if (!safeFirstName && !safeMiddleName && !safeLastName) {
+    return "N/A";
+  }
+
+  if (!safeMiddleName) {
+    return [safeFirstName, safeLastName].filter(Boolean).join(" ").trim() || "N/A";
+  }
+
+  const middleInitial = safeMiddleName.charAt(0);
+  return [safeFirstName, `${middleInitial}.`, safeLastName].filter(Boolean).join(" ").trim();
 }
 
 function buildScopedBranchIds(scope: ManageUserAccountsScope) {
@@ -974,9 +995,10 @@ async function loadBaseManageUsersRows(scope: ManageUserAccountsScope) {
   const activeCount = statusCountsRows.find((row) => row.status === "active")?.value ?? 0;
   const inactiveCount = statusCountsRows.find((row) => row.status === "inactive")?.value ?? 0;
 
-  const totalPages = Math.max(Math.ceil(totalCount / MANAGE_USERS_PAGE_SIZE), 1);
+  const pageSize = scope.pageSize || DEFAULT_MANAGE_USERS_PAGE_SIZE;
+  const totalPages = Math.max(Math.ceil(totalCount / pageSize), 1);
   const page = Math.min(requestedPage, totalPages);
-  const offset = (page - 1) * MANAGE_USERS_PAGE_SIZE;
+  const offset = (page - 1) * pageSize;
 
   const rows = await db
     .select({
@@ -1001,13 +1023,14 @@ async function loadBaseManageUsersRows(scope: ManageUserAccountsScope) {
     .leftJoin(borrower_info, eq(borrower_info.user_id, users.user_id))
     .where(filters.length > 0 ? and(...filters) : undefined)
     .orderBy(...sortOrder)
-    .limit(MANAGE_USERS_PAGE_SIZE)
+    .limit(pageSize)
     .offset(offset)
     .catch(() => []);
 
   return {
     totalCount,
     page,
+    pageSize,
     rows,
     activeCount: Number(activeCount) || 0,
     inactiveCount: Number(inactiveCount) || 0,
@@ -1067,11 +1090,13 @@ export async function loadManageUserAccountsPageData(
     const middleName = isBorrower ? row.borrowerMiddleName : row.employeeMiddleName;
     const lastName = isBorrower ? row.borrowerLastName : row.employeeLastName;
     const fullName = formatFullName(firstName, middleName, lastName);
+    const displayName = formatManagedUserDisplayName(firstName, middleName, lastName);
     const scopeLabel = resolveScopeLabel(row.userId, row.roleName, scopeMaps);
 
     return {
       userId: row.userId,
       fullName,
+      displayName,
       companyId: row.companyId,
       username: row.username,
       roleName: row.roleName,
@@ -1105,7 +1130,7 @@ export async function loadManageUserAccountsPageData(
     activeCount: baseRows.activeCount,
     inactiveCount: baseRows.inactiveCount,
     page: baseRows.page,
-    pageSize: MANAGE_USERS_PAGE_SIZE,
+    pageSize: baseRows.pageSize,
     totalCount: baseRows.totalCount,
   };
 }

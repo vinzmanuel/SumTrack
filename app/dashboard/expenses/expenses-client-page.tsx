@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { EXPENSES_PAGE_SIZE_OPTIONS, EXPENSE_CATEGORIES } from "@/app/dashboard/expenses/filters";
-import { ExpensesBreakdownCard } from "@/app/dashboard/expenses/expenses-breakdown-card";
+import { ExpensesAnalyticsSection } from "@/app/dashboard/expenses/expenses-analytics-section";
 import { ExpensesFilters } from "@/app/dashboard/expenses/expenses-filters";
 import { ExpensesResultsSection } from "@/app/dashboard/expenses/expenses-results-section";
 import type {
@@ -237,12 +237,13 @@ export function ExpensesClientPage({
   const categoryLabel = filters.category === "all" ? "All categories" : filters.category;
 
   return (
-    <Tabs
-      className="w-full max-w-none space-y-5 px-4 pb-6 pt-1 sm:px-6 sm:pb-6 sm:pt-2"
-      onValueChange={(value) => setActiveTab(value as ExpensesWorkspaceTab)}
-      value={activeTab}
-    >
-      <Card className="gap-0 overflow-hidden py-0">
+    <div className="w-full max-w-none space-y-5 pb-6 pt-1 sm:pb-6 sm:pt-2">
+      <Tabs
+        className="w-full"
+        onValueChange={(value) => setActiveTab(value as ExpensesWorkspaceTab)}
+        value={activeTab}
+      >
+        <Card className="gap-0 overflow-hidden py-0">
         <div className="bg-gradient-to-r from-slate-50 via-background to-emerald-50/60 p-6 dark:from-zinc-950 dark:via-background dark:to-emerald-950/45">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
             <div className="space-y-1">
@@ -336,22 +337,27 @@ export function ExpensesClientPage({
             />
           </div>
         </div>
-      </Card>
+        </Card>
 
-      <TabsContent className="mt-0" value="records">
-        <ExpensesResultsSection
-          data={results}
-          errorMessage={errorMessage}
-          isPending={isPending}
-          onPageChange={(page) => updateFilters({ page })}
-          onPageSizeChange={(pageSize) => updateFilters({ pageSize })}
-        />
-      </TabsContent>
+        <TabsContent className="mt-0" value="records">
+          <ExpensesResultsSection
+            data={results}
+            errorMessage={errorMessage}
+            isPending={isPending}
+            onPageChange={(page) => updateFilters({ page })}
+            onPageSizeChange={(pageSize) => updateFilters({ pageSize })}
+          />
+        </TabsContent>
 
-      <TabsContent className="mt-0" value="analytics">
-        <ExpensesBreakdownCard data={results} isPending={isPending} />
-      </TabsContent>
-    </Tabs>
+        <TabsContent className="mt-0" value="analytics">
+          <ExpensesAnalyticsSection
+            data={results}
+            isMultiBranchScope={canChooseBranch && filters.branch === "all"}
+            isPending={isPending}
+          />
+        </TabsContent>
+      </Tabs>
+    </div>
   );
 }
 

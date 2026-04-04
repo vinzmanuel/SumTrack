@@ -223,7 +223,7 @@ export function CollectorsClientPage({
     : fixedBranchName ?? "Assigned branch";
 
   return (
-    <div className="w-full max-w-none space-y-5 px-4 pb-6 pt-1 sm:px-6 sm:pb-6 sm:pt-2">
+    <div className="w-full space-y-6">
       <Card className="gap-0 overflow-hidden py-0">
         <div className="bg-gradient-to-r from-slate-50 via-background to-emerald-50/60 p-6 dark:from-zinc-950 dark:via-background dark:to-emerald-950/45">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">

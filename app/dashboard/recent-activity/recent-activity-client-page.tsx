@@ -43,8 +43,10 @@ type ActorComboboxOption = {
 };
 
 const rolePriority = ["Admin", "Auditor", "Branch Manager", "Secretary", "Collector", "Borrower"];
+const FILTER_GRID_CLASS =
+  "grid-cols-1 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.88fr)]";
 const DESKTOP_LOG_GRID_CLASS =
-  "grid-cols-[190px_minmax(0,1.45fr)_300px_145px_24px]";
+  "grid-cols-[minmax(0,190px)_minmax(0,1.85fr)_minmax(220px,1.2fr)_minmax(140px,0.95fr)_24px]";
 const EXPANDED_DETAIL_GRID_CLASS = "grid-cols-1 md:grid-cols-[160px_minmax(0,1fr)]";
 
 const timestampFormatter = new Intl.DateTimeFormat("en-PH", {
@@ -525,7 +527,7 @@ export function RecentActivityClientPage({
     filteredActorOptions.find((option) => option.userId === filters.actorUserId) ?? null;
 
   return (
-    <div className="w-full max-w-none space-y-5 px-4 pb-6 pt-1 sm:px-6 sm:pb-6 sm:pt-2">
+    <div className="w-full max-w-none space-y-5 pb-6 pt-1 sm:pb-6 sm:pt-2">
       <TremorCard className="overflow-hidden p-0">
         <div className="bg-linear-to-r from-slate-50 via-white to-emerald-50/60 p-6">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
@@ -552,7 +554,7 @@ export function RecentActivityClientPage({
         </div>
 
         <div className="border-t border-border/70 px-6 pb-4 pt-3">
-          <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
+          <div className={`grid gap-4 ${FILTER_GRID_CLASS}`}>
             <label>
               <FilterLabel>Recency</FilterLabel>
               <Select
@@ -667,7 +669,7 @@ export function RecentActivityClientPage({
           </div>
 
           {filters.actorRoleName ? (
-            <div className="mt-4 max-w-xl">
+            <div className="mt-4 w-full lg:max-w-xl">
               <label className="space-y-2">
                 <FilterLabel>Specific Actor</FilterLabel>
                 <Combobox

@@ -5,6 +5,8 @@ import { Label, Pie, PieChart } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
   ChartTooltip,
   type ChartConfig,
 } from "@/components/ui/chart";
@@ -63,11 +65,11 @@ export function ExpensesBreakdownCard({
   data: ExpensesResultsData;
   isPending: boolean;
 }) {
-  const title = data.breakdownMode === "branch" ? "Expenses by Branch" : "Expenses by Category";
+  const title = data.breakdownMode === "branch" ? "Expense Distribution by Branch" : "Expense Distribution by Category";
   const description =
     data.breakdownMode === "branch"
-      ? "See how the current expense scope is distributed across visible branches."
-      : "See how the selected branch scope is distributed across expense categories.";
+      ? "Use this support view to see how the current expense scope splits across branches."
+      : "Use this support view to see which categories carry the most spend in the selected scope.";
   const chartConfig = React.useMemo(
     () =>
       Object.fromEntries(
@@ -137,55 +139,25 @@ export function ExpensesBreakdownCard({
               </p>
             </div>
           ) : (
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-stretch">
-              <div className="rounded-2xl border border-border/70 bg-muted/10 p-2">
-                <ChartContainer className="mx-auto h-[300px] w-full max-w-[520px]" config={chartConfig}>
-                  <PieChart>
-                    <ChartTooltip content={<BreakdownTooltip />} cursor={false} />
-                    <Pie
-                      data={data.breakdownRows}
-                      dataKey="amount"
-                      innerRadius={82}
-                      nameKey="label"
-                      outerRadius={126}
-                      stroke="none"
-                      strokeWidth={0}
-                    >
-                      <Label content={renderCenterLabel} />
-                    </Pie>
-                  </PieChart>
-                </ChartContainer>
-              </div>
-
-              <div className="grid gap-2.5">
-                {data.breakdownRows.map((row) => (
-                  <div
-                    className="flex items-center justify-between gap-4 rounded-xl border border-border/70 bg-muted/10 px-4 py-3"
-                    key={row.key}
+            <div className="rounded-2xl border border-border/70 bg-muted/10 p-2">
+              <ChartContainer className="mx-auto h-[340px] w-full max-w-[520px]" config={chartConfig}>
+                <PieChart>
+                  <ChartTooltip content={<BreakdownTooltip />} cursor={false} />
+                  <ChartLegend content={<ChartLegendContent className="justify-center gap-5 pt-4" />} />
+                  <Pie
+                    data={data.breakdownRows}
+                    dataKey="amount"
+                    innerRadius={82}
+                    legendType="circle"
+                    nameKey="key"
+                    outerRadius={126}
+                    stroke="none"
+                    strokeWidth={0}
                   >
-                    <div className="min-w-0 space-y-1">
-                      <div className="flex items-center gap-3">
-                        <span className="size-2.5 rounded-full" style={{ backgroundColor: row.fill }} />
-                        <p className="truncate text-sm font-semibold text-foreground">{row.label}</p>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        {row.expenseCount.toLocaleString("en-PH")} expense{row.expenseCount === 1 ? "" : "s"}
-                      </p>
-                    </div>
-
-                    <div className="shrink-0 text-right">
-                      <p className="text-sm font-semibold text-foreground">{formatMoney(row.amount)}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {row.share.toLocaleString("en-PH", {
-                          minimumFractionDigits: 1,
-                          maximumFractionDigits: 1,
-                        })}
-                        %
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                    <Label content={renderCenterLabel} />
+                  </Pie>
+                </PieChart>
+              </ChartContainer>
             </div>
           )}
         </CardContent>

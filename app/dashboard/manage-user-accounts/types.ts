@@ -7,6 +7,7 @@ export type ManageUserAccountsPageProps = {
     sort?: string;
     query?: string;
     page?: string;
+    pageSize?: string;
   }>;
 };
 
@@ -25,6 +26,7 @@ export type ManageUserAccountsFilters = {
   requestedSort: ManageUserAccountsSort;
   searchQuery: string;
   page: number;
+  pageSize: number;
 };
 
 export type ManageUserAccountsScope = {
@@ -42,6 +44,7 @@ export type ManageUserAccountsScope = {
   scopeMessage: string;
   searchQuery: string;
   page: number;
+  pageSize: number;
 };
 
 export type ManageUserAccountsAccessState =
@@ -132,6 +135,7 @@ export type ManagedCollectorReassignmentResult = {
 export type ManagedUserListRow = {
   userId: string;
   fullName: string;
+  displayName: string;
   companyId: string;
   username: string;
   roleName: string;

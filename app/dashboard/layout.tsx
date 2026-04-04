@@ -13,6 +13,7 @@ type NavItem = {
     | "bar-chart-3"
     | "building-2"
     | "users"
+    | "user-cog"
     | "receipt-text"
     | "banknote-arrow-down"
     | "wallet"
@@ -42,7 +43,7 @@ function buildSharedOperationalNavItems(options?: {
     { href: "/dashboard/expenses", label: "Expenses", section: "finance", icon: "banknote-arrow-down" },
     { href: "/dashboard/reports", label: "Reports", section: "system", icon: "bar-chart-3" },
     { href: "/dashboard/recent-activity", label: "Recent Activity", section: "system", icon: "file-text" },
-    { href: "/dashboard/manage-user-accounts", label: "Manage User Accounts", section: "system", icon: "users" },
+    { href: "/dashboard/manage-user-accounts", label: "Manage User Accounts", section: "system", icon: "user-cog" },
     { href: "/dashboard/my-profile", label: "My Profile", section: "system", icon: "user-round" },
   ];
 }

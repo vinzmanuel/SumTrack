@@ -7,6 +7,8 @@ import type {
   ManageUserAccountsPageProps,
 } from "@/app/dashboard/manage-user-accounts/types";
 
+const MANAGE_USERS_PAGE_SIZE_OPTIONS = [10, 20, 50] as const;
+
 function toPositiveInt(value: string | undefined) {
   return /^\d+$/.test(String(value ?? "")) ? Number(value) : null;
 }
@@ -36,6 +38,13 @@ function normalizeSort(value: string | undefined): ManageUserAccountsSort {
   return value === "role_asc" ? value : "role_asc";
 }
 
+function normalizePageSize(value: string | undefined) {
+  const parsed = toPositiveInt(value);
+  return MANAGE_USERS_PAGE_SIZE_OPTIONS.includes(parsed as (typeof MANAGE_USERS_PAGE_SIZE_OPTIONS)[number])
+    ? parsed!
+    : 20;
+}
+
 export function parseManageUserAccountsFilters(
   params: Awaited<ManageUserAccountsPageProps["searchParams"]>,
 ): ManageUserAccountsFilters {
@@ -47,6 +56,7 @@ export function parseManageUserAccountsFilters(
     requestedSort: normalizeSort(params?.sort),
     searchQuery: normalizeSearchQuery(params?.query),
     page: Math.max(toPositiveInt(params?.page) ?? 1, 1),
+    pageSize: normalizePageSize(params?.pageSize),
   };
 }
 
@@ -96,6 +106,7 @@ export function resolveManageUserAccountsAccess(
       scopeMessage: "",
       searchQuery: filters.searchQuery,
       page: filters.page,
+      pageSize: filters.pageSize,
     };
   }
 
@@ -125,6 +136,7 @@ export function resolveManageUserAccountsAccess(
       scopeMessage: "Read-only access is limited to your assigned branches.",
       searchQuery: filters.searchQuery,
       page: filters.page,
+      pageSize: filters.pageSize,
     };
   }
 
@@ -150,5 +162,6 @@ export function resolveManageUserAccountsAccess(
     scopeMessage: "Branch scope is enforced from your active assignment.",
     searchQuery: filters.searchQuery,
     page: filters.page,
+    pageSize: filters.pageSize,
   };
 }

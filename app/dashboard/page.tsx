@@ -30,7 +30,7 @@ export default async function DashboardPage({ searchParams }: DashboardChartPage
   const cards = buildDashboardOverviewCards(overviewData);
 
   return (
-    <div className="space-y-6">
+    <div className="w-full max-w-none space-y-5 pb-6 pt-1 sm:pb-6 sm:pt-2">
       <DashboardMetricGrid items={cards} />
       {overviewData.variant === "borrower" ? (
         <div className="xl:max-w-sm">

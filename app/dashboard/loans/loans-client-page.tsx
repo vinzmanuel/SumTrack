@@ -260,47 +260,49 @@ export function LoansClientPage({
   const currentReturnTo = buildResultsUrl(filters);
 
   return (
-    <LoanRecordsModule
-      controls={(
-        <LoansFilters
-          activeCount={results.activeCount}
-          archivedCount={results.archivedCount}
-          branches={branchOptions}
-          action={
-            initialScope.canCreateLoan ? (
-              <Link href={appendBackNavigationToHref("/dashboard/create-loan", {
-                source: "loans",
-                returnTo: currentReturnTo,
-              })}>
-                <Button
-                  className="w-full bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white xl:w-auto"
-                  size="sm"
-                  type="button"
-                >
-                  <Plus className="h-4 w-4" />
-                  Create loan
-                </Button>
-              </Link>
-            ) : null
-          }
-          canChooseBranchFilter={initialScope.canChooseBranchFilter}
-          isPending={isPending}
-          onBranchChange={handleBranchChange}
-          onSearchChange={handleSearchChange}
-          onStatusChange={handleStatusChange}
-          onTabChange={handleTabChange}
-          selectedBranchId={filters.branchId}
-          selectedSearchQuery={filters.query}
-          selectedStatus={filters.status}
-          selectedTab={filters.tab}
-        />
-      )}
-      data={results}
-      errorMessage={errorMessage}
-      isPending={isPending}
-      onPageChange={handlePageChange}
-      returnTo={currentReturnTo}
-      detailSource="loans"
-    />
+    <div className="w-full max-w-none space-y-5 pb-6 pt-1 sm:pb-6 sm:pt-2">
+      <LoanRecordsModule
+        controls={(
+          <LoansFilters
+            activeCount={results.activeCount}
+            archivedCount={results.archivedCount}
+            branches={branchOptions}
+            action={
+              initialScope.canCreateLoan ? (
+                <Link href={appendBackNavigationToHref("/dashboard/create-loan", {
+                  source: "loans",
+                  returnTo: currentReturnTo,
+                })}>
+                  <Button
+                    className="w-full bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white xl:w-auto"
+                    size="sm"
+                    type="button"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Create loan
+                  </Button>
+                </Link>
+              ) : null
+            }
+            canChooseBranchFilter={initialScope.canChooseBranchFilter}
+            isPending={isPending}
+            onBranchChange={handleBranchChange}
+            onSearchChange={handleSearchChange}
+            onStatusChange={handleStatusChange}
+            onTabChange={handleTabChange}
+            selectedBranchId={filters.branchId}
+            selectedSearchQuery={filters.query}
+            selectedStatus={filters.status}
+            selectedTab={filters.tab}
+          />
+        )}
+        data={results}
+        errorMessage={errorMessage}
+        isPending={isPending}
+        onPageChange={handlePageChange}
+        returnTo={currentReturnTo}
+        detailSource="loans"
+      />
+    </div>
   );
 }

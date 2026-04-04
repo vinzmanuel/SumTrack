@@ -16,6 +16,7 @@ export function ManageUserAccountsModule({
   onDeleted,
   onEdit,
   onPageChange,
+  onPageSizeChange,
   onReassignmentRequired,
   onSortChange,
   selectedSort,
@@ -28,6 +29,7 @@ export function ManageUserAccountsModule({
   onDeleted: () => void;
   onEdit: (userId: string) => void;
   onPageChange: (page: number) => void;
+  onPageSizeChange: (pageSize: number) => void;
   onReassignmentRequired: (
     blocked: ManagedCollectorReassignmentRequiredPayload,
     retryAction: () => Promise<void>,
@@ -39,14 +41,16 @@ export function ManageUserAccountsModule({
   return (
     <Card className="overflow-hidden border-border/70 shadow-sm">
       <CardContent className="p-0">
-        <div className="px-4 pb-3 pt-2 md:px-5 md:pb-4 md:pt-3">
-          {controls}
-          <div className="mt-3">
+        <div className="px-5 pb-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              {controls}
+            </div>
             <ManageUserAccountsSortControl onSortChange={onSortChange} selectedSort={selectedSort} />
           </div>
-          {scopeMessage ? <p className="mt-2 text-sm text-muted-foreground">{scopeMessage}</p> : null}
+          {scopeMessage ? <p className="mt-3 text-sm text-muted-foreground">{scopeMessage}</p> : null}
         </div>
-        <div className="border-t border-border/70 px-4 pb-4 pt-3 md:px-5 md:pb-5">
+        <div className="">
           <ManageUserAccountsResultsSection
             data={data}
             errorMessage={errorMessage}
@@ -54,6 +58,7 @@ export function ManageUserAccountsModule({
             onDeleted={onDeleted}
             onEdit={onEdit}
             onPageChange={onPageChange}
+            onPageSizeChange={onPageSizeChange}
             onReassignmentRequired={onReassignmentRequired}
           />
         </div>

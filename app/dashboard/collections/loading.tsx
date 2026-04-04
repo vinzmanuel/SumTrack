@@ -4,7 +4,7 @@ import { CollectionsResultsSkeleton } from "@/app/dashboard/collections/collecti
 
 export default function LoadingCollectionsPage() {
   return (
-    <div className="w-full max-w-none space-y-4 px-4 pb-6 pt-1 sm:px-6 sm:pb-6 sm:pt-2">
+    <div className="w-full max-w-none space-y-4 pb-6 pt-1 sm:pb-6 sm:pt-2">
       <Card className="gap-0 overflow-hidden py-0">
         <div className="px-5 py-5 sm:px-6">
           <div className="flex flex-col gap-3">

@@ -1,4 +1,4 @@
-import type { AnalyticsDateRangeKey } from "@/components/analytics/types";
+import type { AnalyticsChartModel, AnalyticsDateRangeKey } from "@/components/analytics/types";
 
 export type ExpensesPageProps = {
   searchParams?: Promise<{
@@ -43,6 +43,67 @@ export type ExpenseBreakdownRow = {
   expenseCount: number;
   share: number;
   fill: string;
+};
+
+export type ExpenseAnalyticsMetricSummary = {
+  totalCollections: number;
+  expenseToCollectionsRatio: number | null;
+  daysWithExpenses: number;
+  averageExpensePerActiveDay: number;
+  largestExpenseAmount: number;
+  largestExpenseCategory: string | null;
+  largestExpenseDate: string | null;
+  topThreeExpenseShare: number;
+};
+
+export type ExpenseTopDriver = {
+  expenseId: number;
+  branchName: string;
+  category: string;
+  description: string | null;
+  amount: number;
+  expenseDate: string;
+};
+
+export type ExpenseBranchComparisonItem = {
+  key: string;
+  label: string;
+  amount: number;
+  expenseCount: number;
+  share: number;
+  expenseToCollectionsRatio: number | null;
+  topCategory: string | null;
+};
+
+export type ExpenseHighestSpendDayItem = {
+  key: string;
+  label: string;
+  amount: number;
+  expenseCount: number;
+  share: number;
+};
+
+export type ExpenseBranchComparisonData = {
+  title: string;
+  description: string;
+  items: ExpenseBranchComparisonItem[];
+  emptyMessage: string;
+};
+
+export type ExpenseHighestSpendDaysData = {
+  title: string;
+  description: string;
+  items: ExpenseHighestSpendDayItem[];
+  emptyMessage: string;
+};
+
+export type ExpenseAnalyticsData = {
+  summary: ExpenseAnalyticsMetricSummary;
+  trend: AnalyticsChartModel;
+  topDrivers: ExpenseTopDriver[];
+  supportMode: "branch-comparison" | "highest-spend-days";
+  branchComparison: ExpenseBranchComparisonData;
+  highestSpendDays: ExpenseHighestSpendDaysData;
 };
 
 export type ExpensesFiltersState = {
@@ -113,4 +174,5 @@ export type ExpensesResultsData = {
   pageSize: number;
   breakdownMode: ExpenseBreakdownMode;
   breakdownRows: ExpenseBreakdownRow[];
+  analytics: ExpenseAnalyticsData;
 };

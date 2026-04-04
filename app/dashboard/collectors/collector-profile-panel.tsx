@@ -186,7 +186,7 @@ export function CollectorProfilePanel({
               ]}
             />
           )}
-          label="Borrower Follow-Through"
+          label="Borrower Reach"
         />
       ),
       value: borrowerFollowThroughValue,
@@ -282,7 +282,7 @@ export function CollectorProfilePanel({
               <ComparisonModule
                 barHeightClassName="h-5"
                 className="h-full"
-                description="Selected-period pace compared with lifetime monthly average."
+                description="Selected-period pace compared vs lifetime average."
                 footer={
                   <div className="grid gap-2 sm:grid-cols-2">
                     <InlineStat
@@ -298,14 +298,14 @@ export function CollectorProfilePanel({
                 rows={[
                   {
                     label: "Selected-period monthly avg",
-                    note: "Average monthly collections inside the active period",
+                    note: "Average monthly collections for selected period",
                     toneClassName: "bg-violet-500",
                     value: formatCollectorsCurrency(data.averageMonthlyCollections),
                     widthPercent: (data.averageMonthlyCollections / monthlyAverageScale) * 100,
                   },
                   {
                     label: "Lifetime monthly avg",
-                    note: "Long-run monthly average across visible history",
+                    note: "Lifetime monthly collection average",
                     toneClassName: "bg-amber-500",
                     value: formatCollectorsCurrency(data.lifetimeMetrics.lifetimeAverageMonthlyCollection),
                     widthPercent: (data.lifetimeMetrics.lifetimeAverageMonthlyCollection / monthlyAverageScale) * 100,
@@ -432,7 +432,7 @@ export function CollectorProfilePanel({
                   value={formatCollectorsCurrency(data.activeInterestPotential)}
                 />
                 <PortfolioMetricTile
-                  description="Total payable load on current loans."
+                  description="Total payable of current loans."
                   title={(
                     <CollectorInfoHint
                       help={(
@@ -452,7 +452,7 @@ export function CollectorProfilePanel({
                   value={formatCollectorsCurrency(activeTotalPayableLoad)}
                 />
                 <PortfolioMetricTile
-                  description="Overdue principal of live loan book."
+                  description="Overdue principal of live loans."
                   title={(
                     <CollectorInfoHint
                       help={(

@@ -174,7 +174,7 @@ export default async function IncentivesPage({ searchParams }: IncentivesPagePro
 
   return (
     <IncentivesWorkspaceTransitionProvider>
-      <div className="w-full max-w-none space-y-5 px-4 pb-6 pt-1 sm:px-6 sm:pb-6 sm:pt-2">
+      <div className="w-full max-w-none space-y-5 pb-6 pt-1 sm:pb-6 sm:pt-2">
         <Card className="gap-0 overflow-hidden py-0">
           <div className="bg-linear-to-r from-slate-50 via-background to-emerald-50/50 p-6">
             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">

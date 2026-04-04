@@ -1,5 +1,10 @@
 import { TremorCard } from "@/components/tremor/raw/metric-card";
 
+const FILTER_GRID_CLASS =
+  "grid-cols-1 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,0.88fr)]";
+const DESKTOP_LOG_GRID_CLASS =
+  "grid-cols-[minmax(0,190px)_minmax(0,1.85fr)_minmax(220px,1.2fr)_minmax(140px,0.95fr)_24px]";
+
 function HeaderBadgeSkeleton() {
   return <div className="h-6 w-24 animate-pulse rounded-full bg-muted" />;
 }
@@ -15,7 +20,7 @@ function FilterFieldSkeleton() {
 
 function LogRowSkeleton() {
   return (
-    <div className="hidden grid-cols-[190px_minmax(0,1.45fr)_300px_145px_24px] items-start gap-4 border-b border-border/70 px-6 py-3 lg:grid">
+    <div className={`hidden items-start gap-4 border-b border-border/70 px-6 py-3 lg:grid ${DESKTOP_LOG_GRID_CLASS}`}>
       <div className="h-5 w-32 animate-pulse rounded bg-muted" />
       <div className="flex items-start gap-2">
         <div className="h-6 w-28 animate-pulse rounded-full bg-muted" />
@@ -49,7 +54,7 @@ function MobileLogRowSkeleton() {
 
 export default function LoadingRecentActivityPage() {
   return (
-    <div className="w-full max-w-none space-y-5 px-4 pb-6 pt-1 sm:px-6 sm:pb-6 sm:pt-2">
+    <div className="w-full max-w-none space-y-5 pb-6 pt-1 sm:pb-6 sm:pt-2">
       <TremorCard className="overflow-hidden p-0">
         <div className="bg-gradient-to-r from-slate-50 via-white to-emerald-50/60 p-6">
           <div className="space-y-2">
@@ -64,7 +69,7 @@ export default function LoadingRecentActivityPage() {
         </div>
 
         <div className="border-t border-border/70 p-6">
-          <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
+          <div className={`grid gap-4 ${FILTER_GRID_CLASS}`}>
             <FilterFieldSkeleton />
             <FilterFieldSkeleton />
             <FilterFieldSkeleton />
@@ -87,7 +92,7 @@ export default function LoadingRecentActivityPage() {
           <div className="h-4 w-16 animate-pulse rounded bg-muted" />
         </div>
 
-        <div className="hidden grid-cols-[190px_minmax(0,1.45fr)_300px_145px_24px] gap-4 border-b border-border/70 bg-zinc-50/60 px-6 py-3 lg:grid">
+        <div className={`hidden gap-4 border-b border-border/70 bg-zinc-50/60 px-6 py-3 lg:grid ${DESKTOP_LOG_GRID_CLASS}`}>
           <div className="h-3 w-14 animate-pulse rounded bg-muted" />
           <div className="h-3 w-16 animate-pulse rounded bg-muted" />
           <div className="h-3 w-14 animate-pulse rounded bg-muted" />

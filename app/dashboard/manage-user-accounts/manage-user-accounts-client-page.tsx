@@ -2,9 +2,12 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Plus } from "lucide-react";
+import { Plus, UserCog } from "lucide-react";
 import { appendBackNavigationToHref } from "@/app/dashboard/back-navigation";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { SegmentedStatusControl } from "@/app/dashboard/_components/segmented-status-control";
 import {
   CollectorLiveLoanReassignmentDialog,
   type CollectorReassignmentRequest,
@@ -29,6 +32,7 @@ type ManageUserFilters = {
   sort: ManageUserAccountsSort;
   query: string;
   page: number;
+  pageSize: number;
 };
 
 function buildResultsUrl(filters: ManageUserFilters) {
@@ -60,6 +64,10 @@ function buildResultsUrl(filters: ManageUserFilters) {
 
   if (filters.page > 1) {
     params.set("page", String(filters.page));
+  }
+
+  if (filters.pageSize !== 20) {
+    params.set("pageSize", String(filters.pageSize));
   }
 
   const queryString = params.toString();
@@ -97,6 +105,10 @@ function buildDataUrl(filters: ManageUserFilters) {
     params.set("page", String(filters.page));
   }
 
+  if (filters.pageSize !== 20) {
+    params.set("pageSize", String(filters.pageSize));
+  }
+
   const queryString = params.toString();
   return queryString ? `/dashboard/manage-user-accounts/data?${queryString}` : "/dashboard/manage-user-accounts/data";
 }
@@ -117,9 +129,11 @@ export function ManageUserAccountsClientPage({
       sort: initialScope.selectedSort,
       query: initialScope.searchQuery,
       page: initialData.page,
+      pageSize: initialData.pageSize,
     }),
     [
       initialData.page,
+      initialData.pageSize,
       initialData.selectedAreaId,
       initialScope.searchQuery,
       initialScope.selectedBranchId,
@@ -191,6 +205,7 @@ export function ManageUserAccountsClientPage({
         sort: nextFilters.sort,
         query: nextFilters.query,
         page: nextData.page,
+        pageSize: nextData.pageSize,
       };
       setAppliedFilters(nextApplied);
       updateHistory(nextApplied);
@@ -217,7 +232,8 @@ export function ManageUserAccountsClientPage({
       filters.branchId === appliedFilters.branchId &&
       filters.areaId === appliedFilters.areaId &&
       filters.roleName === appliedFilters.roleName &&
-      filters.sort === appliedFilters.sort
+      filters.sort === appliedFilters.sort &&
+      filters.pageSize === appliedFilters.pageSize
     ) {
       return;
     }
@@ -230,6 +246,7 @@ export function ManageUserAccountsClientPage({
       sort: filters.sort,
       query: filters.query,
       page: 1,
+      pageSize: filters.pageSize,
     });
   }, [
     appliedFilters.status,
@@ -237,12 +254,14 @@ export function ManageUserAccountsClientPage({
     appliedFilters.branchId,
     appliedFilters.roleName,
     appliedFilters.sort,
+    appliedFilters.pageSize,
     filters.status,
     filters.areaId,
     filters.branchId,
     filters.query,
     filters.roleName,
     filters.sort,
+    filters.pageSize,
     loadResults,
   ]);
 
@@ -260,6 +279,7 @@ export function ManageUserAccountsClientPage({
         sort: filtersRef.current.sort,
         query: filtersRef.current.query,
         page: 1,
+        pageSize: filtersRef.current.pageSize,
       });
     }, 400);
 
@@ -280,8 +300,17 @@ export function ManageUserAccountsClientPage({
       sort: filtersRef.current.sort,
       query: filtersRef.current.query,
       page,
+      pageSize: filtersRef.current.pageSize,
     });
   }, [loadResults]);
+
+  const handlePageSizeChange = useCallback((pageSize: number) => {
+    setFilters((previous) => ({
+      ...previous,
+      pageSize,
+      page: 1,
+    }));
+  }, []);
 
   const handleRowDeleted = useCallback(() => {
     void loadResults({
@@ -292,6 +321,7 @@ export function ManageUserAccountsClientPage({
       sort: filtersRef.current.sort,
       query: filtersRef.current.query,
       page: filtersRef.current.page,
+      pageSize: filtersRef.current.pageSize,
     });
   }, [loadResults]);
 
@@ -308,20 +338,76 @@ export function ManageUserAccountsClientPage({
   const showAreaFilter = Boolean(
     filters.branchId && (filters.roleName === "Collector" || filters.roleName === "Borrower"),
   );
+  const branchLabel = initialScope.canChooseBranch
+    ? filters.branchId
+      ? results.branches.find((branch) => branch.branchId === filters.branchId)?.branchName ?? "Selected branch"
+      : initialScope.allBranchLabel
+    : initialScope.allBranchLabel;
+  const roleLabel = filters.roleName ?? "All roles";
+  const statusLabel = filters.status === "active" ? "Active accounts" : "Inactive accounts";
+
+  const handleClear = useCallback(() => {
+    setFilters((previous) => ({
+      ...previous,
+      branchId: initialScope.canChooseBranch ? null : initialScope.selectedBranchId,
+      areaId: null,
+      roleName: null,
+      query: "",
+      page: 1,
+    }));
+  }, [initialScope.canChooseBranch, initialScope.selectedBranchId]);
 
   return (
     <>
-      <ManageUserAccountsModule
-        controls={
-          <ManageUserAccountsFilters
-            action={
-              canCreateManagedUser(initialScope) ? (
+      <div className="w-full max-w-none space-y-5 pb-6 pt-1 sm:pb-6 sm:pt-2">
+        <Card className="gap-0 overflow-hidden py-0">
+          <div className="bg-gradient-to-r from-slate-50 via-background to-emerald-50/60 p-6 dark:from-zinc-950 dark:via-background dark:to-emerald-950/45">
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+              <div className="space-y-1">
+                <div className="space-y-1">
+                  <h1 className="flex items-center gap-2 text-3xl font-semibold tracking-tight text-foreground">
+                    <UserCog className="size-8 shrink-0 text-muted-foreground" />
+                    Manage User Accounts
+                  </h1>
+                  <p className="text-sm text-muted-foreground">
+                    Review, filter, and manage user accounts within your current scope.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2 pt-2">
+                  <Badge
+                    className="border-zinc-200 bg-background/80 text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100"
+                    variant="outline"
+                  >
+                    {results.totalCount} matches
+                  </Badge>
+                  <Badge
+                    className="border-zinc-200 bg-background/80 text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100"
+                    variant="outline"
+                  >
+                    {branchLabel}
+                  </Badge>
+                  <Badge
+                    className="border-zinc-200 bg-background/80 text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100"
+                    variant="outline"
+                  >
+                    {roleLabel}
+                  </Badge>
+                  <Badge
+                    className="border-zinc-200 bg-background/80 text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100"
+                    variant="outline"
+                  >
+                    {statusLabel}
+                  </Badge>
+                </div>
+              </div>
+
+              {canCreateManagedUser(initialScope) ? (
                 <Link href={appendBackNavigationToHref("/dashboard/create-account", {
                   source: "manage-users",
                   returnTo: currentReturnTo,
                 })}>
                   <Button
-                    className="w-full bg-emerald-600 text-white hover:bg-emerald-700 xl:w-auto"
+                    className="bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white"
                     size="sm"
                     type="button"
                   >
@@ -329,66 +415,81 @@ export function ManageUserAccountsClientPage({
                     Create User
                   </Button>
                 </Link>
-              ) : null
-            }
-            activeCount={results.activeCount}
-            allBranchLabel={initialScope.allBranchLabel}
-            areas={results.areas}
-            branches={results.branches}
-            canChooseBranch={initialScope.canChooseBranch}
-            inactiveCount={results.inactiveCount}
-            isPending={isPending}
-            onStatusChange={(status) =>
-              setFilters((previous) => ({
-                ...previous,
-                status,
-                page: 1,
-              }))
-            }
-            onAreaChange={(areaId) => setFilters((previous) => ({ ...previous, areaId, page: 1 }))}
-            onBranchChange={(branchId) =>
-              setFilters((previous) => ({
-                ...previous,
-                branchId,
-                areaId: null,
-                page: 1,
-              }))
-            }
-            onRoleChange={(roleName) =>
-              setFilters((previous) => ({
-                ...previous,
-                roleName,
-                areaId: roleName === "Collector" || roleName === "Borrower" ? previous.areaId : null,
-                page: 1,
-              }))
-            }
-            onSearchChange={(query) => setFilters((previous) => ({ ...previous, query, page: 1 }))}
-            roles={results.roles}
-            selectedAreaId={filters.areaId}
-            selectedBranchId={filters.branchId}
-            selectedRoleName={filters.roleName}
-            selectedSearchQuery={filters.query}
-            selectedStatus={filters.status}
-            showAreaFilter={showAreaFilter}
-          />
-        }
-        data={results}
-        errorMessage={errorMessage}
-        isPending={isPending}
-        onDeleted={handleRowDeleted}
-        onEdit={setEditingUserId}
-        onPageChange={handlePageChange}
-        onReassignmentRequired={handleReassignmentRequired}
-        onSortChange={(sort) =>
-          setFilters((previous) => ({
-            ...previous,
-            sort,
-            page: 1,
-          }))
-        }
-        selectedSort={filters.sort}
-        scopeMessage={initialScope.scopeMessage}
-      />
+              ) : null}
+            </div>
+          </div>
+
+          <div className="border-t border-border/70 px-6 pb-4 pt-3">
+            <ManageUserAccountsFilters
+              allBranchLabel={initialScope.allBranchLabel}
+              areas={results.areas}
+              branches={results.branches}
+              canChooseBranch={initialScope.canChooseBranch}
+              onAreaChange={(areaId) => setFilters((previous) => ({ ...previous, areaId, page: 1 }))}
+              onBranchChange={(branchId) =>
+                setFilters((previous) => ({
+                  ...previous,
+                  branchId,
+                  areaId: null,
+                  page: 1,
+                }))
+              }
+              onClear={handleClear}
+              onRoleChange={(roleName) =>
+                setFilters((previous) => ({
+                  ...previous,
+                  roleName,
+                  areaId: roleName === "Collector" || roleName === "Borrower" ? previous.areaId : null,
+                  page: 1,
+                }))
+              }
+              onSearchChange={(query) => setFilters((previous) => ({ ...previous, query, page: 1 }))}
+              roles={results.roles}
+              selectedAreaId={filters.areaId}
+              selectedBranchId={filters.branchId}
+              selectedRoleName={filters.roleName}
+              selectedSearchQuery={filters.query}
+              showAreaFilter={showAreaFilter}
+            />
+          </div>
+        </Card>
+
+        <ManageUserAccountsModule
+          controls={
+            <SegmentedStatusControl
+              onChange={(status) =>
+                setFilters((previous) => ({
+                  ...previous,
+                  status,
+                  page: 1,
+                }))
+              }
+              options={[
+                { value: "active", label: `Active (${results.activeCount})`, tone: "active" },
+                { value: "inactive", label: `Inactive (${results.inactiveCount})`, tone: "archived" },
+              ]}
+              selectedValue={filters.status}
+            />
+          }
+          data={results}
+          errorMessage={errorMessage}
+          isPending={isPending}
+          onDeleted={handleRowDeleted}
+          onEdit={setEditingUserId}
+          onPageChange={handlePageChange}
+          onPageSizeChange={handlePageSizeChange}
+          onReassignmentRequired={handleReassignmentRequired}
+          onSortChange={(sort) =>
+            setFilters((previous) => ({
+              ...previous,
+              sort,
+              page: 1,
+            }))
+          }
+          selectedSort={filters.sort}
+          scopeMessage={initialScope.scopeMessage}
+        />
+      </div>
 
       <ManagedUserAccountEditModal
         onOpenChange={(open) => {

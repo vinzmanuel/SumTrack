@@ -244,42 +244,44 @@ export function BorrowersClientPage({
     initialScope.roleName === "Secretary";
 
   return (
-    <BorrowerRecordsModule
-      controls={
-        <BorrowersFilters
-          action={
-            canCreateBorrower ? (
-              <Link href="/dashboard/create-account">
-                <Button
-                  className="w-full bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white xl:w-auto"
-                  size="sm"
-                  type="button"
-                >
-                  <Plus className="h-4 w-4" />
-                  Create New Borrower
-                </Button>
-              </Link>
-            ) : null
-          }
-          allBranchLabel={initialScope.allBranchLabel}
-          areas={results.areas}
-          branches={results.branches}
-          canChooseBranch={initialScope.canChooseBranch}
-          isPending={isPending}
-          onAreaChange={handleAreaChange}
-          onBranchChange={handleBranchChange}
-          onClear={handleClear}
-          onSearchChange={handleSearchChange}
-          selectedAreaId={filters.areaId}
-          selectedBranchId={filters.branchId}
-          selectedSearchQuery={filters.query}
-        />
-      }
-      data={results}
-      errorMessage={errorMessage}
-      isPending={isPending}
-      onPageChange={handlePageChange}
-      scopeMessage={initialScope.scopeMessage}
-    />
+    <div className="w-full max-w-none space-y-5 pb-6 pt-1 sm:pb-6 sm:pt-2">
+      <BorrowerRecordsModule
+        controls={
+          <BorrowersFilters
+            action={
+              canCreateBorrower ? (
+                <Link href="/dashboard/create-account">
+                  <Button
+                    className="w-full bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white xl:w-auto"
+                    size="sm"
+                    type="button"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Create New Borrower
+                  </Button>
+                </Link>
+              ) : null
+            }
+            allBranchLabel={initialScope.allBranchLabel}
+            areas={results.areas}
+            branches={results.branches}
+            canChooseBranch={initialScope.canChooseBranch}
+            isPending={isPending}
+            onAreaChange={handleAreaChange}
+            onBranchChange={handleBranchChange}
+            onClear={handleClear}
+            onSearchChange={handleSearchChange}
+            selectedAreaId={filters.areaId}
+            selectedBranchId={filters.branchId}
+            selectedSearchQuery={filters.query}
+          />
+        }
+        data={results}
+        errorMessage={errorMessage}
+        isPending={isPending}
+        onPageChange={handlePageChange}
+        scopeMessage={initialScope.scopeMessage}
+      />
+    </div>
   );
 }

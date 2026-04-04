@@ -55,7 +55,7 @@ export function DashboardMetricGrid({
   if (items.length === 0 && !children) return null;
 
   return (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+    <div className="grid w-full gap-4 md:grid-cols-2 xl:grid-cols-3">
       {items.map((item) => (
         <TremorCard key={item.label}>
           <div className="flex items-start justify-between gap-3">

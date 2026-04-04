@@ -110,7 +110,7 @@ export function ExpensesFilters({
     <div className="flex w-full justify-end">
       <div className="flex w-full flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-end">
         {canChooseBranch ? (
-          <label className="w-full space-y-1 sm:w-[240px]">
+          <label className="w-full space-y-1 sm:w-[180px]">
             <Label htmlFor="branch">Branch</Label>
             <Select
               disabled={isPending}
@@ -135,7 +135,7 @@ export function ExpensesFilters({
           </label>
         ) : null}
 
-        <div className="w-full sm:w-[240px]">
+        <div className="w-full sm:w-[180px]">
           <div className="flex flex-col gap-1">
             <Label htmlFor="expenses-period">Period</Label>
             <Popover
@@ -302,7 +302,7 @@ export function ExpensesFilters({
           </div>
         </div>
 
-        <label className="w-full space-y-1 sm:w-[240px]">
+        <label className="w-full space-y-1 sm:w-[180px]">
           <Label htmlFor="category">Category</Label>
           <Select
             disabled={isPending}

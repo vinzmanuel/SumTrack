@@ -19,7 +19,7 @@ export function BorrowerRecordsModule({
   scopeMessage?: string;
 }) {
   return (
-    <Card className="overflow-hidden border-border/70 shadow-sm">
+    <Card className="w-full overflow-hidden border-border/70 shadow-sm">
       <CardContent className="p-0">
         <div className="px-4 pb-4 pt-2 md:px-5 md:pb-5 md:pt-3">
           {controls}

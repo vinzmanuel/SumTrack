@@ -17,6 +17,7 @@ export async function GET(request: Request) {
     sort: url.searchParams.get("sort") ?? undefined,
     query: url.searchParams.get("query") ?? undefined,
     page: url.searchParams.get("page") ?? undefined,
+    pageSize: url.searchParams.get("pageSize") ?? undefined,
   });
   const accessState = resolveManageUserAccountsAccess(auth, filters);
 
