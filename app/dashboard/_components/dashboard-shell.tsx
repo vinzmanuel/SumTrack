@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import {
   BarChart3,
+  BanknoteArrowDown,
   Building2,
   CircleUserRound,
   ChevronLeft,
@@ -40,6 +41,7 @@ type NavItem = {
     | "building-2"
     | "users"
     | "receipt-text"
+    | "banknote-arrow-down"
     | "wallet"
     | "file-text"
     | "user-plus"
@@ -90,6 +92,7 @@ function NavContent({
     if (icon === "building-2") return <Building2 className="h-4 w-4 shrink-0" />;
     if (icon === "users") return <Users className="h-4 w-4 shrink-0" />;
     if (icon === "receipt-text") return <ReceiptText className="h-4 w-4 shrink-0" />;
+    if (icon === "banknote-arrow-down") return <BanknoteArrowDown className="h-4 w-4 shrink-0" />;
     if (icon === "wallet") return <Wallet className="h-4 w-4 shrink-0" />;
     if (icon === "file-text") return <FileText className="h-4 w-4 shrink-0" />;
     if (icon === "user-plus") return <UserPlus className="h-4 w-4 shrink-0" />;
@@ -271,7 +274,9 @@ export function DashboardShell({ roleName, companyId, navItems, children }: Dash
             title={currentPageLabel}
           />
           <div className="px-3 pb-4 pt-4 md:px-6 md:pb-6 md:pt-6">
-            {children}
+            <div className="mx-auto w-full max-w-[1280px]">
+              {children}
+            </div>
           </div>
         </main>
       </div>

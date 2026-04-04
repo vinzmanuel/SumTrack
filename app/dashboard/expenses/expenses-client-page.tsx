@@ -2,12 +2,15 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Plus } from "lucide-react";
+import { BanknoteArrowDown, Plus } from "lucide-react";
 import { appendBackNavigationToHref } from "@/app/dashboard/back-navigation";
+import { resolveCollectionsPeriodTriggerLabel } from "@/app/dashboard/collections/filters";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { EXPENSES_PAGE_SIZE_OPTIONS, EXPENSE_CATEGORIES } from "@/app/dashboard/expenses/filters";
+import { ExpensesBreakdownCard } from "@/app/dashboard/expenses/expenses-breakdown-card";
 import { ExpensesFilters } from "@/app/dashboard/expenses/expenses-filters";
 import { ExpensesResultsSection } from "@/app/dashboard/expenses/expenses-results-section";
 import type {
@@ -26,6 +29,8 @@ type ExpensesClientPageProps = {
   initialResults: ExpensesResultsData;
 };
 
+type ExpensesWorkspaceTab = "records" | "analytics";
+
 function buildExpensesPageUrl(filters: ExpensesFilterInput) {
   const params = new URLSearchParams();
 
@@ -33,8 +38,13 @@ function buildExpensesPageUrl(filters: ExpensesFilterInput) {
     params.set("branch", filters.branch);
   }
 
-  if (filters.month) {
-    params.set("month", filters.month);
+  if (filters.range !== "this-month") {
+    params.set("range", filters.range);
+  }
+
+  if (filters.range === "custom" && filters.from && filters.to) {
+    params.set("from", filters.from);
+    params.set("to", filters.to);
   }
 
   if (filters.category && filters.category !== "all") {
@@ -60,8 +70,13 @@ function buildExpensesDataUrl(filters: ExpensesFilterInput) {
     params.set("branch", filters.branch);
   }
 
-  if (filters.month) {
-    params.set("month", filters.month);
+  if (filters.range !== "this-month") {
+    params.set("range", filters.range);
+  }
+
+  if (filters.range === "custom" && filters.from && filters.to) {
+    params.set("from", filters.from);
+    params.set("to", filters.to);
   }
 
   if (filters.category && filters.category !== "all") {
@@ -80,20 +95,6 @@ function buildExpensesDataUrl(filters: ExpensesFilterInput) {
   return queryString ? `/dashboard/expenses/data?${queryString}` : "/dashboard/expenses/data";
 }
 
-function formatMonthLabel(value: string) {
-  if (!/^\d{4}-\d{2}$/.test(value)) {
-    return "All months";
-  }
-
-  const [yearRaw, monthRaw] = value.split("-");
-  const date = new Date(Number(yearRaw), Number(monthRaw) - 1, 1);
-
-  return date.toLocaleDateString("en-PH", {
-    month: "short",
-    year: "numeric",
-  });
-}
-
 export function ExpensesClientPage({
   branchOptions,
   canChooseBranch,
@@ -106,12 +107,22 @@ export function ExpensesClientPage({
   const normalizedInitialFilters = useMemo<ExpensesFilterInput>(
     () => ({
       branch: initialFilters.branch,
-      month: initialFilters.month,
+      range: initialFilters.range,
+      from: initialFilters.from,
+      to: initialFilters.to,
       category: initialFilters.category,
       page: initialResults.page,
       pageSize: initialResults.pageSize,
     }),
-    [initialFilters.branch, initialFilters.category, initialFilters.month, initialResults.page, initialResults.pageSize],
+    [
+      initialFilters.branch,
+      initialFilters.range,
+      initialFilters.from,
+      initialFilters.to,
+      initialFilters.category,
+      initialResults.page,
+      initialResults.pageSize,
+    ],
   );
 
   const [results, setResults] = useState(initialResults);
@@ -119,6 +130,7 @@ export function ExpensesClientPage({
   const [appliedFilters, setAppliedFilters] = useState<ExpensesFilterInput>(normalizedInitialFilters);
   const [isPending, setIsPending] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<ExpensesWorkspaceTab>("records");
   const abortRef = useRef<AbortController | null>(null);
 
   const loadResults = useCallback(async (nextFilters: ExpensesFilterInput) => {
@@ -142,7 +154,9 @@ export function ExpensesClientPage({
       const nextData = (await response.json()) as ExpensesResultsData;
       const normalizedFilters = {
         branch: nextFilters.branch,
-        month: nextFilters.month,
+        range: nextFilters.range,
+        from: nextFilters.from,
+        to: nextFilters.to,
         category: nextFilters.category,
         page: nextData.page,
         pageSize: nextData.pageSize,
@@ -176,7 +190,9 @@ export function ExpensesClientPage({
   useEffect(() => {
     if (
       filters.branch === appliedFilters.branch &&
-      filters.month === appliedFilters.month &&
+      filters.range === appliedFilters.range &&
+      filters.from === appliedFilters.from &&
+      filters.to === appliedFilters.to &&
       filters.category === appliedFilters.category &&
       filters.page === appliedFilters.page &&
       filters.pageSize === appliedFilters.pageSize
@@ -198,7 +214,9 @@ export function ExpensesClientPage({
   const handleClear = useCallback(() => {
     setFilters({
       branch: canChooseBranch ? "all" : normalizedInitialFilters.branch,
-      month: "",
+      range: "this-month",
+      from: "",
+      to: "",
       category: "all",
       page: 1,
       pageSize: normalizedInitialFilters.pageSize,
@@ -211,36 +229,59 @@ export function ExpensesClientPage({
       ? "All branches"
       : branchOptions.find((option) => String(option.branch_id) === filters.branch)?.branch_name ?? "Selected branch"
     : fixedBranchName ?? "Assigned branch";
-  const monthLabel = formatMonthLabel(filters.month);
+  const periodLabel = resolveCollectionsPeriodTriggerLabel({
+    range: filters.range,
+    from: filters.from,
+    to: filters.to,
+  });
   const categoryLabel = filters.category === "all" ? "All categories" : filters.category;
 
   return (
-    <div className="w-full max-w-none space-y-5 px-4 pb-6 pt-1 sm:px-6 sm:pb-6 sm:pt-2">
+    <Tabs
+      className="w-full max-w-none space-y-5 px-4 pb-6 pt-1 sm:px-6 sm:pb-6 sm:pt-2"
+      onValueChange={(value) => setActiveTab(value as ExpensesWorkspaceTab)}
+      value={activeTab}
+    >
       <Card className="gap-0 overflow-hidden py-0">
-        <div className="bg-gradient-to-r from-slate-50 via-background to-emerald-50/60 p-6">
+        <div className="bg-gradient-to-r from-slate-50 via-background to-emerald-50/60 p-6 dark:from-zinc-950 dark:via-background dark:to-emerald-950/45">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
             <div className="space-y-1">
               <div className="space-y-1">
-                <h1 className="text-3xl font-semibold tracking-tight text-foreground">Expenses</h1>
+                <h1 className="flex items-center gap-2 text-3xl font-semibold tracking-tight text-foreground">
+                  <BanknoteArrowDown className="size-5 text-muted-foreground" />
+                  Expenses
+                </h1>
                 <p className="text-sm text-muted-foreground">{description}</p>
               </div>
               <div className="flex flex-wrap items-center gap-2 pt-2">
-                <Badge className="border-zinc-200 bg-background/80 text-zinc-700" variant="outline">
+                <Badge
+                  className="border-zinc-200 bg-background/80 text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100"
+                  variant="outline"
+                >
                   {results.totalExpenses} matches
                 </Badge>
-                <Badge className="border-zinc-200 bg-background/80 text-zinc-700" variant="outline">
+                <Badge
+                  className="border-zinc-200 bg-background/80 text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100"
+                  variant="outline"
+                >
                   {scopeLabel}
                 </Badge>
-                <Badge className="border-zinc-200 bg-background/80 text-zinc-700" variant="outline">
-                  {monthLabel}
+                <Badge
+                  className="border-zinc-200 bg-background/80 text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100"
+                  variant="outline"
+                >
+                  {periodLabel}
                 </Badge>
-                <Badge className="border-zinc-200 bg-background/80 text-zinc-700" variant="outline">
+                <Badge
+                  className="border-zinc-200 bg-background/80 text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100"
+                  variant="outline"
+                >
                   {categoryLabel}
                 </Badge>
               </div>
             </div>
 
-            {canCreateExpense ? (
+            {canCreateExpense && activeTab === "records" ? (
               <Link href={appendBackNavigationToHref("/dashboard/expenses/create", {
                 source: "expenses",
                 returnTo: currentReturnTo,
@@ -259,29 +300,79 @@ export function ExpensesClientPage({
         </div>
 
         <div className="border-t border-border/70 px-6 pb-4 pt-3">
-          <ExpensesFilters
-            branches={branchOptions}
-            canChooseBranch={canChooseBranch}
-            categories={EXPENSE_CATEGORIES}
-            isPending={isPending}
-            onBranchChange={(value) => updateFilters({ branch: value })}
-            onCategoryChange={(value) => updateFilters({ category: value })}
-            onClear={handleClear}
-            onMonthChange={(value) => updateFilters({ month: value })}
-            selectedBranchRaw={filters.branch}
-            selectedCategory={filters.category}
-            selectedMonthRaw={filters.month}
-          />
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+            <div className="inline-flex shrink-0 flex-nowrap gap-2 rounded-xl border border-border/70 bg-muted/30 p-1">
+              <WorkspaceTabButton
+                active={activeTab === "records"}
+                label="Records"
+                onClick={() => setActiveTab("records")}
+              />
+              <WorkspaceTabButton
+                active={activeTab === "analytics"}
+                label="Analytics"
+                onClick={() => setActiveTab("analytics")}
+              />
+            </div>
+
+            <ExpensesFilters
+              branches={branchOptions}
+              canChooseBranch={canChooseBranch}
+              categories={EXPENSE_CATEGORIES}
+              isPending={isPending}
+              onBranchChange={(value) => updateFilters({ branch: value })}
+              onCategoryChange={(value) => updateFilters({ category: value })}
+              onClear={handleClear}
+              onPeriodChange={(value) =>
+                updateFilters({
+                  range: value.range,
+                  from: value.from,
+                  to: value.to,
+                })}
+              selectedBranchRaw={filters.branch}
+              selectedCategory={filters.category}
+              selectedRange={filters.range}
+              fromRaw={filters.from}
+              toRaw={filters.to}
+            />
+          </div>
         </div>
       </Card>
 
-      <ExpensesResultsSection
-        data={results}
-        errorMessage={errorMessage}
-        isPending={isPending}
-        onPageChange={(page) => updateFilters({ page })}
-        onPageSizeChange={(pageSize) => updateFilters({ pageSize })}
-      />
-    </div>
+      <TabsContent className="mt-0" value="records">
+        <ExpensesResultsSection
+          data={results}
+          errorMessage={errorMessage}
+          isPending={isPending}
+          onPageChange={(page) => updateFilters({ page })}
+          onPageSizeChange={(pageSize) => updateFilters({ pageSize })}
+        />
+      </TabsContent>
+
+      <TabsContent className="mt-0" value="analytics">
+        <ExpensesBreakdownCard data={results} isPending={isPending} />
+      </TabsContent>
+    </Tabs>
+  );
+}
+
+function WorkspaceTabButton({
+  active,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      className={`inline-flex rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+        active ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+      }`}
+      onClick={onClick}
+      type="button"
+    >
+      {label}
+    </button>
   );
 }

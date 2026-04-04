@@ -14,6 +14,7 @@ type NavItem = {
     | "building-2"
     | "users"
     | "receipt-text"
+    | "banknote-arrow-down"
     | "wallet"
     | "file-text"
     | "user-plus"
@@ -38,7 +39,7 @@ function buildSharedOperationalNavItems(options?: {
     { href: "/dashboard/collectors", label: "Collectors", section: "main", icon: "bar-chart-3" },
     { href: "/dashboard/collections", label: "Collections", section: "finance", icon: "receipt-text" },
     { href: "/dashboard/incentives", label: "Incentives", section: "finance", icon: "wallet" },
-    { href: "/dashboard/expenses", label: "Expenses", section: "finance", icon: "receipt-text" },
+    { href: "/dashboard/expenses", label: "Expenses", section: "finance", icon: "banknote-arrow-down" },
     { href: "/dashboard/reports", label: "Reports", section: "system", icon: "bar-chart-3" },
     { href: "/dashboard/recent-activity", label: "Recent Activity", section: "system", icon: "file-text" },
     { href: "/dashboard/manage-user-accounts", label: "Manage User Accounts", section: "system", icon: "users" },

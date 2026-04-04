@@ -322,9 +322,9 @@ export function CreateExpenseForm({
           </Dialog>
 
           <Dialog onOpenChange={setIsSuccessOpen} open={isSuccessOpen}>
-            <DialogContent className="border-emerald-200 bg-background shadow-xl sm:max-w-md">
+            <DialogContent className="border-emerald-200 bg-background shadow-xl dark:border-emerald-500/25 sm:max-w-md">
               <DialogHeader className="items-center text-center">
-                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500 text-white shadow-sm">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500 text-white shadow-sm dark:bg-emerald-500/85">
                   <Check className="size-8 stroke-[3]" />
                 </div>
                 <DialogTitle className="text-2xl font-semibold text-foreground">Expense Saved</DialogTitle>
@@ -334,7 +334,7 @@ export function CreateExpenseForm({
               </DialogHeader>
 
               {state.result ? (
-                <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4 text-sm text-emerald-950">
+                <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4 text-sm text-emerald-950 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-100">
                   <p>
                     <span className="font-medium">Branch:</span> {state.result.branchName}
                   </p>

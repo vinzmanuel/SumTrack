@@ -123,8 +123,8 @@ export function CollectorLoanPortfolioChart({
               innerRadius={compact ? 102 : 112}
               nameKey="label"
               outerRadius={compact ? 166 : 180}
-              stroke="var(--background)"
-              strokeWidth={5}
+              stroke="none"
+              strokeWidth={0}
             >
                 <Label content={renderCenterLabel} />
               </Pie>

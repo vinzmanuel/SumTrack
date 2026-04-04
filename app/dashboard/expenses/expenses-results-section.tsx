@@ -10,7 +10,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ExpensesSummary } from "@/app/dashboard/expenses/expenses-summary";
 import { ExpensesTable } from "@/app/dashboard/expenses/expenses-table";
 import { EXPENSES_PAGE_SIZE_OPTIONS } from "@/app/dashboard/expenses/filters";
 import type { ExpensesResultsData } from "@/app/dashboard/expenses/types";
@@ -45,7 +44,6 @@ export function ExpensesResultsSection({
           </div>
         </CardHeader>
         <CardContent className="space-y-4 pt-3 pb-5 px-5">
-          <ExpensesSummary totalAmount={data.totalAmount} totalExpenses={data.totalExpenses} />
           <ExpensesTable expenses={data.expenses} />
           <div className="flex flex-col gap-3 px-4 pt-1 text-sm xl:flex-row xl:items-center xl:justify-between">
             <div className="space-y-1">

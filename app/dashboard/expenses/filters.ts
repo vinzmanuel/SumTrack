@@ -1,4 +1,9 @@
 import type { DashboardAuthContext } from "@/app/dashboard/auth";
+import {
+  buildCollectionsMonthRange,
+  resolveCollectionsDateRange,
+} from "@/app/dashboard/collections/filters";
+import type { AnalyticsDateRangeKey } from "@/components/analytics/types";
 import type { ExpensesFiltersState, ExpensesPageAccessState, ExpensesPageProps } from "@/app/dashboard/expenses/types";
 
 export const EXPENSE_CATEGORIES = [
@@ -14,44 +19,64 @@ export const EXPENSE_CATEGORIES = [
 export const EXPENSES_PAGE_SIZE_OPTIONS = [10, 20, 50] as const;
 const DEFAULT_EXPENSES_PAGE_SIZE = 20;
 
-function resolveMonthRange(month: string) {
-  if (!/^\d{4}-\d{2}$/.test(month)) {
-    return null;
+function isIsoDate(value: string) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+function normalizeRange(
+  value: string | undefined,
+  fromRaw: string,
+  toRaw: string,
+): AnalyticsDateRangeKey {
+  if (value === "custom" && isIsoDate(fromRaw) && isIsoDate(toRaw)) {
+    return "custom";
   }
 
-  const [yearRaw, monthRaw] = month.split("-");
-  const year = Number(yearRaw);
-  const monthIndex = Number(monthRaw) - 1;
-  const startDate = new Date(Date.UTC(year, monthIndex, 1));
-
-  if (Number.isNaN(startDate.getTime())) {
-    return null;
-  }
-
-  const nextMonthDate = new Date(Date.UTC(year, monthIndex + 1, 1));
-  const endDate = new Date(nextMonthDate.getTime() - 86400000);
-
-  return {
-    start: startDate.toISOString().slice(0, 10),
-    end: endDate.toISOString().slice(0, 10),
-  };
+  return [
+    "this-week",
+    "this-month",
+    "last-30-days",
+    "past-3-months",
+    "past-6-months",
+    "this-year",
+    "lifetime",
+  ].includes(String(value))
+    ? (value as AnalyticsDateRangeKey)
+    : "this-month";
 }
 
 export function parseExpensesFilters(
   params: Awaited<ExpensesPageProps["searchParams"]> | Record<string, string | undefined>,
 ): ExpensesFiltersState {
   const selectedBranchRaw = String(params?.branch ?? "all");
-  const selectedMonthRaw = String(params?.month ?? "");
   const selectedCategoryRaw = String(params?.category ?? "all");
   const pageSizeRaw = String(params?.pageSize ?? "");
   const parsedPageSize = /^\d+$/.test(pageSizeRaw) ? Number(pageSizeRaw) : DEFAULT_EXPENSES_PAGE_SIZE;
   const pageSize = EXPENSES_PAGE_SIZE_OPTIONS.includes(parsedPageSize as (typeof EXPENSES_PAGE_SIZE_OPTIONS)[number])
     ? parsedPageSize
     : DEFAULT_EXPENSES_PAGE_SIZE;
+  const fromRaw = isIsoDate(String(params?.from ?? "")) ? String(params?.from) : "";
+  const toRaw = isIsoDate(String(params?.to ?? "")) ? String(params?.to) : "";
+  const legacyMonthRaw = String(params?.month ?? "");
+  const selectedRange = normalizeRange(params?.range, fromRaw, toRaw);
+  const legacyMonthRange = /^\d{4}-\d{2}$/.test(legacyMonthRaw)
+    ? buildCollectionsMonthRange(Number(legacyMonthRaw.slice(0, 4)), Number(legacyMonthRaw.slice(5, 7)))
+    : null;
+  const resolvedRange = selectedRange === "this-month" && !fromRaw && !toRaw && legacyMonthRange ? "custom" : selectedRange;
+  const resolvedFromRaw = resolvedRange === "custom" && !fromRaw && !toRaw && legacyMonthRange ? legacyMonthRange.from : fromRaw;
+  const resolvedToRaw = resolvedRange === "custom" && !fromRaw && !toRaw && legacyMonthRange ? legacyMonthRange.to : toRaw;
+  const dateRange = resolveCollectionsDateRange({
+    selectedBranchRaw,
+    selectedRange: resolvedRange,
+    fromRaw: resolvedFromRaw,
+    toRaw: resolvedToRaw,
+  });
 
   return {
     selectedBranchRaw,
-    selectedMonthRaw,
+    selectedRange: resolvedRange,
+    fromRaw: resolvedFromRaw,
+    toRaw: resolvedToRaw,
     selectedCategory: EXPENSE_CATEGORIES.includes(
       selectedCategoryRaw as (typeof EXPENSE_CATEGORIES)[number],
     )
@@ -59,7 +84,7 @@ export function parseExpensesFilters(
       : "all",
     page: Math.max(/^\d+$/.test(String(params?.page ?? "")) ? Number(params?.page) : 1, 1),
     pageSize,
-    monthRange: selectedMonthRaw ? resolveMonthRange(selectedMonthRaw) : null,
+    dateRange,
   };
 }
 
@@ -98,11 +123,13 @@ export function resolveExpensesPageAccess(
     canChooseBranch: isAdmin || isAuditor,
     canCreateExpense: isAdmin || isBranchManager,
     selectedBranchRaw: filters.selectedBranchRaw,
-    selectedMonthRaw: filters.selectedMonthRaw,
+    selectedRange: filters.selectedRange,
+    fromRaw: filters.fromRaw,
+    toRaw: filters.toRaw,
     selectedCategory: filters.selectedCategory,
     page: filters.page,
     pageSize: filters.pageSize,
-    monthRange: filters.monthRange,
+    dateRange: filters.dateRange,
     fixedBranchName: isBranchManager ? auth.activeBranchName : null,
     resolvedBranchId: isBranchManager
       ? auth.activeBranchId

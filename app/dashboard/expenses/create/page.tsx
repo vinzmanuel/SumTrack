@@ -1,4 +1,4 @@
-import { ReceiptText } from "lucide-react";
+import { BanknoteArrowDown } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DashboardBackLink } from "@/app/dashboard/_components/dashboard-back-link";
 import {
@@ -20,10 +20,10 @@ function renderCreateExpenseWorkspace(props: {
         <DashboardBackLink href={props.backHref} label={props.backLabel} />
 
         <Card className="gap-0 overflow-hidden py-0">
-          <div className="bg-linear-to-r from-slate-50 via-white to-emerald-50/60 p-6">
+          <div className="bg-gradient-to-r from-slate-50 via-background to-emerald-50/60 p-6 dark:from-zinc-950 dark:via-background dark:to-emerald-950/45">
             <div className="space-y-1">
               <CardTitle className="flex items-center gap-2 text-3xl font-semibold tracking-tight">
-                <ReceiptText className="size-5 text-muted-foreground" />
+                <BanknoteArrowDown className="size-5 text-muted-foreground" />
                 Create Expense
               </CardTitle>
               <CardDescription>Record branch operating expenses.</CardDescription>

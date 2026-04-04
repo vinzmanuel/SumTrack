@@ -5,11 +5,24 @@ import { db } from "@/db";
 import { branch, employee_info, expenses, roles, users } from "@/db/schema";
 import type {
   ExpenseBranchOption,
+  ExpenseBreakdownMode,
+  ExpenseBreakdownRow,
   ExpenseListRow,
   ExpensesPageAccessState,
   ExpensesResultsData,
 } from "@/app/dashboard/expenses/types";
 type ReadyExpensesAccess = Extract<ExpensesPageAccessState, { view: "ready" }>;
+
+const EXPENSE_BREAKDOWN_COLORS = [
+  "#16a34a",
+  "#0ea5e9",
+  "#f97316",
+  "#8b5cf6",
+  "#eab308",
+  "#ec4899",
+  "#14b8a6",
+  "#64748b",
+] as const;
 
 function whereFrom(filters: SQL[]) {
   if (filters.length === 0) {
@@ -40,10 +53,8 @@ function buildExpenseFilters(
     }
   }
 
-  if (access.monthRange) {
-    filters.push(gte(expenses.expense_date, access.monthRange.start));
-    filters.push(lte(expenses.expense_date, access.monthRange.end));
-  }
+  filters.push(gte(expenses.expense_date, access.dateRange.start));
+  filters.push(lte(expenses.expense_date, access.dateRange.end));
 
   if (access.selectedCategory !== "all") {
     filters.push(eq(expenses.expense_category, access.selectedCategory));
@@ -119,6 +130,8 @@ export async function loadExpensesResultsData(
   const whereCondition = whereFrom(expenseFilters);
   const requestedPage = Math.max(access.page, 1);
   const pageSize = access.pageSize;
+  const breakdownMode: ExpenseBreakdownMode =
+    access.canChooseBranch && access.selectedBranchRaw === "all" ? "branch" : "category";
 
   const totalsRow = await db
     .select({
@@ -162,11 +175,53 @@ export async function loadExpensesResultsData(
     .offset(offset)
     .catch(() => []);
 
+  const rawBreakdownRows =
+    breakdownMode === "branch"
+      ? await db
+          .select({
+            key: sql<string>`${branch.branch_id}::text`,
+            label: branch.branch_name,
+            amount: sql<number>`coalesce(sum(${expenses.amount}), 0)`,
+            expense_count: sql<number>`count(*)`,
+          })
+          .from(expenses)
+          .innerJoin(branch, eq(branch.branch_id, expenses.branch_id))
+          .where(whereCondition)
+          .groupBy(branch.branch_id, branch.branch_name)
+          .orderBy(desc(sql`coalesce(sum(${expenses.amount}), 0)`), branch.branch_name)
+          .catch(() => [])
+      : await db
+          .select({
+            key: expenses.expense_category,
+            label: expenses.expense_category,
+            amount: sql<number>`coalesce(sum(${expenses.amount}), 0)`,
+            expense_count: sql<number>`count(*)`,
+          })
+          .from(expenses)
+          .where(whereCondition)
+          .groupBy(expenses.expense_category)
+          .orderBy(desc(sql`coalesce(sum(${expenses.amount}), 0)`), expenses.expense_category)
+          .catch(() => []);
+
+  const breakdownRows: ExpenseBreakdownRow[] = rawBreakdownRows.map((row, index) => {
+    const amount = Number(row.amount) || 0;
+    return {
+      key: row.key,
+      label: row.label,
+      amount,
+      expenseCount: Number(row.expense_count) || 0,
+      share: totalExpenses > 0 && Number(totalsRow.total_amount) > 0 ? (amount / (Number(totalsRow.total_amount) || 0)) * 100 : 0,
+      fill: EXPENSE_BREAKDOWN_COLORS[index % EXPENSE_BREAKDOWN_COLORS.length],
+    };
+  });
+
   return {
     expenses: expenseRows.map(toExpenseListRow),
     totalExpenses,
     totalAmount: Number(totalsRow.total_amount) || 0,
     page,
     pageSize,
+    breakdownMode,
+    breakdownRows,
   };
 }

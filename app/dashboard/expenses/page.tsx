@@ -52,10 +52,10 @@ export default async function ExpensesPage({ searchParams }: ExpensesPageProps) 
   }
 
   const description = access.isAdmin
-    ? "Admin expense monitoring by branch, month, and category."
+    ? "Admin expense monitoring by branch, period, and category."
     : access.isAuditor
       ? "Auditor read-only expense monitoring across assigned branches."
-      : "Branch expense monitoring by month and category.";
+      : "Branch expense monitoring by period and category.";
   const [branchOptions, initialResults] = await Promise.all([
     loadExpensesBranchOptions(access),
     loadExpensesResultsData(access),
@@ -70,7 +70,9 @@ export default async function ExpensesPage({ searchParams }: ExpensesPageProps) 
       fixedBranchName={access.fixedBranchName}
       initialFilters={{
         branch: access.canChooseBranch && access.resolvedBranchId ? String(access.resolvedBranchId) : "all",
-        month: access.selectedMonthRaw,
+        range: access.selectedRange,
+        from: access.fromRaw,
+        to: access.toRaw,
         category: access.selectedCategory,
         page: access.page,
         pageSize: access.pageSize,

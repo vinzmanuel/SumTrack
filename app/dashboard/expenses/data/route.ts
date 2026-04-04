@@ -12,6 +12,9 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const filters = parseExpensesFilters({
     branch: url.searchParams.get("branch") ?? undefined,
+    range: url.searchParams.get("range") ?? undefined,
+    from: url.searchParams.get("from") ?? undefined,
+    to: url.searchParams.get("to") ?? undefined,
     month: url.searchParams.get("month") ?? undefined,
     category: url.searchParams.get("category") ?? undefined,
     page: url.searchParams.get("page") ?? undefined,
