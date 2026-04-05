@@ -63,7 +63,10 @@ export default async function ManagedUserDetailPage({
               {detail.companyId}
             </Badge>
             <CardTitle>{detail.fullName}</CardTitle>
-            <p className="text-sm text-muted-foreground">{detail.scopeLabel}</p>
+            <p className="text-sm text-muted-foreground">
+              {detail.scopeLabel}
+              {detail.scopeContextLabel ? ` • ${detail.scopeContextLabel}` : ""}
+            </p>
           </div>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
@@ -79,7 +82,27 @@ export default async function ManagedUserDetailPage({
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Profile</p>
             <dl className="mt-3 space-y-2 text-sm">
               <div><dt className="font-medium">Full Name</dt><dd>{detail.fullName}</dd></div>
-              <div><dt className="font-medium">Branch / Scope</dt><dd>{detail.scopeLabel}</dd></div>
+              <div>
+                <dt className="font-medium">
+                  {detail.status === "active" ? "Current Branch / Scope" : "Last Held Branch / Scope"}
+                </dt>
+                <dd>{detail.scopeLabel}</dd>
+              </div>
+              {detail.status === "active" && detail.scopeLabel === "Unassigned" && detail.lastHeldBranchAssignments.length > 0 ? (
+                <div>
+                  <dt className="font-medium">Last Held Branch / Scope</dt>
+                  <dd>{detail.lastHeldBranchAssignments.map((item) => item.branchCode || item.branchName).join(", ")}</dd>
+                </div>
+              ) : null}
+              {detail.status === "inactive" && detail.lastHeldAreaCode ? (
+                <div><dt className="font-medium">Last Held Area</dt><dd>{detail.lastHeldAreaCode}</dd></div>
+              ) : null}
+              {detail.status === "active" && detail.currentAreaCode ? (
+                <div><dt className="font-medium">Current Area</dt><dd>{detail.currentAreaCode}</dd></div>
+              ) : null}
+              {detail.status === "active" && !detail.currentAreaCode && detail.lastHeldAreaCode ? (
+                <div><dt className="font-medium">Last Held Area</dt><dd>{detail.lastHeldAreaCode}</dd></div>
+              ) : null}
               <div><dt className="font-medium">Contact</dt><dd>{detail.contactLabel}</dd></div>
               {detail.accountCategory === "Borrower" ? (
                 <div><dt className="font-medium">Address</dt><dd>{detail.address || "N/A"}</dd></div>

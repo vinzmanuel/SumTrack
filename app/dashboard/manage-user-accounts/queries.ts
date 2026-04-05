@@ -73,6 +73,12 @@ type ActiveAssignmentState = {
   activeBranchAssignments: { branchId: number; branchName: string; branchCode: string }[];
 };
 
+type HistoricalAssignmentState = {
+  lastHeldBranchAssignments: { branchId: number; branchName: string; branchCode: string }[];
+  lastHeldAreaId: number | null;
+  lastHeldAreaCode: string | null;
+};
+
 type ManagedUserMutationResult =
   | { ok: true }
   | {
@@ -296,12 +302,20 @@ async function loadScopeMaps(userIds: string[]) {
   if (userIds.length === 0) {
     return {
       borrowerMap: new Map<string, { scopeLabel: string; contactLabel: string; address: string | null }>(),
-      collectorMap: new Map<string, { scopeLabel: string }>(),
-      employeeBranchMap: new Map<string, { scopeLabel: string }>(),
+      activeCollectorMap: new Map<string, { scopeLabel: string }>(),
+      lastCollectorMap: new Map<string, { scopeLabel: string }>(),
+      activeEmployeeBranchMap: new Map<string, { scopeLabel: string }>(),
+      lastEmployeeBranchMap: new Map<string, { scopeLabel: string }>(),
     };
   }
 
-  const [borrowerRows, collectorRows, employeeBranchRows] = await Promise.all([
+  const [
+    borrowerRows,
+    activeCollectorRows,
+    historicalCollectorRows,
+    activeEmployeeBranchRows,
+    historicalEmployeeBranchRows,
+  ] = await Promise.all([
     db
       .select({
         userId: borrower_info.user_id,
@@ -336,6 +350,22 @@ async function loadScopeMaps(userIds: string[]) {
       .catch(() => []),
     db
       .select({
+        userId: employee_area_assignment.employee_user_id,
+        areaCode: areas.area_code,
+        endDate: employee_area_assignment.end_date,
+      })
+      .from(employee_area_assignment)
+      .innerJoin(areas, eq(areas.area_id, employee_area_assignment.area_id))
+      .where(
+        and(
+          inArray(employee_area_assignment.employee_user_id, userIds),
+          sql`${employee_area_assignment.end_date} is not null`,
+        ),
+      )
+      .orderBy(desc(employee_area_assignment.end_date), asc(areas.area_code))
+      .catch(() => []),
+    db
+      .select({
         userId: employee_branch_assignment.employee_user_id,
         branchName: branch.branch_name,
         branchCode: branch.branch_code,
@@ -348,6 +378,23 @@ async function loadScopeMaps(userIds: string[]) {
           inArray(employee_branch_assignment.employee_user_id, userIds),
         ),
       )
+      .catch(() => []),
+    db
+      .select({
+        userId: employee_branch_assignment.employee_user_id,
+        branchName: branch.branch_name,
+        branchCode: branch.branch_code,
+        endDate: employee_branch_assignment.end_date,
+      })
+      .from(employee_branch_assignment)
+      .innerJoin(branch, eq(branch.branch_id, employee_branch_assignment.branch_id))
+      .where(
+        and(
+          inArray(employee_branch_assignment.employee_user_id, userIds),
+          sql`${employee_branch_assignment.end_date} is not null`,
+        ),
+      )
+      .orderBy(desc(employee_branch_assignment.end_date), asc(branch.branch_name))
       .catch(() => []),
   ]);
 
@@ -363,51 +410,139 @@ async function loadScopeMaps(userIds: string[]) {
     });
   }
 
-  const collectorMap = new Map<string, { scopeLabel: string }>();
-  for (const row of collectorRows) {
-    collectorMap.set(row.userId, {
+  const activeCollectorMap = new Map<string, { scopeLabel: string }>();
+  for (const row of activeCollectorRows) {
+    activeCollectorMap.set(row.userId, {
       scopeLabel: row.areaCode,
     });
   }
 
-  const employeeBranchMap = new Map<string, { scopeLabel: string }>();
+  const lastCollectorMap = new Map<string, { scopeLabel: string }>();
+  const latestCollectorEndDateByUser = new Map<string, string>();
+  for (const row of historicalCollectorRows) {
+    if (!row.endDate) {
+      continue;
+    }
+
+    const latestEndDate = latestCollectorEndDateByUser.get(row.userId);
+    if (!latestEndDate) {
+      latestCollectorEndDateByUser.set(row.userId, row.endDate);
+      lastCollectorMap.set(row.userId, {
+        scopeLabel: row.areaCode,
+      });
+      continue;
+    }
+
+    if (latestEndDate === row.endDate && !lastCollectorMap.has(row.userId)) {
+      lastCollectorMap.set(row.userId, {
+        scopeLabel: row.areaCode,
+      });
+    }
+  }
+
+  const activeEmployeeBranchMap = new Map<string, { scopeLabel: string }>();
   const groupedBranches = new Map<string, string[]>();
-  for (const row of employeeBranchRows) {
+  for (const row of activeEmployeeBranchRows) {
     const current = groupedBranches.get(row.userId) ?? [];
     current.push(row.branchCode || row.branchName);
     groupedBranches.set(row.userId, current);
   }
   for (const [userId, labels] of groupedBranches.entries()) {
-    employeeBranchMap.set(userId, {
+    activeEmployeeBranchMap.set(userId, {
+      scopeLabel: labels.join(", "),
+    });
+  }
+
+  const lastEmployeeBranchMap = new Map<string, { scopeLabel: string }>();
+  const latestEndedBranchLabels = new Map<string, string[]>();
+  const latestEndedBranchDateByUser = new Map<string, string>();
+  for (const row of historicalEmployeeBranchRows) {
+    if (!row.endDate) {
+      continue;
+    }
+
+    const label = row.branchCode || row.branchName;
+    const latestEndDate = latestEndedBranchDateByUser.get(row.userId);
+
+    if (!latestEndDate) {
+      latestEndedBranchDateByUser.set(row.userId, row.endDate);
+      latestEndedBranchLabels.set(row.userId, [label]);
+      continue;
+    }
+
+    if (latestEndDate === row.endDate) {
+      const current = latestEndedBranchLabels.get(row.userId) ?? [];
+      latestEndedBranchLabels.set(row.userId, [...current, label]);
+    }
+  }
+  for (const [userId, labels] of latestEndedBranchLabels.entries()) {
+    lastEmployeeBranchMap.set(userId, {
       scopeLabel: labels.join(", "),
     });
   }
 
   return {
     borrowerMap,
-    collectorMap,
-    employeeBranchMap,
+    activeCollectorMap,
+    lastCollectorMap,
+    activeEmployeeBranchMap,
+    lastEmployeeBranchMap,
   };
 }
 
-function resolveScopeLabel(
+function resolveScopePresentation(
   userId: string,
   roleName: string,
+  status: "active" | "inactive",
   scopeMaps: Awaited<ReturnType<typeof loadScopeMaps>>,
 ) {
   if (roleName === "Admin") {
-    return "Global";
+    return {
+      scopeLabel: "Global",
+      scopeContextLabel: status === "inactive" ? "Role retained; no assignment slot" : "Global scope",
+    };
   }
 
   if (roleName === "Borrower") {
-    return scopeMaps.borrowerMap.get(userId)?.scopeLabel ?? "Unassigned";
+    return {
+      scopeLabel: scopeMaps.borrowerMap.get(userId)?.scopeLabel ?? "Unassigned",
+      scopeContextLabel: status === "inactive" ? "Borrower area on record" : "Current assignment",
+    };
   }
 
   if (roleName === "Collector") {
-    return scopeMaps.collectorMap.get(userId)?.scopeLabel ?? "Unassigned";
+    const currentScope = scopeMaps.activeCollectorMap.get(userId)?.scopeLabel ?? null;
+    const lastHeldScope = scopeMaps.lastCollectorMap.get(userId)?.scopeLabel ?? null;
+
+    if (status === "active" && !currentScope && lastHeldScope) {
+      return {
+        scopeLabel: "Unassigned",
+        scopeContextLabel: `Last held assignment: ${lastHeldScope}`,
+      };
+    }
+
+    const source = status === "active" ? scopeMaps.activeCollectorMap : scopeMaps.lastCollectorMap;
+    return {
+      scopeLabel: source.get(userId)?.scopeLabel ?? "Unassigned",
+      scopeContextLabel: status === "active" ? "Current assignment" : "Last held assignment",
+    };
   }
 
-  return scopeMaps.employeeBranchMap.get(userId)?.scopeLabel ?? "Unassigned";
+  const currentScope = scopeMaps.activeEmployeeBranchMap.get(userId)?.scopeLabel ?? null;
+  const lastHeldScope = scopeMaps.lastEmployeeBranchMap.get(userId)?.scopeLabel ?? null;
+
+  if (status === "active" && !currentScope && lastHeldScope) {
+    return {
+      scopeLabel: "Unassigned",
+      scopeContextLabel: `Last held assignment: ${lastHeldScope}`,
+    };
+  }
+
+  const source = status === "active" ? scopeMaps.activeEmployeeBranchMap : scopeMaps.lastEmployeeBranchMap;
+  return {
+    scopeLabel: source.get(userId)?.scopeLabel ?? "Unassigned",
+    scopeContextLabel: status === "active" ? "Current assignment" : "Last held assignment",
+  };
 }
 
 function resolveContactLabel(
@@ -517,6 +652,68 @@ async function loadActiveAssignmentState(userId: string): Promise<ActiveAssignme
     currentAreaCode: activeAreaAssignment?.areaCode ?? null,
     currentAreaBranchId: activeAreaAssignment?.branchId ?? null,
     activeBranchAssignments,
+  };
+}
+
+async function loadLastHeldAssignmentState(userId: string): Promise<HistoricalAssignmentState> {
+  const [lastEndedBranchDateRow, lastEndedAreaRow] = await Promise.all([
+    db
+      .select({
+        endDate: employee_branch_assignment.end_date,
+      })
+      .from(employee_branch_assignment)
+      .where(
+        and(
+          eq(employee_branch_assignment.employee_user_id, userId),
+          sql`${employee_branch_assignment.end_date} is not null`,
+        ),
+      )
+      .orderBy(desc(employee_branch_assignment.end_date))
+      .limit(1)
+      .then((rows) => rows[0] ?? null)
+      .catch(() => null),
+    db
+      .select({
+        areaId: employee_area_assignment.area_id,
+        areaCode: areas.area_code,
+      })
+      .from(employee_area_assignment)
+      .innerJoin(areas, eq(areas.area_id, employee_area_assignment.area_id))
+      .where(
+        and(
+          eq(employee_area_assignment.employee_user_id, userId),
+          sql`${employee_area_assignment.end_date} is not null`,
+        ),
+      )
+      .orderBy(desc(employee_area_assignment.end_date), asc(areas.area_code))
+      .limit(1)
+      .then((rows) => rows[0] ?? null)
+      .catch(() => null),
+  ]);
+
+  const lastHeldBranchAssignments = lastEndedBranchDateRow?.endDate
+    ? await db
+        .select({
+          branchId: employee_branch_assignment.branch_id,
+          branchName: branch.branch_name,
+          branchCode: branch.branch_code,
+        })
+        .from(employee_branch_assignment)
+        .innerJoin(branch, eq(branch.branch_id, employee_branch_assignment.branch_id))
+        .where(
+          and(
+            eq(employee_branch_assignment.employee_user_id, userId),
+            eq(employee_branch_assignment.end_date, lastEndedBranchDateRow.endDate),
+          ),
+        )
+        .orderBy(asc(branch.branch_name))
+        .catch(() => [])
+    : [];
+
+  return {
+    lastHeldBranchAssignments,
+    lastHeldAreaId: lastEndedAreaRow?.areaId ?? null,
+    lastHeldAreaCode: lastEndedAreaRow?.areaCode ?? null,
   };
 }
 
@@ -915,6 +1112,7 @@ async function findConflictingSingleBranchRoleAssignee(params: {
       and(
         eq(employee_branch_assignment.branch_id, params.branchId),
         isNull(employee_branch_assignment.end_date),
+        eq(users.status, "active"),
         eq(roles.role_name, params.roleName),
         ne(users.user_id, params.excludeUserId),
       ),
@@ -946,11 +1144,41 @@ async function findConflictingAuditorAssignments(params: {
       and(
         inArray(employee_branch_assignment.branch_id, params.branchIds),
         isNull(employee_branch_assignment.end_date),
+        eq(users.status, "active"),
         eq(roles.role_name, "Auditor"),
         ne(users.user_id, params.excludeUserId),
       ),
     )
     .catch(() => []);
+}
+
+async function findCollectorOverlapAreaIds(params: {
+  areaIds: number[];
+  excludeUserId?: string | null;
+}) {
+  if (params.areaIds.length === 0) {
+    return new Set<number>();
+  }
+
+  const rows = await db
+    .select({
+      areaId: employee_area_assignment.area_id,
+    })
+    .from(employee_area_assignment)
+    .innerJoin(users, eq(users.user_id, employee_area_assignment.employee_user_id))
+    .innerJoin(roles, eq(roles.role_id, users.role_id))
+    .where(
+      and(
+        inArray(employee_area_assignment.area_id, params.areaIds),
+        isNull(employee_area_assignment.end_date),
+        eq(users.status, "active"),
+        eq(roles.role_name, "Collector"),
+        params.excludeUserId ? ne(users.user_id, params.excludeUserId) : undefined,
+      ),
+    )
+    .catch(() => []);
+
+  return new Set(rows.map((row) => row.areaId));
 }
 
 async function loadBaseManageUsersRows(scope: ManageUserAccountsScope) {
@@ -1091,7 +1319,8 @@ export async function loadManageUserAccountsPageData(
     const lastName = isBorrower ? row.borrowerLastName : row.employeeLastName;
     const fullName = formatFullName(firstName, middleName, lastName);
     const displayName = formatManagedUserDisplayName(firstName, middleName, lastName);
-    const scopeLabel = resolveScopeLabel(row.userId, row.roleName, scopeMaps);
+    const normalizedStatus = row.status as "active" | "inactive";
+    const scopePresentation = resolveScopePresentation(row.userId, row.roleName, normalizedStatus, scopeMaps);
 
     return {
       userId: row.userId,
@@ -1100,10 +1329,11 @@ export async function loadManageUserAccountsPageData(
       companyId: row.companyId,
       username: row.username,
       roleName: row.roleName,
-      scopeLabel,
+      scopeLabel: scopePresentation.scopeLabel,
+      scopeContextLabel: normalizedStatus === "inactive" ? scopePresentation.scopeContextLabel : null,
       contactNo: row.contactNo,
       email: row.email,
-      status: row.status,
+      status: normalizedStatus,
       canView: true,
       canEdit: canEditManagedUser(scope, row),
       canManageStatus: canManageManagedUserStatus(scope, row),
@@ -1182,6 +1412,7 @@ export async function loadManagedUserDetail(
   }
 
   const assignmentState = await loadActiveAssignmentState(userId);
+  const historicalAssignmentState = await loadLastHeldAssignmentState(userId);
 
   const scopeMaps = await loadScopeMaps([userId]);
   const isBorrower = row.roleName === "Borrower";
@@ -1189,7 +1420,10 @@ export async function loadManagedUserDetail(
   const middleName = isBorrower ? row.borrowerMiddleName : row.employeeMiddleName;
   const lastName = isBorrower ? row.borrowerLastName : row.employeeLastName;
   const editableRoleNames = resolveEditableRoleNames(scope, row);
+  const normalizedStatus = row.status as "active" | "inactive";
+  const isInactive = normalizedStatus === "inactive";
   const canEditRole =
+    !isInactive &&
     row.roleName !== "Borrower" &&
     ((scope.roleName === "Admin" && !isBorrower) ||
       (scope.roleName === "Branch Manager" && row.roleName === "Collector"));
@@ -1213,17 +1447,32 @@ export async function loadManagedUserDetail(
     branchName: item.branchName,
     branchCode: item.branchCode,
   }));
-  const canEditBranchAssignment = scope.roleName === "Admin" && !isBorrower;
-  const canEditAuditorBranchAssignments = scope.roleName === "Admin" && !isBorrower;
+  const lastHeldBranchAssignments = historicalAssignmentState.lastHeldBranchAssignments.map((item) => ({
+    branchId: item.branchId,
+    branchName: item.branchName,
+    branchCode: item.branchCode,
+  }));
+  const lastHeldAreaId = historicalAssignmentState.lastHeldAreaId;
+  const lastHeldAreaCode = historicalAssignmentState.lastHeldAreaCode;
+  const canEditBranchAssignment = !isInactive && scope.roleName === "Admin" && !isBorrower;
+  const canEditAuditorBranchAssignments = !isInactive && scope.roleName === "Admin" && !isBorrower;
   const branchManagerBranchId = scope.allowedBranchIds[0] ?? null;
   const canEditAreaAssignment =
+    !isInactive &&
     !isBorrower &&
     (scope.roleName === "Admin" ||
       (scope.roleName === "Branch Manager" &&
         row.roleName === "Collector" &&
         branchManagerBranchId !== null &&
         currentBranchId === branchManagerBranchId));
-  const editableBranchOptions = canEditBranchAssignment
+  const canLoadBranchAssignmentOptions =
+    !isBorrower && (scope.roleName === "Admin" || scope.roleName === "Branch Manager");
+  const canLoadAreaAssignmentOptions =
+    !isBorrower &&
+    row.roleName === "Collector" &&
+    (scope.roleName === "Admin" ||
+      (scope.roleName === "Branch Manager" && branchManagerBranchId !== null));
+  const editableBranchOptions = canLoadBranchAssignmentOptions
     ? await db
         .select({
           branchId: branch.branch_id,
@@ -1231,11 +1480,77 @@ export async function loadManagedUserDetail(
           branchCode: branch.branch_code,
         })
         .from(branch)
-        .where(eq(branch.status, "active"))
+        .where(
+          and(
+            eq(branch.status, "active"),
+            scope.roleName === "Branch Manager" && branchManagerBranchId !== null
+              ? eq(branch.branch_id, branchManagerBranchId)
+              : undefined,
+          ),
+        )
         .orderBy(asc(branch.branch_name))
         .catch(() => [])
     : [];
-  const editableAreaOptions = canEditAreaAssignment
+  const occupiedBranchManagerBranchIds =
+    editableBranchOptions.length > 0
+      ? new Set(
+          (
+            await db
+              .select({
+                branchId: employee_branch_assignment.branch_id,
+              })
+              .from(employee_branch_assignment)
+              .innerJoin(users, eq(users.user_id, employee_branch_assignment.employee_user_id))
+              .innerJoin(roles, eq(roles.role_id, users.role_id))
+              .where(
+                and(
+                  inArray(
+                    employee_branch_assignment.branch_id,
+                    editableBranchOptions.map((item) => item.branchId),
+                  ),
+                  isNull(employee_branch_assignment.end_date),
+                  eq(users.status, "active"),
+                  eq(roles.role_name, "Branch Manager"),
+                  ne(users.user_id, userId),
+                ),
+              )
+              .catch(() => [])
+          ).map((item) => item.branchId),
+        )
+      : new Set<number>();
+  const occupiedAuditorBranchIds =
+    editableBranchOptions.length > 0
+      ? new Set(
+          (
+            await db
+              .select({
+                branchId: employee_branch_assignment.branch_id,
+              })
+              .from(employee_branch_assignment)
+              .innerJoin(users, eq(users.user_id, employee_branch_assignment.employee_user_id))
+              .innerJoin(roles, eq(roles.role_id, users.role_id))
+              .where(
+                and(
+                  inArray(
+                    employee_branch_assignment.branch_id,
+                    editableBranchOptions.map((item) => item.branchId),
+                  ),
+                  isNull(employee_branch_assignment.end_date),
+                  eq(users.status, "active"),
+                  eq(roles.role_name, "Auditor"),
+                  ne(users.user_id, userId),
+                ),
+              )
+              .catch(() => [])
+          ).map((item) => item.branchId),
+        )
+      : new Set<number>();
+  const editableBranchOptionsWithOccupancy = editableBranchOptions.map((item) => ({
+    ...item,
+    hasActiveBranchManager: occupiedBranchManagerBranchIds.has(item.branchId),
+    hasActiveAuditor: occupiedAuditorBranchIds.has(item.branchId),
+  }));
+  const editableAreaOptions = canLoadAreaAssignmentOptions
     ? await db
         .select({
           areaId: areas.area_id,
@@ -1256,6 +1571,18 @@ export async function loadManagedUserDetail(
         .orderBy(asc(areas.area_code))
         .catch(() => [])
     : [];
+  const collectorOverlapAreaIds =
+    editableAreaOptions.length > 0
+      ? await findCollectorOverlapAreaIds({
+          areaIds: editableAreaOptions.map((item) => item.areaId),
+          excludeUserId: userId,
+        })
+      : new Set<number>();
+  const editableAreaOptionsWithCollectorFlags = editableAreaOptions.map((item) => ({
+    ...item,
+    hasActiveCollector: collectorOverlapAreaIds.has(item.areaId),
+  }));
+  const scopePresentation = resolveScopePresentation(row.userId, row.roleName, normalizedStatus, scopeMaps);
 
   return {
     userId: row.userId,
@@ -1268,9 +1595,10 @@ export async function loadManagedUserDetail(
     username: row.username,
     email: row.email,
     roleName: row.roleName,
-    status: row.status,
+    status: normalizedStatus,
     accountCategory: isBorrower ? "Borrower" : "Employee",
-    scopeLabel: resolveScopeLabel(row.userId, row.roleName, scopeMaps),
+    scopeLabel: scopePresentation.scopeLabel,
+    scopeContextLabel: scopePresentation.scopeContextLabel,
     contactLabel: resolveContactLabel(
       row.userId,
       row.roleName,
@@ -1298,8 +1626,11 @@ export async function loadManagedUserDetail(
     currentAreaId,
     currentAreaCode,
     currentBranchAssignments,
-    editableBranchOptions,
-    editableAreaOptions,
+    lastHeldBranchAssignments,
+    lastHeldAreaId,
+    lastHeldAreaCode,
+    editableBranchOptions: editableBranchOptionsWithOccupancy,
+    editableAreaOptions: editableAreaOptionsWithCollectorFlags,
   };
 }
 
@@ -1395,6 +1726,23 @@ export async function updateManagedUserAccount(params: {
   );
   const managerBranchId = params.scope.allowedBranchIds[0] ?? null;
   const requiresContactNo = detail.roleName === "Borrower" || nextRoleName === "Collector";
+  const isInactiveAccount = detail.status === "inactive";
+
+  if (isInactiveAccount) {
+    const hasStructuralChanges =
+      nextRoleId !== detail.roleId ||
+      params.branchId !== null ||
+      params.areaId !== null ||
+      requestedBranchIds.length > 0;
+
+    if (hasStructuralChanges) {
+      return {
+        ok: false as const,
+        message:
+          "Reactivate this account before changing role or assignments. Previous placement is shown as historical context only.",
+      };
+    }
+  }
 
   if (requiresContactNo && !params.contactNo) {
     return { ok: false as const, message: "Contact number is required for this account." };
@@ -1813,6 +2161,10 @@ export async function updateManagedUserStatus(params: {
   scope: ManageUserAccountsScope;
   userId: string;
   nextStatus: "active" | "inactive";
+  roleId?: number | null;
+  branchId?: number | null;
+  branchIds?: number[];
+  areaId?: number | null;
 }): Promise<ManagedUserMutationResult> {
   const detail = await loadManagedUserDetail(params.scope, params.userId);
 
@@ -1826,6 +2178,27 @@ export async function updateManagedUserStatus(params: {
 
   if (detail.status === params.nextStatus) {
     return { ok: true as const };
+  }
+
+  const requestedBranchIds = Array.from(
+    new Set((params.branchIds ?? []).filter((value): value is number => Number.isFinite(value))),
+  );
+  const managerBranchId = params.scope.allowedBranchIds[0] ?? null;
+  const editableRoleIds = new Set(detail.editableRoleOptions.map((item) => item.roleId ?? -1));
+  const nextRoleId = params.nextStatus === "active" ? params.roleId ?? detail.roleId : detail.roleId;
+  const nextRoleOption =
+    detail.editableRoleOptions.find((item) => item.roleId === nextRoleId) ??
+    (nextRoleId === detail.roleId ? { roleId: detail.roleId, roleName: detail.roleName } : null);
+  const nextRoleName = nextRoleOption?.roleName ?? detail.roleName;
+
+  if (detail.roleName === "Borrower" || nextRoleName === "Borrower") {
+    if (nextRoleId !== detail.roleId) {
+      return { ok: false as const, message: "Borrower accounts cannot be changed to another role." };
+    }
+  }
+
+  if (nextRoleId !== detail.roleId && !editableRoleIds.has(nextRoleId)) {
+    return { ok: false as const, message: "This role change is not allowed in the reactivation flow." };
   }
 
   if (params.nextStatus === "inactive") {
@@ -1852,13 +2225,260 @@ export async function updateManagedUserStatus(params: {
     }
   }
 
-  await db
-    .update(users)
-    .set({
-      status: params.nextStatus,
-      updated_at: new Date().toISOString(),
-    })
-    .where(eq(users.user_id, params.userId));
+  const statusTimestamp = new Date().toISOString();
+  const assignmentEndDate = statusTimestamp.slice(0, 10);
+
+  try {
+    await db.transaction(async (tx) => {
+      if (params.nextStatus === "inactive") {
+        const [activeBranchAssignmentIds, activeAreaAssignmentIds] = await Promise.all([
+        tx
+          .select({ assignmentId: employee_branch_assignment.assignment_id })
+          .from(employee_branch_assignment)
+          .where(
+            and(
+              eq(employee_branch_assignment.employee_user_id, params.userId),
+              isNull(employee_branch_assignment.end_date),
+            ),
+          )
+          .then((rows) => rows.map((row) => row.assignmentId)),
+        tx
+          .select({ assignmentId: employee_area_assignment.assignment_id })
+          .from(employee_area_assignment)
+          .where(
+            and(
+              eq(employee_area_assignment.employee_user_id, params.userId),
+              isNull(employee_area_assignment.end_date),
+            ),
+          )
+          .then((rows) => rows.map((row) => row.assignmentId)),
+      ]);
+
+      if (activeBranchAssignmentIds.length > 0) {
+        await tx
+          .update(employee_branch_assignment)
+          .set({ end_date: assignmentEndDate })
+          .where(inArray(employee_branch_assignment.assignment_id, activeBranchAssignmentIds));
+      }
+
+      if (activeAreaAssignmentIds.length > 0) {
+        await tx
+          .update(employee_area_assignment)
+          .set({ end_date: assignmentEndDate })
+          .where(inArray(employee_area_assignment.assignment_id, activeAreaAssignmentIds));
+      }
+      }
+
+      if (params.nextStatus === "active") {
+      let validatedBranchId: number | null = null;
+      let validatedAreaId: number | null = null;
+      let validatedBranchIds: number[] = [];
+
+      if (nextRoleName === "Collector") {
+        if (!params.areaId) {
+          throw new Error("Area assignment is required before reactivating this collector.");
+        }
+
+        const areaRow = await tx
+          .select({
+            areaId: areas.area_id,
+            areaCode: areas.area_code,
+            branchId: areas.branch_id,
+            areaStatus: areas.status,
+            branchStatus: branch.status,
+          })
+          .from(areas)
+          .innerJoin(branch, eq(branch.branch_id, areas.branch_id))
+          .where(eq(areas.area_id, params.areaId))
+          .limit(1)
+          .then((rows) => rows[0] ?? null);
+
+        if (!areaRow) {
+          throw new Error("Selected area was not found.");
+        }
+
+        if (params.scope.roleName === "Branch Manager" && managerBranchId !== areaRow.branchId) {
+          throw new Error("You can only reactivate collectors into areas within your own branch.");
+        }
+
+        if (areaRow.branchStatus !== "active") {
+          throw new Error("Inactive branches cannot receive collector assignments.");
+        }
+
+        if (areaRow.areaStatus !== "active") {
+          throw new Error("Inactive areas cannot receive collector assignments.");
+        }
+
+        validatedAreaId = areaRow.areaId;
+      } else if (nextRoleName === "Auditor") {
+        if (params.scope.roleName !== "Admin") {
+          throw new Error("Only Admin can reactivate auditor branch jurisdictions.");
+        }
+
+        if (requestedBranchIds.length === 0) {
+          throw new Error("Select at least one branch before reactivating this auditor.");
+        }
+
+        const branchRows = await tx
+          .select({
+            branchId: branch.branch_id,
+            status: branch.status,
+          })
+          .from(branch)
+          .where(inArray(branch.branch_id, requestedBranchIds));
+
+        if (branchRows.length !== requestedBranchIds.length) {
+          throw new Error("One or more selected branches were not found.");
+        }
+
+        if (branchRows.some((item) => item.status !== "active")) {
+          throw new Error("Inactive branches cannot receive auditor assignments.");
+        }
+
+        const conflictingAuditorAssignments = await findConflictingAuditorAssignments({
+          branchIds: requestedBranchIds,
+          excludeUserId: params.userId,
+        });
+
+        if (conflictingAuditorAssignments.length > 0) {
+          const branchLabel = conflictingAuditorAssignments
+            .map((item) => item.branchCode || item.branchName)
+            .join(", ");
+          throw new Error(
+            `Each branch can only have one Auditor. Resolve the existing Auditor assignment for ${branchLabel} first.`,
+          );
+        }
+
+        validatedBranchIds = requestedBranchIds;
+      } else if (nextRoleName === "Branch Manager" || nextRoleName === "Secretary") {
+        const effectiveBranchId =
+          params.scope.roleName === "Branch Manager" ? managerBranchId : params.branchId ?? null;
+
+        if (!effectiveBranchId) {
+          throw new Error("Branch assignment is required before reactivating this account.");
+        }
+
+        const branchRow = await tx
+          .select({
+            branchId: branch.branch_id,
+            status: branch.status,
+          })
+          .from(branch)
+          .where(eq(branch.branch_id, effectiveBranchId))
+          .limit(1)
+          .then((rows) => rows[0] ?? null);
+
+        if (!branchRow) {
+          throw new Error("Selected branch was not found.");
+        }
+
+        if (params.scope.roleName === "Branch Manager" && managerBranchId !== branchRow.branchId) {
+          throw new Error("You can only reactivate accounts within your own branch.");
+        }
+
+        if (branchRow.status !== "active") {
+          throw new Error("Inactive branches cannot receive new assignments.");
+        }
+
+        if (nextRoleName === "Branch Manager") {
+          const existingBranchManager = await findConflictingSingleBranchRoleAssignee({
+            roleName: "Branch Manager",
+            branchId: branchRow.branchId,
+            excludeUserId: params.userId,
+          });
+
+          if (existingBranchManager) {
+            throw new Error(
+              `Each branch can only have one Branch Manager. ${formatFullName(existingBranchManager.firstName, existingBranchManager.middleName, existingBranchManager.lastName)} (${existingBranchManager.companyId}) is already assigned to ${existingBranchManager.branchName}.`,
+            );
+          }
+        }
+
+        validatedBranchId = branchRow.branchId;
+      }
+
+      // Legacy cleanup only: if an older inactive record still has open assignments,
+      // end them now so reactivation never silently restores occupancy.
+      const [legacyOpenBranchAssignmentIds, legacyOpenAreaAssignmentIds] = await Promise.all([
+        tx
+          .select({ assignmentId: employee_branch_assignment.assignment_id })
+          .from(employee_branch_assignment)
+          .where(
+            and(
+              eq(employee_branch_assignment.employee_user_id, params.userId),
+              isNull(employee_branch_assignment.end_date),
+            ),
+          )
+          .then((rows) => rows.map((row) => row.assignmentId)),
+        tx
+          .select({ assignmentId: employee_area_assignment.assignment_id })
+          .from(employee_area_assignment)
+          .where(
+            and(
+              eq(employee_area_assignment.employee_user_id, params.userId),
+              isNull(employee_area_assignment.end_date),
+            ),
+          )
+          .then((rows) => rows.map((row) => row.assignmentId)),
+      ]);
+
+      if (legacyOpenBranchAssignmentIds.length > 0) {
+        await tx
+          .update(employee_branch_assignment)
+          .set({ end_date: assignmentEndDate })
+          .where(inArray(employee_branch_assignment.assignment_id, legacyOpenBranchAssignmentIds));
+      }
+
+      if (legacyOpenAreaAssignmentIds.length > 0) {
+        await tx
+          .update(employee_area_assignment)
+          .set({ end_date: assignmentEndDate })
+          .where(inArray(employee_area_assignment.assignment_id, legacyOpenAreaAssignmentIds));
+      }
+
+      if (nextRoleName === "Collector" && validatedAreaId) {
+        await tx.insert(employee_area_assignment).values({
+          employee_user_id: params.userId,
+          area_id: validatedAreaId,
+          start_date: assignmentEndDate,
+          end_date: null,
+        });
+      }
+
+      if (nextRoleName === "Auditor" && validatedBranchIds.length > 0) {
+        await tx.insert(employee_branch_assignment).values(
+          validatedBranchIds.map((branchId) => ({
+            employee_user_id: params.userId,
+            branch_id: branchId,
+            start_date: assignmentEndDate,
+            end_date: null,
+          })),
+        );
+      }
+
+      if ((nextRoleName === "Branch Manager" || nextRoleName === "Secretary") && validatedBranchId) {
+        await tx.insert(employee_branch_assignment).values({
+          employee_user_id: params.userId,
+          branch_id: validatedBranchId,
+          start_date: assignmentEndDate,
+          end_date: null,
+        });
+      }
+      }
+
+      await tx
+        .update(users)
+        .set({
+          role_id: nextRoleId,
+          status: params.nextStatus,
+          updated_at: statusTimestamp,
+        })
+        .where(eq(users.user_id, params.userId));
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unable to update account status right now.";
+    return { ok: false as const, message };
+  }
 
   return { ok: true as const };
 }

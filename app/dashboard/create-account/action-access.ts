@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { getDashboardAuthContext } from "@/app/dashboard/auth";
 import type {
   CreateAccountResolution,
@@ -19,8 +19,55 @@ import { db } from "@/db";
 import {
   areas,
   branch,
+  employee_branch_assignment,
   roles,
+  users,
 } from "@/db/schema";
+
+async function hasActiveSingleBranchRoleAssignment(roleName: "Branch Manager", branchId: number) {
+  return db
+    .select({ userId: users.user_id })
+    .from(employee_branch_assignment)
+    .innerJoin(users, eq(users.user_id, employee_branch_assignment.employee_user_id))
+    .innerJoin(roles, eq(roles.role_id, users.role_id))
+    .where(
+      and(
+        eq(employee_branch_assignment.branch_id, branchId),
+        isNull(employee_branch_assignment.end_date),
+        eq(users.status, "active"),
+        eq(roles.role_name, roleName),
+      ),
+    )
+    .limit(1)
+    .then((rows) => rows[0] ?? null)
+    .catch(() => null);
+}
+
+async function findActiveAuditorConflicts(branchIds: number[]) {
+  if (branchIds.length === 0) {
+    return [];
+  }
+
+  return db
+    .select({
+      branchId: employee_branch_assignment.branch_id,
+      branchName: branch.branch_name,
+      branchCode: branch.branch_code,
+    })
+    .from(employee_branch_assignment)
+    .innerJoin(users, eq(users.user_id, employee_branch_assignment.employee_user_id))
+    .innerJoin(roles, eq(roles.role_id, users.role_id))
+    .innerJoin(branch, eq(branch.branch_id, employee_branch_assignment.branch_id))
+    .where(
+      and(
+        inArray(employee_branch_assignment.branch_id, branchIds),
+        isNull(employee_branch_assignment.end_date),
+        eq(users.status, "active"),
+        eq(roles.role_name, AUDITOR_ROLE_NAME),
+      ),
+    )
+    .catch(() => []);
+}
 
 export async function resolveCreateAccountCreatorAccess(): Promise<CreateAccountResolution<CreatorAccess>> {
   const auth = await getDashboardAuthContext();
@@ -290,6 +337,23 @@ export async function resolveCreateAccountScope(
       };
     }
 
+    const conflictingAuditorAssignments = await findActiveAuditorConflicts(uniqueBranchIds);
+    if (conflictingAuditorAssignments.length > 0) {
+      const branchLabel = conflictingAuditorAssignments
+        .map((item) => item.branchCode || item.branchName)
+        .join(", ");
+
+      return {
+        ok: false,
+        state: createErrorState(
+          `Each branch can only have one Auditor. Resolve the existing Auditor assignment for ${branchLabel} first.`,
+          {
+            branch_ids: "One or more selected branches already have an active auditor assigned.",
+          },
+        ),
+      };
+    }
+
     selectedBranches = branchRows;
   }
 
@@ -310,6 +374,22 @@ export async function resolveCreateAccountScope(
         branch_id: "Please select a branch.",
       }),
     };
+  }
+
+  if (input.accountCategory === "Employee" && selectedRole.roleName === "Branch Manager" && selectedSingleBranch) {
+    const existingBranchManager = await hasActiveSingleBranchRoleAssignment(
+      "Branch Manager",
+      selectedSingleBranch.branch_id,
+    );
+
+    if (existingBranchManager) {
+      return {
+        ok: false,
+        state: createErrorState("Each branch can only have one Branch Manager.", {
+          branch_id: "This branch already has an active branch manager assigned.",
+        }),
+      };
+    }
   }
 
   return {

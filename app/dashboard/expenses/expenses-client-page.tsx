@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BanknoteArrowDown, Plus } from "lucide-react";
@@ -8,16 +9,19 @@ import { resolveCollectionsPeriodTriggerLabel } from "@/app/dashboard/collection
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { EXPENSES_PAGE_SIZE_OPTIONS, EXPENSE_CATEGORIES } from "@/app/dashboard/expenses/filters";
 import { ExpensesAnalyticsSection } from "@/app/dashboard/expenses/expenses-analytics-section";
-import { ExpensesFilters } from "@/app/dashboard/expenses/expenses-filters";
 import { ExpensesResultsSection } from "@/app/dashboard/expenses/expenses-results-section";
 import type {
   ExpenseBranchOption,
   ExpensesFilterInput,
   ExpensesResultsData,
 } from "@/app/dashboard/expenses/types";
+
+const ExpensesFilters = dynamic(
+  () => import("@/app/dashboard/expenses/expenses-filters").then((module) => module.ExpensesFilters),
+  { ssr: false },
+);
 
 type ExpensesClientPageProps = {
   branchOptions: ExpenseBranchOption[];
@@ -238,18 +242,13 @@ export function ExpensesClientPage({
 
   return (
     <div className="w-full max-w-none space-y-5 pb-6 pt-1 sm:pb-6 sm:pt-2">
-      <Tabs
-        className="w-full"
-        onValueChange={(value) => setActiveTab(value as ExpensesWorkspaceTab)}
-        value={activeTab}
-      >
-        <Card className="gap-0 overflow-hidden py-0">
+      <Card className="gap-0 overflow-hidden py-0">
         <div className="bg-gradient-to-r from-slate-50 via-background to-emerald-50/60 p-6 dark:from-zinc-950 dark:via-background dark:to-emerald-950/45">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
             <div className="space-y-1">
               <div className="space-y-1">
                 <h1 className="flex items-center gap-2 text-3xl font-semibold tracking-tight text-foreground">
-                  <BanknoteArrowDown className="size-5 text-muted-foreground" />
+                  <BanknoteArrowDown className="size-7 text-muted-foreground" />
                   Expenses
                 </h1>
                 <p className="text-sm text-muted-foreground">{description}</p>
@@ -337,9 +336,9 @@ export function ExpensesClientPage({
             />
           </div>
         </div>
-        </Card>
+      </Card>
 
-        <TabsContent className="mt-0" value="records">
+      {activeTab === "records" ? (
           <ExpensesResultsSection
             data={results}
             errorMessage={errorMessage}
@@ -347,16 +346,15 @@ export function ExpensesClientPage({
             onPageChange={(page) => updateFilters({ page })}
             onPageSizeChange={(pageSize) => updateFilters({ pageSize })}
           />
-        </TabsContent>
+      ) : null}
 
-        <TabsContent className="mt-0" value="analytics">
+      {activeTab === "analytics" ? (
           <ExpensesAnalyticsSection
             data={results}
             isMultiBranchScope={canChooseBranch && filters.branch === "all"}
             isPending={isPending}
           />
-        </TabsContent>
-      </Tabs>
+      ) : null}
     </div>
   );
 }

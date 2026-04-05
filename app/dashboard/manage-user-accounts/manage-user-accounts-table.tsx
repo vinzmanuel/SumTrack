@@ -79,7 +79,14 @@ export function ManageUserAccountsTable({
                   {row.roleName}
                 </Badge>
               </TableCell>
-              <TableCell className="py-3">{row.scopeLabel}</TableCell>
+              <TableCell className="py-3">
+                <div className="space-y-0.5">
+                  <p>{row.scopeLabel}</p>
+                  {row.scopeContextLabel ? (
+                    <p className="text-xs text-muted-foreground">{row.scopeContextLabel}</p>
+                  ) : null}
+                </div>
+              </TableCell>
               <TableCell className="py-3 text-muted-foreground">{row.contactNo || "-"}</TableCell>
               <TableCell className="py-3 text-muted-foreground">{row.email || "-"}</TableCell>
               <TableCell className="py-3">

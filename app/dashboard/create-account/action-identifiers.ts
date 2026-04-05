@@ -10,17 +10,15 @@ export function generateTemporaryPassword() {
   const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
   const lower = "abcdefghijkmnopqrstuvwxyz";
   const digits = "23456789";
-  const symbols = "!@#$%^&*_-+=";
-  const allChars = `${upper}${lower}${digits}${symbols}`;
+  const allChars = `${upper}${lower}${digits}`;
 
   const required = [
     upper[randomInt(upper.length)],
     lower[randomInt(lower.length)],
     digits[randomInt(digits.length)],
-    symbols[randomInt(symbols.length)],
   ];
 
-  const remainingLength = 14 - required.length;
+  const remainingLength = 8 - required.length;
   const remaining = Array.from({ length: remainingLength }, () => allChars[randomInt(allChars.length)]);
   const mixed = [...required, ...remaining];
 

@@ -365,8 +365,8 @@ export function ManageUserAccountsClientPage({
             <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
               <div className="space-y-1">
                 <div className="space-y-1">
-                  <h1 className="flex items-center gap-2 text-3xl font-semibold tracking-tight text-foreground">
-                    <UserCog className="size-8 shrink-0 text-muted-foreground" />
+                  <h1 className="flex items-center gap-2 text-3xl leading-none font-semibold tracking-tight text-foreground">
+                    <UserCog className="relative -top-px size-7 shrink-0 text-muted-foreground" />
                     Manage User Accounts
                   </h1>
                   <p className="text-sm text-muted-foreground">

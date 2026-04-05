@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Plus, X } from "lucide-react";
+import { AlertTriangle, Plus, X } from "lucide-react";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -13,6 +13,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -172,6 +173,7 @@ export function ManagedUserAccountEditModal({
   }, [detail, formState, roleOptions]);
 
   const selectedRoleName = selectedRole?.roleName ?? detail?.roleName ?? "";
+  const isInactiveAccount = detail?.status === "inactive";
   const showRoleSelector = Boolean(detail?.canEditRole && roleOptions.length > 0);
   const showCollectorBranchSelector =
     Boolean(detail?.canEditBranchAssignment) && selectedRoleName === "Collector";
@@ -181,19 +183,30 @@ export function ManagedUserAccountEditModal({
   const showAuditorBranchSelector =
     Boolean(detail?.canEditAuditorBranchAssignments) && selectedRoleName === "Auditor";
   const showAreaAssignmentControl = Boolean(detail?.canEditAreaAssignment) && selectedRoleName === "Collector";
+  const selectableBranchOptions =
+    detail
+      ? selectedRoleName === "Branch Manager"
+        ? detail.editableBranchOptions.filter((item) => !item.hasActiveBranchManager)
+        : selectedRoleName === "Auditor"
+          ? detail.editableBranchOptions.filter((item) => !item.hasActiveAuditor)
+          : detail.editableBranchOptions
+      : [];
   const visibleAreaOptions =
     detail && formState
       ? detail.editableAreaOptions.filter((item) =>
           formState.branchId ? String(item.branchId ?? "") === formState.branchId : false,
         )
       : [];
+  const selectedAreaOption =
+    visibleAreaOptions.find((item) => String(item.areaId) === formState?.areaId) ?? null;
+  const selectedAreaHasCollectorWarning = selectedAreaOption?.hasActiveCollector ?? false;
   const selectedAuditorBranches =
     detail && formState
       ? detail.editableBranchOptions.filter((item) => formState.branchIds.includes(String(item.branchId)))
       : [];
   const availableAuditorBranches =
     detail && formState
-      ? detail.editableBranchOptions.filter((item) => !formState.branchIds.includes(String(item.branchId)))
+      ? selectableBranchOptions.filter((item) => !formState.branchIds.includes(String(item.branchId)))
       : [];
   const requiresContactNo = selectedRoleName === "Borrower" || selectedRoleName === "Collector";
 
@@ -595,7 +608,7 @@ export function ManagedUserAccountEditModal({
                             <SelectValue placeholder="Select branch" />
                           </SelectTrigger>
                           <SelectContent>
-                            {detail.editableBranchOptions.map((item) => (
+                            {selectableBranchOptions.map((item) => (
                               <SelectItem key={String(item.branchId)} value={String(item.branchId)}>
                                 {branchLabel(item)}
                               </SelectItem>
@@ -710,8 +723,26 @@ export function ManagedUserAccountEditModal({
                 </div>
               ) : null}
 
+              {selectedAreaHasCollectorWarning ? (
+                <Alert className="border-amber-200 bg-amber-50/80 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertDescription className="text-amber-800 dark:text-amber-200">
+                    There is already an active collector assigned to this area. Add another collector here only if this is intentional, such as for handoff, replacement, or transition of live loans.
+                  </AlertDescription>
+                </Alert>
+              ) : null}
+
+              {isInactiveAccount ? (
+                <Alert className="border-border/70 bg-muted/25">
+                  <AlertDescription>
+                    This account is currently inactive. Previous role and assignment details below are historical only. Reactivate the account before changing role or placement.
+                  </AlertDescription>
+                </Alert>
+              ) : null}
+
               <div className="rounded-md border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
                 Editing {detail.fullName} ({detail.status}) in {detail.scopeLabel}
+                {detail.scopeContextLabel ? ` • ${detail.scopeContextLabel}` : ""}
               </div>
             </div>
           )}

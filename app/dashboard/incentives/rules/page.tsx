@@ -262,7 +262,7 @@ export default async function IncentiveRulesPage({
           <CardHeader className="px-0 py-0">
             <div className="flex flex-col gap-1">
               <CardTitle className="flex items-center gap-2 text-3xl font-semibold tracking-tight">
-                <Settings2 className="size-5 text-muted-foreground" />
+                <Settings2 className="size-7 text-muted-foreground" />
                 Incentive Rules
               </CardTitle>
               <CardDescription>

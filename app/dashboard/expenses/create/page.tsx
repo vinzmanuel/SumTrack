@@ -23,7 +23,7 @@ function renderCreateExpenseWorkspace(props: {
           <div className="bg-gradient-to-r from-slate-50 via-background to-emerald-50/60 p-6 dark:from-zinc-950 dark:via-background dark:to-emerald-950/45">
             <div className="space-y-1">
               <CardTitle className="flex items-center gap-2 text-3xl font-semibold tracking-tight">
-                <BanknoteArrowDown className="size-5 text-muted-foreground" />
+                <BanknoteArrowDown className="size-7 text-muted-foreground" />
                 Create Expense
               </CardTitle>
               <CardDescription>Record branch operating expenses.</CardDescription>

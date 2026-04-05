@@ -66,12 +66,15 @@ export type ManagedUserBranchOption = {
   branchId: number;
   branchName: string;
   branchCode?: string;
+  hasActiveBranchManager?: boolean;
+  hasActiveAuditor?: boolean;
 };
 
 export type ManagedUserAreaOption = {
   areaId: number;
   areaCode: string;
   branchId?: number;
+  hasActiveCollector?: boolean;
 };
 
 export type ManagedUserRoleOption = {
@@ -140,6 +143,7 @@ export type ManagedUserListRow = {
   username: string;
   roleName: string;
   scopeLabel: string;
+  scopeContextLabel?: string | null;
   contactNo: string | null;
   email: string | null;
   status: "active" | "inactive";
@@ -177,6 +181,7 @@ export type ManagedUserDetail = {
   status: "active" | "inactive";
   accountCategory: "Employee" | "Borrower";
   scopeLabel: string;
+  scopeContextLabel: string;
   contactLabel: string;
   contactNo: string | null;
   dateCreated: string | null;
@@ -194,6 +199,9 @@ export type ManagedUserDetail = {
   currentAreaId: number | null;
   currentAreaCode: string | null;
   currentBranchAssignments: ManagedUserBranchOption[];
+  lastHeldBranchAssignments: ManagedUserBranchOption[];
+  lastHeldAreaId: number | null;
+  lastHeldAreaCode: string | null;
   editableBranchOptions: ManagedUserBranchOption[];
   editableAreaOptions: ManagedUserAreaOption[];
 };

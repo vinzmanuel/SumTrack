@@ -1,4 +1,5 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
+import { UserPlus } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DashboardBackLink } from "@/app/dashboard/_components/dashboard-back-link";
 import {
@@ -7,7 +8,14 @@ import {
 } from "@/app/dashboard/auth";
 import { resolveBackNavigation } from "@/app/dashboard/back-navigation";
 import { db } from "@/db";
-import { areas, branch, roles } from "@/db/schema";
+import {
+  areas,
+  branch,
+  employee_area_assignment,
+  employee_branch_assignment,
+  roles,
+  users,
+} from "@/db/schema";
 import { CreateAccountForm } from "@/app/dashboard/create-account/create-account-form";
 
 type RoleRow = {
@@ -27,6 +35,12 @@ type AreaRow = {
   area_code: string;
 };
 
+type OccupiedAssignmentScope = {
+  occupiedBranchManagerBranchIds: string[];
+  occupiedAuditorBranchIds: string[];
+  collectorWarningAreaIds: string[];
+};
+
 const ALLOWED_ROLE_NAMES = [
   "Admin",
   "Auditor",
@@ -35,6 +49,35 @@ const ALLOWED_ROLE_NAMES = [
   "Collector",
   "Borrower",
 ];
+
+function renderCreateUserWorkspace(props: {
+  backHref: string;
+  backLabel: string;
+  description: string;
+  form: React.ReactNode;
+}) {
+  return (
+    <main className="mx-auto min-h-screen w-full max-w-5xl px-6 pb-6 pt-0">
+      <div className="space-y-4">
+        <DashboardBackLink href={props.backHref} label={props.backLabel} />
+
+        <Card className="gap-0 overflow-hidden py-0">
+          <div className="bg-gradient-to-r from-slate-50 via-background to-emerald-50/60 p-6 dark:from-zinc-950 dark:via-background dark:to-emerald-950/45">
+            <div className="space-y-1">
+              <CardTitle className="flex items-center gap-2 text-3xl font-semibold tracking-tight">
+                <UserPlus className="size-7 text-muted-foreground" />
+                Create User
+              </CardTitle>
+              <CardDescription>{props.description}</CardDescription>
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      <div className="mt-6">{props.form}</div>
+    </main>
+  );
+}
 
 export default async function CreateAccountPage({
   searchParams,
@@ -70,7 +113,7 @@ export default async function CreateAccountPage({
       <main className="mx-auto flex min-h-screen w-full max-w-4xl items-center justify-center p-6">
         <Card className="w-full max-w-md">
           <CardHeader>
-            <CardTitle>Create Account</CardTitle>
+            <CardTitle>Create User</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground">Not logged in</p>
@@ -90,7 +133,7 @@ export default async function CreateAccountPage({
       <main className="mx-auto flex min-h-screen w-full max-w-4xl items-center justify-center p-6">
         <Card className="w-full max-w-md">
           <CardHeader>
-            <CardTitle>Create Account</CardTitle>
+            <CardTitle>Create User</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm text-muted-foreground">
@@ -111,7 +154,7 @@ export default async function CreateAccountPage({
         <main className="mx-auto flex min-h-screen w-full max-w-4xl items-center justify-center p-6">
           <Card className="w-full max-w-md">
             <CardHeader>
-              <CardTitle>Create Account</CardTitle>
+              <CardTitle>Create User</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
               <p className="text-sm text-amber-700 dark:text-amber-400">
@@ -188,12 +231,84 @@ export default async function CreateAccountPage({
     area_code: item.area_code,
   }));
 
+  const scopedBranchIds = mappedBranches.map((item) => Number(item.branch_id)).filter(Number.isFinite);
+  const scopedAreaIds = mappedAreas.map((item) => Number(item.area_id)).filter(Number.isFinite);
+
+  const occupiedAssignments: OccupiedAssignmentScope = {
+    occupiedBranchManagerBranchIds: [],
+    occupiedAuditorBranchIds: [],
+    collectorWarningAreaIds: [],
+  };
+
+  if (scopedBranchIds.length > 0 || scopedAreaIds.length > 0) {
+    const [branchManagerAssignments, auditorAssignments, collectorAreaAssignments] = await Promise.all([
+      scopedBranchIds.length > 0
+        ? db
+            .select({ branchId: employee_branch_assignment.branch_id })
+            .from(employee_branch_assignment)
+            .innerJoin(users, eq(users.user_id, employee_branch_assignment.employee_user_id))
+            .innerJoin(roles, eq(roles.role_id, users.role_id))
+            .where(
+              and(
+                inArray(employee_branch_assignment.branch_id, scopedBranchIds),
+                isNull(employee_branch_assignment.end_date),
+                eq(users.status, "active"),
+                eq(roles.role_name, "Branch Manager"),
+              ),
+            )
+            .catch(() => [])
+        : Promise.resolve([]),
+      scopedBranchIds.length > 0
+        ? db
+            .select({ branchId: employee_branch_assignment.branch_id })
+            .from(employee_branch_assignment)
+            .innerJoin(users, eq(users.user_id, employee_branch_assignment.employee_user_id))
+            .innerJoin(roles, eq(roles.role_id, users.role_id))
+            .where(
+              and(
+                inArray(employee_branch_assignment.branch_id, scopedBranchIds),
+                isNull(employee_branch_assignment.end_date),
+                eq(users.status, "active"),
+                eq(roles.role_name, "Auditor"),
+              ),
+            )
+            .catch(() => [])
+        : Promise.resolve([]),
+      scopedAreaIds.length > 0
+        ? db
+            .select({ areaId: employee_area_assignment.area_id })
+            .from(employee_area_assignment)
+            .innerJoin(users, eq(users.user_id, employee_area_assignment.employee_user_id))
+            .innerJoin(roles, eq(roles.role_id, users.role_id))
+            .where(
+              and(
+                inArray(employee_area_assignment.area_id, scopedAreaIds),
+                isNull(employee_area_assignment.end_date),
+                eq(users.status, "active"),
+                eq(roles.role_name, "Collector"),
+              ),
+            )
+            .catch(() => [])
+        : Promise.resolve([]),
+    ]);
+
+    occupiedAssignments.occupiedBranchManagerBranchIds = Array.from(
+      new Set(branchManagerAssignments.map((item) => String(item.branchId))),
+    );
+    occupiedAssignments.occupiedAuditorBranchIds = Array.from(
+      new Set(auditorAssignments.map((item) => String(item.branchId))),
+    );
+    occupiedAssignments.collectorWarningAreaIds = Array.from(
+      new Set(collectorAreaAssignments.map((item) => String(item.areaId))),
+    );
+  }
+
   if (!isAdmin && fixedBranchId && mappedBranches.length === 0) {
     return (
       <main className="mx-auto flex min-h-screen w-full max-w-4xl items-center justify-center p-6">
         <Card className="w-full max-w-md">
           <CardHeader>
-            <CardTitle>Create Account</CardTitle>
+            <CardTitle>Create User</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm text-amber-700 dark:text-amber-400">
@@ -206,34 +321,25 @@ export default async function CreateAccountPage({
     );
   }
 
-  return (
-    <main className="mx-auto min-h-screen w-full max-w-5xl px-6 pb-6 pt-3 md:pt-4">
-      <div className="space-y-4">
-        <DashboardBackLink href={backNavigation.href} label={backNavigation.label} />
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Create Account</CardTitle>
-            <CardDescription>
-              {isAdmin
-                ? "Admin account provisioning for employee and borrower profiles."
-                : isBranchManager
-                  ? "Create secretary, collector, and borrower accounts within your assigned branch."
-                  : "Create borrower accounts within your assigned branch."}
-            </CardDescription>
-          </CardHeader>
-        </Card>
-      </div>
-
-      <div className="mt-6">
-        <CreateAccountForm
-          areas={mappedAreas}
-          borrowerOnly={isSecretary}
-          branches={mappedBranches}
-          fixedBranchId={fixedBranchId ? String(fixedBranchId) : null}
-          roles={mappedRoles}
-        />
-      </div>
-    </main>
-  );
+  return renderCreateUserWorkspace({
+    backHref: backNavigation.href,
+    backLabel: backNavigation.label,
+    description: isAdmin
+      ? "Provision employee and borrower accounts with role-aware branch and area assignments."
+      : isBranchManager
+        ? "Create secretary, collector, and borrower accounts within your assigned branch."
+        : "Create borrower accounts within your assigned branch.",
+    form: (
+      <CreateAccountForm
+        areas={mappedAreas}
+        borrowerOnly={isSecretary}
+        branches={mappedBranches}
+        fixedBranchId={fixedBranchId ? String(fixedBranchId) : null}
+        occupiedAuditorBranchIds={occupiedAssignments.occupiedAuditorBranchIds}
+        occupiedBranchManagerBranchIds={occupiedAssignments.occupiedBranchManagerBranchIds}
+        collectorWarningAreaIds={occupiedAssignments.collectorWarningAreaIds}
+        roles={mappedRoles}
+      />
+    ),
+  });
 }

@@ -65,16 +65,36 @@ export async function renderRoleAccountProfilePage(params: {
         details={[
           { label: "Full Name", value: detail.fullName },
           { label: "Status", value: detail.status === "active" ? "Active" : "Inactive" },
-          { label: "Branch / Scope", value: detail.scopeLabel },
+          {
+            label: detail.status === "active" ? "Current Branch / Scope" : "Last Held Branch / Scope",
+            value: detail.scopeLabel,
+          },
+          detail.status === "active" && detail.scopeLabel === "Unassigned" && detail.lastHeldBranchAssignments.length > 0
+            ? {
+                label: "Last Held Branch / Scope",
+                value: detail.lastHeldBranchAssignments.map((item) => item.branchCode || item.branchName).join(", "),
+              }
+            : null,
+          detail.status === "inactive" && detail.lastHeldAreaCode
+            ? { label: "Last Held Area", value: detail.lastHeldAreaCode }
+            : detail.status === "active" && detail.currentAreaCode
+              ? { label: "Current Area", value: detail.currentAreaCode }
+              : detail.status === "active" && detail.lastHeldAreaCode
+                ? { label: "Last Held Area", value: detail.lastHeldAreaCode }
+              : null,
           { label: "Contact No.", value: detail.contactNo || "N/A" },
           { label: "Email", value: detail.email || "N/A" },
           { label: "Account Category", value: detail.accountCategory },
           { label: "Date Created", value: detail.dateCreated || "N/A" },
-        ]}
+        ].filter(Boolean) as Array<{ label: string; value: string | null | undefined }>}
         eyebrow="Account Overview"
         roleName={detail.roleName}
         status={detail.status}
-        subtitle="Read-only account details for this user within your allowed scope."
+        subtitle={
+          detail.status === "inactive"
+            ? "Read-only inactive account details, including the last held assignment context."
+            : "Read-only account details for this user within your allowed scope."
+        }
         title={detail.fullName}
       />
     </div>

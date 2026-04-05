@@ -1304,6 +1304,7 @@ export async function loadBranchAreasTabDataByCode(
         and(
           inArray(employee_area_assignment.area_id, areaIds),
           isNull(employee_area_assignment.end_date),
+          eq(users.status, "active"),
           eq(roles.role_name, "Collector"),
         ),
       )

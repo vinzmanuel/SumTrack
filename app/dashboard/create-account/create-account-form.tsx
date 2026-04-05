@@ -1,10 +1,11 @@
 "use client";
 
-import { useActionState, useMemo, useRef, useState, type FormEvent } from "react";
-import { Loader2 } from "lucide-react";
+import { useActionState, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
 import { useFormStatus } from "react-dom";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -44,6 +45,9 @@ type CreateAccountFormProps = {
   areas: AreaOption[];
   borrowerOnly?: boolean;
   fixedBranchId?: string | null;
+  occupiedBranchManagerBranchIds?: string[];
+  occupiedAuditorBranchIds?: string[];
+  collectorWarningAreaIds?: string[];
 };
 
 const EMPLOYEE_ROLE_NAMES = ["Admin", "Auditor", "Branch Manager", "Secretary", "Collector"];
@@ -72,6 +76,43 @@ function FieldLabel({ children, htmlFor, required = false }: FieldLabelProps) {
       {children}
       {required ? <span className="ml-1 text-destructive">*</span> : null}
     </Label>
+  );
+}
+
+type DetailRowProps = {
+  label: string;
+  value: string;
+  action?: ReactNode;
+  valueClassName?: string;
+};
+
+function DetailRow({ label, value, action, valueClassName }: DetailRowProps) {
+  return (
+    <div className="grid items-start gap-x-6 gap-y-2 border-b border-border/60 pb-3 last:border-b-0 last:pb-0 md:grid-cols-[160px_minmax(0,1fr)_auto] md:items-center">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground md:pt-1">
+        {label}
+      </p>
+      <p className={valueClassName ?? "text-sm font-medium leading-6 text-foreground"}>{value}</p>
+      {action ? <div className="flex items-center gap-2 md:justify-end">{action}</div> : null}
+    </div>
+  );
+}
+
+type DetailSectionProps = {
+  title: string;
+  description: string;
+  children: ReactNode;
+};
+
+function DetailSection({ title, description, children }: DetailSectionProps) {
+  return (
+    <div className="space-y-3 rounded-xl border border-border/70 bg-muted/20 px-4 py-3">
+      <div className="space-y-1">
+        <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+        <p className="text-xs text-muted-foreground">{description}</p>
+      </div>
+      <div className="space-y-3">{children}</div>
+    </div>
   );
 }
 
@@ -126,9 +167,13 @@ export function CreateAccountForm({
   areas,
   borrowerOnly = false,
   fixedBranchId = null,
+  occupiedBranchManagerBranchIds = [],
+  occupiedAuditorBranchIds = [],
+  collectorWarningAreaIds = [],
 }: CreateAccountFormProps) {
   const [state, formAction] = useActionState(createAccountAction, initialCreateAccountState);
   const formRef = useRef<HTMLFormElement>(null);
+  const confirmedSubmitRef = useRef(false);
 
   const [accountCategory, setAccountCategory] = useState<AccountCategory>(borrowerOnly ? "Borrower" : "Employee");
   const [roleId, setRoleId] = useState("");
@@ -142,7 +187,8 @@ export function CreateAccountForm({
   const [areaId, setAreaId] = useState("");
   const [auditorBranchIds, setAuditorBranchIds] = useState<string[]>([]);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
-  const [isConfirmedSubmit, setIsConfirmedSubmit] = useState(false);
+  const [successDialogDismissed, setSuccessDialogDismissed] = useState(false);
+  const [isCloseWarningOpen, setIsCloseWarningOpen] = useState(false);
   const [copyStatus, setCopyStatus] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
@@ -184,13 +230,43 @@ export function CreateAccountForm({
     () => areas.filter((item) => String(item.branch_id) === singleBranchId),
     [areas, singleBranchId],
   );
+  const occupiedBranchManagerBranchIdSet = useMemo(
+    () => new Set(occupiedBranchManagerBranchIds),
+    [occupiedBranchManagerBranchIds],
+  );
+  const occupiedAuditorBranchIdSet = useMemo(
+    () => new Set(occupiedAuditorBranchIds),
+    [occupiedAuditorBranchIds],
+  );
+  const collectorWarningAreaIdSet = useMemo(
+    () => new Set(collectorWarningAreaIds),
+    [collectorWarningAreaIds],
+  );
+  const selectableSingleBranchOptions = useMemo(() => {
+    if (selectedRoleName === "Branch Manager") {
+      return branches.filter((item) => !occupiedBranchManagerBranchIdSet.has(String(item.branch_id)));
+    }
+
+    return branches;
+  }, [branches, occupiedBranchManagerBranchIdSet, selectedRoleName]);
+  const selectableAuditorBranchOptions = useMemo(
+    () => branches.filter((item) => !occupiedAuditorBranchIdSet.has(String(item.branch_id))),
+    [branches, occupiedAuditorBranchIdSet],
+  );
+  const selectableAreaOptions = areaOptions;
 
   const selectedSingleBranchName =
     branches.find((item) => String(item.branch_id) === singleBranchId)?.branch_name ?? "";
   const selectedAreaCode = areaOptions.find((item) => String(item.area_id) === areaId)?.area_code ?? "";
+  const selectedAreaHasCollectorWarning =
+    accountCategory === "Employee" &&
+    selectedRoleName === "Collector" &&
+    Boolean(areaId) &&
+    collectorWarningAreaIdSet.has(areaId);
   const selectedAuditorBranchNames = branches
     .filter((item) => auditorBranchIds.includes(String(item.branch_id)))
     .map((item) => item.branch_name);
+  const isSuccessOpen = state.status === "success" && Boolean(state.result) && !successDialogDismissed;
 
   function handleCategoryChange(value: AccountCategory) {
     if (borrowerOnly) {
@@ -238,8 +314,8 @@ export function CreateAccountForm({
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    if (isConfirmedSubmit) {
-      setIsConfirmedSubmit(false);
+    if (confirmedSubmitRef.current) {
+      confirmedSubmitRef.current = false;
       return;
     }
 
@@ -249,8 +325,27 @@ export function CreateAccountForm({
 
   function handleConfirmCreate() {
     setIsConfirmOpen(false);
-    setIsConfirmedSubmit(true);
+    setSuccessDialogDismissed(false);
+    setCopyStatus("");
+    setShowPassword(false);
+    confirmedSubmitRef.current = true;
     formRef.current?.requestSubmit();
+  }
+
+  function handleSuccessDialogOpenChange(nextOpen: boolean) {
+    if (!nextOpen && state.result) {
+      setIsCloseWarningOpen(true);
+      return;
+    }
+
+    if (nextOpen) {
+      setSuccessDialogDismissed(false);
+    }
+  }
+
+  function handleCloseWarningConfirm() {
+    setIsCloseWarningOpen(false);
+    setSuccessDialogDismissed(true);
   }
 
   async function handleCopy(text: string, label: string) {
@@ -308,7 +403,7 @@ export function CreateAccountForm({
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Create Account</CardTitle>
+          <CardTitle>User Details</CardTitle>
         </CardHeader>
         <CardContent>
           <form action={formAction} className="space-y-4" onSubmit={handleSubmit} ref={formRef}>
@@ -456,13 +551,18 @@ export function CreateAccountForm({
                       <SelectValue placeholder="Select branch" />
                     </SelectTrigger>
                     <SelectContent>
-                      {branches.map((item) => (
+                      {selectableSingleBranchOptions.map((item) => (
                         <SelectItem key={String(item.branch_id)} value={String(item.branch_id)}>
                           {item.branch_name}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                  {selectableSingleBranchOptions.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      No branches are available for this role right now.
+                    </p>
+                  ) : null}
                   {state.fieldErrors?.branch_id ? (
                     <p className="text-sm text-destructive">{state.fieldErrors.branch_id}</p>
                   ) : null}
@@ -479,13 +579,26 @@ export function CreateAccountForm({
                       />
                     </SelectTrigger>
                     <SelectContent>
-                      {areaOptions.map((item) => (
+                      {selectableAreaOptions.map((item) => (
                         <SelectItem key={String(item.area_id)} value={String(item.area_id)}>
                           {item.area_code}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
+                  {singleBranchId && selectableAreaOptions.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      No active areas are available in the selected branch.
+                    </p>
+                  ) : null}
+                  {selectedAreaHasCollectorWarning ? (
+                    <Alert className="border-amber-200 bg-amber-50/80 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
+                      <AlertTriangle className="h-4 w-4" />
+                      <AlertDescription className="text-amber-800 dark:text-amber-200">
+                        There is already an active collector assigned to this area. Add another collector here only if this is intentional, such as for handoff, replacement, or transition of live loans.
+                      </AlertDescription>
+                    </Alert>
+                  ) : null}
                   {state.fieldErrors?.area_id ? (
                     <p className="text-sm text-destructive">{state.fieldErrors.area_id}</p>
                   ) : null}
@@ -522,13 +635,18 @@ export function CreateAccountForm({
                     <SelectValue placeholder="Select branch" />
                   </SelectTrigger>
                   <SelectContent>
-                    {branches.map((item) => (
+                    {selectableSingleBranchOptions.map((item) => (
                       <SelectItem key={String(item.branch_id)} value={String(item.branch_id)}>
                         {item.branch_name}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                {selectableSingleBranchOptions.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No branches are available for this role right now.
+                  </p>
+                ) : null}
                 {state.fieldErrors?.branch_id ? (
                   <p className="text-sm text-destructive">{state.fieldErrors.branch_id}</p>
                 ) : null}
@@ -539,7 +657,7 @@ export function CreateAccountForm({
               <div className="space-y-2">
                 <FieldLabel required>Assigned Branches (Select one or more)</FieldLabel>
                 <div className="space-y-2 rounded-md border p-3">
-                  {branches.map((item) => (
+                  {selectableAuditorBranchOptions.map((item) => (
                     <label className="flex items-center gap-2 text-sm" key={String(item.branch_id)}>
                       <input
                         checked={auditorBranchIds.includes(String(item.branch_id))}
@@ -561,6 +679,11 @@ export function CreateAccountForm({
                     </label>
                   ))}
                 </div>
+                {selectableAuditorBranchOptions.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No branches are available for auditor assignment right now.
+                  </p>
+                ) : null}
                 {state.fieldErrors?.branch_ids ? (
                   <p className="text-sm text-destructive">{state.fieldErrors.branch_ids}</p>
                 ) : null}
@@ -575,55 +698,60 @@ export function CreateAccountForm({
           </form>
 
           <Dialog onOpenChange={setIsConfirmOpen} open={isConfirmOpen}>
-            <DialogContent>
+            <DialogContent className="sm:max-w-2xl">
               <DialogHeader>
                 <DialogTitle>Confirm Account Creation</DialogTitle>
-                <DialogDescription>Review details before creating the account.</DialogDescription>
+                <DialogDescription>
+                  Review the user details, scope, and contact information before creating the account.
+                </DialogDescription>
               </DialogHeader>
 
-              <div className="space-y-2 text-sm">
-                <p>
-                  <span className="font-medium">Account Category:</span> {accountCategory}
-                </p>
-                <p>
-                  <span className="font-medium">Role:</span>{" "}
-                  {accountCategory === "Borrower" ? "Borrower" : selectedRoleName || "N/A"}
-                </p>
-                <p>
-                  <span className="font-medium">Full Name:</span>{" "}
-                  {[firstName, middleName, lastName].filter(Boolean).join(" ") || "N/A"}
-                </p>
-                {singleBranchId && selectedSingleBranchName ? (
-                  <p>
-                    <span className="font-medium">Branch:</span> {selectedSingleBranchName}
-                  </p>
-                ) : null}
-                {areaId && selectedAreaCode ? (
-                  <p>
-                    <span className="font-medium">Area:</span> {selectedAreaCode}
-                  </p>
-                ) : null}
-                {showAuditorBranchSelector && selectedAuditorBranchNames.length > 0 ? (
-                  <p>
-                    <span className="font-medium">Assigned Branches:</span>{" "}
-                    {selectedAuditorBranchNames.join(", ")}
-                  </p>
-                ) : null}
-                {contactNo ? (
-                  <p>
-                    <span className="font-medium">Contact Number:</span> {contactNo}
-                  </p>
-                ) : null}
-                {accountCategory === "Borrower" ? (
-                  <p>
-                    <span className="font-medium">Address:</span> {address || ""}
-                  </p>
-                ) : null}
-                {email ? (
-                  <p>
-                    <span className="font-medium">Email:</span> {email}
-                  </p>
-                ) : null}
+              <div className="space-y-4">
+                <DetailSection
+                  description="Who is being created and what kind of account will be provisioned."
+                  title="Identity"
+                >
+                  <DetailRow label="Account Category" value={accountCategory} />
+                  <DetailRow
+                    label="Role"
+                    value={accountCategory === "Borrower" ? "Borrower" : selectedRoleName || "Not selected"}
+                  />
+                  <DetailRow
+                    label="Full Name"
+                    value={[firstName, middleName, lastName].filter(Boolean).join(" ") || "Not provided"}
+                  />
+                </DetailSection>
+
+                <DetailSection
+                  description="Where this account will operate once the user is created."
+                  title="Scope"
+                >
+                  <DetailRow label="Branch" value={selectedSingleBranchName || "Not assigned"} />
+                  {showAreaFlow ? (
+                    <DetailRow label="Area" value={selectedAreaCode || "Not assigned"} />
+                  ) : null}
+                  {showAuditorBranchSelector ? (
+                    <DetailRow
+                      label="Assigned Branches"
+                      value={
+                        selectedAuditorBranchNames.length > 0
+                          ? selectedAuditorBranchNames.join(", ")
+                          : "No branches selected"
+                      }
+                    />
+                  ) : null}
+                </DetailSection>
+
+                <DetailSection
+                  description="Contact details that will be stored with the account record."
+                  title="Contact"
+                >
+                  <DetailRow label="Contact Number" value={contactNo || "Not provided"} />
+                  <DetailRow label="Email" value={email || "Not provided"} />
+                  {accountCategory === "Borrower" ? (
+                    <DetailRow label="Address" value={address || "Not provided"} valueClassName="text-sm text-foreground" />
+                  ) : null}
+                </DetailSection>
               </div>
 
               <DialogFooter>
@@ -640,122 +768,151 @@ export function CreateAccountForm({
       </Card>
 
       {state.status === "success" && state.result ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Account Created</CardTitle>
-            <CardAction className="flex flex-wrap gap-2">
-              <Button
-                onClick={() => handleCopy(buildAccountDetailsText(state.result!), "Account details")}
-                size="sm"
-                type="button"
-                variant="outline"
-              >
-                Copy All Account Details
-              </Button>
-              <Button onClick={handlePrintSlip} size="sm" type="button" variant="outline">
-                Print Account Slip
-              </Button>
-            </CardAction>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <p>
-              <span className="font-medium">Account Category:</span> {state.result.accountCategory}
-            </p>
-            <p>
-              <span className="font-medium">Created Role:</span> {state.result.role}
-            </p>
-            <p>
-              <span className="font-medium">Full Name:</span> {state.result.fullName}
-            </p>
-            <div className="flex flex-wrap items-center gap-2">
-              <p>
-                <span className="font-medium">Company ID:</span> {state.result.companyId}
-              </p>
-              <Button
-                onClick={() => handleCopy(state.result!.companyId, "Company ID")}
-                size="xs"
-                type="button"
-                variant="outline"
-              >
-                Copy Company ID
-              </Button>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <p>
-                <span className="font-medium">Username:</span> {state.result.username}
-              </p>
-              <Button
-                onClick={() => handleCopy(state.result!.username, "Username")}
-                size="xs"
-                type="button"
-                variant="outline"
-              >
-                Copy Username
-              </Button>
-            </div>
-            <p>
-              <span className="font-medium">Created User UID:</span> {state.result.userId}
-            </p>
-            <div className="flex flex-wrap items-center gap-2">
-              <p>
-                <span className="font-medium">Temporary Password:</span>{" "}
-                {showPassword ? state.result.temporaryPassword : "**************"}
-              </p>
-              <Button
-                onClick={() => setShowPassword((previous) => !previous)}
-                size="xs"
-                type="button"
-                variant="outline"
-              >
-                {showPassword ? "Hide" : "Show"}
-              </Button>
-              <Button
-                onClick={() => handleCopy(state.result!.temporaryPassword, "Password")}
-                size="xs"
-                type="button"
-                variant="outline"
-              >
-                Copy Password
-              </Button>
-            </div>
+        <>
+          <Dialog onOpenChange={handleSuccessDialogOpenChange} open={isSuccessOpen}>
+            <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <CheckCircle2 className="size-5 shrink-0 text-emerald-600" />
+                  User Account Created
+                </DialogTitle>
+                <DialogDescription>
+                  Save, print, or copy these account details before closing this dialog.
+                </DialogDescription>
+              </DialogHeader>
 
-            {state.result.assignedBranch ? (
-              <p>
-                <span className="font-medium">Assigned Branch:</span> {state.result.assignedBranch}
-              </p>
-            ) : null}
-            {state.result.assignedArea ? (
-              <p>
-                <span className="font-medium">Assigned Area:</span> {state.result.assignedArea}
-              </p>
-            ) : null}
-            {state.result.assignedBranches.length > 0 ? (
-              <p>
-                <span className="font-medium">Assigned Branches:</span>{" "}
-                {state.result.assignedBranches.join(", ")}
-              </p>
-            ) : null}
-            {state.result.contactNo ? (
-              <p>
-                <span className="font-medium">Contact Number:</span> {state.result.contactNo}
-              </p>
-            ) : null}
-            {state.result.email ? (
-              <p>
-                <span className="font-medium">Email:</span> {state.result.email}
-              </p>
-            ) : null}
-            <p>
-              <span className="font-medium">Status:</span> {state.result.status}
-            </p>
-            {state.result.address ? (
-              <p>
-                <span className="font-medium">Address:</span> {state.result.address}
-              </p>
-            ) : null}
-            {copyStatus ? <p className="text-muted-foreground text-xs">{copyStatus}</p> : null}
-          </CardContent>
-        </Card>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  onClick={() => handleCopy(buildAccountDetailsText(state.result!), "Account details")}
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                >
+                  Copy All Account Details
+                </Button>
+                <Button onClick={handlePrintSlip} size="sm" type="button" variant="outline">
+                  Print Account Slip
+                </Button>
+              </div>
+
+              <div className="space-y-4">
+                <DetailSection
+                  description="Core account information that was successfully provisioned."
+                  title="Account Snapshot"
+                >
+                  <DetailRow label="Account Category" value={state.result.accountCategory} />
+                  <DetailRow label="Created Role" value={state.result.role} />
+                  <DetailRow label="Full Name" value={state.result.fullName} />
+                  <DetailRow
+                    action={
+                      <Button
+                        onClick={() => handleCopy(state.result!.companyId, "Company ID")}
+                        size="xs"
+                        type="button"
+                        variant="outline"
+                      >
+                        Copy Company ID
+                      </Button>
+                    }
+                    label="Company ID"
+                    value={state.result.companyId}
+                  />
+                  <DetailRow label="Created User UID" value={state.result.userId} />
+                </DetailSection>
+
+                <DetailSection
+                  description="Credentials and identifiers the user will need for first access."
+                  title="Access Details"
+                >
+                  <DetailRow
+                    action={
+                      <Button
+                        onClick={() => handleCopy(state.result!.username, "Username")}
+                        size="xs"
+                        type="button"
+                        variant="outline"
+                      >
+                        Copy Username
+                      </Button>
+                    }
+                    label="Username"
+                    value={state.result.username}
+                  />
+                  <DetailRow
+                    action={
+                      <>
+                        <Button
+                          onClick={() => setShowPassword((previous) => !previous)}
+                          size="xs"
+                          type="button"
+                          variant="outline"
+                        >
+                          {showPassword ? "Hide" : "Show"}
+                        </Button>
+                        <Button
+                          onClick={() => handleCopy(state.result!.temporaryPassword, "Password")}
+                          size="xs"
+                          type="button"
+                          variant="outline"
+                        >
+                          Copy Password
+                        </Button>
+                      </>
+                    }
+                    label="Temporary Password"
+                    value={showPassword ? state.result.temporaryPassword : "**************"}
+                    valueClassName="font-mono text-sm text-foreground"
+                  />
+                </DetailSection>
+
+                <DetailSection
+                  description="Assigned operating scope and contact details stored for this account."
+                  title="Assignments and Contact"
+                >
+                  {state.result.assignedBranch ? (
+                    <DetailRow label="Assigned Branch" value={state.result.assignedBranch} />
+                  ) : null}
+                  {state.result.assignedArea ? (
+                    <DetailRow label="Assigned Area" value={state.result.assignedArea} />
+                  ) : null}
+                  {state.result.assignedBranches.length > 0 ? (
+                    <DetailRow
+                      label="Assigned Branches"
+                      value={state.result.assignedBranches.join(", ")}
+                    />
+                  ) : null}
+                  <DetailRow label="Contact Number" value={state.result.contactNo || "Not provided"} />
+                  <DetailRow label="Email" value={state.result.email || "Not provided"} />
+                  {state.result.address ? (
+                    <DetailRow label="Address" value={state.result.address} />
+                  ) : null}
+                </DetailSection>
+              </div>
+
+              {copyStatus ? <p className="text-xs text-muted-foreground">{copyStatus}</p> : null}
+            </DialogContent>
+          </Dialog>
+
+          <Dialog onOpenChange={setIsCloseWarningOpen} open={isCloseWarningOpen}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Close account details?</DialogTitle>
+                <DialogDescription>
+                  Are you sure? Please make sure that the account details have been saved or printed
+                  before closing.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <Button onClick={() => setIsCloseWarningOpen(false)} type="button" variant="outline">
+                  Keep Open
+                </Button>
+                <Button className="active:scale-[0.98]" onClick={handleCloseWarningConfirm} type="button">
+                  Close Anyway
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </>
       ) : null}
     </div>
   );
