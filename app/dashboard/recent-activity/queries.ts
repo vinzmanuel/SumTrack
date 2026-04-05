@@ -52,6 +52,7 @@ type RawRecentActivityRow = {
   context_label: string | null;
   detail_primary: string | null;
   detail_secondary: string | null;
+  detail_tertiary: string | null;
   branch_label: string | null;
   occurred_at: string;
 };
@@ -415,28 +416,97 @@ function buildAccountCreatedSelect(params: {
       actor.user_id as actor_user_id,
       actor.actor_name as actor_name,
       actor.role_name as actor_role_name,
-      target.company_id as subject_primary,
-      concat(
-        coalesce(
-          ${buildPersonDisplayNameSql(
-            sql`target_employee.first_name`,
-            sql`target_employee.middle_name`,
-            sql`target_employee.last_name`,
-          )},
-          nullif(trim(target.username), ''),
-          target.company_id
-        ),
-        ' - ',
-        target_role.role_name,
-        ' account'
-      ) as context_label,
-      null::text as detail_primary,
-      null::text as detail_secondary,
-      null::text as branch_label
+      target_role.role_name as subject_primary,
+      case
+        when target_role.role_name = 'Admin' then 'Global / Unscoped'
+        when target_role.role_name = 'Auditor' then
+          case
+            when coalesce(initial_branch_scope.branch_count, 0) = 0 then 'Unassigned'
+            when initial_branch_scope.branch_count = 1 then '1 branch'
+            else initial_branch_scope.branch_count::text || ' branches'
+          end
+        when target_role.role_name in ('Branch Manager', 'Secretary') then coalesce(initial_primary_branch.branch_display, 'Unassigned')
+        when target_role.role_name = 'Collector' then coalesce(initial_area_scope.branch_name, 'Unassigned')
+        else 'Unassigned'
+      end as context_label,
+      coalesce(
+        ${buildPersonDisplayNameSql(
+          sql`target_employee.first_name`,
+          sql`target_employee.middle_name`,
+          sql`target_employee.last_name`,
+        )},
+        nullif(trim(target.username), ''),
+        target.company_id
+      ) as detail_primary,
+      target.company_id as detail_secondary,
+      case
+        when target_role.role_name = 'Collector' then initial_area_scope.area_code
+        else null::text
+      end as detail_tertiary,
+      case
+        when target_role.role_name = 'Admin' then 'Global / Unscoped'
+        when target_role.role_name = 'Auditor' then
+          case
+            when coalesce(initial_branch_scope.branch_count, 0) = 0 then 'Unassigned'
+            when initial_branch_scope.branch_count = 1 then '1 branch'
+            else initial_branch_scope.branch_count::text || ' branches'
+          end
+        when target_role.role_name in ('Branch Manager', 'Secretary') then coalesce(initial_primary_branch.branch_display, 'Unassigned')
+        when target_role.role_name = 'Collector' then coalesce(initial_area_scope.branch_name, 'Unassigned')
+        else 'Unassigned'
+      end as branch_label
     from users target
     inner join roles target_role on target_role.role_id = target.role_id
     inner join actor_directory actor on actor.user_id = target.created_by
     left join employee_info target_employee on target_employee.user_id = target.user_id
+    left join lateral (
+      select
+        initial_assignment.start_date
+      from employee_branch_assignment initial_assignment
+      where initial_assignment.employee_user_id = target.user_id
+      order by initial_assignment.start_date asc, initial_assignment.assignment_id asc
+      limit 1
+    ) initial_branch_anchor on true
+    left join lateral (
+      select
+        count(*)::int as branch_count,
+        string_agg(
+          coalesce(initial_branch.branch_code, initial_branch.branch_name),
+          ', '
+          order by initial_branch.branch_name
+        ) as branch_names
+      from employee_branch_assignment initial_assignment
+      inner join branch initial_branch on initial_branch.branch_id = initial_assignment.branch_id
+      where
+        initial_assignment.employee_user_id = target.user_id
+        and initial_branch_anchor.start_date is not null
+        and initial_assignment.start_date = initial_branch_anchor.start_date
+    ) initial_branch_scope on true
+    left join lateral (
+      select
+        initial_branch.branch_name as branch_display
+      from employee_branch_assignment initial_assignment
+      inner join branch initial_branch on initial_branch.branch_id = initial_assignment.branch_id
+      where
+        initial_assignment.employee_user_id = target.user_id
+        and initial_branch_anchor.start_date is not null
+        and initial_assignment.start_date = initial_branch_anchor.start_date
+      order by initial_assignment.assignment_id asc
+      limit 1
+    ) initial_primary_branch on true
+    left join lateral (
+      select
+        initial_branch.branch_name,
+        initial_branch.branch_code,
+        initial_area.area_code
+      from employee_area_assignment initial_area_assignment
+      inner join areas initial_area on initial_area.area_id = initial_area_assignment.area_id
+      inner join branch initial_branch on initial_branch.branch_id = initial_area.branch_id
+      where
+        initial_area_assignment.employee_user_id = target.user_id
+      order by initial_area_assignment.start_date asc, initial_area_assignment.assignment_id asc
+      limit 1
+    ) initial_area_scope on true
     ${buildWhereClause(conditions)}
   `;
 }
@@ -486,8 +556,12 @@ function buildBorrowerCreatedSelect(params: {
         ${buildPersonDisplayNameSql(sql`borrower.first_name`, sql`borrower.middle_name`, sql`borrower.last_name`)},
         'Borrower account'
       ) as context_label,
-      null::text as detail_primary,
-      null::text as detail_secondary,
+      coalesce(
+        ${buildPersonDisplayNameSql(sql`borrower.first_name`, sql`borrower.middle_name`, sql`borrower.last_name`)},
+        'Borrower account'
+      ) as detail_primary,
+      target.company_id as detail_secondary,
+      area.area_code as detail_tertiary,
       br.branch_name as branch_label
     from users target
     inner join roles target_role on target_role.role_id = target.role_id
@@ -554,6 +628,7 @@ function buildLoanCreatedSelect(params: {
         ')'
       ) as detail_primary,
       null::text as detail_secondary,
+      null::text as detail_tertiary,
       br.branch_name as branch_label
     from loan_records loan
     inner join users borrower_user on borrower_user.user_id = loan.borrower_id
@@ -619,6 +694,7 @@ function buildCollectionRecordedSelect(params: {
         borrower_user.company_id,
         ')'
       ) as detail_secondary,
+      null::text as detail_tertiary,
       br.branch_name as branch_label
     from collections collection
     inner join loan_records loan on loan.loan_id = collection.loan_id
@@ -686,6 +762,7 @@ function buildMissedPaymentRecordedSelect(params: {
         borrower_user.company_id,
         ')'
       ) as detail_secondary,
+      null::text as detail_tertiary,
       br.branch_name as branch_label
     from collections collection
     inner join loan_records loan on loan.loan_id = collection.loan_id
@@ -746,6 +823,7 @@ function buildExpenseRecordedSelect(params: {
       ) as context_label,
       null::text as detail_primary,
       null::text as detail_secondary,
+      null::text as detail_tertiary,
       br.branch_name as branch_label
     from expenses expense
     inner join branch br on br.branch_id = expense.branch_id
@@ -801,6 +879,7 @@ function buildIncentiveRuleCreatedSelect(params: {
       ) as context_label,
       null::text as detail_primary,
       null::text as detail_secondary,
+      null::text as detail_tertiary,
       br.branch_name as branch_label
     from incentive_rules rule
     inner join roles target_role on target_role.role_id = rule.role_id
@@ -860,6 +939,7 @@ function buildReportGeneratedSelect(params: {
       end as context_label,
       null::text as detail_primary,
       null::text as detail_secondary,
+      null::text as detail_tertiary,
       case
         when coalesce(array_length(report.branch_scope, 1), 0) = 0 then null
         when array_length(report.branch_scope, 1) = 1 then (
@@ -918,6 +998,7 @@ function buildLoanDocumentUploadedSelect(params: {
       concat('For loan ', loan.loan_code) as context_label,
       null::text as detail_primary,
       null::text as detail_secondary,
+      null::text as detail_tertiary,
       br.branch_name as branch_label
     from loan_docs doc
     inner join loan_records loan on loan.loan_id = doc.loan_id
@@ -970,6 +1051,7 @@ function buildBorrowerDocumentUploadedSelect(params: {
       concat('For borrower ', borrower_user.company_id) as context_label,
       null::text as detail_primary,
       null::text as detail_secondary,
+      null::text as detail_tertiary,
       br.branch_name as branch_label
     from borrower_docs doc
     inner join borrower_info borrower on borrower.user_id = doc.borrower_id
@@ -995,6 +1077,7 @@ function buildEmptyActivitySelect() {
       null::text as context_label,
       null::text as detail_primary,
       null::text as detail_secondary,
+      null::text as detail_tertiary,
       null::text as branch_label
     where false
   `;
@@ -1079,6 +1162,7 @@ function buildRecentActivityRowsQuery(
       context_label,
       detail_primary,
       detail_secondary,
+      detail_tertiary,
       branch_label,
       occurred_at
     from recent_activity
@@ -1129,6 +1213,7 @@ function mapRecentActivityRow(row: RawRecentActivityRow): RecentActivityItem {
     contextLabel: row.context_label,
     detailPrimary: row.detail_primary,
     detailSecondary: row.detail_secondary,
+    detailTertiary: row.detail_tertiary,
     branchLabel: row.branch_label,
     occurredAt: row.occurred_at,
   };

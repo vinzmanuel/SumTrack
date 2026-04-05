@@ -141,7 +141,7 @@ function sameFilters(left: RecentActivityClientFilters, right: RecentActivityCli
 
 function buildActivitySummary(item: RecentActivityItem) {
   if (item.activityType === "account_created") {
-    return `Created account ${item.subjectPrimary}`;
+    return `Created ${item.subjectPrimary} account`;
   }
   if (item.activityType === "borrower_created") {
     return `Created borrower ${item.subjectPrimary}`;
@@ -174,39 +174,51 @@ function buildActivitySummary(item: RecentActivityItem) {
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 function buildActionLine(item: RecentActivityItem) {
   const summary = buildActivitySummary(item);
+  if (
+    item.activityType === "account_created" ||
+    item.activityType === "borrower_created"
+  ) {
+    return summary;
+  }
   return item.contextLabel ? `${summary} • ${item.contextLabel}` : summary;
 }
 
 function buildLogActionLine(item: RecentActivityItem) {
   const summary = buildActivitySummary(item);
+  if (
+    item.activityType === "account_created" ||
+    item.activityType === "borrower_created"
+  ) {
+    return summary;
+  }
   return item.contextLabel ? `${summary} - ${item.contextLabel}` : summary;
 }
 
 function activityBadgeClass(activityType: RecentActivityItem["activityType"]) {
   if (activityType === "missed_payment_recorded") {
-    return "border-amber-200 bg-amber-50 text-amber-800";
+    return "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300";
   }
   if (activityType === "collection_recorded" || activityType === "expense_recorded") {
-    return "border-emerald-200 bg-emerald-50 text-emerald-800";
+    return "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300";
   }
   if (activityType === "report_generated") {
-    return "border-sky-200 bg-sky-50 text-sky-800";
+    return "border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-300";
   }
   if (activityType === "loan_document_uploaded" || activityType === "borrower_document_uploaded") {
-    return "border-violet-200 bg-violet-50 text-violet-800";
+    return "border-violet-200 bg-violet-50 text-violet-800 dark:border-violet-500/30 dark:bg-violet-500/10 dark:text-violet-300";
   }
-  return "border-zinc-200 bg-zinc-100 text-zinc-800";
+  return "border-zinc-200 bg-zinc-100 text-zinc-800 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100";
 }
 
 function roleBadgeClass(roleName: string | null) {
-  if (roleName === "System") return "whitespace-nowrap border-indigo-600 bg-indigo-600 text-white";
-  if (roleName === "Admin") return "whitespace-nowrap border-red-200 bg-red-50 text-red-700";
-  if (roleName === "Auditor") return "whitespace-nowrap border-blue-200 bg-blue-50 text-blue-700";
-  if (roleName === "Branch Manager") return "whitespace-nowrap border-amber-200 bg-amber-50 text-amber-700";
-  if (roleName === "Secretary") return "whitespace-nowrap border-violet-200 bg-violet-50 text-violet-700";
-  if (roleName === "Collector") return "whitespace-nowrap border-emerald-200 bg-emerald-50 text-emerald-700";
-  if (roleName === "Borrower") return "whitespace-nowrap border-zinc-200 bg-zinc-50 text-zinc-700";
-  return "whitespace-nowrap border-zinc-200 bg-zinc-50 text-zinc-700";
+  if (roleName === "System") return "whitespace-nowrap border-indigo-600 bg-indigo-600 text-white dark:border-indigo-500/40 dark:bg-indigo-500/20 dark:text-indigo-100";
+  if (roleName === "Admin") return "whitespace-nowrap border-red-200 bg-red-50 text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300";
+  if (roleName === "Auditor") return "whitespace-nowrap border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300";
+  if (roleName === "Branch Manager") return "whitespace-nowrap border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300";
+  if (roleName === "Secretary") return "whitespace-nowrap border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-500/30 dark:bg-violet-500/10 dark:text-violet-300";
+  if (roleName === "Collector") return "whitespace-nowrap border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300";
+  if (roleName === "Borrower") return "whitespace-nowrap border-zinc-200 bg-zinc-50 text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100";
+  return "whitespace-nowrap border-zinc-200 bg-zinc-50 text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100";
 }
 
 function buildRoleOptions(actorOptions: RecentActivityActorOption[]) {
@@ -283,6 +295,38 @@ function buildCollapsedActionLine(item: RecentActivityItem) {
 }
 
 function buildExpandedDetails(item: RecentActivityItem) {
+  if (item.activityType === "account_created") {
+    const details = [];
+
+    if (item.detailPrimary) {
+      details.push({ label: "Full Name", value: item.detailPrimary });
+    }
+    if (item.detailSecondary) {
+      details.push({ label: "Company ID", value: item.detailSecondary });
+    }
+    details.push({ label: "Initial Branch", value: item.contextLabel || item.branchLabel || "Unassigned" });
+    if (item.detailTertiary) {
+      details.push({ label: "Initial Area", value: item.detailTertiary });
+    }
+
+    return details;
+  }
+
+  if (item.activityType === "borrower_created") {
+    const details = [];
+
+    if (item.detailPrimary) {
+      details.push({ label: "Full Name", value: item.detailPrimary });
+    }
+    details.push({ label: "Company ID", value: item.subjectPrimary });
+    details.push({ label: "Initial Branch", value: item.branchLabel || "Unassigned" });
+    if (item.detailTertiary) {
+      details.push({ label: "Initial Area", value: item.detailTertiary });
+    }
+
+    return details;
+  }
+
   if (item.activityType === "loan_created") {
     const details = [];
 
@@ -529,7 +573,7 @@ export function RecentActivityClientPage({
   return (
     <div className="w-full max-w-none space-y-5 pb-6 pt-1 sm:pb-6 sm:pt-2">
       <TremorCard className="overflow-hidden p-0">
-        <div className="bg-linear-to-r from-slate-50 via-white to-emerald-50/60 p-6">
+        <div className="bg-gradient-to-r from-slate-50 via-background to-emerald-50/60 p-6 dark:from-zinc-950 dark:via-background dark:to-emerald-950/45">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
             <div className="space-y-1">
               <div className="space-y-1">
@@ -539,13 +583,13 @@ export function RecentActivityClientPage({
                 </TremorDescription>
               </div>
               <div className="flex flex-wrap items-center gap-2 pt-2">
-                <Badge className="border-zinc-200 bg-background/80 text-zinc-700" variant="outline">
+                <Badge className="border-zinc-200 bg-background/80 text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100" variant="outline">
                   {results.totalCount} events
                 </Badge>
-                <Badge className="border-zinc-200 bg-background/80 text-zinc-700" variant="outline">
+                <Badge className="border-zinc-200 bg-background/80 text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100" variant="outline">
                   {results.rangeLabel}
                 </Badge>
-                <Badge className="border-zinc-200 bg-background/80 text-zinc-700" variant="outline">
+                <Badge className="border-zinc-200 bg-background/80 text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100" variant="outline">
                   {results.scopeLabel}
                 </Badge>
               </div>
@@ -783,7 +827,9 @@ export function RecentActivityClientPage({
           </div>
         ) : (
           <div className="relative w-full">
-            <div className={`hidden gap-4 border-b border-border/70 bg-zinc-50/60 px-6 py-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500 lg:grid ${DESKTOP_LOG_GRID_CLASS}`}>
+            <div
+              className={`hidden gap-4 border-b border-border/70 bg-[#F6F6F6] px-6 py-3 text-sm font-medium text-muted-foreground dark:bg-[var(--app-table-header)] lg:grid ${DESKTOP_LOG_GRID_CLASS}`}
+            >
               <span>Time</span>
               <span>Action</span>
               <span>Actor</span>
@@ -813,7 +859,7 @@ export function RecentActivityClientPage({
                       type="button"
                     >
                       <div className="space-y-2 lg:hidden">
-                        <div className="font-mono text-[13px] text-zinc-600">
+                        <div className="font-mono text-[13px] text-muted-foreground">
                           {timestampFormatter.format(new Date(item.occurredAt))}
                         </div>
                         <div className="flex min-w-0 flex-wrap items-start gap-2">
@@ -839,7 +885,7 @@ export function RecentActivityClientPage({
                       </div>
 
                       <div className={`hidden w-full items-start gap-4 lg:grid ${DESKTOP_LOG_GRID_CLASS}`}>
-                        <div className="min-w-0 text-left font-mono text-[13px] text-zinc-600">
+                        <div className="min-w-0 text-left font-mono text-[13px] text-muted-foreground">
                           {timestampFormatter.format(new Date(item.occurredAt))}
                         </div>
 

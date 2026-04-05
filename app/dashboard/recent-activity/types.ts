@@ -51,6 +51,7 @@ export type RecentActivityItem = {
   contextLabel: string | null;
   detailPrimary: string | null;
   detailSecondary: string | null;
+  detailTertiary: string | null;
   branchLabel: string | null;
   occurredAt: string;
 };
