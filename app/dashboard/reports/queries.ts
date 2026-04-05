@@ -101,7 +101,7 @@ import type { CollectorsAccessState } from "@/app/dashboard/collectors/types";
 
 const borrowerUsers = alias(users, "reports_borrower_users");
 const collectorUsers = alias(users, "reports_collector_users");
-const REPORTS_LIBRARY_PAGE_SIZE = 10;
+const DEFAULT_REPORTS_LIBRARY_PAGE_SIZE = 10;
 type ReportsCollectorAnalyticsAccess = Extract<CollectorsAccessState, { view: "analytics" }>;
 
 type GenerateAnalyticsReportInput = {
@@ -3853,7 +3853,8 @@ export async function loadReportsLibraryPageData(
     ).values(),
   );
 
-  const totalPages = Math.max(Math.ceil(totalCount / REPORTS_LIBRARY_PAGE_SIZE), 1);
+  const resolvedPageSize = filters.pageSize || DEFAULT_REPORTS_LIBRARY_PAGE_SIZE;
+  const totalPages = Math.max(Math.ceil(totalCount / resolvedPageSize), 1);
   const safePage = Math.min(Math.max(filters.page, 1), totalPages);
   const paginatedRowsSource = await db
     .select({
@@ -3880,8 +3881,8 @@ export async function loadReportsLibraryPageData(
     .leftJoin(roles, eq(roles.role_id, users.role_id))
     .where(finalWhere)
     .orderBy(desc(reports.generated_at), desc(reports.report_id))
-    .limit(REPORTS_LIBRARY_PAGE_SIZE)
-    .offset((safePage - 1) * REPORTS_LIBRARY_PAGE_SIZE)
+    .limit(resolvedPageSize)
+    .offset((safePage - 1) * resolvedPageSize)
     .catch(() => []);
 
   const paginatedRows = paginatedRowsSource.map((row) =>
@@ -3912,7 +3913,7 @@ export async function loadReportsLibraryPageData(
     },
     rows: paginatedRows,
     page: safePage,
-    pageSize: REPORTS_LIBRARY_PAGE_SIZE,
+    pageSize: resolvedPageSize,
     totalCount,
     counts: {
       all: categoryCounts.all,

@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { FileStack, FolderOpenDot } from "lucide-react";
+import { ChevronLeft, ChevronRight, FileStack, FolderOpenDot } from "lucide-react";
 import { SegmentedStatusControl } from "@/app/dashboard/_components/segmented-status-control";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { appendBackNavigationToHref } from "@/app/dashboard/back-navigation";
 import { formatStoredDateTimeForManila } from "@/app/dashboard/datetime";
 import { getReportsDatePresetLabel } from "@/app/dashboard/reports/date-range-presets";
@@ -22,6 +23,8 @@ import type {
   ReportsPageAccessState,
   ReportsTemplateCategoryKey,
 } from "@/app/dashboard/reports/types";
+
+const REPORTS_LIBRARY_PAGE_SIZE_OPTIONS = [10, 20, 50] as const;
 
 function formatGeneratedAt(value: string) {
   return formatStoredDateTimeForManila(value, {
@@ -74,7 +77,9 @@ function CategoryTabButton(props: {
   return (
     <button
       className={`inline-flex rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-        props.active ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+        props.active
+          ? "bg-background text-foreground shadow-sm dark:bg-white/[0.08] dark:text-white"
+          : "text-muted-foreground hover:text-foreground dark:text-zinc-400 dark:hover:text-white"
       }`}
       onClick={() => props.onSelect(props.category)}
       type="button"
@@ -102,7 +107,7 @@ function EmptyState(props: {
       {props.canGenerate ? (
         <div className="mt-5">
           <Link href={props.createHref}>
-            <Button className="bg-emerald-600 text-white hover:bg-emerald-700">
+            <Button className="bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white">
               + Generate a New Report
             </Button>
           </Link>
@@ -163,12 +168,12 @@ function ActiveFilterChip(props: { label: string; onRemove: () => void }) {
 }
 
 function roleBadgeClass(roleName: string | null) {
-  if (roleName === "Admin") return "border-red-200 bg-red-50 text-red-700";
-  if (roleName === "Auditor") return "border-blue-200 bg-blue-50 text-blue-700";
-  if (roleName === "Branch Manager") return "border-amber-200 bg-amber-50 text-amber-700";
-  if (roleName === "Secretary") return "border-violet-200 bg-violet-50 text-violet-700";
-  if (roleName === "Collector") return "border-emerald-200 bg-emerald-50 text-emerald-700";
-  return "border-zinc-200 bg-zinc-50 text-zinc-700";
+  if (roleName === "Admin") return "border-red-200 bg-red-50 text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300";
+  if (roleName === "Auditor") return "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300";
+  if (roleName === "Branch Manager") return "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300";
+  if (roleName === "Secretary") return "border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-500/30 dark:bg-violet-500/10 dark:text-violet-300";
+  if (roleName === "Collector") return "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300";
+  return "border-zinc-200 bg-zinc-50 text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100";
 }
 
 function GeneratedByCell(props: {
@@ -179,7 +184,7 @@ function GeneratedByCell(props: {
 }) {
   if (props.generatedType === "system") {
     return (
-      <Badge className="border-indigo-600 bg-indigo-600 px-3 py-1 text-white hover:bg-indigo-600">
+      <Badge className="border-indigo-600 bg-indigo-600 px-3 py-1 text-white hover:bg-indigo-600 dark:border-indigo-500/40 dark:bg-indigo-500/20 dark:text-indigo-100 dark:hover:bg-indigo-500/20">
         System-generated
       </Badge>
     );
@@ -514,23 +519,32 @@ export function ReportsLibraryClientPage({
   const showingTo =
     results.totalCount === 0 ? 0 : Math.min(safePage * results.pageSize, results.totalCount);
   return (
-    <div className="space-y-6">
-      <Card className="overflow-hidden p-0">
-        <div className="bg-linear-to-r from-slate-50 via-white to-emerald-50/60 p-6">
+    <div className="w-full max-w-none space-y-5 pb-6 pt-1 sm:pb-6 sm:pt-2">
+      <Card className="gap-0 overflow-hidden py-0">
+        <div className="bg-gradient-to-r from-slate-50 via-background to-emerald-50/60 p-6 dark:from-zinc-950 dark:via-background dark:to-emerald-950/45">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-            <div className="space-y-3">
+            <div className="space-y-1">
               <div className="space-y-1">
-                <h1 className="text-3xl font-semibold tracking-tight text-foreground">Reports Library</h1>
+                <h1 className="flex items-center gap-2 text-3xl leading-none font-semibold tracking-tight text-foreground">
+                  <FileStack className="relative -top-px size-7 shrink-0 text-muted-foreground" />
+                  Reports Library
+                </h1>
                 <p className="text-sm text-muted-foreground">
                   Saved analytical reports and operational documents available inside your current reporting scope.
                 </p>
               </div>
 
-              <div className="flex flex-wrap gap-2 text-xs font-medium">
-                <Badge className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-emerald-800 hover:bg-emerald-50">
+              <div className="flex flex-wrap items-center gap-2 pt-2">
+                <Badge
+                  className="border-zinc-200 bg-background/80 text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100"
+                  variant="outline"
+                >
                   {access.roleName}
                 </Badge>
-                <Badge className="rounded-full border border-border/70 bg-background px-3 py-1 text-foreground hover:bg-background">
+                <Badge
+                  className="border-zinc-200 bg-background/80 text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100"
+                  variant="outline"
+                >
                   Scope: {access.scopeLabel}
                 </Badge>
               </div>
@@ -539,7 +553,7 @@ export function ReportsLibraryClientPage({
             <div className="flex flex-wrap items-center gap-3">
               {canGenerate ? (
                 <Link href={createHref}>
-                  <Button className="bg-emerald-600 text-white hover:bg-emerald-700">
+                  <Button className="bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white" size="sm">
                     + Generate a New Report
                   </Button>
                 </Link>
@@ -548,8 +562,8 @@ export function ReportsLibraryClientPage({
           </div>
         </div>
 
-        <div className="border-t border-border/70 p-6">
-          <div className="inline-flex flex-wrap gap-2 rounded-xl border border-border/70 bg-muted/30 p-1">
+        <div className="border-t border-border/70 px-6 pb-4 pt-4">
+          <div className="inline-flex flex-wrap gap-2 rounded-xl border border-border/70 bg-muted/30 p-1 dark:bg-background">
             <CategoryTabButton
               active={filters.category === "all"}
               category="all"
@@ -620,20 +634,7 @@ export function ReportsLibraryClientPage({
         </div>
       </Card>
 
-      <Card>
-        <CardHeader className="border-b border-border/60 bg-background">
-          <div className="flex items-start gap-3">
-            <div className="rounded-xl border border-border/70 bg-background text-muted-foreground">
-              <FileStack className="h-5 w-5" />
-            </div>
-            <div className="space-y-1">
-              <CardTitle>Saved Reports</CardTitle>
-              <CardDescription>
-                Saved reports and documents stay here first, and each entry opens into a dedicated report view page.
-              </CardDescription>
-            </div>
-          </div>
-        </CardHeader>
+      <Card className="border-border/70 shadow-sm">
         <CardContent className="space-y-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <SegmentedStatusControl
@@ -695,8 +696,8 @@ export function ReportsLibraryClientPage({
               <div className="overflow-hidden rounded-2xl border border-border/70">
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-border/70">
-                    <thead className="bg-muted/20">
-                      <tr className="text-left text-sm text-muted-foreground">
+                    <thead className="bg-[#F6F6F6] dark:bg-[var(--app-table-header)]">
+                      <tr className="text-left text-sm text-black dark:text-white">
                         <th className="px-4 py-3 font-medium">Title</th>
                         <th className="px-4 py-3 font-medium">Generated By</th>
                         <th className="px-4 py-3 font-medium">Generated At</th>
@@ -704,7 +705,7 @@ export function ReportsLibraryClientPage({
                         <th className="px-4 py-3 font-medium">Actions</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-border/60 bg-background">
+                    <tbody className="divide-y divide-border/60 bg-card">
                       {results.rows.map((row) => {
                         const canChangeStatus =
                           row.generatedType === "user" &&
@@ -737,8 +738,8 @@ export function ReportsLibraryClientPage({
                               <Badge
                                 className={
                                   row.status === "active"
-                                    ? "rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-emerald-800 hover:bg-emerald-50"
-                                    : "rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-zinc-700 hover:bg-zinc-50"
+                                    ? "rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-emerald-800 hover:bg-emerald-50 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300 dark:hover:bg-emerald-500/10"
+                                    : "rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-zinc-700 hover:bg-zinc-50 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100 dark:hover:bg-white/[0.06]"
                                 }
                               >
                                 {row.status === "active" ? "Active" : "Archived"}
@@ -760,7 +761,7 @@ export function ReportsLibraryClientPage({
                                   <Button
                                     className={
                                       row.status === "active"
-                                        ? "bg-amber-500 text-white hover:bg-amber-600 hover:text-white"
+                                        ? "border-amber-500 bg-amber-500 text-white hover:bg-amber-600 hover:text-white dark:border-amber-500 dark:bg-amber-500 dark:text-white dark:hover:bg-amber-600"
                                         : undefined
                                     }
                                     disabled={isPending || statusActionReportId === row.reportId}
@@ -772,7 +773,7 @@ export function ReportsLibraryClientPage({
                                     }
                                     size="sm"
                                     type="button"
-                                    variant={row.status === "active" ? "outline" : "default"}
+                                    variant={row.status === "active" ? "default" : "default"}
                                   >
                                     {statusActionReportId === row.reportId
                                       ? row.status === "active"
@@ -795,35 +796,64 @@ export function ReportsLibraryClientPage({
             )}
 
             {results.totalCount > 0 ? (
-              <div className="flex flex-col gap-3 border-t pt-3 text-sm md:flex-row md:items-center md:justify-between">
+              <div className="flex flex-col gap-3 pt-3 text-sm md:flex-row md:items-center md:justify-between">
                 <div className="space-y-1">
                   <p className="text-muted-foreground">
                     Showing {showingFrom}-{showingTo} of {results.totalCount}
                   </p>
                   {errorMessage ? <p className="text-destructive text-sm">{errorMessage}</p> : null}
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-muted-foreground">
-                    Page {safePage} of {totalPages}
-                  </span>
-                  <Button
-                    disabled={isPending || safePage <= 1}
-                    onClick={() => handlePageChange(safePage - 1)}
-                    size="sm"
-                    type="button"
-                    variant="outline"
-                  >
-                    Previous
-                  </Button>
-                  <Button
-                    disabled={isPending || safePage >= totalPages}
-                    onClick={() => handlePageChange(safePage + 1)}
-                    size="sm"
-                    type="button"
-                    variant="outline"
-                  >
-                    Next
-                  </Button>
+                <div className="flex flex-wrap items-center gap-2 xl:justify-center">
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground">Rows</span>
+                    <Select
+                      onValueChange={(value) =>
+                        applyFilters({
+                          ...filtersRef.current,
+                          pageSize: Number(value),
+                          page: 1,
+                        })
+                      }
+                      value={String(results.pageSize)}
+                    >
+                      <SelectTrigger className="w-[84px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {REPORTS_LIBRARY_PAGE_SIZE_OPTIONS.map((option) => (
+                          <SelectItem key={option} value={String(option)}>
+                            {option}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="ml-4 flex items-center gap-2">
+                    <span className="text-muted-foreground">
+                      Page {safePage} of {totalPages}
+                    </span>
+                    <Button
+                      disabled={isPending || safePage <= 1}
+                      onClick={() => handlePageChange(safePage - 1)}
+                      size="icon"
+                      type="button"
+                      variant="outline"
+                    >
+                      <ChevronLeft />
+                      <span className="sr-only">Previous page</span>
+                    </Button>
+                    <Button
+                      disabled={isPending || safePage >= totalPages}
+                      onClick={() => handlePageChange(safePage + 1)}
+                      size="icon"
+                      type="button"
+                      variant="outline"
+                    >
+                      <ChevronRight />
+                      <span className="sr-only">Next page</span>
+                    </Button>
+                  </div>
                 </div>
               </div>
             ) : errorMessage ? (

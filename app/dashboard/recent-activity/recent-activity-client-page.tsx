@@ -847,7 +847,7 @@ export function RecentActivityClientPage({
                 return (
                   <div className="border-b border-border/70 last:border-b-0" key={item.activityId}>
                     <button
-                      className={`w-full px-4 py-3 text-left transition-colors disabled:cursor-default sm:px-6 ${isExpandable ? "hover:bg-zinc-50/60" : ""}`}
+                      className={`w-full px- py-3 text-left transition-colors disabled:cursor-default sm:px-6 ${isExpandable ? "hover:bg-zinc-50/60" : ""}`}
                       disabled={!isExpandable}
                       onClick={() =>
                         isExpandable

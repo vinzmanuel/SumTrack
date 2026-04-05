@@ -34,6 +34,11 @@ function parsePositivePage(value: string | string[] | undefined) {
   return Number.isInteger(nextValue) && nextValue > 0 ? nextValue : 1;
 }
 
+function parseReportsPageSize(value: string | string[] | undefined) {
+  const nextValue = Number(firstValue(value));
+  return nextValue === 10 || nextValue === 20 || nextValue === 50 ? nextValue : 10;
+}
+
 function parseNullableDate(value: string | string[] | undefined) {
   const nextValue = firstValue(value)?.trim() ?? "";
   return /^\d{4}-\d{2}-\d{2}$/.test(nextValue) ? nextValue : null;
@@ -76,6 +81,7 @@ export function createDefaultReportsLibraryFilters(): ReportsLibraryFilterState 
     category: "all",
     status: "active",
     page: 1,
+    pageSize: 10,
     templateCategory: null,
     templateKey: null,
     generatedType: "all",
@@ -135,6 +141,7 @@ export function parseReportsLibraryFilters(searchParams: Record<string, string |
     category: parseReportsLibraryCategoryTab(searchParams.category),
     status: parseReportsLibraryStatusTab(searchParams.status),
     page: parsePositivePage(searchParams.page),
+    pageSize: parseReportsPageSize(searchParams.pageSize),
     templateCategory: parseTemplateCategory(searchParams.templateCategory),
     templateKey: parseNullableString(searchParams.template),
     generatedType: parseGeneratedType(searchParams.generatedType),
@@ -163,6 +170,10 @@ export function buildReportsLibraryHref(filters: ReportsLibraryFilterState) {
 
   if (filters.page > 1) {
     search.set("page", String(filters.page));
+  }
+
+  if (filters.pageSize !== 10) {
+    search.set("pageSize", String(filters.pageSize));
   }
 
   if (filters.templateCategory) {

@@ -211,6 +211,7 @@ export type ReportsLibraryFilterState = {
   category: ReportsLibraryCategoryTab;
   status: ReportsLibraryStatusTab;
   page: number;
+  pageSize: number;
   templateCategory: ReportsTemplateCategoryKey | null;
   templateKey: string | null;
   generatedType: ReportsLibraryGeneratedTypeFilter;
