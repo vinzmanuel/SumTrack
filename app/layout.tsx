@@ -35,9 +35,9 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <link href="/Logo/SUMTRACK%20LOGO.png" rel="icon" type="image/png" />
-        <link href="/Logo/SUMTRACK%20LOGO.png" rel="shortcut icon" type="image/png" />
-        <link href="/Logo/SUMTRACK%20LOGO.png" rel="apple-touch-icon" />
+        <link href="/Logo/SUMTRACK%20ICON.png" rel="icon" type="image/png" />
+        <link href="/Logo/SUMTRACK%20ICON.png" rel="shortcut icon" type="image/png" />
+        <link href="/Logo/SUMTRACK%20ICON.png" rel="apple-touch-icon" />
         <Script id="sumtrack-theme-init" strategy="beforeInteractive">
           {`
             try {

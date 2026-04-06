@@ -309,14 +309,19 @@ function NavContent({
 
   return (
     <TooltipProvider delayDuration={80}>
-      <div className="flex h-full flex-col bg-background text-sidebar-foreground dark:bg-sidebar">
+      <div className="flex h-full flex-col overflow-x-hidden bg-background text-sidebar-foreground dark:bg-sidebar">
         <div className={cn("px-5 py-5", isCollapsed && "px-5 py-5")}>
           <SidebarBrand isCollapsed={isCollapsed} />
         </div>
 
         <div className={cn("mx-5 h-px bg-sidebar-border/80", isCollapsed && "mx-3")} />
 
-        <nav className={cn("flex-1 overflow-y-auto px-5 py-4", isCollapsed && "px-3 py-4")}>
+        <nav
+          className={cn(
+            "flex-1 overflow-x-hidden overflow-y-auto px-5 py-4 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden",
+            isCollapsed && "px-3 py-4",
+          )}
+        >
           <div className="space-y-5">
             {sectionOrder.map((section) => {
               const sectionItems = visibleNavItems.filter((item) => item.section === section);
