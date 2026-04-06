@@ -20,6 +20,11 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "SumTrack",
   description: "SumTrack starter app",
+  icons: {
+    icon: "/Logo/SUMTRACK%20LOGO.png",
+    shortcut: "/Logo/SUMTRACK%20LOGO.png",
+    apple: "/Logo/SUMTRACK%20LOGO.png",
+  },
 };
 
 export default function RootLayout({
@@ -30,6 +35,9 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <link href="/Logo/SUMTRACK%20LOGO.png" rel="icon" type="image/png" />
+        <link href="/Logo/SUMTRACK%20LOGO.png" rel="shortcut icon" type="image/png" />
+        <link href="/Logo/SUMTRACK%20LOGO.png" rel="apple-touch-icon" />
         <Script id="sumtrack-theme-init" strategy="beforeInteractive">
           {`
             try {

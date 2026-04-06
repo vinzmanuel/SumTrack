@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
@@ -58,6 +59,9 @@ type DashboardShellProps = {
   children: React.ReactNode;
 };
 
+const BRAND_ICON_SRC = "/Logo/SUMTRACK%20LOGO.png";
+const BRAND_FULL_SRC = "/Logo/SUMTRACK%20LOGO%20AND%20TEXT.png";
+
 function isActiveNav(pathname: string, href: string) {
   if (href === "/dashboard") {
     return pathname === "/dashboard";
@@ -107,16 +111,31 @@ function NavContent({
     <div className="flex h-full flex-col bg-[#0f0707] text-zinc-100">
       <div className="flex items-center justify-between border-b border-zinc-800 px-3 py-4">
         {!isCollapsed ? (
-          <div>
-            <p className="text-lg font-semibold">
-              <span className="text-red-500">$um</span>
-              <span className="text-amber-400">track</span>
-            </p>
+          <div className="min-w-0">
+            <div className="relative h-9 w-[150px]">
+              <Image
+                alt="SumTrack"
+                className="object-contain object-left"
+                fill
+                priority
+                sizes="150px"
+                src={BRAND_FULL_SRC}
+              />
+            </div>
             <p className="text-xs text-zinc-400">{roleName}</p>
             <p className="text-xs text-zinc-500">ID: {companyId}</p>
           </div>
         ) : (
-          <p className="text-lg font-semibold text-red-500">$</p>
+          <div className="relative size-7">
+            <Image
+              alt="SumTrack"
+              className="object-contain"
+              fill
+              priority
+              sizes="28px"
+              src={BRAND_ICON_SRC}
+            />
+          </div>
         )}
       </div>
 
