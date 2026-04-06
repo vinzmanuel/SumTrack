@@ -117,41 +117,50 @@ function SidebarIcon({
 }
 
 function SidebarBrand({ isCollapsed }: { isCollapsed: boolean }) {
-  if (isCollapsed) {
-    return (
-      <Link
-        aria-label="SumTrack"
-        className="flex w-full items-center justify-center transition-opacity hover:opacity-90"
-        href="/dashboard"
+  const iconWidth = (697 / 900) * EXPANDED_LOGO_HEIGHT;
+  const textRevealWidth = Math.max(EXPANDED_LOGO_WIDTH - iconWidth, 0);
+
+  return (
+    <Link
+      aria-label="SumTrack"
+      className="flex w-full items-center overflow-hidden transition-opacity hover:opacity-90"
+      href="/dashboard"
+    >
+      <div
+        className="flex items-center overflow-hidden"
+        style={{ height: `${EXPANDED_LOGO_HEIGHT}px` }}
       >
         <Image
           alt="SumTrack"
-          className="block h-auto w-auto max-w-full object-contain"
+          className="block h-auto w-auto shrink-0 object-contain"
           height={900}
           priority
-          sizes={`${Math.ceil((697 / 900) * EXPANDED_LOGO_HEIGHT)}px`}
+          sizes={`${Math.ceil(iconWidth)}px`}
           src={BRAND_ICON_SRC}
           style={{ height: `${EXPANDED_LOGO_HEIGHT}px` }}
           width={697}
         />
-      </Link>
-    );
-  }
-
-  return (
-    <Link
-      className="block w-full transition-opacity hover:opacity-90"
-      href="/dashboard"
-    >
-      <Image
-        alt="SumTrack"
-        className="block h-auto w-full object-contain object-left"
-        height={900}
-        priority
-        sizes={`${EXPANDED_LOGO_WIDTH}px`}
-        src={BRAND_FULL_SRC}
-        width={6550}
-      />
+        <div
+          aria-hidden="true"
+          className="relative shrink-0 overflow-hidden transition-[width,opacity] duration-200 ease-in-out"
+          style={{
+            width: isCollapsed ? "0px" : `${textRevealWidth}px`,
+            height: `${EXPANDED_LOGO_HEIGHT}px`,
+            opacity: isCollapsed ? 0 : 1,
+          }}
+        >
+          <Image
+            alt=""
+            className="absolute left-0 top-0 h-full w-auto max-w-none object-contain object-left"
+            height={900}
+            priority
+            sizes={`${EXPANDED_LOGO_WIDTH}px`}
+            src={BRAND_FULL_SRC}
+            style={{ transform: `translateX(-${iconWidth}px)` }}
+            width={6550}
+          />
+        </div>
+      </div>
     </Link>
   );
 }
