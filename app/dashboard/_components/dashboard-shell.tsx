@@ -69,7 +69,6 @@ type DashboardShellProps = {
   children: React.ReactNode;
 };
 
-const BRAND_ICON_SRC = "/Logo/SUMTRACK%20LOGO.png";
 const BRAND_FULL_SRC = "/Logo/SUMTRACK%20LOGO%20AND%20TEXT.png";
 const ACTIVE_NAV_COLOR = "#e73c31";
 const EXPANDED_SIDEBAR_WIDTH = 296;
@@ -117,49 +116,31 @@ function SidebarIcon({
 }
 
 function SidebarBrand({ isCollapsed }: { isCollapsed: boolean }) {
-  const iconWidth = (697 / 900) * EXPANDED_LOGO_HEIGHT;
-  const textRevealWidth = Math.max(EXPANDED_LOGO_WIDTH - iconWidth, 0);
+  const collapsedRevealWidth = Math.ceil((697 / 900) * EXPANDED_LOGO_HEIGHT);
 
   return (
     <Link
       aria-label="SumTrack"
-      className="flex w-full items-center overflow-hidden transition-opacity hover:opacity-90"
+      className={cn(
+        "flex w-full items-center overflow-hidden transition-opacity hover:opacity-90",
+        isCollapsed ? "justify-center" : "justify-start",
+      )}
       href="/dashboard"
     >
       <div
-        className="flex items-center overflow-hidden"
-        style={{ height: `${EXPANDED_LOGO_HEIGHT}px` }}
+        className="overflow-hidden transition-[width] duration-200 ease-in-out"
+        style={{ width: `${isCollapsed ? collapsedRevealWidth : EXPANDED_LOGO_WIDTH}px` }}
       >
         <Image
           alt="SumTrack"
-          className="block h-auto w-auto shrink-0 object-contain"
+          className="block h-auto max-w-none object-contain object-left"
           height={900}
           priority
-          sizes={`${Math.ceil(iconWidth)}px`}
-          src={BRAND_ICON_SRC}
-          style={{ height: `${EXPANDED_LOGO_HEIGHT}px` }}
-          width={697}
+          sizes={`${EXPANDED_LOGO_WIDTH}px`}
+          src={BRAND_FULL_SRC}
+          style={{ width: `${EXPANDED_LOGO_WIDTH}px` }}
+          width={6550}
         />
-        <div
-          aria-hidden="true"
-          className="relative shrink-0 overflow-hidden transition-[width,opacity] duration-200 ease-in-out"
-          style={{
-            width: isCollapsed ? "0px" : `${textRevealWidth}px`,
-            height: `${EXPANDED_LOGO_HEIGHT}px`,
-            opacity: isCollapsed ? 0 : 1,
-          }}
-        >
-          <Image
-            alt=""
-            className="absolute left-0 top-0 h-full w-auto max-w-none object-contain object-left"
-            height={900}
-            priority
-            sizes={`${EXPANDED_LOGO_WIDTH}px`}
-            src={BRAND_FULL_SRC}
-            style={{ transform: `translateX(-${iconWidth}px)` }}
-            width={6550}
-          />
-        </div>
       </div>
     </Link>
   );

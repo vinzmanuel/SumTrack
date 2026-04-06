@@ -21,9 +21,9 @@ export const metadata: Metadata = {
   title: "SumTrack",
   description: "SumTrack starter app",
   icons: {
-    icon: "/Logo/SUMTRACK%20LOGO.png",
-    shortcut: "/Logo/SUMTRACK%20LOGO.png",
-    apple: "/Logo/SUMTRACK%20LOGO.png",
+    icon: "/Logo/SUMTRACK%20ICON.png",
+    shortcut: "/Logo/SUMTRACK%20ICON.png",
+    apple: "/Logo/SUMTRACK%20ICON.png",
   },
 };
 
