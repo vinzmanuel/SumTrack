@@ -475,7 +475,7 @@ export function DashboardShell({
         <aside
           className={cn(
             "sticky top-0 hidden h-screen shrink-0 border-r border-sidebar-border/80 bg-background transition-[width] duration-200 md:block dark:bg-sidebar",
-            isCollapsed ? "w-[88px]" : "w-[296px]",
+            isCollapsed ? "w-[68px]" : "w-[296px]",
           )}
         >
           <div className="h-full overflow-hidden">
