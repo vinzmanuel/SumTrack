@@ -8,6 +8,7 @@ import {
   areas,
   borrower_info,
   branch,
+  employee_info,
   employee_area_assignment,
   employee_branch_assignment,
   roles,
@@ -34,6 +35,7 @@ export type DashboardAuthContext = {
   userId: string;
   roleName: RoleName;
   companyId: string;
+  displayName: string;
   assignedBranchIds: number[];
   activeBranchId: number | null;
   activeBranchName: string | null;
@@ -41,6 +43,20 @@ export type DashboardAuthContext = {
 };
 
 export type DashboardAuthResult = AuthFailure | DashboardAuthContext;
+
+function buildDisplayName(parts: {
+  firstName?: string | null;
+  middleName?: string | null;
+  lastName?: string | null;
+  fallback: string;
+}) {
+  const firstName = parts.firstName?.trim() ?? "";
+  const middleName = parts.middleName?.trim() ?? "";
+  const lastName = parts.lastName?.trim() ?? "";
+  const middleInitial = middleName ? `${middleName.charAt(0)}.` : "";
+
+  return [firstName, middleInitial, lastName].filter(Boolean).join(" ").trim() || parts.fallback;
+}
 
 export const getDashboardAuthContext = cache(async (): Promise<DashboardAuthResult> => {
   const supabase = await createClient();
@@ -57,9 +73,17 @@ export const getDashboardAuthContext = cache(async (): Promise<DashboardAuthResu
       user_id: users.user_id,
       company_id: users.company_id,
       role_name: roles.role_name,
+      employee_first_name: employee_info.first_name,
+      employee_middle_name: employee_info.middle_name,
+      employee_last_name: employee_info.last_name,
+      borrower_first_name: borrower_info.first_name,
+      borrower_middle_name: borrower_info.middle_name,
+      borrower_last_name: borrower_info.last_name,
     })
     .from(users)
     .innerJoin(roles, eq(roles.role_id, users.role_id))
+    .leftJoin(employee_info, eq(employee_info.user_id, users.user_id))
+    .leftJoin(borrower_info, eq(borrower_info.user_id, users.user_id))
     .where(eq(users.user_id, user.id))
     .limit(1)
     .then((rows) => rows[0] ?? null)
@@ -68,6 +92,13 @@ export const getDashboardAuthContext = cache(async (): Promise<DashboardAuthResu
   if (!appUser) {
     return { ok: false, reason: "missing_app_user", message: "No application user profile found." };
   }
+
+  const displayName = buildDisplayName({
+    firstName: appUser.employee_first_name ?? appUser.borrower_first_name,
+    middleName: appUser.employee_middle_name ?? appUser.borrower_middle_name,
+    lastName: appUser.employee_last_name ?? appUser.borrower_last_name,
+    fallback: appUser.company_id,
+  });
 
   const roleName = appUser.role_name;
   if (!roleName) {
@@ -158,6 +189,7 @@ export const getDashboardAuthContext = cache(async (): Promise<DashboardAuthResu
     userId: user.id,
     roleName,
     companyId: appUser.company_id,
+    displayName,
     assignedBranchIds,
     activeBranchId,
     activeBranchName,

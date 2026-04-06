@@ -125,6 +125,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <DashboardShell
       companyId={auth.companyId}
+      displayName={auth.displayName}
       navItems={navItemsForRole(auth.roleName, { branchManagerBranchHref })}
       roleName={auth.roleName}
     >
