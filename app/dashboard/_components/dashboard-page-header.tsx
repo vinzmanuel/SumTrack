@@ -16,7 +16,7 @@ export function DashboardPageHeader({
   onToggleCollapse,
 }: DashboardPageHeaderProps) {
   return (
-    <div className="flex h-14 items-stretch border-b bg-card">
+    <div className="flex h-14 items-stretch border-b bg-card md:h-[var(--dashboard-desktop-header-height)]">
       <div className="hidden h-full w-14 items-center justify-center border-r md:flex">
         <Button
           aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}

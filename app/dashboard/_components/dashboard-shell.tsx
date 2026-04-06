@@ -76,6 +76,8 @@ const EXPANDED_SIDEBAR_WIDTH = 296;
 const EXPANDED_SIDEBAR_X_PADDING = 20;
 const EXPANDED_LOGO_WIDTH = EXPANDED_SIDEBAR_WIDTH - EXPANDED_SIDEBAR_X_PADDING * 2;
 const EXPANDED_LOGO_HEIGHT = (EXPANDED_LOGO_WIDTH * 900) / 6550;
+const SIDEBAR_BRAND_Y_PADDING = 20;
+const DESKTOP_HEADER_HEIGHT = EXPANDED_LOGO_HEIGHT + SIDEBAR_BRAND_Y_PADDING * 2 + 1;
 const sectionOrder: Array<NavItem["section"]> = ["main", "finance", "system"];
 const sectionTitles: Record<NavItem["section"], string> = {
   main: "Main",
@@ -442,7 +444,14 @@ export function DashboardShell({
   }, [normalizedItems, pathname]);
 
   return (
-    <div className="min-h-screen bg-[var(--app-background)] md:h-screen md:overflow-hidden">
+    <div
+      className="min-h-screen bg-[var(--app-background)] md:h-screen md:overflow-hidden"
+      style={
+        {
+          "--dashboard-desktop-header-height": `${DESKTOP_HEADER_HEIGHT}px`,
+        } as React.CSSProperties
+      }
+    >
       <header className="sticky top-0 z-20 flex items-center justify-between border-b border-sidebar-border/70 bg-card px-4 py-3 md:hidden">
         <Link className="relative h-8 w-[138px]" href="/dashboard">
           <Image
