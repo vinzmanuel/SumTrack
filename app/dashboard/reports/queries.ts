@@ -32,6 +32,7 @@ import {
   getVisibleLoanStatusFromStoredStatus,
   isLoanPaidOff,
 } from "@/app/dashboard/loans/loan-state";
+import { resolveLoanScheduleDates } from "@/app/dashboard/loans/loan-schedule";
 import { getReportsDatePresetLabel } from "@/app/dashboard/reports/date-range-presets";
 import {
   buildActiveLoansSummarySnapshot,
@@ -304,24 +305,6 @@ function enumerateBucketLabels(dateFrom: string, dateTo: string, mode: DateBucke
 function getReportSeriesColor(index: number) {
   const palette = ["#16a34a", "#0ea5e9", "#f59e0b", "#6366f1", "#ef4444", "#0f172a"] as const;
   return palette[index % palette.length];
-}
-
-function enumerateIsoDates(dateFrom: string, dateTo: string) {
-  const start = new Date(`${dateFrom}T00:00:00Z`);
-  const end = new Date(`${dateTo}T00:00:00Z`);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) {
-    return [] as string[];
-  }
-
-  const dates: string[] = [];
-  const cursor = new Date(start);
-
-  while (cursor <= end) {
-    dates.push(cursor.toISOString().slice(0, 10));
-    cursor.setUTCDate(cursor.getUTCDate() + 1);
-  }
-
-  return dates;
 }
 
 function buildUserDisplayName(params: {
@@ -4826,8 +4809,7 @@ async function loadUserDisplayRows(userIds: string[]) {
 }
 
 function buildLoanScheduleRows(params: {
-  startDate: string;
-  dueDate: string;
+  scheduleDates: string[];
   totalPayable: number;
   estimatedDailyPayment: number | null;
   collectionRows: Array<{
@@ -4868,7 +4850,7 @@ function buildLoanScheduleRows(params: {
 
   let lastOutstandingBalance = params.totalPayable;
 
-  return enumerateIsoDates(params.startDate, params.dueDate).map((date) => {
+  return params.scheduleDates.map((date) => {
     const current = rowsByDate.get(date);
     if (current) {
       lastOutstandingBalance = current.outstandingBalance;
@@ -5042,9 +5024,13 @@ async function loadLoanDocumentSource(access: ReportsReadyAccessState, loanId: n
     normalizedCollectionRows.length > 0
       ? normalizedCollectionRows[normalizedCollectionRows.length - 1].outstandingBalance
       : totalPayable;
-  const scheduleRows = buildLoanScheduleRows({
+  const scheduleDates = resolveLoanScheduleDates({
     startDate: loan.startDate,
     dueDate: loan.dueDate,
+    termDays: loan.termDays,
+  });
+  const scheduleRows = buildLoanScheduleRows({
+    scheduleDates,
     totalPayable,
     estimatedDailyPayment: termDays ? totalPayable / termDays : null,
     collectionRows: normalizedCollectionRows,

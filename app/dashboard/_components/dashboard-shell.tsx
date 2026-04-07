@@ -122,7 +122,7 @@ function SidebarBrand({ isCollapsed }: { isCollapsed: boolean }) {
     <Link
       aria-label="SumTrack"
       className={cn(
-        "flex w-full items-center overflow-hidden transition-opacity hover:opacity-90",
+        "flex w-full items-center justify-center overflow-hidden transition-opacity hover:opacity-90",
         isCollapsed ? "justify-center" : "justify-start",
       )}
       href="/dashboard"
@@ -491,7 +491,7 @@ export function DashboardShell({
             title={currentPageLabel}
           />
           <div className="px-3 pb-4 pt-4 md:px-6 md:pb-6 md:pt-6">
-            <div className="mx-auto w-full max-w-[1280px]">{children}</div>
+            <div className="w-full">{children}</div>
           </div>
         </main>
       </div>

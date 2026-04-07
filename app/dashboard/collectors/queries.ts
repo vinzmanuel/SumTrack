@@ -30,6 +30,10 @@ import {
   normalizeStoredLoanStatus,
   type StoredLoanStatus,
 } from "@/app/dashboard/loans/loan-state";
+import {
+  calculateLoanExpectedObligationCount,
+  countLoanExpectedObligationsInRange,
+} from "@/app/dashboard/loans/loan-schedule";
 import { db } from "@/db";
 import {
   areas,
@@ -169,6 +173,12 @@ type CollectionTrendBucketRow = {
   totalCollected: number;
 };
 
+type CollectorExpectedScheduleStats = {
+  expectedCollections: number;
+  activeExpectedCollections: number;
+  activeCollected: number;
+};
+
 type CollectorIncentiveCollectionMonthRow = {
   collectorId: string | null;
   branchId: number;
@@ -212,6 +222,43 @@ type CollectorRadarMaxima = {
 function toNumber(value: unknown) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function calculateExpectedCollectionAmountForLoan(params: {
+  principal: number;
+  interest: number;
+  startDate: string;
+  dueDate: string;
+  termDays: number | null;
+  rangeStart: string;
+  rangeEnd: string;
+}) {
+  const expectedObligationCount = calculateLoanExpectedObligationCount({
+    startDate: params.startDate,
+    dueDate: params.dueDate,
+    termDays: params.termDays,
+  });
+
+  if (expectedObligationCount <= 0) {
+    return 0;
+  }
+
+  const obligationsInRange = countLoanExpectedObligationsInRange({
+    startDate: params.startDate,
+    dueDate: params.dueDate,
+    termDays: params.termDays,
+    rangeStart: params.rangeStart,
+    rangeEnd: params.rangeEnd,
+  });
+
+  if (obligationsInRange <= 0) {
+    return 0;
+  }
+
+  return (
+    (calculateLoanTotalPayable(params.principal, params.interest) / expectedObligationCount) *
+    obligationsInRange
+  );
 }
 
 async function logCollectorsAnalyticsDebug(params: {
@@ -395,6 +442,80 @@ function buildLoanScopeFilters(access: AnalyticsAccess, collectorIds: string[]) 
   }
 
   return conditions;
+}
+
+async function loadCollectorExpectedScheduleStats(
+  access: AnalyticsAccess,
+  collectorIds: string[],
+  range: CollectorsDateRange,
+): Promise<Map<string, CollectorExpectedScheduleStats>> {
+  if (collectorIds.length === 0) {
+    return new Map();
+  }
+
+  const currentDate = getManilaTodayDateString();
+  const loanMetrics = buildLoanDerivedMetricsSubquery({
+    aliasName: "collector_expected_schedule_metrics",
+    currentDate,
+    where: whereFrom(buildLoanScopeFilters(access, collectorIds)),
+  });
+
+  const rows = await db
+    .select({
+      collectorId: loanMetrics.collectorId,
+      principal: loanMetrics.principal,
+      interest: loanMetrics.interest,
+      totalCollected: loanMetrics.totalCollected,
+      startDate: loanMetrics.startDate,
+      dueDate: loanMetrics.dueDate,
+      termDays: loanMetrics.termDays,
+      storedStatus: loanMetrics.storedStatus,
+    })
+    .from(loanMetrics)
+    .where(sql`${loanMetrics.collectorId} is not null`)
+    .catch(() => []);
+
+  const result = new Map<string, CollectorExpectedScheduleStats>();
+
+  for (const row of rows) {
+    if (!row.collectorId) {
+      continue;
+    }
+
+    const entry = result.get(row.collectorId) ?? {
+      expectedCollections: 0,
+      activeExpectedCollections: 0,
+      activeCollected: 0,
+    };
+
+    entry.expectedCollections += calculateExpectedCollectionAmountForLoan({
+      principal: toNumber(row.principal),
+      interest: toNumber(row.interest),
+      startDate: row.startDate,
+      dueDate: row.dueDate,
+      termDays: row.termDays,
+      rangeStart: range.start,
+      rangeEnd: range.end,
+    });
+
+    const normalizedStoredStatus = normalizeStoredLoanStatus(row.storedStatus);
+    if (normalizedStoredStatus === "active" || normalizedStoredStatus === "overdue") {
+      entry.activeExpectedCollections += calculateExpectedCollectionAmountForLoan({
+        principal: toNumber(row.principal),
+        interest: toNumber(row.interest),
+        startDate: row.startDate,
+        dueDate: row.dueDate,
+        termDays: row.termDays,
+        rangeStart: row.startDate,
+        rangeEnd: row.dueDate < currentDate ? row.dueDate : currentDate,
+      });
+      entry.activeCollected += toNumber(row.totalCollected);
+    }
+
+    result.set(row.collectorId, entry);
+  }
+
+  return result;
 }
 
 function buildCollectorAssignedLoansFilters(
@@ -656,6 +777,8 @@ async function loadLoanStats(
     .groupBy(loanMetrics.collectorId)
     .catch(() => []);
 
+  const expectedStatsMap = await loadCollectorExpectedScheduleStats(access, collectorIds, range);
+
   const result = new Map<string, LoanStatsRow>();
 
   for (const row of rows) {
@@ -663,6 +786,7 @@ async function loadLoanStats(
       continue;
     }
 
+    const expectedStats = expectedStatsMap.get(row.collectorId);
     result.set(row.collectorId, {
       collectorId: row.collectorId,
       assignedActiveLoans: toNumber(row.assignedActiveLoans),
@@ -672,8 +796,9 @@ async function loadLoanStats(
       portfolioAtRiskAmount: toNumber(row.portfolioAtRiskAmount),
       completedLoans: toNumber(row.completedLoans),
       totalLoans: toNumber(row.totalLoans),
-      expectedCollections: toNumber(row.expectedCollections),
-      activeExpectedCollections: toNumber(row.activeExpectedCollections),
+      expectedCollections: expectedStats?.expectedCollections ?? toNumber(row.expectedCollections),
+      activeExpectedCollections:
+        expectedStats?.activeExpectedCollections ?? toNumber(row.activeExpectedCollections),
       firstLoanStart: row.firstLoanStart,
     });
   }
@@ -1966,6 +2091,31 @@ function percentOf(value: number, denominator: number) {
   return (value / denominator) * 100;
 }
 
+function applyExpectedCollectionOverrides<T extends {
+  collectorId: string;
+  totalCollected: unknown;
+  expectedCollections: unknown;
+  efficiencyRatio: unknown;
+  activeEfficiencyRatio: unknown;
+}>(rows: T[], expectedStatsMap: Map<string, CollectorExpectedScheduleStats>) {
+  return rows.map((row) => {
+    const expectedStats = expectedStatsMap.get(row.collectorId);
+    if (!expectedStats) {
+      return row;
+    }
+
+    return {
+      ...row,
+      expectedCollections: expectedStats.expectedCollections,
+      efficiencyRatio: percentOf(toNumber(row.totalCollected), expectedStats.expectedCollections),
+      activeEfficiencyRatio: percentOf(
+        expectedStats.activeCollected,
+        expectedStats.activeExpectedCollections,
+      ),
+    };
+  });
+}
+
 function normalizeCollectorLeaderboardRow(row: CollectorLeaderboardRow): CollectorLeaderboardRow {
   return {
     ...row,
@@ -2734,6 +2884,35 @@ export async function loadCollectorsAnalyticsData(
       .catch(() => []),
     loadCollectorsPeriodAvailability(availabilityCollectorIds),
   ]);
+  const expectedStatsMap = await loadCollectorExpectedScheduleStats(
+    access,
+    availabilityCollectorIds,
+    range,
+  );
+  const adjustedPageRows = applyExpectedCollectionOverrides(
+    rawPageRows as CollectorLeaderboardRow[],
+    expectedStatsMap,
+  );
+  const adjustedOrderedRows = applyExpectedCollectionOverrides(
+    rawOrderedRows as CollectorLeaderboardRow[],
+    expectedStatsMap,
+  );
+  const adjustedComparisonRows = applyExpectedCollectionOverrides(
+    rawComparisonRows as CollectorLeaderboardRow[],
+    expectedStatsMap,
+  );
+  const adjustedExecutionRows = applyExpectedCollectionOverrides(
+    rawExecutionRows as CollectorLeaderboardRow[],
+    expectedStatsMap,
+  );
+  const adjustedHighestPortfolioRows = applyExpectedCollectionOverrides(
+    rawHighestPortfolioRows as CollectorLeaderboardRow[],
+    expectedStatsMap,
+  );
+  const adjustedBestRecoveryRows = applyExpectedCollectionOverrides(
+    rawBestRecoveryRows as CollectorLeaderboardRow[],
+    expectedStatsMap,
+  );
   const maxima: CollectorRadarMaxima = {
     totalCollected: toNumber(summaryRow?.maxTotalCollected),
     completionRate: toNumber(summaryRow?.maxCompletionRate),
@@ -2742,15 +2921,15 @@ export async function loadCollectorsAnalyticsData(
     portfolioRecoveryRate: toNumber(summaryRow?.maxPortfolioRecoveryRate),
     delinquencyControl: toNumber(summaryRow?.maxDelinquencyControl),
   };
-  const rows = attachCollectorRadarMetrics(rawPageRows as CollectorLeaderboardRow[], maxima);
-  const orderedRows = attachCollectorRadarMetrics(rawOrderedRows as CollectorLeaderboardRow[], maxima);
-  const comparisonRows = (rawComparisonRows as CollectorLeaderboardRow[]).map(normalizeCollectorLeaderboardRow);
-  const executionRows = (rawExecutionRows as CollectorLeaderboardRow[]).map(normalizeCollectorLeaderboardRow);
-  const highestPortfolio = rawHighestPortfolioRows[0]
-    ? normalizeCollectorLeaderboardRow(rawHighestPortfolioRows[0] as CollectorLeaderboardRow)
+  const rows = attachCollectorRadarMetrics(adjustedPageRows, maxima);
+  const orderedRows = attachCollectorRadarMetrics(adjustedOrderedRows, maxima);
+  const comparisonRows = adjustedComparisonRows.map(normalizeCollectorLeaderboardRow);
+  const executionRows = adjustedExecutionRows.map(normalizeCollectorLeaderboardRow);
+  const highestPortfolio = adjustedHighestPortfolioRows[0]
+    ? normalizeCollectorLeaderboardRow(adjustedHighestPortfolioRows[0])
     : undefined;
-  const bestRecovery = rawBestRecoveryRows[0]
-    ? normalizeCollectorLeaderboardRow(rawBestRecoveryRows[0] as CollectorLeaderboardRow)
+  const bestRecovery = adjustedBestRecoveryRows[0]
+    ? normalizeCollectorLeaderboardRow(adjustedBestRecoveryRows[0])
     : undefined;
   const totalCollectionsAttributed = toNumber(summaryRow?.totalCollectionsAttributed);
   const previousTotalCollectionsAttributed = toNumber(summaryRow?.previousTotalCollectionsAttributed);

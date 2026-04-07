@@ -13,6 +13,10 @@ import {
   users,
 } from "@/db/schema";
 import { resolveCreateLoanAccess } from "@/app/dashboard/create-loan/access";
+import {
+  calculateCalendarDayDiff,
+  calculateScheduledDueDate,
+} from "@/app/dashboard/loans/loan-schedule";
 import { LIVE_STORED_LOAN_STATUSES } from "@/app/dashboard/loans/loan-state";
 import type { CreateLoanState } from "@/app/dashboard/create-loan/state";
 
@@ -52,26 +56,6 @@ function parseNonNegativeNumber(value: string) {
   }
 
   return parsed;
-}
-
-function diffInDays(startDate: string, dueDate: string) {
-  const start = new Date(`${startDate}T00:00:00Z`);
-  const due = new Date(`${dueDate}T00:00:00Z`);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(due.getTime())) {
-    return null;
-  }
-
-  const diff = Math.round((due.getTime() - start.getTime()) / 86400000);
-  return diff > 0 ? diff : null;
-}
-
-function addDays(startDate: string, days: number) {
-  const start = new Date(`${startDate}T00:00:00Z`);
-  if (Number.isNaN(start.getTime()) || !Number.isFinite(days) || days <= 0) {
-    return null;
-  }
-  start.setUTCDate(start.getUTCDate() + days);
-  return start.toISOString().slice(0, 10);
 }
 
 function escapeRegExp(value: string) {
@@ -393,8 +377,8 @@ export async function createLoanAction(
     };
   }
 
-  const termDays = diffInDays(startDate, dueDate);
-  if (termDays === null) {
+  const rawCalendarDayDiff = calculateCalendarDayDiff(startDate, dueDate);
+  if (rawCalendarDayDiff === null) {
     return {
       status: "error",
       message: "Invalid loan term. Due date must be after start date.",
@@ -404,27 +388,37 @@ export async function createLoanAction(
     };
   }
 
+  let termDays: number | null = rawCalendarDayDiff;
+
   if (!isAdmin && termDays !== 58 && termDays !== 60) {
-    return {
-      status: "error",
-      message: "Non-admin users can only create 58-day or 60-day loans.",
-      fieldErrors: {
-        due_date: "Loan term must be 58 or 60 days.",
-      },
-    };
+    const expectedScheduleTerm = termOption === "58" || termOption === "60" ? Number(termOption) : null;
+    if (expectedScheduleTerm === null) {
+      return {
+        status: "error",
+        message: "Non-admin users can only create 58-day or 60-day loans.",
+        fieldErrors: {
+          due_date: "Loan term must be 58 or 60 scheduled due dates.",
+        },
+      };
+    }
+    termDays = expectedScheduleTerm;
   }
 
   if (termOption === "58" || termOption === "60") {
-    const expectedDueDate = addDays(startDate, Number(termOption));
+    const expectedDueDate = calculateScheduledDueDate({
+      startDate,
+      obligationCount: Number(termOption),
+    });
     if (!expectedDueDate || dueDate !== expectedDueDate) {
       return {
         status: "error",
         message: "Due date does not match the selected fixed term.",
         fieldErrors: {
-          due_date: "Due date must match start date plus selected term days.",
+          due_date: "Due date must match the generated valid collection schedule.",
         },
       };
     }
+    termDays = Number(termOption);
   } else if (termOption === "custom") {
     if (!isAdmin) {
       return {

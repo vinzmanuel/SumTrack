@@ -23,6 +23,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { createLoanAction } from "@/app/dashboard/create-loan/actions";
+import {
+  calculateCalendarDayDiff,
+  calculateScheduledDueDate,
+} from "@/app/dashboard/loans/loan-schedule";
 import { initialCreateLoanState } from "@/app/dashboard/create-loan/state";
 import type {
   AreaOption,
@@ -98,37 +102,6 @@ function formatDateInput(date: Date) {
   return `${year}-${month}-${day}`;
 }
 
-function addDaysToDate(dateString: string, days: number) {
-  if (!dateString) {
-    return "";
-  }
-
-  const [year, month, day] = dateString.split("-").map(Number);
-  if (!year || !month || !day) {
-    return "";
-  }
-
-  const date = new Date(Date.UTC(year, month - 1, day));
-  date.setUTCDate(date.getUTCDate() + days);
-  return date.toISOString().slice(0, 10);
-}
-
-function getDateDiffDays(startDate: string, dueDate: string) {
-  if (!startDate || !dueDate) {
-    return null;
-  }
-
-  const start = new Date(`${startDate}T00:00:00Z`);
-  const due = new Date(`${dueDate}T00:00:00Z`);
-
-  if (Number.isNaN(start.getTime()) || Number.isNaN(due.getTime())) {
-    return null;
-  }
-
-  const diff = Math.ceil((due.getTime() - start.getTime()) / 86400000);
-  return diff > 0 ? diff : null;
-}
-
 export function CreateLoanForm({
   borrowers,
   activeLoanBorrowerIds,
@@ -144,7 +117,11 @@ export function CreateLoanForm({
   const defaultStartDate = useMemo(() => formatDateInput(new Date()), []);
   const defaultTermOption = "58";
   const defaultDueDate = useMemo(
-    () => addDaysToDate(defaultStartDate, DEFAULT_TERM_DAYS),
+    () =>
+      calculateScheduledDueDate({
+        startDate: defaultStartDate,
+        obligationCount: DEFAULT_TERM_DAYS,
+      }) ?? "",
     [defaultStartDate],
   );
 
@@ -247,8 +224,10 @@ export function CreateLoanForm({
 
   const parsedPrincipal = Number(principalRaw);
   const parsedInterest = Number(interest);
-  const durationDays = getDateDiffDays(startDate, dueDate);
   const isCustomTerm = isAdmin && termOption === "custom";
+  const fixedTermDays =
+    !isCustomTerm && Number.isFinite(Number(termOption)) ? Number(termOption) : null;
+  const durationDays = isCustomTerm ? calculateCalendarDayDiff(startDate, dueDate) : fixedTermDays;
   const totalPayable =
     Number.isFinite(parsedPrincipal) && parsedPrincipal >= 0 && Number.isFinite(parsedInterest)
       ? parsedPrincipal + (parsedPrincipal * parsedInterest) / 100
@@ -327,8 +306,11 @@ export function CreateLoanForm({
       return;
     }
 
-    const nextDueDate = addDaysToDate(startDate, termDays);
-    if (nextDueDate !== "") {
+    const nextDueDate = calculateScheduledDueDate({
+      startDate,
+      obligationCount: termDays,
+    });
+    if (nextDueDate) {
       setDueDate(nextDueDate);
     }
   }
@@ -345,8 +327,11 @@ export function CreateLoanForm({
       return;
     }
 
-    const nextDueDate = addDaysToDate(value, termDays);
-    if (nextDueDate !== "") {
+    const nextDueDate = calculateScheduledDueDate({
+      startDate: value,
+      obligationCount: termDays,
+    });
+    if (nextDueDate) {
       setDueDate(nextDueDate);
     }
   }
