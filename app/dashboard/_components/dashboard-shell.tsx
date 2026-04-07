@@ -502,22 +502,23 @@ export function DashboardShell({
       }
     >
       <header className="sticky top-0 z-20 flex items-center justify-between border-b border-sidebar-border/70 bg-card px-4 py-3 md:hidden">
-        <Link className="relative h-8 w-[138px]" href="/dashboard">
-          <Image
-            alt="SumTrack"
-            className="object-contain object-left"
-            fill
-            priority
-            sizes="138px"
-            src={BRAND_FULL_SRC}
-          />
-        </Link>
         <div className="flex items-center gap-2">
-          <ThemeToggle />
           <Button onClick={() => setMobileOpen(true)} size="icon" type="button" variant="outline">
             <Menu className="size-4" />
+            <span className="sr-only">Open navigation</span>
           </Button>
+          <Link className="relative h-8 w-[138px]" href="/dashboard">
+            <Image
+              alt="SumTrack"
+              className="object-contain object-left"
+              fill
+              priority
+              sizes="138px"
+              src={BRAND_FULL_SRC}
+            />
+          </Link>
         </div>
+        <ThemeToggle />
       </header>
 
       <div className="flex min-h-0 w-full md:h-screen">

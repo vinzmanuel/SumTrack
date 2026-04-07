@@ -12,7 +12,7 @@ export function DashboardPageHeader({ title }: DashboardPageHeaderProps) {
       <div className="flex min-w-0 items-center px-3 md:px-4">
         <h1 className="text-2xl font-semibold">{title}</h1>
       </div>
-      <div className="ml-auto flex items-center px-3 md:px-4">
+      <div className="ml-auto hidden items-center px-3 md:flex md:px-4">
         <ThemeToggle />
       </div>
     </div>
