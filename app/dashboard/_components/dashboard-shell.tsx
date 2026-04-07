@@ -15,6 +15,8 @@ import {
   LayoutDashboard,
   LogOut,
   Menu,
+  PanelRightClose,
+  PanelRightOpen,
   ReceiptText,
   Settings,
   UserCog,
@@ -170,7 +172,7 @@ function SidebarProfileStrip({
                   type="button"
                   variant="ghost"
                 >
-                  <EllipsisVertical className="size-4" />
+                  <EllipsisVertical className="size-4 rotate-90" />
                   <span className="sr-only">Open profile menu</span>
                 </Button>
               </DropdownMenuTrigger>
@@ -226,6 +228,48 @@ function SidebarProfileStrip({
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
+  );
+}
+
+function SidebarControlButton({
+  isCollapsed,
+  onToggleCollapsed,
+}: {
+  isCollapsed: boolean;
+  onToggleCollapsed: (value: boolean) => void;
+}) {
+  const button = (
+    <Button
+      aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+      className={cn(
+        "h-9 w-full rounded-lg text-sm font-medium text-sidebar-foreground/78 shadow-none hover:bg-sidebar-accent/55 hover:text-sidebar-foreground",
+        isCollapsed ? "justify-center px-0" : "justify-start gap-3 px-2.5",
+      )}
+      onClick={() => onToggleCollapsed(!isCollapsed)}
+      size="sm"
+      type="button"
+      variant="ghost"
+    >
+      {isCollapsed ? (
+        <PanelRightClose className="size-4 shrink-0" />
+      ) : (
+        <>
+          <PanelRightOpen className="size-4 shrink-0" />
+          <span className="truncate">Collapse sidebar</span>
+        </>
+      )}
+    </Button>
+  );
+
+  if (!isCollapsed) {
+    return button;
+  }
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{button}</TooltipTrigger>
+      <TooltipContent side="right">Expand sidebar</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -294,6 +338,7 @@ function NavContent({
   navItems,
   closeDrawer,
   isCollapsed = false,
+  onToggleCollapsed,
 }: {
   roleName: string;
   companyId: string;
@@ -301,6 +346,7 @@ function NavContent({
   navItems: NavItem[];
   closeDrawer?: () => void;
   isCollapsed?: boolean;
+  onToggleCollapsed?: (value: boolean) => void;
 }) {
   const pathname = usePathname();
   const profileItem =
@@ -352,8 +398,16 @@ function NavContent({
         </nav>
 
         <div className={cn("px-5 pb-3", isCollapsed && "px-3 pb-3 pt-3")}>
-          {profileItem ? (
+          {onToggleCollapsed ? (
             <div className="pb-3">
+              <SidebarControlButton
+                isCollapsed={isCollapsed}
+                onToggleCollapsed={onToggleCollapsed}
+              />
+            </div>
+          ) : null}
+          {profileItem ? (
+              <div className={cn("pb-3", isCollapsed && "pt-8")}>
               <SidebarNavItem
                 active={isActiveNav(pathname, profileItem.href)}
                 closeDrawer={closeDrawer}
@@ -479,17 +533,14 @@ export function DashboardShell({
               displayName={displayName}
               isCollapsed={isCollapsed}
               navItems={normalizedItems}
+              onToggleCollapsed={setIsCollapsed}
               roleName={roleName}
             />
           </div>
         </aside>
 
         <main className="min-h-0 min-w-0 flex-1 bg-[var(--app-background)] md:h-screen md:overflow-y-auto">
-          <DashboardPageHeader
-            isCollapsed={isCollapsed}
-            onToggleCollapse={() => setIsCollapsed((prev) => !prev)}
-            title={currentPageLabel}
-          />
+          <DashboardPageHeader title={currentPageLabel} />
           <div className="px-3 pb-4 pt-4 md:px-6 md:pb-6 md:pt-6">
             <div className="w-full">{children}</div>
           </div>
