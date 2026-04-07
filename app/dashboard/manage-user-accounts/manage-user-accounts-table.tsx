@@ -13,16 +13,16 @@ import type {
 } from "@/app/dashboard/manage-user-accounts/types";
 import { getManagedUserViewHref } from "@/app/dashboard/manage-user-accounts/view-routes";
 
-const headerRowClassName = "border-border/70 bg-[var(--app-table-header)]";
+const headerRowClassName = "border-border/70 bg-card";
 
 function roleBadgeClass(roleName: string) {
-  if (roleName === "Admin") return "whitespace-nowrap border-red-200 bg-red-50 text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300";
-  if (roleName === "Auditor") return "whitespace-nowrap border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300";
-  if (roleName === "Branch Manager") return "whitespace-nowrap border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300";
-  if (roleName === "Secretary") return "whitespace-nowrap border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-500/30 dark:bg-violet-500/10 dark:text-violet-300";
-  if (roleName === "Collector") return "whitespace-nowrap border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300";
-  if (roleName === "Borrower") return "whitespace-nowrap border-zinc-200 bg-zinc-50 text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100";
-  return "whitespace-nowrap border-zinc-200 bg-zinc-50 text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100";
+  if (roleName === "Admin") return "whitespace-nowrap rounded-md border-0 bg-red-50 py-1 text-red-700 dark:bg-red-500/10 dark:text-red-300";
+  if (roleName === "Auditor") return "whitespace-nowrap rounded-md border-0 bg-blue-50 py-1 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300";
+  if (roleName === "Branch Manager") return "whitespace-nowrap rounded-md border-0 bg-amber-50 py-1 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300";
+  if (roleName === "Secretary") return "whitespace-nowrap rounded-md border-0 bg-violet-50 py-1 text-violet-700 dark:bg-violet-500/10 dark:text-violet-300";
+  if (roleName === "Collector") return "whitespace-nowrap rounded-md border-0 bg-emerald-50 py-1 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300";
+  if (roleName === "Borrower") return "whitespace-nowrap rounded-md border-0 bg-zinc-50 py-1 text-zinc-700 dark:bg-white/[0.06] dark:text-zinc-100";
+  return "whitespace-nowrap rounded-md border-zinc-200 bg-zinc-50 text-zinc-700 dark:bg-white/[0.₀6] dark:text-zinc-1₀₀";
 }
 
 export function ManageUserAccountsTable({
@@ -49,7 +49,7 @@ export function ManageUserAccountsTable({
   }
 
   return (
-    <div className="overflow-x-auto border-y border-border">
+    <div className="overflow-x-auto rounded-md border border-border/70 bg-card shadow-sm">
       <Table className="min-w-[1180px] text-sm">
         <TableHeader>
           <TableRow className={headerRowClassName}>
@@ -68,7 +68,7 @@ export function ManageUserAccountsTable({
               <TableCell className="py-3 pl-5 font-medium">{row.displayName}</TableCell>
               <TableCell className="py-3">
                 <Badge
-                  className="whitespace-nowrap border-zinc-200 bg-zinc-50 text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100"
+                  className="whitespace-nowrap rounded-md border-0 bg-zinc-100/65 py-1 text-zinc-700 dark:bg-white/[0.06] dark:text-zinc-100"
                   variant="outline"
                 >
                   {row.companyId}

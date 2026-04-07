@@ -20,6 +20,7 @@ import {
 } from "@/db/schema";
 import type {
   BranchActionPermissions,
+  BranchAreaCreateMutationResult,
   BranchCreateMutationResult,
   BranchDetailAccessState,
   BranchAreasTabData,
@@ -690,7 +691,7 @@ export async function createAreaByBranchCode(params: {
   branchCode: string;
   areaNo: string;
   description: string;
-}): Promise<BranchMutationResult> {
+}): Promise<BranchAreaCreateMutationResult> {
   const target = await loadBranchMutationTarget(params.access, params.branchCode);
   if (!target) {
     return { ok: false, message: "Branch not found in your allowed scope." };
@@ -737,13 +738,50 @@ export async function createAreaByBranchCode(params: {
   }
 
   try {
-    await db.insert(areas).values({
-      branch_id: target.branchId,
-      area_no: areaNo,
-      area_code: areaCode,
-      description: description || null,
-      status: "active",
-    });
+    const insertedArea = await db
+      .insert(areas)
+      .values({
+        branch_id: target.branchId,
+        area_no: areaNo,
+        area_code: areaCode,
+        description: description || null,
+        status: "active",
+      })
+      .returning({
+        areaId: areas.area_id,
+        areaNo: areas.area_no,
+        areaCode: areas.area_code,
+        description: areas.description,
+        status: areas.status,
+        dateCreated: areas.date_created,
+      })
+      .then((rows) => rows[0] ?? null);
+
+    if (!insertedArea) {
+      return {
+        ok: false,
+        message: "The area was created, but the resulting area record could not be loaded.",
+      };
+    }
+
+    return {
+      ok: true,
+      message: "Area created.",
+      area: {
+        areaId: insertedArea.areaId,
+        areaCode: insertedArea.areaCode,
+        areaNo: insertedArea.areaNo,
+        description: insertedArea.description ?? null,
+        status: insertedArea.status,
+        assignedCollectorLabel: "Unassigned",
+        assignedCollectorNames: [],
+        borrowerCount: 0,
+        activeLoanCount: 0,
+        overdueLoanCount: 0,
+        collectionsThisMonth: 0,
+        dateCreated: insertedArea.dateCreated,
+      },
+    };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
 
@@ -760,8 +798,6 @@ export async function createAreaByBranchCode(params: {
       message: "The area could not be created due to a database error. Please try again.",
     };
   }
-
-  return { ok: true, message: "Area created." };
 }
 
 export async function updateAreaByBranchCode(params: {

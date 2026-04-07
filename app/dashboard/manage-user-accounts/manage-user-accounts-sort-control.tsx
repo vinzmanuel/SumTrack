@@ -47,7 +47,7 @@ export function ManageUserAccountsSortControl({
         <Button
           aria-expanded={open}
           aria-haspopup="menu"
-          className="border-border/80"
+          className="rounded-lg border-border/80"
           onClick={() => setOpen((previous) => !previous)}
           size="sm"
           type="button"
@@ -61,7 +61,7 @@ export function ManageUserAccountsSortControl({
 
       {open ? (
         <div
-          className="absolute left-0 top-full z-20 mt-1 w-56 rounded-lg border border-border/80 bg-background p-1.5 shadow-lg"
+          className="absolute left-0 top-full z-20 mt-1 w-56 rounded-xl border border-border/80 bg-background p-1.5 shadow-lg"
           role="menu"
         >
           {SORT_OPTIONS.map((option) => {

@@ -52,20 +52,21 @@ export function BranchAreasTab({
   const [query, setQuery] = useState("");
   const [statusTab, setStatusTab] = useState<"active" | "inactive">("active");
   const [page, setPage] = useState(1);
+  const [localAreas, setLocalAreas] = useState(() => data.areas);
 
   const activeCount = useMemo(
-    () => data.areas.filter((area) => area.status === "active").length,
-    [data.areas],
+    () => localAreas.filter((area) => area.status === "active").length,
+    [localAreas],
   );
   const inactiveCount = useMemo(
-    () => data.areas.filter((area) => area.status === "inactive").length,
-    [data.areas],
+    () => localAreas.filter((area) => area.status === "inactive").length,
+    [localAreas],
   );
 
   const filteredAreas = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
 
-    return data.areas
+    return localAreas
       .filter((area) => {
         if (area.status !== statusTab) {
           return false;
@@ -87,7 +88,7 @@ export function BranchAreasTab({
         return haystack.includes(normalizedQuery);
       })
       .sort((left, right) => left.areaCode.localeCompare(right.areaCode));
-  }, [data.areas, query, statusTab]);
+  }, [localAreas, query, statusTab]);
 
   const totalPages = Math.max(Math.ceil(filteredAreas.length / PAGE_SIZE), 1);
   const safePage = Math.min(page, totalPages);
@@ -146,7 +147,14 @@ export function BranchAreasTab({
 
             {canCreateAreas ? (
               <div className="flex justify-end">
-                <BranchCreateAreaDialog branchCode={branchCode} />
+                <BranchCreateAreaDialog
+                  branchCode={branchCode}
+                  onCreated={(area) => {
+                    setLocalAreas((current) => [...current, area]);
+                    setStatusTab("active");
+                    setPage(1);
+                  }}
+                />
               </div>
             ) : null}
           </div>
@@ -225,17 +233,46 @@ export function BranchAreasTab({
                                 areaId={row.areaId}
                                 branchCode={branchCode}
                                 description={row.description}
+                                onUpdated={(nextDescription) => {
+                                  setLocalAreas((current) =>
+                                    current.map((area) =>
+                                      area.areaId === row.areaId
+                                        ? {
+                                            ...area,
+                                            description: nextDescription,
+                                          }
+                                        : area,
+                                    ),
+                                  );
+                                }}
                               />
                               <AreaStatusButton
                                 areaCode={row.areaCode}
                                 areaId={row.areaId}
                                 branchCode={branchCode}
+                                onStatusChanged={(nextStatus) => {
+                                  setLocalAreas((current) =>
+                                    current.map((area) =>
+                                      area.areaId === row.areaId
+                                        ? {
+                                            ...area,
+                                            status: nextStatus,
+                                          }
+                                        : area,
+                                    ),
+                                  );
+                                }}
                                 status={row.status}
                               />
                               <AreaDeleteButton
                                 areaCode={row.areaCode}
                                 areaId={row.areaId}
                                 branchCode={branchCode}
+                                onDeleted={() => {
+                                  setLocalAreas((current) =>
+                                    current.filter((area) => area.areaId !== row.areaId),
+                                  );
+                                }}
                               />
                             </div>
                           ) : (

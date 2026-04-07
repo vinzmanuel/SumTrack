@@ -29,5 +29,8 @@ export async function POST(
     description: String(body?.description ?? ""),
   });
 
-  return NextResponse.json({ message: result.message }, { status: result.ok ? 200 : 400 });
+  return NextResponse.json(
+    result.ok ? { area: result.area, message: result.message } : { message: result.message },
+    { status: result.ok ? 200 : 400 },
+  );
 }

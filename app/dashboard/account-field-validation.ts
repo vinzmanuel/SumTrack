@@ -10,7 +10,7 @@ export function isValidPhilippineMobile(value: string) {
 }
 
 export function normalizeAccountEmail(value: string) {
-  return value.trim().slice(0, 120);
+  return value.trim().toLowerCase().slice(0, 120);
 }
 
 export function isValidEmailAddress(value: string) {

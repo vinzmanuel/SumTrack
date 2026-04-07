@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import {
   BarChart3,
@@ -26,6 +26,10 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import {
+  DashboardHeaderConfigProvider,
+  type DashboardHeaderConfig,
+} from "@/app/dashboard/_components/dashboard-header-config";
 import { DashboardPageHeader } from "@/app/dashboard/_components/dashboard-page-header";
 import {
   DropdownMenu,
@@ -33,6 +37,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 import {
   Sheet,
   SheetContent,
@@ -78,12 +90,35 @@ const EXPANDED_SIDEBAR_X_PADDING = 20;
 const EXPANDED_LOGO_WIDTH = EXPANDED_SIDEBAR_WIDTH - EXPANDED_SIDEBAR_X_PADDING * 2;
 const EXPANDED_LOGO_HEIGHT = (EXPANDED_LOGO_WIDTH * 900) / 6550;
 const SIDEBAR_BRAND_Y_PADDING = 20;
-const DESKTOP_HEADER_HEIGHT = EXPANDED_LOGO_HEIGHT + SIDEBAR_BRAND_Y_PADDING * 2 + 1;
+const DESKTOP_HEADER_HEIGHT = EXPANDED_LOGO_HEIGHT + SIDEBAR_BRAND_Y_PADDING * 2 + 9;
 const sectionOrder: Array<NavItem["section"]> = ["main", "finance", "system"];
 const sectionTitles: Record<NavItem["section"], string> = {
   main: "Main",
   finance: "Finance",
   system: "System",
+};
+const breadcrumbActionLabels: Record<string, string> = {
+  archive: "Archive",
+  create: "Create",
+  delete: "Delete",
+  edit: "Edit",
+  "reassign-loans": "Reassign Loans",
+  "risk-assessment": "Risk Assessment",
+  rules: "Rules",
+  status: "Status",
+  "status-reconciliation": "Status Reconciliation",
+  "system-monthly": "System Monthly",
+  update: "Update",
+};
+const breadcrumbDetailLabels: Partial<Record<string, string>> = {
+  "/dashboard/assigned-loans": "Loan Details",
+  "/dashboard/borrowers": "Borrower Details",
+  "/dashboard/branches": "Branch Details",
+  "/dashboard/collectors": "Collector Details",
+  "/dashboard/loans": "Loan Details",
+  "/dashboard/manage-user-accounts": "User Details",
+  "/dashboard/my-loans": "Loan Details",
+  "/dashboard/reports": "Report Details",
 };
 
 function isActiveNav(pathname: string, href: string) {
@@ -91,6 +126,75 @@ function isActiveNav(pathname: string, href: string) {
     return pathname === "/dashboard";
   }
   return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function formatBreadcrumbLabel(segment: string) {
+  return decodeURIComponent(segment)
+    .replace(/[-_]/g, " ")
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function buildDashboardBreadcrumbs({
+  currentPageLabel,
+  navItems,
+  pathname,
+}: {
+  currentPageLabel: string;
+  navItems: NavItem[];
+  pathname: string;
+}) {
+  if (pathname === "/dashboard") {
+    return [{ label: "Dashboard", current: true as const }];
+  }
+
+  const items: Array<{ label: string; href?: string; current?: true }> = [
+    { href: "/dashboard", label: "Dashboard" },
+  ];
+  const activeNav = [...navItems]
+    .filter((item) => item.href !== "/dashboard" && isActiveNav(pathname, item.href))
+    .sort((left, right) => right.href.length - left.href.length)[0];
+
+  if (!activeNav) {
+    items.push({ label: currentPageLabel, current: true });
+    return items;
+  }
+
+  const remainder = pathname.slice(activeNav.href.length).split("/").filter(Boolean);
+
+  if (remainder.length === 0) {
+    items.push({ label: activeNav.label, current: true });
+    return items;
+  }
+
+  items.push({ href: activeNav.href, label: activeNav.label });
+
+  let detailConsumed = false;
+
+  remainder.forEach((segment, index) => {
+    const isLast = index === remainder.length - 1;
+    const actionLabel = breadcrumbActionLabels[segment];
+
+    if (actionLabel) {
+      items.push({ label: actionLabel, current: isLast ? true : undefined });
+      return;
+    }
+
+    if (!detailConsumed && breadcrumbDetailLabels[activeNav.href]) {
+      items.push({
+        label: breadcrumbDetailLabels[activeNav.href] ?? currentPageLabel,
+        current: isLast ? true : undefined,
+      });
+      detailConsumed = true;
+      return;
+    }
+
+    items.push({
+      label: isLast ? currentPageLabel : formatBreadcrumbLabel(segment),
+      current: isLast ? true : undefined,
+    });
+  });
+
+  return items;
 }
 
 function SidebarIcon({
@@ -242,7 +346,7 @@ function SidebarControlButton({
     <Button
       aria-label={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
       className={cn(
-        "h-9 w-full rounded-lg text-sm font-medium text-sidebar-foreground/78 shadow-none hover:bg-sidebar-accent/55 hover:text-sidebar-foreground",
+        "h-9 w-full rounded-lg text-sm font-medium text-sidebar-foreground/65 shadow-none hover:bg-sidebar-accent/55 hover:text-sidebar-foreground",
         isCollapsed ? "justify-center px-0" : "justify-start gap-3 px-2.5",
       )}
       onClick={() => onToggleCollapsed(!isCollapsed)}
@@ -302,7 +406,7 @@ function SidebarNavItem({
           isCollapsed ? "justify-center px-0" : "gap-3",
           active
             ? "bg-[color:color-mix(in_oklab,var(--app-background)_70%,white_30%)] text-foreground dark:bg-white/[0.04]"
-            : "text-sidebar-foreground/78 hover:bg-sidebar-accent/55 hover:text-sidebar-foreground",
+            : "text-sidebar-foreground/65 hover:bg-sidebar-accent/55 hover:text-sidebar-foreground",
         )}
         href={item.href}
         onClick={closeDrawer}
@@ -356,7 +460,7 @@ function NavContent({
   return (
     <TooltipProvider delayDuration={80}>
       <div className="flex h-full flex-col overflow-x-hidden bg-background text-sidebar-foreground dark:bg-sidebar">
-        <div className={cn("px-5 py-5", isCollapsed && "px-5 py-5")}>
+        <div className={cn("px-5 py-6", isCollapsed && "px-5 py-6")}>
           <SidebarBrand isCollapsed={isCollapsed} />
         </div>
 
@@ -438,6 +542,7 @@ export function DashboardShell({
 }: DashboardShellProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [headerConfig, setHeaderConfig] = useState<DashboardHeaderConfig | null>(null);
   const normalizedItems = useMemo(() => navItems, [navItems]);
   const pathname = usePathname();
 
@@ -491,6 +596,19 @@ export function DashboardShell({
 
     return normalizedItems.find((item) => isActiveNav(pathname, item.href))?.label ?? "Overview";
   }, [normalizedItems, pathname]);
+  const breadcrumbItems = useMemo(
+    () =>
+      buildDashboardBreadcrumbs({
+        currentPageLabel,
+        navItems: normalizedItems,
+        pathname,
+      }),
+    [currentPageLabel, normalizedItems, pathname],
+  );
+  const shouldShowBreadcrumb = useMemo(
+    () => pathname.split("/").filter(Boolean).length >= 2,
+    [pathname],
+  );
 
   return (
     <div
@@ -541,10 +659,36 @@ export function DashboardShell({
         </aside>
 
         <main className="min-h-0 min-w-0 flex-1 bg-[var(--app-background)] md:h-screen md:overflow-y-auto">
-          <DashboardPageHeader title={currentPageLabel} />
-          <div className="px-3 pb-4 pt-4 md:px-6 md:pb-6 md:pt-6">
-            <div className="w-full">{children}</div>
-          </div>
+          <DashboardHeaderConfigProvider setConfig={setHeaderConfig}>
+            <DashboardPageHeader config={headerConfig} title={currentPageLabel} />
+            <div className="px-3 pb-4 pt-4 md:p-4">
+              <div className="w-full">
+                {shouldShowBreadcrumb ? (
+                  <Breadcrumb className="pl-1 mb-3 md:mb-4">
+                    <BreadcrumbList>
+                      {breadcrumbItems.map((item, index) => (
+                        <Fragment key={`${item.label}-${index}`}>
+                          <BreadcrumbItem>
+                            {item.current ? (
+                              <BreadcrumbPage>{item.label}</BreadcrumbPage>
+                            ) : item.href ? (
+                              <BreadcrumbLink asChild>
+                                <Link href={item.href}>{item.label}</Link>
+                              </BreadcrumbLink>
+                            ) : (
+                              <span>{item.label}</span>
+                            )}
+                          </BreadcrumbItem>
+                          {index < breadcrumbItems.length - 1 ? <BreadcrumbSeparator /> : null}
+                        </Fragment>
+                      ))}
+                    </BreadcrumbList>
+                  </Breadcrumb>
+                ) : null}
+                {children}
+              </div>
+            </div>
+          </DashboardHeaderConfigProvider>
         </main>
       </div>
 

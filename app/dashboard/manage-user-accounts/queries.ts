@@ -585,6 +585,10 @@ function resolveEditableRoleNames(scope: ManageUserAccountsScope, row: { roleNam
     return ["Collector", "Secretary"];
   }
 
+  if (scope.roleName === "Branch Manager" && row.roleName === "Secretary") {
+    return ["Collector", "Secretary"];
+  }
+
   return [];
 }
 
@@ -1426,7 +1430,8 @@ export async function loadManagedUserDetail(
     !isInactive &&
     row.roleName !== "Borrower" &&
     ((scope.roleName === "Admin" && !isBorrower) ||
-      (scope.roleName === "Branch Manager" && row.roleName === "Collector"));
+      (scope.roleName === "Branch Manager" &&
+        (row.roleName === "Collector" || row.roleName === "Secretary")));
   const editableRoleRows = editableRoleNames.length
     ? await db
         .select({
@@ -1462,16 +1467,18 @@ export async function loadManagedUserDetail(
     !isBorrower &&
     (scope.roleName === "Admin" ||
       (scope.roleName === "Branch Manager" &&
-        row.roleName === "Collector" &&
+        (row.roleName === "Collector" || row.roleName === "Secretary") &&
         branchManagerBranchId !== null &&
         currentBranchId === branchManagerBranchId));
   const canLoadBranchAssignmentOptions =
     !isBorrower && (scope.roleName === "Admin" || scope.roleName === "Branch Manager");
   const canLoadAreaAssignmentOptions =
     !isBorrower &&
-    row.roleName === "Collector" &&
     (scope.roleName === "Admin" ||
-      (scope.roleName === "Branch Manager" && branchManagerBranchId !== null));
+      (scope.roleName === "Branch Manager" &&
+        branchManagerBranchId !== null &&
+        currentBranchId === branchManagerBranchId &&
+        (row.roleName === "Collector" || row.roleName === "Secretary")));
   const editableBranchOptions = canLoadBranchAssignmentOptions
     ? await db
         .select({
@@ -1797,6 +1804,31 @@ export async function updateManagedUserAccount(params: {
         return {
           ok: false as const,
           message: "Branch reassignment is not allowed in this edit flow.",
+        };
+      }
+    } else if (detail.roleName === "Secretary") {
+      if (currentBranchId === null || managerBranchId === null || currentBranchId !== managerBranchId) {
+        return {
+          ok: false as const,
+          message: "You can only manage secretaries assigned to your own branch.",
+        };
+      }
+      if (!["Collector", "Secretary"].includes(nextRoleName)) {
+        return {
+          ok: false as const,
+          message: "Branch Manager can only keep this account as Secretary or move it to Collector.",
+        };
+      }
+      if (requestedBranchId !== currentBranchId) {
+        return {
+          ok: false as const,
+          message: "Branch reassignment is not allowed in this edit flow.",
+        };
+      }
+      if (nextRoleName !== "Collector" && params.areaId !== null && params.areaId !== currentAreaId) {
+        return {
+          ok: false as const,
+          message: "Area reassignment is not allowed for this account in your edit flow.",
         };
       }
     } else {

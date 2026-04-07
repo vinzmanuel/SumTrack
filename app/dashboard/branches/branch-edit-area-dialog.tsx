@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { startTransition, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -19,11 +19,13 @@ export function BranchEditAreaDialog({
   areaId,
   branchCode,
   description,
+  onUpdated,
 }: {
   areaCode: string;
   areaId: number;
   branchCode: string;
   description: string | null;
+  onUpdated?: (nextDescription: string | null) => void;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -48,33 +50,43 @@ export function BranchEditAreaDialog({
     setIsSaving(true);
     setErrorMessage(null);
 
-    const response = await fetch(
-      `/dashboard/branches/${encodeURIComponent(branchCode)}/areas/${areaId}/edit`,
-      {
-        method: "POST",
-        credentials: "same-origin",
-        headers: {
-          "Content-Type": "application/json",
+    try {
+      const response = await fetch(
+        `/dashboard/branches/${encodeURIComponent(branchCode)}/areas/${areaId}/edit`,
+        {
+          method: "POST",
+          credentials: "same-origin",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            description: nextDescription,
+          }),
         },
-        body: JSON.stringify({
-          description: nextDescription,
-        }),
-      },
-    );
+      );
 
-    const payload = (await response.json().catch(() => null)) as { message?: string } | null;
-    const message = payload?.message ?? "Unable to update area right now.";
+      const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+      const message = payload?.message ?? "Unable to update area right now.";
 
-    if (!response.ok) {
-      setIsSaving(false);
+      if (!response.ok) {
+        setErrorMessage(message);
+        toast.error(message);
+        return;
+      }
+
+      onUpdated?.(nextDescription.trim() ? nextDescription.trim() : null);
+      toast.success(message);
+      handleOpenChange(false);
+      startTransition(() => {
+        router.refresh();
+      });
+    } catch {
+      const message = "Unable to update area right now. Please check your connection and try again.";
       setErrorMessage(message);
       toast.error(message);
-      return;
+    } finally {
+      setIsSaving(false);
     }
-
-    toast.success(message);
-    handleOpenChange(false);
-    router.refresh();
   }
 
   return (

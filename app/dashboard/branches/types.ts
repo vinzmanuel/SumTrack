@@ -164,6 +164,17 @@ export type BranchAreasTabData = {
   areas: BranchAreaListRow[];
 };
 
+export type BranchAreaCreateMutationResult =
+  | {
+      ok: true;
+      message: string;
+      area: BranchAreaListRow;
+    }
+  | {
+      ok: false;
+      message: string;
+    };
+
 export function parseBranchDetailTab(value: string | undefined): BranchDetailTabKey {
   if (value === "employees" || value === "areas") {
     return value;

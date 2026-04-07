@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { startTransition, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -15,8 +15,15 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import type { BranchAreaListRow } from "@/app/dashboard/branches/types";
 
-export function BranchCreateAreaDialog({ branchCode }: { branchCode: string }) {
+export function BranchCreateAreaDialog({
+  branchCode,
+  onCreated,
+}: {
+  branchCode: string;
+  onCreated?: (area: BranchAreaListRow) => void;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -47,31 +54,46 @@ export function BranchCreateAreaDialog({ branchCode }: { branchCode: string }) {
     setIsSaving(true);
     setErrorMessage(null);
 
-    const response = await fetch(`/dashboard/branches/${encodeURIComponent(branchCode)}/areas/create`, {
-      method: "POST",
-      credentials: "same-origin",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        areaNo,
-        description,
-      }),
-    });
+    try {
+      const response = await fetch(`/dashboard/branches/${encodeURIComponent(branchCode)}/areas/create`, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          areaNo,
+          description,
+        }),
+      });
 
-    const payload = (await response.json().catch(() => null)) as { message?: string } | null;
-    const message = payload?.message ?? "Unable to create area right now.";
+      const payload = (await response.json().catch(() => null)) as
+        | { area?: BranchAreaListRow; message?: string }
+        | null;
+      const message = payload?.message ?? "Unable to create area right now.";
 
-    if (!response.ok) {
-      setIsSaving(false);
+      if (!response.ok) {
+        setErrorMessage(message);
+        toast.error(message);
+        return;
+      }
+
+      if (payload?.area) {
+        onCreated?.(payload.area);
+      }
+
+      toast.success(message);
+      handleOpenChange(false);
+      startTransition(() => {
+        router.refresh();
+      });
+    } catch {
+      const message = "Unable to create area right now. Please check your connection and try again.";
       setErrorMessage(message);
       toast.error(message);
-      return;
+    } finally {
+      setIsSaving(false);
     }
-
-    toast.success(message);
-    handleOpenChange(false);
-    router.refresh();
   }
 
   return (

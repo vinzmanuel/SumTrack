@@ -4,9 +4,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Plus, UserCog } from "lucide-react";
 import { appendBackNavigationToHref } from "@/app/dashboard/back-navigation";
-import { Badge } from "@/components/ui/badge";
+import { DashboardHeaderConfigurator } from "@/app/dashboard/_components/dashboard-header-config";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { SegmentedStatusControl } from "@/app/dashboard/_components/segmented-status-control";
 import {
   CollectorLiveLoanReassignmentDialog,
@@ -34,6 +33,19 @@ type ManageUserFilters = {
   page: number;
   pageSize: number;
 };
+
+function filtersEqual(left: ManageUserFilters, right: ManageUserFilters) {
+  return (
+    left.status === right.status &&
+    left.branchId === right.branchId &&
+    left.areaId === right.areaId &&
+    left.roleName === right.roleName &&
+    left.sort === right.sort &&
+    left.query === right.query &&
+    left.page === right.page &&
+    left.pageSize === right.pageSize
+  );
+}
 
 function buildResultsUrl(filters: ManageUserFilters) {
   const params = new URLSearchParams();
@@ -144,20 +156,22 @@ export function ManageUserAccountsClientPage({
   );
   const [results, setResults] = useState(initialData);
   const [filters, setFilters] = useState<ManageUserFilters>(initialFilters);
-  const [appliedFilters, setAppliedFilters] = useState<ManageUserFilters>(initialFilters);
+  const [debouncedQuery, setDebouncedQuery] = useState(initialFilters.query);
   const [isPending, setIsPending] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const filtersRef = useRef<ManageUserFilters>(initialFilters);
   const requestIdRef = useRef(0);
+  const loadedRequestUrlRef = useRef(buildDataUrl(initialFilters));
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [reassignmentRequest, setReassignmentRequest] = useState<CollectorReassignmentRequest | null>(null);
 
   useEffect(() => {
     setResults(initialData);
     setFilters(initialFilters);
-    setAppliedFilters(initialFilters);
+    setDebouncedQuery(initialFilters.query);
     setErrorMessage(null);
+    loadedRequestUrlRef.current = buildDataUrl(initialFilters);
   }, [initialData, initialFilters]);
 
   useEffect(() => {
@@ -166,12 +180,25 @@ export function ManageUserAccountsClientPage({
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedQuery(filters.query);
+    }, 400);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [filters.query]);
+
   const updateHistory = useCallback((nextFilters: ManageUserFilters) => {
     window.history.replaceState(null, "", buildResultsUrl(nextFilters));
   }, []);
   const currentReturnTo = buildResultsUrl(filters);
 
-  const loadResults = useCallback(async (nextFilters: ManageUserFilters) => {
+  const loadResults = useCallback(async (nextFilters: ManageUserFilters, options?: { force?: boolean }) => {
+    const requestUrl = buildDataUrl(nextFilters);
+    if (!options?.force && requestUrl === loadedRequestUrlRef.current) {
+      return;
+    }
+
     abortRef.current?.abort();
     const controller = new AbortController();
     const requestId = requestIdRef.current + 1;
@@ -196,8 +223,7 @@ export function ManageUserAccountsClientPage({
         return;
       }
 
-      setResults(nextData);
-      const nextApplied = {
+      const resolvedFilters: ManageUserFilters = {
         status: nextFilters.status,
         branchId: nextFilters.branchId,
         areaId: nextData.selectedAreaId,
@@ -207,8 +233,11 @@ export function ManageUserAccountsClientPage({
         page: nextData.page,
         pageSize: nextData.pageSize,
       };
-      setAppliedFilters(nextApplied);
-      updateHistory(nextApplied);
+
+      setResults(nextData);
+      loadedRequestUrlRef.current = buildDataUrl(resolvedFilters);
+      setFilters((current) => (filtersEqual(current, resolvedFilters) ? current : resolvedFilters));
+      updateHistory(resolvedFilters);
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") {
         return;
@@ -226,83 +255,39 @@ export function ManageUserAccountsClientPage({
     }
   }, [updateHistory]);
 
-  useEffect(() => {
-    if (
-      filters.status === appliedFilters.status &&
-      filters.branchId === appliedFilters.branchId &&
-      filters.areaId === appliedFilters.areaId &&
-      filters.roleName === appliedFilters.roleName &&
-      filters.sort === appliedFilters.sort &&
-      filters.pageSize === appliedFilters.pageSize
-    ) {
-      return;
-    }
-
-    void loadResults({
+  const requestFilters = useMemo<ManageUserFilters>(
+    () => ({
       status: filters.status,
       branchId: filters.branchId,
       areaId: filters.areaId,
       roleName: filters.roleName,
       sort: filters.sort,
-      query: filters.query,
-      page: 1,
+      query: debouncedQuery,
+      page: filters.page,
       pageSize: filters.pageSize,
-    });
-  }, [
-    appliedFilters.status,
-    appliedFilters.areaId,
-    appliedFilters.branchId,
-    appliedFilters.roleName,
-    appliedFilters.sort,
-    appliedFilters.pageSize,
-    filters.status,
-    filters.areaId,
-    filters.branchId,
-    filters.query,
-    filters.roleName,
-    filters.sort,
-    filters.pageSize,
-    loadResults,
-  ]);
+    }),
+    [
+      debouncedQuery,
+      filters.areaId,
+      filters.branchId,
+      filters.page,
+      filters.pageSize,
+      filters.roleName,
+      filters.sort,
+      filters.status,
+    ],
+  );
 
   useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      if (filtersRef.current.query === appliedFilters.query) {
-        return;
-      }
-
-      void loadResults({
-        status: filtersRef.current.status,
-        branchId: filtersRef.current.branchId,
-        areaId: filtersRef.current.areaId,
-        roleName: filtersRef.current.roleName,
-        sort: filtersRef.current.sort,
-        query: filtersRef.current.query,
-        page: 1,
-        pageSize: filtersRef.current.pageSize,
-      });
-    }, 400);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [appliedFilters.query, filters.query, loadResults]);
+    void loadResults(requestFilters);
+  }, [loadResults, requestFilters]);
 
   const handlePageChange = useCallback((page: number) => {
     setFilters((previous) => ({
       ...previous,
       page,
     }));
-
-    void loadResults({
-      status: filtersRef.current.status,
-      branchId: filtersRef.current.branchId,
-      areaId: filtersRef.current.areaId,
-      roleName: filtersRef.current.roleName,
-      sort: filtersRef.current.sort,
-      query: filtersRef.current.query,
-      page,
-      pageSize: filtersRef.current.pageSize,
-    });
-  }, [loadResults]);
+  }, []);
 
   const handlePageSizeChange = useCallback((pageSize: number) => {
     setFilters((previous) => ({
@@ -322,7 +307,7 @@ export function ManageUserAccountsClientPage({
       query: filtersRef.current.query,
       page: filtersRef.current.page,
       pageSize: filtersRef.current.pageSize,
-    });
+    }, { force: true });
   }, [loadResults]);
 
   const handleReassignmentRequired = useCallback(
@@ -338,14 +323,6 @@ export function ManageUserAccountsClientPage({
   const showAreaFilter = Boolean(
     filters.branchId && (filters.roleName === "Collector" || filters.roleName === "Borrower"),
   );
-  const branchLabel = initialScope.canChooseBranch
-    ? filters.branchId
-      ? results.branches.find((branch) => branch.branchId === filters.branchId)?.branchName ?? "Selected branch"
-      : initialScope.allBranchLabel
-    : initialScope.allBranchLabel;
-  const roleLabel = filters.roleName ?? "All roles";
-  const statusLabel = filters.status === "active" ? "Active accounts" : "Inactive accounts";
-
   const handleClear = useCallback(() => {
     setFilters((previous) => ({
       ...previous,
@@ -357,102 +334,76 @@ export function ManageUserAccountsClientPage({
     }));
   }, [initialScope.canChooseBranch, initialScope.selectedBranchId]);
 
+  const createUserAction = useMemo(() => {
+    if (!canCreateManagedUser(initialScope)) {
+      return null;
+    }
+
+    return (
+      <Link
+        href={appendBackNavigationToHref("/dashboard/create-account", {
+          source: "manage-users",
+          returnTo: currentReturnTo,
+        })}
+      >
+        <Button
+          className="h-11 rounded-md bg-emerald-600 px-4 text-sm text-white hover:bg-emerald-700 hover:text-white"
+          type="button"
+        >
+          <Plus className="h-4 w-4" />
+          Create User
+        </Button>
+      </Link>
+    );
+  }, [currentReturnTo, initialScope]);
+
+  const headerConfig = useMemo(
+    () => ({
+      action: null,
+      description: "Review, filter, and manage user accounts within your current scope.",
+      icon: <UserCog className="size-9 text-sidebar-foreground/65" />,
+      title: "Manage User Accounts",
+    }),
+    [],
+  );
+
   return (
     <>
-      <div className="w-full max-w-none space-y-5 pb-6 pt-1 sm:pb-6 sm:pt-2">
-        <Card className="gap-0 overflow-hidden py-0">
-          <div className="bg-gradient-to-r from-slate-50 via-background to-emerald-50/60 p-6 dark:from-zinc-950 dark:via-background dark:to-emerald-950/45">
-            <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-              <div className="space-y-1">
-                <div className="space-y-1">
-                  <h1 className="flex items-center gap-2 text-3xl leading-none font-semibold tracking-tight text-foreground">
-                    <UserCog className="relative -top-px size-7 shrink-0 text-muted-foreground" />
-                    Manage User Accounts
-                  </h1>
-                  <p className="text-sm text-muted-foreground">
-                    Review, filter, and manage user accounts within your current scope.
-                  </p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2 pt-2">
-                  <Badge
-                    className="border-zinc-200 bg-background/80 text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100"
-                    variant="outline"
-                  >
-                    {results.totalCount} matches
-                  </Badge>
-                  <Badge
-                    className="border-zinc-200 bg-background/80 text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100"
-                    variant="outline"
-                  >
-                    {branchLabel}
-                  </Badge>
-                  <Badge
-                    className="border-zinc-200 bg-background/80 text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100"
-                    variant="outline"
-                  >
-                    {roleLabel}
-                  </Badge>
-                  <Badge
-                    className="border-zinc-200 bg-background/80 text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100"
-                    variant="outline"
-                  >
-                    {statusLabel}
-                  </Badge>
-                </div>
-              </div>
+      <DashboardHeaderConfigurator config={headerConfig} />
 
-              {canCreateManagedUser(initialScope) ? (
-                <Link href={appendBackNavigationToHref("/dashboard/create-account", {
-                  source: "manage-users",
-                  returnTo: currentReturnTo,
-                })}>
-                  <Button
-                    className="bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white"
-                    size="sm"
-                    type="button"
-                  >
-                    <Plus className="h-4 w-4" />
-                    Create User
-                  </Button>
-                </Link>
-              ) : null}
-            </div>
-          </div>
-
-          <div className="border-t border-border/70 px-6 pb-4 pt-3">
-            <ManageUserAccountsFilters
-              allBranchLabel={initialScope.allBranchLabel}
-              areas={results.areas}
-              branches={results.branches}
-              canChooseBranch={initialScope.canChooseBranch}
-              onAreaChange={(areaId) => setFilters((previous) => ({ ...previous, areaId, page: 1 }))}
-              onBranchChange={(branchId) =>
-                setFilters((previous) => ({
-                  ...previous,
-                  branchId,
-                  areaId: null,
-                  page: 1,
-                }))
-              }
-              onClear={handleClear}
-              onRoleChange={(roleName) =>
-                setFilters((previous) => ({
-                  ...previous,
-                  roleName,
-                  areaId: roleName === "Collector" || roleName === "Borrower" ? previous.areaId : null,
-                  page: 1,
-                }))
-              }
-              onSearchChange={(query) => setFilters((previous) => ({ ...previous, query, page: 1 }))}
-              roles={results.roles}
-              selectedAreaId={filters.areaId}
-              selectedBranchId={filters.branchId}
-              selectedRoleName={filters.roleName}
-              selectedSearchQuery={filters.query}
-              showAreaFilter={showAreaFilter}
-            />
-          </div>
-        </Card>
+      <div className="w-full max-w-none sm: md:space-y-4">
+        <ManageUserAccountsFilters
+          action={createUserAction}
+          allBranchLabel={initialScope.allBranchLabel}
+          areas={results.areas}
+          branches={results.branches}
+          canChooseBranch={initialScope.canChooseBranch}
+          onAreaChange={(areaId) => setFilters((previous) => ({ ...previous, areaId, page: 1 }))}
+          onBranchChange={(branchId) =>
+            setFilters((previous) => ({
+              ...previous,
+              branchId,
+              areaId: null,
+              page: 1,
+            }))
+          }
+          onClear={handleClear}
+          onRoleChange={(roleName) =>
+            setFilters((previous) => ({
+              ...previous,
+              roleName,
+              areaId: roleName === "Collector" || roleName === "Borrower" ? previous.areaId : null,
+              page: 1,
+            }))
+          }
+          onSearchChange={(query) => setFilters((previous) => ({ ...previous, query, page: 1 }))}
+          roles={results.roles}
+          selectedAreaId={filters.areaId}
+          selectedBranchId={filters.branchId}
+          selectedRoleName={filters.roleName}
+          selectedSearchQuery={filters.query}
+          showAreaFilter={showAreaFilter}
+        />
 
         <ManageUserAccountsModule
           controls={

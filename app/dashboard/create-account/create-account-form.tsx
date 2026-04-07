@@ -539,70 +539,73 @@ export function CreateAccountForm({
             </div>
 
             {showAreaFlow ? (
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <FieldLabel required>Branch</FieldLabel>
-                  <Select
-                    disabled={Boolean(fixedBranchId)}
-                    onValueChange={handleBranchChange}
-                    value={singleBranchId}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Select branch" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {selectableSingleBranchOptions.map((item) => (
-                        <SelectItem key={String(item.branch_id)} value={String(item.branch_id)}>
-                          {item.branch_name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {selectableSingleBranchOptions.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">
-                      No branches are available for this role right now.
-                    </p>
-                  ) : null}
-                  {state.fieldErrors?.branch_id ? (
-                    <p className="text-sm text-destructive">{state.fieldErrors.branch_id}</p>
-                  ) : null}
+              <div className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <FieldLabel required>Branch</FieldLabel>
+                    <Select
+                      disabled={Boolean(fixedBranchId)}
+                      onValueChange={handleBranchChange}
+                      value={singleBranchId}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select branch" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {selectableSingleBranchOptions.map((item) => (
+                          <SelectItem key={String(item.branch_id)} value={String(item.branch_id)}>
+                            {item.branch_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {selectableSingleBranchOptions.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">
+                        No branches are available for this role right now.
+                      </p>
+                    ) : null}
+                    {state.fieldErrors?.branch_id ? (
+                      <p className="text-sm text-destructive">{state.fieldErrors.branch_id}</p>
+                    ) : null}
+                  </div>
+
+                  <div className="space-y-2">
+                    <FieldLabel required>Area</FieldLabel>
+                    <Select disabled={!singleBranchId} onValueChange={setAreaId} value={areaId}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue
+                          placeholder={
+                            singleBranchId ? "Select area" : "Select branch first"
+                          }
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {selectableAreaOptions.map((item) => (
+                          <SelectItem key={String(item.area_id)} value={String(item.area_id)}>
+                            {item.area_code}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {singleBranchId && selectableAreaOptions.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">
+                        No active areas are available in the selected branch.
+                      </p>
+                    ) : null}
+                    {state.fieldErrors?.area_id ? (
+                      <p className="text-sm text-destructive">{state.fieldErrors.area_id}</p>
+                    ) : null}
+                  </div>
                 </div>
 
-                <div className="space-y-2">
-                  <FieldLabel required>Area</FieldLabel>
-                  <Select disabled={!singleBranchId} onValueChange={setAreaId} value={areaId}>
-                    <SelectTrigger className="w-full">
-                      <SelectValue
-                        placeholder={
-                          singleBranchId ? "Select area" : "Select branch first"
-                        }
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {selectableAreaOptions.map((item) => (
-                        <SelectItem key={String(item.area_id)} value={String(item.area_id)}>
-                          {item.area_code}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {singleBranchId && selectableAreaOptions.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">
-                      No active areas are available in the selected branch.
-                    </p>
-                  ) : null}
-                  {selectedAreaHasCollectorWarning ? (
-                    <Alert className="border-amber-200 bg-amber-50/80 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
-                      <AlertTriangle className="h-4 w-4" />
-                      <AlertDescription className="text-amber-800 dark:text-amber-200">
-                        There is already an active collector assigned to this area. Add another collector here only if this is intentional, such as for handoff, replacement, or transition of live loans.
-                      </AlertDescription>
-                    </Alert>
-                  ) : null}
-                  {state.fieldErrors?.area_id ? (
-                    <p className="text-sm text-destructive">{state.fieldErrors.area_id}</p>
-                  ) : null}
-                </div>
+                {selectedAreaHasCollectorWarning ? (
+                  <Alert className="border-amber-200 bg-amber-50/80 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription className="text-amber-800 dark:text-amber-200">
+                      There is already an active collector assigned to this area. Add another collector here only if this is intentional, such as for handoff, replacement, or transition of live loans.
+                    </AlertDescription>
+                  </Alert>
+                ) : null}
               </div>
             ) : null}
 

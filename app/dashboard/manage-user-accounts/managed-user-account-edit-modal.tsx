@@ -183,6 +183,11 @@ export function ManagedUserAccountEditModal({
   const showAuditorBranchSelector =
     Boolean(detail?.canEditAuditorBranchAssignments) && selectedRoleName === "Auditor";
   const showAreaAssignmentControl = Boolean(detail?.canEditAreaAssignment) && selectedRoleName === "Collector";
+  const effectiveAreaBranchId =
+    formState?.branchId ||
+    (detail?.currentBranchId !== null && detail?.currentBranchId !== undefined
+      ? String(detail.currentBranchId)
+      : "");
   const selectableBranchOptions =
     detail
       ? selectedRoleName === "Branch Manager"
@@ -194,7 +199,7 @@ export function ManagedUserAccountEditModal({
   const visibleAreaOptions =
     detail && formState
       ? detail.editableAreaOptions.filter((item) =>
-          formState.branchId ? String(item.branchId ?? "") === formState.branchId : false,
+          effectiveAreaBranchId ? String(item.branchId ?? "") === effectiveAreaBranchId : false,
         )
       : [];
   const selectedAreaOption =
@@ -584,8 +589,14 @@ export function ManagedUserAccountEditModal({
                     </p>
                   </div>
 
-                  {showCollectorBranchSelector || showSingleBranchSelector ? (
-                    <div className="grid gap-4 md:grid-cols-2">
+                  {showCollectorBranchSelector || showSingleBranchSelector || showAreaAssignmentControl ? (
+                    <div
+                      className={
+                        showCollectorBranchSelector && showAreaAssignmentControl
+                          ? "grid gap-4 md:grid-cols-2"
+                          : "grid gap-4"
+                      }
+                    >
                       <div className="space-y-1.5">
                         <Label htmlFor="edit-branch-assignment">
                           {selectedRoleName === "Collector" ? "Branch" : "Branch Assignment"}
@@ -621,14 +632,14 @@ export function ManagedUserAccountEditModal({
                         <div className="space-y-1.5">
                           <Label htmlFor="edit-area-assignment">Area</Label>
                           <Select
-                            disabled={!formState.branchId}
+                            disabled={!effectiveAreaBranchId}
                             onValueChange={(value) =>
                               setFormState((previous) => (previous ? { ...previous, areaId: value } : previous))
                             }
                             value={formState.areaId || undefined}
                           >
                             <SelectTrigger id="edit-area-assignment" className="w-full">
-                              <SelectValue placeholder={formState.branchId ? "Select area" : "Select branch first"} />
+                              <SelectValue placeholder={effectiveAreaBranchId ? "Select area" : "Select branch first"} />
                             </SelectTrigger>
                             <SelectContent>
                               {visibleAreaOptions.map((item) => (

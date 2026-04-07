@@ -141,3 +141,11 @@
     color: var(--foreground);
   }
 }
+
+.theme-switching,
+.theme-switching *,
+.theme-switching *::before,
+.theme-switching *::after {
+  transition: none !important;
+  animation: none !important;
+}

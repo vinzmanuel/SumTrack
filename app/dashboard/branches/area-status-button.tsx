@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { startTransition, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -19,11 +19,13 @@ export function AreaStatusButton({
   areaCode,
   areaId,
   branchCode,
+  onStatusChanged,
   status,
 }: {
   areaCode: string;
   areaId: number;
   branchCode: string;
+  onStatusChanged?: (nextStatus: "active" | "inactive") => void;
   status: "active" | "inactive";
 }) {
   const router = useRouter();
@@ -34,31 +36,38 @@ export function AreaStatusButton({
   async function handleConfirm() {
     setIsSubmitting(true);
 
-    const response = await fetch(
-      `/dashboard/branches/${encodeURIComponent(branchCode)}/areas/${areaId}/status`,
-      {
-        method: "POST",
-        credentials: "same-origin",
-        headers: {
-          "Content-Type": "application/json",
+    try {
+      const response = await fetch(
+        `/dashboard/branches/${encodeURIComponent(branchCode)}/areas/${areaId}/status`,
+        {
+          method: "POST",
+          credentials: "same-origin",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ nextStatus }),
         },
-        body: JSON.stringify({ nextStatus }),
-      },
-    );
+      );
 
-    const payload = (await response.json().catch(() => null)) as { message?: string } | null;
-    const message = payload?.message ?? "Unable to update area status right now.";
+      const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+      const message = payload?.message ?? "Unable to update area status right now.";
 
-    if (!response.ok) {
+      if (!response.ok) {
+        toast.error(message);
+        return;
+      }
+
+      onStatusChanged?.(nextStatus);
+      toast.success(message);
+      setOpen(false);
+      startTransition(() => {
+        router.refresh();
+      });
+    } catch {
+      toast.error("Unable to update area status right now. Please check your connection and try again.");
+    } finally {
       setIsSubmitting(false);
-      toast.error(message);
-      return;
     }
-
-    toast.success(message);
-    setOpen(false);
-    setIsSubmitting(false);
-    router.refresh();
   }
 
   return (

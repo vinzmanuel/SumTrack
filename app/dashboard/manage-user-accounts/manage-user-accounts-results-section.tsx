@@ -46,57 +46,59 @@ export function ManageUserAccountsResultsSection({
         onReassignmentRequired={onReassignmentRequired}
         users={data.users}
       />
-      <div className="flex flex-col gap-3 px-5 pt-0 text-sm xl:flex-row xl:items-center xl:justify-between">
-        <div className="space-y-1">
-          <p className="text-muted-foreground">
-            Showing {showingFrom}-{showingTo} of {data.totalCount}
-          </p>
-          {errorMessage ? <p className="text-destructive text-sm">{errorMessage}</p> : null}
-        </div>
-        <div className="flex flex-wrap items-center gap-2 xl:justify-center">
-          <div className="flex items-center gap-2">
-            <span className="text-muted-foreground">Rows</span>
-            <Select
-              onValueChange={(value) => onPageSizeChange(Number(value))}
-              value={String(data.pageSize)}
-            >
-              <SelectTrigger className="w-[84px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {MANAGE_USERS_PAGE_SIZE_OPTIONS.map((option) => (
-                  <SelectItem key={option} value={String(option)}>
-                    {option}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+      <div className="px-1 py-1">
+        <div className="flex flex-col gap-3 text-sm xl:flex-row xl:items-center xl:justify-between">
+          <div className="space-y-1">
+            <p className="text-muted-foreground">
+              Showing {showingFrom}-{showingTo} of {data.totalCount}
+            </p>
+            {errorMessage ? <p className="text-destructive text-sm">{errorMessage}</p> : null}
           </div>
+          <div className="flex flex-wrap items-center gap-2 xl:justify-center">
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground">Rows</span>
+              <Select
+                onValueChange={(value) => onPageSizeChange(Number(value))}
+                value={String(data.pageSize)}
+              >
+                <SelectTrigger className="w-[84px] rounded-md">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {MANAGE_USERS_PAGE_SIZE_OPTIONS.map((option) => (
+                    <SelectItem key={option} value={String(option)}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-          <div className="ml-4 flex items-center gap-2">
-            <span className="text-muted-foreground">
-              Page {safePage} of {totalPages}
-            </span>
-            <Button
-              disabled={isPending || safePage <= 1}
-              onClick={() => onPageChange(safePage - 1)}
-              size="icon"
-              type="button"
-              variant="outline"
-            >
-              <ChevronLeft />
-              <span className="sr-only">Previous page</span>
-            </Button>
-            <Button
-              disabled={isPending || safePage >= totalPages}
-              onClick={() => onPageChange(safePage + 1)}
-              size="icon"
-              type="button"
-              variant="outline"
-            >
-              <ChevronRight />
-              <span className="sr-only">Next page</span>
-            </Button>
+            <div className="ml-4 flex items-center gap-2">
+              <span className="text-muted-foreground">
+                Page {safePage} of {totalPages}
+              </span>
+              <Button
+                disabled={isPending || safePage <= 1}
+                onClick={() => onPageChange(safePage - 1)}
+                size="icon"
+                type="button"
+                variant="outline"
+              >
+                <ChevronLeft />
+                <span className="sr-only">Previous page</span>
+              </Button>
+              <Button
+                disabled={isPending || safePage >= totalPages}
+                onClick={() => onPageChange(safePage + 1)}
+                size="icon"
+                type="button"
+                variant="outline"
+              >
+                <ChevronRight />
+                <span className="sr-only">Next page</span>
+              </Button>
+            </div>
           </div>
         </div>
       </div>

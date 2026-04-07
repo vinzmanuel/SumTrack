@@ -178,6 +178,7 @@ export function BranchDetailClientPage({
         />
       ) : (
         <BranchAreasTab
+          key={areasData.areas.map((area) => `${area.areaId}:${area.status}:${area.description ?? ""}`).join("|")}
           branchCode={data.branchCode}
           canCreateAreas={permissions.canManageAreas && data.status === "active"}
           canEditAreas={permissions.canManageAreas}

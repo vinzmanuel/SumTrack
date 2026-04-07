@@ -4,14 +4,23 @@ import { Moon, Sun } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const THEME_STORAGE_KEY = "sumtrack-theme";
+const THEME_SWITCHING_CLASS = "theme-switching";
 
 type ThemeMode = "light" | "dark";
 
 function applyTheme(theme: ThemeMode) {
   const root = document.documentElement;
   const isDark = theme === "dark";
+
+  root.classList.add(THEME_SWITCHING_CLASS);
+  void root.offsetHeight;
   root.classList.toggle("dark", isDark);
   root.style.colorScheme = isDark ? "dark" : "light";
+  window.requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => {
+      root.classList.remove(THEME_SWITCHING_CLASS);
+    });
+  });
 }
 
 export function ThemeToggle() {

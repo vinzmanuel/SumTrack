@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { startTransition, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -19,10 +19,12 @@ export function AreaDeleteButton({
   areaCode,
   areaId,
   branchCode,
+  onDeleted,
 }: {
   areaCode: string;
   areaId: number;
   branchCode: string;
+  onDeleted?: () => void;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -31,27 +33,34 @@ export function AreaDeleteButton({
   async function handleConfirm() {
     setIsSubmitting(true);
 
-    const response = await fetch(
-      `/dashboard/branches/${encodeURIComponent(branchCode)}/areas/${areaId}/delete`,
-      {
-        method: "POST",
-        credentials: "same-origin",
-      },
-    );
+    try {
+      const response = await fetch(
+        `/dashboard/branches/${encodeURIComponent(branchCode)}/areas/${areaId}/delete`,
+        {
+          method: "POST",
+          credentials: "same-origin",
+        },
+      );
 
-    const payload = (await response.json().catch(() => null)) as { message?: string } | null;
-    const message = payload?.message ?? "Unable to delete this area right now.";
+      const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+      const message = payload?.message ?? "Unable to delete this area right now.";
 
-    if (!response.ok) {
+      if (!response.ok) {
+        toast.error(message);
+        return;
+      }
+
+      onDeleted?.();
+      toast.success(message);
+      setOpen(false);
+      startTransition(() => {
+        router.refresh();
+      });
+    } catch {
+      toast.error("Unable to delete this area right now. Please check your connection and try again.");
+    } finally {
       setIsSubmitting(false);
-      toast.error(message);
-      return;
     }
-
-    toast.success(message);
-    setOpen(false);
-    setIsSubmitting(false);
-    router.refresh();
   }
 
   return (
