@@ -2,6 +2,9 @@ const FIXED_TERM_OPTION_SET = new Set([58, 60]);
 
 const FIXED_HOLIDAYS = new Set(["01-01", "11-02", "12-25"]);
 
+export const NON_COLLECTION_DAY_VALIDATION_MESSAGE =
+  "Collections cannot be recorded on Sundays or recognized non-collection holidays. Please choose a valid collection date.";
+
 function parseIsoDateParts(value: string) {
   const [year, month, day] = value.split("-").map(Number);
 

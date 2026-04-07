@@ -18,6 +18,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/components/ui/sonner";
 import { createCollectionAction } from "@/app/dashboard/loans/[loanId]/actions";
+import {
+  isValidScheduledCollectionDate,
+  NON_COLLECTION_DAY_VALIDATION_MESSAGE,
+} from "@/app/dashboard/loans/loan-schedule";
 import { initialLoanDetailState, type CollectionHistoryRow } from "@/app/dashboard/loans/[loanId]/state";
 
 type LoanDetailFormProps = {
@@ -28,11 +32,11 @@ type LoanDetailFormProps = {
   canRecordCollections: boolean;
 };
 
-function SubmitButton() {
+function SubmitButton({ blocked }: { blocked: boolean }) {
   const { pending } = useFormStatus();
 
   return (
-    <Button className="active:scale-[0.98]" disabled={pending} type="submit">
+    <Button className="active:scale-[0.98]" disabled={pending || blocked} type="submit">
       {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
       {pending ? "Saving..." : "Record Collection"}
     </Button>
@@ -144,6 +148,10 @@ export function LoanDetailForm({
   const [expandedCollectionId, setExpandedCollectionId] = useState<string | null>(null);
   const amountDisplay = formatMoneyDisplay(amount);
   const amountPreview = amountDisplay ? `\u20B1${amountDisplay}` : "";
+  const localCollectionDateError =
+    collectionDate && !isValidScheduledCollectionDate(collectionDate)
+      ? NON_COLLECTION_DAY_VALIDATION_MESSAGE
+      : "";
 
   const historyRows = useMemo(() => {
     const byId = new Map<string, CollectionHistoryRow>();
@@ -245,6 +253,11 @@ export function LoanDetailForm({
       return;
     }
 
+    if (collectionDate && !isValidScheduledCollectionDate(collectionDate)) {
+      event.preventDefault();
+      return;
+    }
+
     if (missedPayment && !note.trim()) {
       event.preventDefault();
       setLocalNoteError("Note is required for missed payment.");
@@ -313,8 +326,10 @@ export function LoanDetailForm({
             type="date"
             value={collectionDate}
           />
-          {state.fieldErrors?.collection_date ? (
-            <p className="text-sm text-destructive">{state.fieldErrors.collection_date}</p>
+          {localCollectionDateError || state.fieldErrors?.collection_date ? (
+            <p className="text-sm text-destructive">
+              {localCollectionDateError || state.fieldErrors?.collection_date}
+            </p>
           ) : null}
         </div>
       </div>
@@ -358,7 +373,7 @@ export function LoanDetailForm({
         <p className="text-sm text-destructive">{state.message}</p>
       ) : null}
 
-      <SubmitButton />
+      <SubmitButton blocked={Boolean(localCollectionDateError)} />
     </form>
   );
 

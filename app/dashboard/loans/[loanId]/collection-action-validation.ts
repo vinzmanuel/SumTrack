@@ -5,6 +5,10 @@ import type {
   CollectionStateFactory,
   ParsedCollectionInput,
 } from "@/app/dashboard/loans/[loanId]/collection-action-types";
+import {
+  isValidScheduledCollectionDate,
+  NON_COLLECTION_DAY_VALIDATION_MESSAGE,
+} from "@/app/dashboard/loans/loan-schedule";
 
 function getTrimmed(formData: FormData, key: keyof CollectionFormFields) {
   return String(formData.get(key) ?? "").trim();
@@ -60,6 +64,8 @@ export function validateCollectionInput(input: ParsedCollectionInput): Collectio
 
   if (!input.collectionDate) {
     fieldErrors.collection_date = "Collection date is required.";
+  } else if (!isValidScheduledCollectionDate(input.collectionDate)) {
+    fieldErrors.collection_date = NON_COLLECTION_DAY_VALIDATION_MESSAGE;
   }
 
   if (!input.missedPayment) {
