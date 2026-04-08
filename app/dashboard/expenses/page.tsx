@@ -58,7 +58,7 @@ export default async function ExpensesPage({ searchParams }: ExpensesPageProps) 
       : "Branch expense monitoring by period and category.";
   const [branchOptions, initialResults] = await Promise.all([
     loadExpensesBranchOptions(access),
-    loadExpensesResultsData(access),
+    loadExpensesResultsData(access, { includeAnalytics: false }),
   ]);
 
   return (

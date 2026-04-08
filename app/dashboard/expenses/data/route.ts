@@ -10,6 +10,7 @@ export async function GET(request: Request) {
   }
 
   const url = new URL(request.url);
+  const includeAnalytics = url.searchParams.get("analytics") === "1";
   const filters = parseExpensesFilters({
     branch: url.searchParams.get("branch") ?? undefined,
     range: url.searchParams.get("range") ?? undefined,
@@ -26,7 +27,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ message: access.message }, { status: 403 });
   }
 
-  const data = await loadExpensesResultsData(access);
+  const data = await loadExpensesResultsData(access, { includeAnalytics });
   return NextResponse.json(data, {
     headers: {
       "Cache-Control": "no-store",

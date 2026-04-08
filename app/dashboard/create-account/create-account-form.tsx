@@ -3,6 +3,7 @@
 import { useActionState, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
 import { useFormStatus } from "react-dom";
+import { toast } from "sonner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -189,7 +190,6 @@ export function CreateAccountForm({
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [successDialogDismissed, setSuccessDialogDismissed] = useState(false);
   const [isCloseWarningOpen, setIsCloseWarningOpen] = useState(false);
-  const [copyStatus, setCopyStatus] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
   const borrowerRole = useMemo(
@@ -275,7 +275,6 @@ export function CreateAccountForm({
     }
 
     setAccountCategory(value);
-    setCopyStatus("");
     setAreaId("");
     setSingleBranchId(fixedBranchId ?? "");
     setAuditorBranchIds([]);
@@ -294,7 +293,6 @@ export function CreateAccountForm({
     const nextRoleName =
       employeeRoles.find((role) => String(role.role_id) === value)?.role_name ?? "";
     setRoleId(value);
-    setCopyStatus("");
     setAreaId("");
     setSingleBranchId(fixedBranchId ?? "");
     setAuditorBranchIds([]);
@@ -326,7 +324,6 @@ export function CreateAccountForm({
   function handleConfirmCreate() {
     setIsConfirmOpen(false);
     setSuccessDialogDismissed(false);
-    setCopyStatus("");
     setShowPassword(false);
     confirmedSubmitRef.current = true;
     formRef.current?.requestSubmit();
@@ -351,9 +348,9 @@ export function CreateAccountForm({
   async function handleCopy(text: string, label: string) {
     try {
       await navigator.clipboard.writeText(text);
-      setCopyStatus(`${label} copied.`);
+      toast.success(`${label} copied.`);
     } catch {
-      setCopyStatus("Copy failed.");
+      toast.error("Copy failed.");
     }
   }
 
@@ -369,7 +366,7 @@ export function CreateAccountForm({
     const printWindow = window.open("", "_blank", "width=700,height=800");
 
     if (!printWindow) {
-      setCopyStatus("Unable to open print window.");
+      toast.error("Unable to open print window.");
       return;
     }
 
@@ -892,7 +889,6 @@ export function CreateAccountForm({
                 </DetailSection>
               </div>
 
-              {copyStatus ? <p className="text-xs text-muted-foreground">{copyStatus}</p> : null}
             </DialogContent>
           </Dialog>
 

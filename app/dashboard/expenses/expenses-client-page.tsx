@@ -35,6 +35,18 @@ type ExpensesClientPageProps = {
 
 type ExpensesWorkspaceTab = "records" | "analytics";
 
+function filtersEqual(left: ExpensesFilterInput, right: ExpensesFilterInput) {
+  return (
+    left.branch === right.branch &&
+    left.range === right.range &&
+    left.from === right.from &&
+    left.to === right.to &&
+    left.category === right.category &&
+    left.page === right.page &&
+    left.pageSize === right.pageSize
+  );
+}
+
 function buildExpensesPageUrl(filters: ExpensesFilterInput) {
   const params = new URLSearchParams();
 
@@ -67,7 +79,10 @@ function buildExpensesPageUrl(filters: ExpensesFilterInput) {
   return queryString ? `/dashboard/expenses?${queryString}` : "/dashboard/expenses";
 }
 
-function buildExpensesDataUrl(filters: ExpensesFilterInput) {
+function buildExpensesDataUrl(
+  filters: ExpensesFilterInput,
+  options?: { includeAnalytics?: boolean },
+) {
   const params = new URLSearchParams();
 
   if (filters.branch && filters.branch !== "all") {
@@ -93,6 +108,10 @@ function buildExpensesDataUrl(filters: ExpensesFilterInput) {
 
   if (filters.pageSize !== EXPENSES_PAGE_SIZE_OPTIONS[1]) {
     params.set("pageSize", String(filters.pageSize));
+  }
+
+  if (options?.includeAnalytics) {
+    params.set("analytics", "1");
   }
 
   const queryString = params.toString();
@@ -131,21 +150,34 @@ export function ExpensesClientPage({
 
   const [results, setResults] = useState(initialResults);
   const [filters, setFilters] = useState<ExpensesFilterInput>(normalizedInitialFilters);
-  const [appliedFilters, setAppliedFilters] = useState<ExpensesFilterInput>(normalizedInitialFilters);
   const [isPending, setIsPending] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<ExpensesWorkspaceTab>("records");
   const abortRef = useRef<AbortController | null>(null);
+  const requestIdRef = useRef(0);
+  const loadedRequestUrlRef = useRef(buildExpensesDataUrl(normalizedInitialFilters, { includeAnalytics: false }));
 
-  const loadResults = useCallback(async (nextFilters: ExpensesFilterInput) => {
+  const loadResults = useCallback(async (
+    nextFilters: ExpensesFilterInput,
+    options?: { force?: boolean; includeAnalytics?: boolean },
+  ) => {
+    const requestUrl = buildExpensesDataUrl(nextFilters, {
+      includeAnalytics: options?.includeAnalytics,
+    });
+    if (!options?.force && requestUrl === loadedRequestUrlRef.current) {
+      return;
+    }
+
     abortRef.current?.abort();
     const controller = new AbortController();
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
     abortRef.current = controller;
     setIsPending(true);
     setErrorMessage(null);
 
     try {
-      const response = await fetch(buildExpensesDataUrl(nextFilters), {
+      const response = await fetch(requestUrl, {
         cache: "no-store",
         credentials: "same-origin",
         signal: controller.signal,
@@ -156,6 +188,10 @@ export function ExpensesClientPage({
       }
 
       const nextData = (await response.json()) as ExpensesResultsData;
+      if (requestIdRef.current !== requestId) {
+        return;
+      }
+
       const normalizedFilters = {
         branch: nextFilters.branch,
         range: nextFilters.range,
@@ -166,17 +202,23 @@ export function ExpensesClientPage({
         pageSize: nextData.pageSize,
       };
       setResults(nextData);
-      setFilters(normalizedFilters);
-      setAppliedFilters(normalizedFilters);
+      loadedRequestUrlRef.current = buildExpensesDataUrl(normalizedFilters, {
+        includeAnalytics: options?.includeAnalytics,
+      });
+      setFilters((current) => (filtersEqual(current, normalizedFilters) ? current : normalizedFilters));
       window.history.replaceState(null, "", buildExpensesPageUrl(normalizedFilters));
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") {
         return;
       }
 
+      if (requestIdRef.current !== requestId) {
+        return;
+      }
+
       setErrorMessage("Unable to refresh expense records right now.");
     } finally {
-      if (abortRef.current === controller) {
+      if (abortRef.current === controller && requestIdRef.current === requestId) {
         setIsPending(false);
       }
     }
@@ -185,27 +227,17 @@ export function ExpensesClientPage({
   useEffect(() => {
     setResults(initialResults);
     setFilters(normalizedInitialFilters);
-    setAppliedFilters(normalizedInitialFilters);
     setErrorMessage(null);
+    loadedRequestUrlRef.current = buildExpensesDataUrl(normalizedInitialFilters, {
+      includeAnalytics: false,
+    });
   }, [initialResults, normalizedInitialFilters]);
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
   useEffect(() => {
-    if (
-      filters.branch === appliedFilters.branch &&
-      filters.range === appliedFilters.range &&
-      filters.from === appliedFilters.from &&
-      filters.to === appliedFilters.to &&
-      filters.category === appliedFilters.category &&
-      filters.page === appliedFilters.page &&
-      filters.pageSize === appliedFilters.pageSize
-    ) {
-      return;
-    }
-
-    void loadResults(filters);
-  }, [appliedFilters, filters, loadResults]);
+    void loadResults(filters, { includeAnalytics: activeTab === "analytics" });
+  }, [activeTab, filters, loadResults]);
 
   const updateFilters = useCallback((updates: Partial<ExpensesFilterInput>) => {
     setFilters((previous) => ({
