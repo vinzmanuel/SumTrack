@@ -1184,6 +1184,82 @@ function renderExpensesOverview(report: ReportsViewerPageData) {
   );
 }
 
+function renderIncentivePayoutHistory(report: ReportsViewerPageData) {
+  const payoutBatchMetadata = findFieldListSection(report.snapshot, "payoutBatchMetadata");
+  const payoutBatchTrend = findChartSection(report.snapshot, "payoutBatchTrend");
+  const payoutBatchTable = findTableSection(report.snapshot, "payoutBatchTable");
+  const roleBreakdown = findTableSection(report.snapshot, "roleBreakdown");
+  const branchPayoutComparison = findChartSection(report.snapshot, "branchPayoutComparison");
+  const branchBreakdown = findTableSection(report.snapshot, "branchBreakdown");
+  const employeePayoutHistory = findTableSection(report.snapshot, "employeePayoutHistory");
+
+  return (
+    <div className="space-y-8">
+      {payoutBatchMetadata ? (
+        <ReportSection
+          title="Payout Batch Metadata"
+          description="Saved historical context for the finalized payout batches included in this report."
+        >
+          <FieldListBlock section={payoutBatchMetadata} />
+        </ReportSection>
+      ) : null}
+      <CompactSummary items={report.snapshot.summaryCards} title="Summary" />
+      {payoutBatchTrend ? (
+        <ReportSection
+          title="Payout Trend"
+          description="Only shown when the saved month contains more than one finalized payout point."
+        >
+          <ReportsViewerChart chart={payoutBatchTrend} forceChartType="line" />
+        </ReportSection>
+      ) : null}
+      {payoutBatchTable ? (
+        <ReportSection
+          title="Payout Batches"
+          description="Shows the finalized batch records that were captured into this historical snapshot."
+        >
+          <ReportsViewerDataTable section={payoutBatchTable} />
+        </ReportSection>
+      ) : null}
+      {roleBreakdown ? (
+        <ReportSection
+          title="Role Breakdown"
+          description="Compares finalized payout totals, record counts, and average payout by role."
+        >
+          <ReportsViewerDataTable section={roleBreakdown} />
+        </ReportSection>
+      ) : null}
+      {(branchPayoutComparison || branchBreakdown) ? (
+        <div className="space-y-6">
+          {branchPayoutComparison ? (
+            <ReportSection
+              title="Branch Breakdown"
+              description="Only shown when the saved report includes more than one branch with finalized payout history."
+            >
+              <ReportsViewerChart chart={branchPayoutComparison} forceChartType="bar" />
+            </ReportSection>
+          ) : null}
+          {branchBreakdown ? (
+            <ReportSection
+              title="Branch Breakdown Detail"
+              description="Branch-level finalized payout totals and employee coverage inside the saved month."
+            >
+              <ReportsViewerDataTable section={branchBreakdown} />
+            </ReportSection>
+          ) : null}
+        </div>
+      ) : null}
+      {employeePayoutHistory ? (
+        <ReportSection
+          title="Employee Payout History"
+          description="Employee-level finalized payout rows saved into this report snapshot."
+        >
+          <ReportsViewerDataTable section={employeePayoutHistory} />
+        </ReportSection>
+      ) : null}
+    </div>
+  );
+}
+
 function renderCollectionsSummary(report: ReportsViewerPageData) {
   const chart =
     findChartSection(report.snapshot, "collectionsTrend") ??
@@ -1861,6 +1937,10 @@ function renderReportBody(report: ReportsViewerPageData) {
 
   if (report.templateKey === "expenses_overview") {
     return renderExpensesOverview(report);
+  }
+
+  if (report.templateKey === "incentive_payout_history") {
+    return renderIncentivePayoutHistory(report);
   }
 
   if (report.templateKey === "collections_summary" || report.templateKey === "monthly_collections_summary") {

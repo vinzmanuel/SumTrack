@@ -50,6 +50,10 @@ function currentMonthStart() {
   return `${year}-${month}-01`;
 }
 
+function currentMonthValue() {
+  return currentMonthStart().slice(0, 7);
+}
+
 function currentDateValue() {
   const now = new Date();
   const year = now.getFullYear();
@@ -124,6 +128,7 @@ export function AnalyticsReportGenerationForm(props: {
   );
   const [collectorId, setCollectorId] = useState("");
   const [datePreset, setDatePreset] = useState<ReportsDateRangePreset>("this_month");
+  const [month, setMonth] = useState(currentMonthValue());
   const [dateFrom, setDateFrom] = useState(currentMonthStart());
   const [dateTo, setDateTo] = useState(currentDateValue());
 
@@ -453,6 +458,25 @@ export function AnalyticsReportGenerationForm(props: {
                       ) : null}
                     </div>
                   </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            {dateMode === "month" ? (
+              <div className="space-y-2">
+                <Label htmlFor="month">Reporting Month</Label>
+                <Input
+                  id="month"
+                  name="month"
+                  onChange={(event) => setMonth(event.target.value)}
+                  type="month"
+                  value={month}
+                />
+                <p className="text-xs text-muted-foreground">
+                  This template saves finalized historical data for a single month only.
+                </p>
+                {state.fieldErrors?.month ? (
+                  <p className="text-sm text-destructive">{state.fieldErrors.month}</p>
                 ) : null}
               </div>
             ) : null}

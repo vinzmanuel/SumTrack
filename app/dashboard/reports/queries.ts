@@ -22,6 +22,11 @@ import {
 import { loadExpensesResultsData } from "@/app/dashboard/expenses/queries";
 import type { ExpensesPageAccessState } from "@/app/dashboard/expenses/types";
 import {
+  getFinalizedBatchForPeriod,
+  loadHistoricalIncentives,
+  mapBatchMeta,
+} from "@/app/dashboard/incentives/history";
+import {
   CLOSED_STORED_LOAN_STATUSES,
   LIVE_STORED_LOAN_STATUSES,
   buildLoanDerivedMetricsSubquery,
@@ -53,6 +58,7 @@ import {
   buildCollectionsByCollectorSnapshot,
   buildExpensesOverviewSnapshot,
   buildFinancialOverviewSnapshot,
+  buildIncentivePayoutHistorySnapshot,
   buildLoanReceiptSummarySnapshot,
   buildLoansSummarySnapshot,
   buildOverdueLoansReportSnapshot,
@@ -337,6 +343,22 @@ function formatIsoDate(value: string) {
     day: "numeric",
     year: "numeric",
     timeZone: "UTC",
+  }).format(parsed);
+}
+
+function formatStoredDateTimeForReport(value: string) {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat("en-PH", {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "Asia/Manila",
   }).format(parsed);
 }
 
@@ -1840,18 +1862,268 @@ async function loadExpensesOverviewData(
   };
 }
 
+async function loadIncentivePayoutHistoryData(
+  branchRows: Array<{ branchId: number; branchName: string }>,
+  month: string,
+) {
+  const monthWindow = resolveMonthWindow(month);
+  if (!monthWindow) {
+    return null;
+  }
+
+  const batchMetas = (
+    await Promise.all(
+      branchRows.map(async (branchRow) =>
+        mapBatchMeta(
+          await getFinalizedBatchForPeriod(branchRow.branchId, monthWindow.start, monthWindow.end),
+        ),
+      ),
+    )
+  ).filter((value): value is NonNullable<ReturnType<typeof mapBatchMeta>> => Boolean(value));
+
+  if (batchMetas.length === 0) {
+    return null;
+  }
+
+  const branchNamesById = new Map(branchRows.map((row) => [row.branchId, row.branchName]));
+  const includedBranchIds = new Set(batchMetas.map((meta) => meta.branchId));
+  const missingBranchNames = branchRows
+    .filter((row) => !includedBranchIds.has(row.branchId))
+    .map((row) => row.branchName);
+
+  const historicalGroups = await Promise.all(
+    batchMetas.map(async (batchMeta) => {
+      const history = await loadHistoricalIncentives(batchMeta);
+      const rows = [
+        ...history.collectorRows,
+        ...history.secretaryRows,
+        ...history.branchManagerRows,
+      ];
+
+      return {
+        batchMeta,
+        rows,
+        totalPayout: rows.reduce((sum, row) => sum + toNumber(row.computedIncentive), 0),
+      };
+    }),
+  );
+
+  const allRows = historicalGroups.flatMap((group) =>
+    group.rows.map((row) => ({
+      batchId: group.batchMeta.batchId,
+      branchId: group.batchMeta.branchId,
+      branchName: group.batchMeta.branchName,
+      periodLabel: group.batchMeta.periodLabel,
+      finalizedAt: group.batchMeta.finalizedAt,
+      finalizedAtLabel: formatStoredDateTimeForReport(group.batchMeta.finalizedAt),
+      finalizedByLabel: [
+        group.batchMeta.finalizedByName,
+        group.batchMeta.finalizedByCompanyId ??
+          group.batchMeta.finalizedByUsername ??
+          group.batchMeta.finalizedByUserId,
+      ]
+        .filter(Boolean)
+        .join(" - "),
+      userId: row.userId,
+      employeeName: row.employeeName,
+      companyId: row.companyId ?? "-",
+      roleName: row.roleName,
+      baseAmount: toNumber(row.baseAmount),
+      percentValue: toNumber(row.percentValue),
+      flatAmount: toNumber(row.flatAmount),
+      payoutAmount: toNumber(row.computedIncentive),
+    })),
+  );
+
+  if (allRows.length === 0) {
+    return null;
+  }
+
+  const roleOrder = new Map([
+    ["Collector", 0],
+    ["Secretary", 1],
+    ["Branch Manager", 2],
+  ]);
+  const uniqueEmployeeIds = new Set(allRows.map((row) => row.userId));
+  const uniqueRoles = Array.from(new Set(allRows.map((row) => row.roleName))).sort(
+    (left, right) =>
+      (roleOrder.get(left) ?? Number.MAX_SAFE_INTEGER) -
+        (roleOrder.get(right) ?? Number.MAX_SAFE_INTEGER) || left.localeCompare(right),
+  );
+  const totalPayout = allRows.reduce((sum, row) => sum + row.payoutAmount, 0);
+  const payoutRecords = allRows.length;
+  const largestPayout = allRows.reduce((max, row) => Math.max(max, row.payoutAmount), 0);
+  const finalizerLabels = Array.from(
+    new Set(
+      allRows
+        .map((row) => row.finalizedByLabel.trim())
+        .filter((value) => value.length > 0),
+    ),
+  );
+  const finalizedAtValues = batchMetas
+    .map((meta) => meta.finalizedAt)
+    .sort((left, right) => left.localeCompare(right));
+  const finalizedWindowLabel =
+    finalizedAtValues.length <= 1
+      ? formatStoredDateTimeForReport(finalizedAtValues[0] ?? monthWindow.end)
+      : `${formatStoredDateTimeForReport(finalizedAtValues[0])} to ${formatStoredDateTimeForReport(
+          finalizedAtValues[finalizedAtValues.length - 1],
+        )}`;
+
+  const batchRows = historicalGroups
+    .map((group) => ({
+      branchName: group.batchMeta.branchName,
+      periodLabel: group.batchMeta.periodLabel,
+      finalizedAtLabel: formatStoredDateTimeForReport(group.batchMeta.finalizedAt),
+      finalizedByLabel: [
+        group.batchMeta.finalizedByName,
+        group.batchMeta.finalizedByCompanyId ??
+          group.batchMeta.finalizedByUsername ??
+          group.batchMeta.finalizedByUserId,
+      ]
+        .filter(Boolean)
+        .join(" - "),
+      employeeCount: group.rows.length,
+      payoutRecords: group.rows.length,
+      totalPayout: group.totalPayout,
+    }))
+    .sort((left, right) => left.branchName.localeCompare(right.branchName));
+
+  const roleRows = uniqueRoles.map((roleName) => {
+    const matchingRows = allRows.filter((row) => row.roleName === roleName);
+    const roleTotal = matchingRows.reduce((sum, row) => sum + row.payoutAmount, 0);
+    const employeeCount = new Set(matchingRows.map((row) => row.userId)).size;
+
+    return {
+      roleName,
+      totalPayout: roleTotal,
+      employeeCount,
+      payoutRecords: matchingRows.length,
+      averagePayout: employeeCount > 0 ? roleTotal / employeeCount : 0,
+    };
+  });
+
+  const branchBreakdownRows = batchMetas.length > 1
+    ? Array.from(
+        new Set(allRows.map((row) => row.branchId)),
+      )
+        .map((branchId) => {
+          const matchingRows = allRows.filter((row) => row.branchId === branchId);
+          const branchTotal = matchingRows.reduce((sum, row) => sum + row.payoutAmount, 0);
+          const employeeCount = new Set(matchingRows.map((row) => row.userId)).size;
+
+          return {
+            branchName: branchNamesById.get(branchId) ?? String(branchId),
+            totalPayout: branchTotal,
+            employeeCount,
+            payoutRecords: matchingRows.length,
+            averagePayout: employeeCount > 0 ? branchTotal / employeeCount : 0,
+          };
+        })
+        .sort((left, right) => right.totalPayout - left.totalPayout)
+    : [];
+
+  const batchTrendByDate = historicalGroups.reduce<
+    Map<string, { bucket: string; amount: number }>
+  >((map, group) => {
+    const bucket = group.batchMeta.finalizedAt.slice(0, 10);
+    const existing = map.get(bucket) ?? {
+      bucket,
+      amount: 0,
+    };
+    existing.amount += group.totalPayout;
+    map.set(bucket, existing);
+    return map;
+  }, new Map());
+
+  const batchTrendRows = Array.from(batchTrendByDate.values())
+    .sort((left, right) => left.bucket.localeCompare(right.bucket))
+    .map((row) => ({
+      bucket: formatIsoDate(row.bucket),
+      values: {
+        totalPayout: row.amount,
+      },
+    }));
+
+  const employeeRows = [...allRows]
+    .sort((left, right) => {
+      const branchComparison = left.branchName.localeCompare(right.branchName);
+      if (branchComparison !== 0) {
+        return branchComparison;
+      }
+
+      const roleComparison =
+        (roleOrder.get(left.roleName) ?? Number.MAX_SAFE_INTEGER) -
+          (roleOrder.get(right.roleName) ?? Number.MAX_SAFE_INTEGER) ||
+        left.roleName.localeCompare(right.roleName);
+      if (roleComparison !== 0) {
+        return roleComparison;
+      }
+
+      return left.employeeName.localeCompare(right.employeeName);
+    })
+    .map((row) => ({
+      finalizedAtLabel: row.finalizedAtLabel,
+      branchName: row.branchName,
+      employeeName: row.employeeName,
+      companyId: row.companyId,
+      roleName: row.roleName,
+      baseAmount: row.baseAmount,
+      percentValue: row.percentValue,
+      flatAmount: row.flatAmount,
+      payoutAmount: row.payoutAmount,
+    }));
+
+  return {
+    metadataRows: [
+      { label: "Selected Branch Scope", value: buildScopeLabel(branchRows.map((row) => row.branchName)) },
+      { label: "Reporting Month", value: monthWindow.label },
+      { label: "Finalized Batches Included", value: String(batchMetas.length) },
+      {
+        label: "Branches with Finalized Payouts",
+        value: batchMetas.map((meta) => meta.branchName).join(", "),
+      },
+      {
+        label: "Missing Finalized Branches",
+        value: missingBranchNames.length > 0 ? missingBranchNames.join(", ") : "None",
+      },
+      { label: "Finalized Window", value: finalizedWindowLabel },
+      {
+        label: "Finalized By",
+        value:
+          finalizerLabels.length <= 1
+            ? finalizerLabels[0] ?? "N/A"
+            : `${finalizerLabels.length} finalizers`,
+      },
+    ],
+    summary: {
+      totalPayout,
+      totalEmployeesPaid: uniqueEmployeeIds.size,
+      payoutRecords,
+      averagePayout: payoutRecords > 0 ? totalPayout / payoutRecords : 0,
+      largestPayout,
+      branchesIncluded: batchMetas.length,
+      rolesIncludedLabel: uniqueRoles.join(", "),
+    },
+    batchTrend: {
+      rows: batchTrendRows,
+      series: [{ key: "totalPayout", label: "Total Payout", color: "#16a34a" }],
+      show: batchTrendRows.length > 1,
+    },
+    batchRows,
+    roleRows,
+    branchRows: branchBreakdownRows,
+    employeeRows,
+  };
+}
+
 async function loadCollectionsSummaryData(
   branchRows: Array<{ branchId: number; branchName: string }>,
   dateFrom: string | null,
   dateTo: string | null,
 ) {
   const branchIds = branchRows.map((row) => row.branchId);
-  const collectorLoanMetrics = buildLoanDerivedMetricsSubquery({
-    aliasName: "reports_collections_by_collector_metrics",
-    currentDate: currentManilaIsoDate(),
-    where: inArray(loan_records.branch_id, branchIds),
-  });
-  const collectionConditions: SQL[] = [inArray(collectorLoanMetrics.branchId, branchIds)];
+  const collectionConditions: SQL[] = [inArray(loan_records.branch_id, branchIds)];
 
   if (dateFrom && dateTo) {
     collectionConditions.push(gte(collections.collection_date, dateFrom));
@@ -2396,7 +2668,7 @@ async function loadCollectionsByCollectorData(
       .select({
         collectorId: collections.collector_id,
         companyId: collectorUsers.company_id,
-        branchId: loan_records.branch_id,
+        branchId: collectorLoanMetrics.branchId,
         branchName: branch.branch_name,
         collectorUsername: collectorUsers.username,
         collectorFirstName: employee_info.first_name,
@@ -4644,6 +4916,28 @@ async function generateAnalyticsReportInternal(
       branchComparisonRows: reportData.branchComparisonRows,
       branchMixRows: reportData.branchMixRows,
       rawRegisterRows: reportData.rawRegisterRows,
+    });
+  } else if (template.key === "incentive_payout_history") {
+    const reportData =
+      input.month ? await loadIncentivePayoutHistoryData(selectedBranchRows, input.month) : null;
+    if (!reportData) {
+      return {
+        ok: false as const,
+        message: "No finalized incentive payout history exists for the selected month and branch scope.",
+      };
+    }
+
+    snapshot = buildIncentivePayoutHistorySnapshot({
+      title: resolvedTitle,
+      generatedLabel,
+      scopeLabel,
+      metadataRows: reportData.metadataRows,
+      summary: reportData.summary,
+      batchTrend: reportData.batchTrend,
+      batchRows: reportData.batchRows,
+      roleRows: reportData.roleRows,
+      branchRows: reportData.branchRows,
+      employeeRows: reportData.employeeRows,
     });
   } else if (template.key === "collections_summary") {
     const reportData = await loadCollectionsSummaryData(selectedBranchRows, dateFrom, dateTo);

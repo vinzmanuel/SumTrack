@@ -14,6 +14,7 @@ export type ReportsSystemRecipientRole = Extract<
 export type AnalyticsReportTemplateKey =
   | "financial_overview"
   | "expenses_overview"
+  | "incentive_payout_history"
   | "monthly_collections_summary"
   | "collections_summary"
   | "active_loans_summary"

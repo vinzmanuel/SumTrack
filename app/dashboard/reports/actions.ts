@@ -95,6 +95,10 @@ export async function generateAnalyticsReportAction(
     }
   }
 
+  if (template?.dateMode === "month" && !month) {
+    fieldErrors.month = "Select a reporting month.";
+  }
+
   if (Object.keys(fieldErrors).length > 0) {
     return {
       status: "error",

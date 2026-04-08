@@ -164,6 +164,10 @@ function resolveCsvDataset(report: ReportsViewerPageData): CsvDataset | null {
     return resolveFinancialOverviewCsvDataset(report);
   }
 
+  if (report.templateKey === "incentive_payout_history") {
+    return resolveFinancialOverviewCsvDataset(report);
+  }
+
   const table = resolveCsvTable(report);
   return table ? datasetFromTable(table) : null;
 }

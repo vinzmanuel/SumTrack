@@ -791,6 +791,227 @@ export function buildExpensesOverviewSnapshot(params: {
   });
 }
 
+export function buildIncentivePayoutHistorySnapshot(params: {
+  title: string;
+  generatedLabel: string;
+  scopeLabel: string;
+  metadataRows: Array<{ label: string; value: string }>;
+  summary: {
+    totalPayout: number;
+    totalEmployeesPaid: number;
+    payoutRecords: number;
+    averagePayout: number;
+    largestPayout: number;
+    branchesIncluded: number;
+    rolesIncludedLabel: string;
+  };
+  batchTrend: {
+    rows: Array<{ bucket: string; values: Record<string, number> }>;
+    series: Array<{ key: string; label: string; color: string }>;
+    show: boolean;
+  };
+  batchRows: Array<{
+    branchName: string;
+    periodLabel: string;
+    finalizedAtLabel: string;
+    finalizedByLabel: string;
+    employeeCount: number;
+    payoutRecords: number;
+    totalPayout: number;
+  }>;
+  roleRows: Array<{
+    roleName: string;
+    totalPayout: number;
+    employeeCount: number;
+    payoutRecords: number;
+    averagePayout: number;
+  }>;
+  branchRows: Array<{
+    branchName: string;
+    totalPayout: number;
+    employeeCount: number;
+    payoutRecords: number;
+    averagePayout: number;
+  }>;
+  employeeRows: Array<{
+    finalizedAtLabel: string;
+    branchName: string;
+    employeeName: string;
+    companyId: string;
+    roleName: string;
+    baseAmount: number;
+    percentValue: number;
+    flatAmount: number;
+    payoutAmount: number;
+  }>;
+}) {
+  const sections: ReportsSnapshotSection[] = [
+    {
+      key: "payoutBatchMetadata",
+      title: "Payout Batch Metadata",
+      type: "field_list",
+      rows: params.metadataRows,
+    },
+  ];
+
+  if (params.batchTrend.show) {
+    sections.push(
+      buildChartSectionFromSeries({
+        key: "payoutBatchTrend",
+        title: "Payout Trend",
+        chartType: "line",
+        valueFormat: "currency",
+        note: "Shows finalized payout totals by finalized batch date inside the saved reporting month.",
+        series: params.batchTrend.series.map((series) => ({
+          ...series,
+          type: "line" as const,
+        })),
+        rows: params.batchTrend.rows,
+      }),
+    );
+  }
+
+  sections.push(
+    {
+      key: "payoutBatchTable",
+      title: "Payout Batches",
+      type: "table",
+      columns: [
+        { key: "branchName", label: "Branch" },
+        { key: "periodLabel", label: "Period" },
+        { key: "finalizedAtLabel", label: "Finalized At" },
+        { key: "finalizedByLabel", label: "Finalized By" },
+        { key: "employeeCount", label: "Employees Paid", format: "number" },
+        { key: "payoutRecords", label: "Payout Records", format: "number" },
+        { key: "totalPayout", label: "Total Payout", format: "currency" },
+      ],
+      rows: params.batchRows,
+    },
+    {
+      key: "roleBreakdown",
+      title: "Role Breakdown",
+      type: "table",
+      columns: [
+        { key: "roleName", label: "Role" },
+        { key: "totalPayout", label: "Total Payout", format: "currency" },
+        { key: "employeeCount", label: "Employees Paid", format: "number" },
+        { key: "payoutRecords", label: "Payout Records", format: "number" },
+        { key: "averagePayout", label: "Average Payout", format: "currency" },
+      ],
+      rows: params.roleRows,
+    },
+  );
+
+  if (params.branchRows.length > 1) {
+    sections.push(
+      buildChartSectionFromSeries({
+        key: "branchPayoutComparison",
+        title: "Branch Breakdown",
+        chartType: "bar",
+        valueFormat: "currency",
+        note: "Only shown when the saved report covers multiple finalized branches in the selected month.",
+        showLegend: false,
+        series: [{ key: "totalPayout", label: "Total Payout", color: "#0ea5e9", type: "bar" }],
+        rows: params.branchRows.map((row) => ({
+          bucket: row.branchName,
+          values: {
+            totalPayout: row.totalPayout,
+          },
+        })),
+      }),
+    );
+    sections.push({
+      key: "branchBreakdown",
+      title: "Branch Breakdown Detail",
+      type: "table",
+      columns: [
+        { key: "branchName", label: "Branch" },
+        { key: "totalPayout", label: "Total Payout", format: "currency" },
+        { key: "employeeCount", label: "Employees Paid", format: "number" },
+        { key: "payoutRecords", label: "Payout Records", format: "number" },
+        { key: "averagePayout", label: "Average Payout", format: "currency" },
+      ],
+      rows: params.branchRows,
+    });
+  }
+
+  sections.push({
+    key: "employeePayoutHistory",
+    title: "Employee Payout History",
+    type: "table",
+    columns: [
+      { key: "finalizedAtLabel", label: "Finalized At" },
+      { key: "branchName", label: "Branch" },
+      { key: "employeeName", label: "Employee" },
+      { key: "companyId", label: "Company ID" },
+      { key: "roleName", label: "Role" },
+      { key: "baseAmount", label: "Base Amount", format: "currency" },
+      { key: "percentValue", label: "Percent Value", format: "number" },
+      { key: "flatAmount", label: "Flat Amount", format: "currency" },
+      { key: "payoutAmount", label: "Payout Amount", format: "currency" },
+    ],
+    rows: params.employeeRows,
+  });
+
+  return buildBaseSnapshot({
+    templateKey: "incentive_payout_history",
+    title: params.title,
+    generatedLabel: params.generatedLabel,
+    scopeLabel: params.scopeLabel,
+    summaryCards: [
+      {
+        key: "totalIncentivesPaid",
+        label: "Total Incentives Paid",
+        value: params.summary.totalPayout,
+        format: "currency",
+      },
+      {
+        key: "totalEmployeesPaid",
+        label: "Total Employees Paid",
+        value: params.summary.totalEmployeesPaid,
+        format: "number",
+      },
+      {
+        key: "payoutRecords",
+        label: "Payout Records",
+        value: params.summary.payoutRecords,
+        format: "number",
+      },
+      {
+        key: "averagePayout",
+        label: "Average Payout",
+        value: params.summary.averagePayout,
+        format: "currency",
+      },
+      {
+        key: "largestPayout",
+        label: "Largest Payout",
+        value: params.summary.largestPayout,
+        format: "currency",
+      },
+      {
+        key: "branchesIncluded",
+        label: "Branches Included",
+        value: params.summary.branchesIncluded,
+        format: "number",
+      },
+      {
+        key: "rolesIncluded",
+        label: "Roles Included",
+        value: params.summary.rolesIncludedLabel || "N/A",
+        format: "text",
+      },
+    ],
+    sections,
+    meta: {
+      batchCount: params.batchRows.length,
+      employeeRowCount: params.employeeRows.length,
+      historicalOnly: true,
+      finalizedHistoryOnly: true,
+    },
+  });
+}
+
 export function buildCollectionsSummarySnapshot(params: {
   title: string;
   generatedLabel: string;

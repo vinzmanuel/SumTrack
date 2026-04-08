@@ -122,6 +122,20 @@ export const ANALYTICS_REPORT_TEMPLATES: AnalyticsTemplateDefinition[] = [
     implemented: true,
   },
   {
+    key: "incentive_payout_history",
+    label: "Incentive Payout History",
+    category: "financials",
+    reportCategory: "analytics",
+    description:
+      "Finalized incentive payout history for a selected reporting month, including batch context, role and branch breakdowns, and employee-level payout rows.",
+    allowedRoles: ["Admin", "Auditor", "Branch Manager"],
+    generationMode: "manual",
+    dateMode: "month",
+    minBranchCount: 1,
+    maxBranchCount: null,
+    implemented: true,
+  },
+  {
     key: "collections_summary",
     label: "Collections Summary",
     category: "collections",
