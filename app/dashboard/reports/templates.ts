@@ -108,6 +108,20 @@ export const ANALYTICS_REPORT_TEMPLATES: AnalyticsTemplateDefinition[] = [
     implemented: true,
   },
   {
+    key: "expenses_overview",
+    label: "Expenses Overview",
+    category: "financials",
+    reportCategory: "analytics",
+    description:
+      "Historical expense analysis across the selected reporting window, including spend structure, salary rhythm, utilities, and branch mix.",
+    allowedRoles: ["Admin", "Auditor", "Branch Manager"],
+    generationMode: "manual",
+    dateMode: "range",
+    minBranchCount: 1,
+    maxBranchCount: null,
+    implemented: true,
+  },
+  {
     key: "collections_summary",
     label: "Collections Summary",
     category: "collections",

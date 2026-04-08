@@ -13,6 +13,7 @@ export type ReportsSystemRecipientRole = Extract<
 
 export type AnalyticsReportTemplateKey =
   | "financial_overview"
+  | "expenses_overview"
   | "monthly_collections_summary"
   | "collections_summary"
   | "active_loans_summary"
@@ -104,6 +105,7 @@ export type ReportsSnapshotChartSeries = {
   label: string;
   color: string;
   type?: "bar" | "line";
+  stackId?: string;
   valueFormat?: ReportsSnapshotValueFormat;
   yAxisId?: "left" | "right";
 };
@@ -117,6 +119,7 @@ export type ReportsSnapshotChartSection = {
   indexLabel?: string;
   valueFormat?: ReportsSnapshotValueFormat;
   note?: string;
+  showLegend?: boolean;
   series: ReportsSnapshotChartSeries[];
   rows: Array<{ bucket: string; values: Record<string, number> }>;
 };

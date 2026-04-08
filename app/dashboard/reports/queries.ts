@@ -19,6 +19,8 @@ import {
   loadCollectorPerformanceRowsForCustomRange,
   loadCollectorTrendBucketsForCustomRange,
 } from "@/app/dashboard/collectors/queries";
+import { loadExpensesResultsData } from "@/app/dashboard/expenses/queries";
+import type { ExpensesPageAccessState } from "@/app/dashboard/expenses/types";
 import {
   CLOSED_STORED_LOAN_STATUSES,
   LIVE_STORED_LOAN_STATUSES,
@@ -49,6 +51,7 @@ import {
   buildCollectorLeaderboardReportSnapshot,
   buildCollectorPerformanceReportSnapshot,
   buildCollectionsByCollectorSnapshot,
+  buildExpensesOverviewSnapshot,
   buildFinancialOverviewSnapshot,
   buildLoanReceiptSummarySnapshot,
   buildLoansSummarySnapshot,
@@ -104,6 +107,7 @@ const borrowerUsers = alias(users, "reports_borrower_users");
 const collectorUsers = alias(users, "reports_collector_users");
 const DEFAULT_REPORTS_LIBRARY_PAGE_SIZE = 10;
 type ReportsCollectorAnalyticsAccess = Extract<CollectorsAccessState, { view: "analytics" }>;
+type ReportsExpensesAccess = Extract<ExpensesPageAccessState, { view: "ready" }>;
 
 type GenerateAnalyticsReportInput = {
   title: string;
@@ -404,6 +408,94 @@ function buildScopeLabel(branchNames: string[]) {
   }
 
   return `${branchNames.length} selected branches`;
+}
+
+function resolveExpensesReportCoverageGranularity(dateFrom: string, dateTo: string) {
+  return countInclusiveDays(dateFrom, dateTo) <= 31 ? "day" : "month";
+}
+
+async function resolveExpensesReportCoverageWindow(
+  branchIds: number[],
+  dateFrom: string | null,
+  dateTo: string | null,
+) {
+  if (dateFrom && dateTo) {
+    return {
+      start: dateFrom,
+      end: dateTo,
+    };
+  }
+
+  const [expenseBounds, collectionBounds] = await Promise.all([
+    db
+      .select({
+        minDate: sql<string | null>`min(${expenses.expense_date})`,
+        maxDate: sql<string | null>`max(${expenses.expense_date})`,
+      })
+      .from(expenses)
+      .where(inArray(expenses.branch_id, branchIds))
+      .then((rows) => rows[0] ?? null)
+      .catch(() => null),
+    db
+      .select({
+        minDate: sql<string | null>`min(${collections.collection_date})`,
+        maxDate: sql<string | null>`max(${collections.collection_date})`,
+      })
+      .from(collections)
+      .innerJoin(loan_records, eq(loan_records.loan_id, collections.loan_id))
+      .where(inArray(loan_records.branch_id, branchIds))
+      .then((rows) => rows[0] ?? null)
+      .catch(() => null),
+  ]);
+
+  const minCandidates = [expenseBounds?.minDate, collectionBounds?.minDate].filter(
+    (value): value is string => Boolean(value),
+  );
+  const maxCandidates = [expenseBounds?.maxDate, collectionBounds?.maxDate].filter(
+    (value): value is string => Boolean(value),
+  );
+  const fallback = currentManilaIsoDate();
+
+  return {
+    start: minCandidates.sort((left, right) => left.localeCompare(right))[0] ?? fallback,
+    end: maxCandidates.sort((left, right) => right.localeCompare(left))[0] ?? fallback,
+  };
+}
+
+function buildExpensesReportAccess(params: {
+  access: ReportsReadyAccessState;
+  branchRows: Array<{ branchId: number; branchName: string }>;
+  dateFrom: string;
+  dateTo: string;
+}): ReportsExpensesAccess {
+  const branchIds = params.branchRows.map((row) => row.branchId);
+  const singleBranch = params.branchRows.length === 1 ? params.branchRows[0] : null;
+  const forceAssignedScopeFiltering = params.branchRows.length > 1;
+
+  return {
+    view: "ready",
+    isAdmin: params.access.roleName === "Admin" && !forceAssignedScopeFiltering,
+    isBranchManager: params.access.roleName === "Branch Manager",
+    isAuditor: params.access.roleName === "Auditor" || forceAssignedScopeFiltering,
+    canChooseBranch: params.branchRows.length > 1,
+    canCreateExpense: false,
+    selectedBranchRaw: singleBranch ? String(singleBranch.branchId) : "all",
+    selectedRange: "custom",
+    fromRaw: params.dateFrom,
+    toRaw: params.dateTo,
+    selectedCategory: "all",
+    page: 1,
+    pageSize: 10,
+    dateRange: {
+      start: params.dateFrom,
+      end: params.dateTo,
+      label: buildDateRangeLabel(params.dateFrom, params.dateTo),
+      granularity: resolveExpensesReportCoverageGranularity(params.dateFrom, params.dateTo),
+    },
+    fixedBranchName: params.access.fixedBranchName,
+    resolvedBranchId: singleBranch?.branchId ?? null,
+    assignedBranchIds: branchIds,
+  };
 }
 
 function buildDateRangeLabel(dateFrom: string, dateTo: string) {
@@ -1607,6 +1699,144 @@ async function loadFinancialOverviewData(
     periodRows,
     branchRows: financialBranchRows,
     livePortfolioContextRows,
+  };
+}
+
+async function loadExpensesOverviewData(
+  access: ReportsReadyAccessState,
+  branchRows: Array<{ branchId: number; branchName: string }>,
+  dateFrom: string | null,
+  dateTo: string | null,
+) {
+  const branchIds = branchRows.map((row) => row.branchId);
+  const coverage = await resolveExpensesReportCoverageWindow(branchIds, dateFrom, dateTo);
+  const expensesAccess = buildExpensesReportAccess({
+    access,
+    branchRows,
+    dateFrom: coverage.start,
+    dateTo: coverage.end,
+  });
+
+  const results = await loadExpensesResultsData(expensesAccess, { includeAnalytics: true });
+  const rawRegisterRows = await db
+    .select({
+      expenseId: expenses.expense_id,
+      expenseDate: expenses.expense_date,
+      branchName: branch.branch_name,
+      category: expenses.expense_category,
+      amount: expenses.amount,
+      description: expenses.description,
+      recordedByRoleName: roles.role_name,
+      recordedByFirstName: employee_info.first_name,
+      recordedByMiddleName: employee_info.middle_name,
+      recordedByLastName: employee_info.last_name,
+      recordedByUsername: users.username,
+      recordedByCompanyId: users.company_id,
+      recordedAt: expenses.recorded_at,
+    })
+    .from(expenses)
+    .innerJoin(branch, eq(branch.branch_id, expenses.branch_id))
+    .leftJoin(users, eq(users.user_id, expenses.recorded_by))
+    .leftJoin(roles, eq(roles.role_id, users.role_id))
+    .leftJoin(employee_info, eq(employee_info.user_id, users.user_id))
+    .where(
+      and(
+        inArray(expenses.branch_id, branchIds),
+        gte(expenses.expense_date, coverage.start),
+        lte(expenses.expense_date, coverage.end),
+      ),
+    )
+    .orderBy(desc(expenses.expense_date), desc(expenses.expense_id))
+    .catch(() => []);
+
+  return {
+    totalAmount: results.totalAmount,
+    summary: results.analytics.summary,
+    trend: results.analytics.trend,
+    breakdownRows: results.breakdownRows,
+    spendStructureRows: [
+      results.analytics.structure.fixed,
+      results.analytics.structure.variable,
+      results.analytics.structure.recurring,
+      results.analytics.structure.adHoc,
+    ].map((row) => ({
+      label: row.label,
+      categories: row.categories.join(", "),
+      amount: row.amount,
+      shareLabel: `${row.share.toLocaleString("en-PH", {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1,
+      })}%`,
+      expenseCount: row.expenseCount,
+    })),
+    salaryRhythm: results.analytics.salaryRhythm,
+    utilities: results.analytics.utilities,
+    miscellaneous: results.analytics.miscellaneous,
+    branchComparisonRows: results.analytics.branchComparison.items.map((row) => ({
+      label: row.label,
+      amount: row.amount,
+      expenseCount: row.expenseCount,
+      shareLabel:
+        `${row.share.toLocaleString("en-PH", {
+          minimumFractionDigits: 1,
+          maximumFractionDigits: 1,
+        })}%`,
+      expenseToCollectionsRatioLabel:
+        row.expenseToCollectionsRatio === null
+          ? "N/A"
+          : `${row.expenseToCollectionsRatio.toLocaleString("en-PH", {
+              minimumFractionDigits: 1,
+              maximumFractionDigits: 1,
+            })}%`,
+      topCategory: row.topCategory ?? "N/A",
+    })),
+    branchMixRows: results.analytics.branchMix.map((row) => ({
+      label: row.label,
+      amount: row.amount,
+      expenseCount: row.expenseCount,
+      topCategory: row.topCategory ?? "N/A",
+      fixedShareLabel: `${row.fixedShare.toLocaleString("en-PH", {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1,
+      })}%`,
+      variableShareLabel: `${row.variableShare.toLocaleString("en-PH", {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1,
+      })}%`,
+      salaryShareLabel: `${row.salaryShare.toLocaleString("en-PH", {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1,
+      })}%`,
+      utilityShareLabel: `${row.utilityShare.toLocaleString("en-PH", {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1,
+      })}%`,
+      miscellaneousShareLabel: `${row.miscellaneousShare.toLocaleString("en-PH", {
+        minimumFractionDigits: 1,
+        maximumFractionDigits: 1,
+      })}%`,
+      disciplineLabel: row.disciplineLabel,
+    })),
+    rawRegisterRows: rawRegisterRows.map((row) => ({
+      expenseDate: row.expenseDate,
+      branchName: row.branchName,
+      category: row.category,
+      amount: toNumber(row.amount),
+      description: row.description?.trim() || "-",
+      recordedBy: (() => {
+        const identity = buildUserDisplayName({
+          firstName: row.recordedByFirstName,
+          middleName: row.recordedByMiddleName,
+          lastName: row.recordedByLastName,
+          username: row.recordedByUsername,
+          fallback: "Unknown",
+        });
+
+        return row.recordedByCompanyId ? `${identity} (${row.recordedByCompanyId})` : identity;
+      })(),
+      recordedByRoleName: row.recordedByRoleName ?? "-",
+      recordedAt: row.recordedAt ?? "-",
+    })),
   };
 }
 
@@ -4382,6 +4612,38 @@ async function generateAnalyticsReportInternal(
       periodRows: reportData.periodRows,
       branchRows: reportData.branchRows,
       livePortfolioContextRows: reportData.livePortfolioContextRows,
+    });
+  } else if (template.key === "expenses_overview") {
+    const reportData = await loadExpensesOverviewData(access, selectedBranchRows, dateFrom, dateTo);
+    snapshot = buildExpensesOverviewSnapshot({
+      title: resolvedTitle,
+      generatedLabel,
+      scopeLabel,
+      summary: {
+        totalAmount: reportData.totalAmount,
+        topCategory: reportData.summary.topCategory,
+        topCategoryShare: reportData.summary.topCategoryShare,
+        fixedSpendShare: reportData.summary.fixedSpendShare,
+        variableSpendShare: reportData.summary.variableSpendShare,
+        salaryShare: reportData.summary.salaryShare,
+        utilityShare: reportData.summary.utilityShare,
+        miscellaneousShare: reportData.summary.miscellaneousShare,
+        expenseToCollectionsRatio: reportData.summary.expenseToCollectionsRatio,
+        totalCollections: reportData.summary.totalCollections,
+        totalSalarySpend: reportData.summary.totalSalarySpend,
+        totalUtilitySpend: reportData.summary.totalUtilitySpend,
+        miscellaneousSpend: reportData.summary.miscellaneousSpend,
+        miscellaneousCount: reportData.summary.miscellaneousCount,
+      },
+      categoryBreakdownRows: reportData.breakdownRows,
+      spendStructureRows: reportData.spendStructureRows,
+      trendChart: reportData.trend,
+      salaryRhythm: reportData.salaryRhythm,
+      utilities: reportData.utilities,
+      miscellaneous: reportData.miscellaneous,
+      branchComparisonRows: reportData.branchComparisonRows,
+      branchMixRows: reportData.branchMixRows,
+      rawRegisterRows: reportData.rawRegisterRows,
     });
   } else if (template.key === "collections_summary") {
     const reportData = await loadCollectionsSummaryData(selectedBranchRows, dateFrom, dateTo);

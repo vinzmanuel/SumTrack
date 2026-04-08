@@ -4,6 +4,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
   ComposedChart,
   Legend,
   Line,
@@ -46,11 +47,26 @@ function formatTooltipValue(value: number, format: ReportsSnapshotChartSection["
 }
 
 function mapChartData(chart: ReportsSnapshotChartSection) {
-  return chart.rows.map((row) => ({
+  return chart.rows.map((row, index) => ({
     bucket: row.bucket,
+    __barColor:
+      chart.key === "categoryBreakdown"
+        ? CATEGORY_BREAKDOWN_BAR_COLORS[index % CATEGORY_BREAKDOWN_BAR_COLORS.length]
+        : undefined,
     ...Object.fromEntries(chart.series.map((series) => [series.key, Number(row.values[series.key] ?? 0)])),
   }));
 }
+
+const CATEGORY_BREAKDOWN_BAR_COLORS = [
+  "#16a34a",
+  "#0ea5e9",
+  "#f97316",
+  "#8b5cf6",
+  "#eab308",
+  "#ec4899",
+  "#14b8a6",
+  "#64748b",
+] as const;
 
 function getSeriesValueFormat(
   chart: ReportsSnapshotChartSection,
@@ -72,6 +88,7 @@ function ViewerChartTooltip(props: {
     color?: string;
     dataKey?: string | number;
     name?: string | number;
+    payload?: Record<string, string | number | undefined>;
     value?: string | number;
   }>;
   chart: ReportsSnapshotChartSection;
@@ -80,16 +97,30 @@ function ViewerChartTooltip(props: {
     return null;
   }
 
+  const visiblePayload = props.payload.filter((entry) => Number(entry.value ?? 0) !== 0);
+  const entries = visiblePayload.length > 0 ? visiblePayload : props.payload;
+
+  const resolvedLabel =
+    typeof entries[0]?.payload?.bucket === "string" && entries[0].payload.bucket.trim()
+      ? entries[0].payload.bucket
+      : String(props.label ?? "");
+  const resolvedTooltipColor =
+    props.chart.key === "categoryBreakdown" &&
+    typeof entries[0]?.payload?.__barColor === "string" &&
+    entries[0].payload.__barColor.trim()
+      ? entries[0].payload.__barColor
+      : null;
+
   return (
     <div className="min-w-52 rounded-lg border border-border/80 bg-background/95 p-3 shadow-lg backdrop-blur">
-      <p className="mb-2 text-sm font-medium text-foreground">{String(props.label ?? "")}</p>
+      <p className="mb-2 text-sm font-medium text-foreground">{resolvedLabel}</p>
       <div className="space-y-1.5">
-        {props.payload.map((entry) => (
+        {entries.map((entry) => (
           <div className="flex items-center justify-between gap-4 text-sm" key={String(entry.dataKey)}>
             <div className="flex items-center gap-2 text-muted-foreground">
               <span
                 className="inline-block h-2.5 w-2.5 rounded-full"
-                style={{ backgroundColor: entry.color ?? "#16a34a" }}
+                style={{ backgroundColor: resolvedTooltipColor ?? entry.color ?? "#16a34a" }}
               />
               <span>{String(entry.name ?? entry.dataKey ?? "")}</span>
             </div>
@@ -113,9 +144,11 @@ export function ReportsViewerChart(props: {
   const chartType = props.forceChartType ?? props.chart.chartType;
   const data = mapChartData(props.chart);
   const hasRightAxis = props.chart.series.some((series) => (series.yAxisId ?? "left") === "right");
+  const showLegend = props.chart.showLegend ?? true;
   const leftAxisFormat = getAxisFormat(props.chart, "left");
   const rightAxisFormat = getAxisFormat(props.chart, "right");
   const isHorizontalBarChart = chartType === "bar" && props.chart.layout === "horizontal";
+  const useCategoryBreakdownRowColors = props.chart.key === "categoryBreakdown";
 
   if (data.length === 0) {
     return (
@@ -161,7 +194,7 @@ export function ReportsViewerChart(props: {
                 content={<ViewerChartTooltip chart={props.chart} />}
                 cursor={{ stroke: "#d4d4d8", strokeDasharray: "4 4" }}
               />
-              <Legend />
+              {showLegend ? <Legend /> : null}
               {props.chart.series.map((series) =>
                 series.type === "line" ? (
                   <Line
@@ -181,8 +214,18 @@ export function ReportsViewerChart(props: {
                     key={series.key}
                     name={series.label}
                     radius={[6, 6, 0, 0]}
+                    stackId={series.stackId}
                     yAxisId={series.yAxisId ?? "left"}
-                  />
+                  >
+                    {useCategoryBreakdownRowColors
+                      ? data.map((entry, index) => (
+                          <Cell
+                            fill={CATEGORY_BREAKDOWN_BAR_COLORS[index % CATEGORY_BREAKDOWN_BAR_COLORS.length]}
+                            key={`${series.key}-${String(entry.bucket)}-${index}`}
+                          />
+                        ))
+                      : null}
+                  </Bar>
                 ),
               )}
             </ComposedChart>
@@ -213,7 +256,7 @@ export function ReportsViewerChart(props: {
                 content={<ViewerChartTooltip chart={props.chart} />}
                 cursor={{ stroke: "#d4d4d8", strokeDasharray: "4 4" }}
               />
-              <Legend />
+              {showLegend ? <Legend /> : null}
               {props.chart.series.map((series) => (
                 <Line
                   dataKey={series.key}
@@ -285,7 +328,7 @@ export function ReportsViewerChart(props: {
                 content={<ViewerChartTooltip chart={props.chart} />}
                 cursor={{ fill: "rgba(148, 163, 184, 0.12)" }}
               />
-              <Legend />
+              {showLegend ? <Legend /> : null}
               {props.chart.series.map((series) => (
                 <Bar
                   dataKey={series.key}
@@ -293,8 +336,18 @@ export function ReportsViewerChart(props: {
                   key={series.key}
                   name={series.label}
                   radius={isHorizontalBarChart ? [0, 6, 6, 0] : [6, 6, 0, 0]}
+                  stackId={series.stackId}
                   yAxisId={series.yAxisId ?? "left"}
-                />
+                >
+                  {useCategoryBreakdownRowColors
+                    ? data.map((entry, index) => (
+                        <Cell
+                          fill={CATEGORY_BREAKDOWN_BAR_COLORS[index % CATEGORY_BREAKDOWN_BAR_COLORS.length]}
+                          key={`${series.key}-${String(entry.bucket)}-${index}`}
+                        />
+                      ))
+                    : null}
+                </Bar>
               ))}
             </BarChart>
           )}

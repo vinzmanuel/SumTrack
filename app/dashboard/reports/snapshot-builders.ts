@@ -62,6 +62,49 @@ function formatRatioPercent(value: number | null) {
   })}%`;
 }
 
+function formatPercent(value: number | null) {
+  if (value === null || !Number.isFinite(value)) {
+    return "N/A";
+  }
+
+  return `${value.toLocaleString("en-PH", {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+  })}%`;
+}
+
+function buildChartSectionFromSeries(params: {
+  key: string;
+  title: string;
+  chartType: "bar" | "line" | "composed";
+  layout?: "vertical" | "horizontal";
+  valueFormat?: "currency" | "number" | "text";
+  note?: string;
+  showLegend?: boolean;
+  series: Array<{
+    key: string;
+    label: string;
+    color: string;
+    type?: "bar" | "line";
+    valueFormat?: "currency" | "number" | "text";
+    yAxisId?: "left" | "right";
+  }>;
+  rows: Array<{ bucket: string; values: Record<string, number> }>;
+}) {
+  return {
+    key: params.key,
+    title: params.title,
+    type: "chart" as const,
+    chartType: params.chartType,
+    layout: params.layout,
+    valueFormat: params.valueFormat,
+    note: params.note,
+    showLegend: params.showLegend,
+    series: params.series,
+    rows: params.rows,
+  };
+}
+
 function buildFinancialTotalRow(params: {
   labelKey: string;
   label: string;
@@ -358,6 +401,392 @@ export function buildFinancialOverviewSnapshot(params: {
       branchCount: params.livePortfolioContextRows.length,
       bucketCount: params.periodRows.length,
       financialModel: "cashflow-recovery-live-context",
+    },
+  });
+}
+
+export function buildExpensesOverviewSnapshot(params: {
+  title: string;
+  generatedLabel: string;
+  scopeLabel: string;
+  summary: {
+    totalAmount: number;
+    topCategory: string | null;
+    topCategoryShare: number;
+    fixedSpendShare: number;
+    variableSpendShare: number;
+    salaryShare: number;
+    utilityShare: number;
+    miscellaneousShare: number;
+    expenseToCollectionsRatio: number | null;
+    totalCollections: number;
+    totalSalarySpend: number;
+    totalUtilitySpend: number;
+    miscellaneousSpend: number;
+    miscellaneousCount: number;
+  };
+  categoryBreakdownRows: Array<{
+    key: string;
+    label: string;
+    amount: number;
+    expenseCount: number;
+    share: number;
+    fill: string;
+  }>;
+  spendStructureRows: Array<{
+    label: string;
+    categories: string;
+    amount: number;
+    shareLabel: string;
+    expenseCount: number;
+  }>;
+  trendChart: {
+    rows: Array<{ bucket: string; values: Record<string, number> }>;
+    series: Array<{ key: string; label: string; color: string }>;
+    noData: boolean;
+  };
+  salaryRhythm: {
+    totalAmount: number;
+    share: number;
+    midMonthTotal: number;
+    monthEndTotal: number;
+    midMonthCount: number;
+    monthEndCount: number;
+    monthEndHigherMonths: number;
+    rows: Array<{
+      bucketLabel: string;
+      midMonthAmount: number;
+      monthEndAmount: number;
+      midMonthCount: number;
+      monthEndCount: number;
+      deltaAmount: number;
+    }>;
+    chart: {
+      rows: Array<{ bucket: string; values: Record<string, number> }>;
+      series: Array<{ key: string; label: string; color: string }>;
+      noData: boolean;
+    };
+  };
+  utilities: {
+    totalAmount: number;
+    share: number;
+    electricityAmount: number;
+    waterAmount: number;
+    electricityShare: number;
+    waterShare: number;
+    chart: {
+      rows: Array<{ bucket: string; values: Record<string, number> }>;
+      series: Array<{ key: string; label: string; color: string }>;
+      noData: boolean;
+    };
+  };
+  miscellaneous: {
+    totalAmount: number;
+    share: number;
+    count: number;
+    overuseFlag: boolean;
+    topDescriptions: Array<{
+      label: string;
+      amount: number;
+      count: number;
+    }>;
+  };
+  branchComparisonRows: Array<{
+    label: string;
+    amount: number;
+    expenseCount: number;
+    shareLabel: string;
+    expenseToCollectionsRatioLabel: string;
+    topCategory: string;
+  }>;
+  branchMixRows: Array<{
+    label: string;
+    amount: number;
+    expenseCount: number;
+    topCategory: string;
+    fixedShareLabel: string;
+    variableShareLabel: string;
+    salaryShareLabel: string;
+    utilityShareLabel: string;
+    miscellaneousShareLabel: string;
+    disciplineLabel: string;
+  }>;
+  rawRegisterRows: Array<{
+    expenseDate: string;
+    branchName: string;
+    category: string;
+    amount: number;
+    description: string;
+    recordedBy: string;
+    recordedByRoleName: string;
+    recordedAt: string;
+  }>;
+}) {
+  const sections: ReportsSnapshotSection[] = [
+    buildChartSectionFromSeries({
+      key: "expenseTrend",
+      title: "Expense Trend",
+      chartType: "line",
+      valueFormat: "currency",
+      note:
+        "Historical expense movement across the selected reporting window. Bucket size adapts to the saved range.",
+      series: params.trendChart.series.map((series) => ({
+        ...series,
+        type: "line" as const,
+      })),
+      rows: params.trendChart.rows,
+    }),
+    buildChartSectionFromSeries({
+      key: "categoryBreakdown",
+      title: "Category Breakdown",
+      chartType: "bar",
+      valueFormat: "currency",
+      note: "Shows which expense categories carried the most spend in the saved period.",
+      showLegend: false,
+      series: [{ key: "amount", label: "Amount", color: "#f97316", type: "bar" }],
+      rows: params.categoryBreakdownRows.map((row) => ({
+        bucket: row.label,
+        values: {
+          amount: row.amount,
+        },
+      })),
+    }),
+    {
+      key: "spendStructure",
+      title: "Spend Structure",
+      type: "table",
+      columns: [
+        { key: "label", label: "Structure" },
+        { key: "categories", label: "Categories" },
+        { key: "amount", label: "Amount", format: "currency" },
+        { key: "shareLabel", label: "Share" },
+        { key: "expenseCount", label: "Entries", format: "number" },
+      ],
+      rows: params.spendStructureRows,
+    },
+    buildChartSectionFromSeries({
+      key: "salaryRhythmChart",
+      title: "Salary Rhythm",
+      chartType: "bar",
+      valueFormat: "currency",
+      note:
+        "Salary rows are inferred from dates only: entries on the 15th side are treated as mid-month, later entries as month-end.",
+      series: params.salaryRhythm.chart.series.map((series) => ({
+        ...series,
+        type: "bar" as const,
+      })),
+      rows: params.salaryRhythm.chart.rows,
+    }),
+    {
+      key: "salaryRhythmTable",
+      title: "Salary Rhythm Detail",
+      type: "table",
+      columns: [
+        { key: "bucketLabel", label: "Month" },
+        { key: "midMonthAmount", label: "Mid-month", format: "currency" },
+        { key: "monthEndAmount", label: "Month-end", format: "currency" },
+        { key: "midMonthCount", label: "Mid-month Entries", format: "number" },
+        { key: "monthEndCount", label: "Month-end Entries", format: "number" },
+        { key: "deltaAmount", label: "Month-end Delta", format: "currency" },
+      ],
+      rows: params.salaryRhythm.rows,
+    },
+    buildChartSectionFromSeries({
+      key: "utilityTrend",
+      title: "Utility Insight",
+      chartType: "line",
+      valueFormat: "currency",
+      note: "Utilities group Electricity and Water only and show how that burden moved across the saved range.",
+      series: params.utilities.chart.series.map((series) => ({
+        ...series,
+        type: "line" as const,
+      })),
+      rows: params.utilities.chart.rows,
+    }),
+    {
+      key: "utilityBreakdown",
+      title: "Utility Breakdown",
+      type: "table",
+      columns: [
+        { key: "utility", label: "Utility" },
+        { key: "amount", label: "Amount", format: "currency" },
+        { key: "shareLabel", label: "Share of Utilities" },
+      ],
+      rows: [
+        {
+          utility: "Electricity",
+          amount: params.utilities.electricityAmount,
+          shareLabel: formatPercent(params.utilities.electricityShare),
+        },
+        {
+          utility: "Water",
+          amount: params.utilities.waterAmount,
+          shareLabel: formatPercent(params.utilities.waterShare),
+        },
+        {
+          utility: "Total",
+          amount: params.utilities.totalAmount,
+          shareLabel: formatPercent(100),
+        },
+      ],
+    },
+    {
+      key: "miscellaneousWatchlist",
+      title: "Miscellaneous Watchlist",
+      type: "table",
+      columns: [
+        { key: "totalAmount", label: "Miscellaneous Total", format: "currency" },
+        { key: "shareLabel", label: "Share of Spend" },
+        { key: "count", label: "Entries", format: "number" },
+        { key: "overuseFlag", label: "Watch Status" },
+      ],
+      rows: [
+        {
+          totalAmount: params.miscellaneous.totalAmount,
+          shareLabel: formatPercent(params.miscellaneous.share),
+          count: params.miscellaneous.count,
+          overuseFlag: params.miscellaneous.overuseFlag ? "High usage" : "Within normal range",
+        },
+      ],
+    },
+    {
+      key: "miscellaneousDescriptions",
+      title: "Top Miscellaneous Descriptions",
+      type: "table",
+      columns: [
+        { key: "label", label: "Description" },
+        { key: "amount", label: "Amount", format: "currency" },
+        { key: "count", label: "Entries", format: "number" },
+      ],
+      rows: params.miscellaneous.topDescriptions.map((row) => ({
+        label: row.label,
+        amount: row.amount,
+        count: row.count,
+      })),
+    },
+  ];
+
+  if (params.branchComparisonRows.length > 1) {
+    sections.push(
+      buildChartSectionFromSeries({
+        key: "branchExpenseComparison",
+        title: "Branch Expense Comparison",
+        chartType: "bar",
+        valueFormat: "currency",
+        note: "Shows which selected branches carried the highest total expense in the saved period.",
+        series: [{ key: "amount", label: "Expenses", color: "#0ea5e9", type: "bar" }],
+        rows: params.branchComparisonRows.map((row) => ({
+          bucket: row.label,
+          values: {
+            amount: row.amount,
+          },
+        })),
+      }),
+    );
+    sections.push({
+      key: "branchExpenseMix",
+      title: "Branch Expense Mix",
+      type: "table",
+      columns: [
+        { key: "label", label: "Branch" },
+        { key: "amount", label: "Total Expense", format: "currency" },
+        { key: "expenseCount", label: "Entries", format: "number" },
+        { key: "topCategory", label: "Top Category" },
+        { key: "fixedShareLabel", label: "Fixed Share" },
+        { key: "variableShareLabel", label: "Variable Share" },
+        { key: "salaryShareLabel", label: "Salary Share" },
+        { key: "utilityShareLabel", label: "Utility Share" },
+        { key: "miscellaneousShareLabel", label: "Misc Share" },
+        { key: "disciplineLabel", label: "Discipline" },
+      ],
+      rows: params.branchMixRows,
+    });
+  }
+
+  sections.push({
+    key: "expenseRegister",
+    title: "Raw Expense Register",
+    type: "table",
+    columns: [
+      { key: "expenseDate", label: "Expense Date" },
+      { key: "branchName", label: "Branch" },
+      { key: "category", label: "Category" },
+      { key: "amount", label: "Amount", format: "currency" },
+      { key: "description", label: "Description" },
+      { key: "recordedBy", label: "Recorded By" },
+      { key: "recordedByRoleName", label: "Recorded By Role" },
+      { key: "recordedAt", label: "Recorded At" },
+    ],
+    rows: params.rawRegisterRows,
+  });
+
+  return buildBaseSnapshot({
+    templateKey: "expenses_overview",
+    title: params.title,
+    generatedLabel: params.generatedLabel,
+    scopeLabel: params.scopeLabel,
+    summaryCards: [
+      {
+        key: "totalExpenses",
+        label: "Total Expenses",
+        value: params.summary.totalAmount,
+        format: "currency",
+      },
+      {
+        key: "biggestCategory",
+        label: "Biggest Category",
+        value: params.summary.topCategory
+          ? `${params.summary.topCategory} (${formatPercent(params.summary.topCategoryShare)})`
+          : "N/A",
+        format: "text",
+      },
+      {
+        key: "fixedSpendShare",
+        label: "Fixed Spend Share",
+        value: formatPercent(params.summary.fixedSpendShare),
+        format: "text",
+      },
+      {
+        key: "variableSpendShare",
+        label: "Variable Spend Share",
+        value: formatPercent(params.summary.variableSpendShare),
+        format: "text",
+      },
+      {
+        key: "salaryShare",
+        label: "Salary Share",
+        value: formatPercent(params.summary.salaryShare),
+        format: "text",
+      },
+      {
+        key: "utilityShare",
+        label: "Utilities Share",
+        value: formatPercent(params.summary.utilityShare),
+        format: "text",
+      },
+      {
+        key: "miscellaneousShare",
+        label: "Miscellaneous Share",
+        value: formatPercent(params.summary.miscellaneousShare),
+        format: "text",
+      },
+      {
+        key: "expenseToCollectionsRatio",
+        label: "Expense-to-Collections Ratio",
+        value: formatPercent(params.summary.expenseToCollectionsRatio),
+        format: "text",
+      },
+    ],
+    sections,
+    meta: {
+      branchCount: params.branchComparisonRows.length || 1,
+      expenseRowCount: params.rawRegisterRows.length,
+      totalCollections: params.summary.totalCollections,
+      totalSalarySpend: params.summary.totalSalarySpend,
+      totalUtilitySpend: params.summary.totalUtilitySpend,
+      miscellaneousSpend: params.summary.miscellaneousSpend,
+      miscellaneousCount: params.summary.miscellaneousCount,
+      historicalOnly: true,
     },
   });
 }

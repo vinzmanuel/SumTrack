@@ -1,12 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { Label, Pie, PieChart } from "recharts";
+import { Pie, PieChart } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   ChartContainer,
-  ChartLegend,
-  ChartLegendContent,
   ChartTooltip,
   type ChartConfig,
 } from "@/components/ui/chart";
@@ -83,44 +81,6 @@ export function ExpensesBreakdownCard({
       ) satisfies ChartConfig,
     [data.breakdownRows],
   );
-
-  const renderCenterLabel = React.useCallback(
-    ({ viewBox }: { viewBox?: unknown }) => {
-      const center =
-        viewBox && typeof viewBox === "object" && "cx" in viewBox && "cy" in viewBox
-          ? viewBox
-          : null;
-
-      if (!center || typeof center.cx !== "number" || typeof center.cy !== "number") {
-        return null;
-      }
-
-      return (
-        <text x={center.cx} y={center.cy} textAnchor="middle" dominantBaseline="middle">
-          <tspan
-            x={center.cx}
-            y={center.cy - 4}
-            className="fill-foreground font-bold"
-            fontSize="24"
-            fontWeight="500"
-          >
-            {formatMoney(data.totalAmount)}
-          </tspan>
-          <tspan
-            x={center.cx}
-            y={center.cy + 18}
-            className="fill-muted-foreground"
-            fontSize="12"
-            fontWeight="500"
-          >
-            total amount
-          </tspan>
-        </text>
-      );
-    },
-    [data.totalAmount],
-  );
-
   return (
     <div className="relative">
       <Card className="gap-0 overflow-hidden py-0">
@@ -140,24 +100,36 @@ export function ExpensesBreakdownCard({
             </div>
           ) : (
             <div className="rounded-2xl border border-border/70 bg-muted/10 p-2">
-              <ChartContainer className="mx-auto h-[340px] w-full max-w-[520px]" config={chartConfig}>
-                <PieChart>
-                  <ChartTooltip content={<BreakdownTooltip />} cursor={false} />
-                  <ChartLegend content={<ChartLegendContent className="justify-center gap-5 pt-4" />} />
-                  <Pie
-                    data={data.breakdownRows}
-                    dataKey="amount"
-                    innerRadius={82}
-                    legendType="circle"
-                    nameKey="key"
-                    outerRadius={126}
-                    stroke="none"
-                    strokeWidth={0}
-                  >
-                    <Label content={renderCenterLabel} />
-                  </Pie>
-                </PieChart>
-              </ChartContainer>
+              <div className="mx-auto w-full max-w-[520px]">
+                <div className="h-[280px]">
+                  <ChartContainer className="h-[280px] w-full" config={chartConfig}>
+                    <PieChart>
+                      <ChartTooltip content={<BreakdownTooltip />} cursor={false} />
+                      <Pie
+                        cx="50%"
+                        cy="50%"
+                        data={data.breakdownRows}
+                        dataKey="amount"
+                        innerRadius={82}
+                        legendType="circle"
+                        nameKey="key"
+                        outerRadius={126}
+                        stroke="none"
+                        strokeWidth={0}
+                      />
+                    </PieChart>
+                  </ChartContainer>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-3 pt-4 text-sm text-muted-foreground">
+                  {data.breakdownRows.map((row) => (
+                    <div className="flex items-center gap-2" key={row.key}>
+                      <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: row.fill }} />
+                      <span>{row.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
         </CardContent>

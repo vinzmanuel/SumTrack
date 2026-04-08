@@ -90,6 +90,10 @@ function resolveCsvTable(report: ReportsViewerPageData): ReportsSnapshotTableSec
     return tableSections.find((section) => section.key === "borrowersWithOverdueLoansRawData") ?? null;
   }
 
+  if (report.templateKey === "expenses_overview") {
+    return tableSections.find((section) => section.key === "expenseRegister") ?? null;
+  }
+
   if (report.templateKey === "collector_performance_report") {
     return tableSections.find((section) => section.key === "collectorPerformanceRawData") ?? null;
   }
@@ -153,6 +157,10 @@ function resolveFinancialOverviewCsvDataset(report: ReportsViewerPageData): CsvD
 
 function resolveCsvDataset(report: ReportsViewerPageData): CsvDataset | null {
   if (report.templateKey === "financial_overview") {
+    return resolveFinancialOverviewCsvDataset(report);
+  }
+
+  if (report.templateKey === "expenses_overview") {
     return resolveFinancialOverviewCsvDataset(report);
   }
 

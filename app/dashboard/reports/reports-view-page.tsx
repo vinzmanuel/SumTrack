@@ -1062,6 +1062,128 @@ function renderFinancialOverview(report: ReportsViewerPageData) {
   );
 }
 
+function renderExpensesOverview(report: ReportsViewerPageData) {
+  const expenseTrend = findChartSection(report.snapshot, "expenseTrend");
+  const categoryBreakdown = findChartSection(report.snapshot, "categoryBreakdown");
+  const spendStructure = findTableSection(report.snapshot, "spendStructure");
+  const salaryRhythmChart = findChartSection(report.snapshot, "salaryRhythmChart");
+  const salaryRhythmTable = findTableSection(report.snapshot, "salaryRhythmTable");
+  const utilityTrend = findChartSection(report.snapshot, "utilityTrend");
+  const utilityBreakdown = findTableSection(report.snapshot, "utilityBreakdown");
+  const miscellaneousWatchlist = findTableSection(report.snapshot, "miscellaneousWatchlist");
+  const miscellaneousDescriptions = findTableSection(report.snapshot, "miscellaneousDescriptions");
+  const branchExpenseComparison = findChartSection(report.snapshot, "branchExpenseComparison");
+  const branchExpenseMix = findTableSection(report.snapshot, "branchExpenseMix");
+
+  return (
+    <div className="space-y-8">
+      <CompactSummary items={report.snapshot.summaryCards} title="Summary" />
+      {expenseTrend ? (
+        <ReportSection
+          title="Expense Trend"
+          description="Historical expense movement across the saved reporting window."
+        >
+          <ReportsViewerChart chart={expenseTrend} forceChartType="line" />
+        </ReportSection>
+      ) : null}
+      <div className="space-y-6">
+        {categoryBreakdown ? (
+          <ReportSection
+            title="Category Breakdown"
+            description="Shows which expense categories carried the most weight in the saved period."
+          >
+            <ReportsViewerChart chart={categoryBreakdown} forceChartType="bar" />
+          </ReportSection>
+        ) : null}
+        {spendStructure ? (
+          <ReportSection
+            title="Spend Structure"
+            description="Derived structure view using current expense categories only: fixed-ish vs variable and recurring-ish vs ad hoc."
+          >
+            <ReportsViewerDataTable section={spendStructure} />
+          </ReportSection>
+        ) : null}
+      </div>
+      {(salaryRhythmChart || salaryRhythmTable) ? (
+        <div className="space-y-6">
+          {salaryRhythmChart ? (
+            <ReportSection
+              title="Salary Rhythm"
+              description="Salary rows are inferred from dates only: 15th-side entries are treated as mid-month, later entries as month-end."
+            >
+              <ReportsViewerChart chart={salaryRhythmChart} forceChartType="bar" />
+            </ReportSection>
+          ) : null}
+          {salaryRhythmTable ? (
+            <ReportSection
+              title="Salary Rhythm Detail"
+              description="Month-by-month mid-month versus month-end salary behavior inside the saved range."
+            >
+              <ReportsViewerDataTable section={salaryRhythmTable} />
+            </ReportSection>
+          ) : null}
+        </div>
+      ) : null}
+      {(utilityTrend || utilityBreakdown) ? (
+        <div className="space-y-6">
+          {utilityTrend ? (
+            <ReportSection
+              title="Utility Insight"
+              description="Utilities are derived by grouping Electricity and Water only."
+            >
+              <ReportsViewerChart chart={utilityTrend} forceChartType="line" />
+            </ReportSection>
+          ) : null}
+          {utilityBreakdown ? (
+            <ReportSection
+              title="Utility Breakdown"
+              description="Shows how Electricity and Water contributed to the total utilities burden."
+            >
+              <ReportsViewerDataTable section={utilityBreakdown} emphasizeRowsWithValues={["Total"]} />
+            </ReportSection>
+          ) : null}
+        </div>
+      ) : null}
+      {(miscellaneousWatchlist || miscellaneousDescriptions) ? (
+        <div className="space-y-6">
+          {miscellaneousWatchlist ? (
+            <ReportSection
+              title="Miscellaneous Watchlist"
+              description="Helps spot whether the selected branches leaned too heavily on Miscellaneous during the saved period."
+            >
+              <ReportsViewerDataTable section={miscellaneousWatchlist} />
+            </ReportSection>
+          ) : null}
+          {miscellaneousDescriptions ? (
+            <ReportSection
+              title="Top Miscellaneous Descriptions"
+              description="Most repeated or highest-value Miscellaneous descriptions inside the saved period."
+            >
+              <ReportsViewerDataTable section={miscellaneousDescriptions} />
+            </ReportSection>
+          ) : null}
+        </div>
+      ) : null}
+      {branchExpenseComparison ? (
+        <ReportSection
+          title="Branch Expense Comparison"
+          description="Only shown when the saved report covers multiple branches."
+        >
+          <ReportsViewerChart chart={branchExpenseComparison} forceChartType="bar" />
+        </ReportSection>
+      ) : null}
+      {branchExpenseMix ? (
+        <ReportSection
+          title="Branch Expense Mix"
+          description="Compares branch totals, mix, and Miscellaneous pressure for the selected historical scope."
+        >
+          <ReportsViewerDataTable section={branchExpenseMix} />
+        </ReportSection>
+      ) : null}
+    </div>
+  );
+}
+
 function renderCollectionsSummary(report: ReportsViewerPageData) {
   const chart =
     findChartSection(report.snapshot, "collectionsTrend") ??
@@ -1735,6 +1857,10 @@ function renderLoanReceiptSummary(report: ReportsViewerPageData) {
 function renderReportBody(report: ReportsViewerPageData) {
   if (report.templateKey === "financial_overview") {
     return renderFinancialOverview(report);
+  }
+
+  if (report.templateKey === "expenses_overview") {
+    return renderExpensesOverview(report);
   }
 
   if (report.templateKey === "collections_summary" || report.templateKey === "monthly_collections_summary") {
