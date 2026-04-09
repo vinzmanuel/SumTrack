@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { cloneElement, isValidElement, useMemo, useState, useTransition, type MouseEvent as ReactMouseEvent, type ReactElement } from "react";
 import { Loader2, TriangleAlert } from "lucide-react";
 import {
   AlertDialog,
@@ -26,6 +26,7 @@ type DestructiveDeleteFlowProps = {
   triggerLabel?: string;
   triggerSize?: "sm" | "default";
   triggerClassName?: string;
+  trigger?: ReactElement<{ onClick?: (event: ReactMouseEvent<HTMLElement>) => void }>;
   title: string;
   description: string;
   itemLabel: string;
@@ -69,6 +70,7 @@ export function DestructiveDeleteFlow({
   triggerLabel = "Delete",
   triggerSize = "sm",
   triggerClassName,
+  trigger,
   title,
   description,
   itemLabel,
@@ -147,14 +149,25 @@ export function DestructiveDeleteFlow({
 
   return (
     <>
-      <Button
-        className={triggerClassName ?? "bg-destructive text-white hover:bg-destructive/90"}
-        onClick={openTypedStep}
-        size={triggerSize}
-        type="button"
-      >
-        {triggerLabel}
-      </Button>
+      {isValidElement(trigger) ? (
+        cloneElement(trigger, {
+          onClick: (event: ReactMouseEvent<HTMLElement>) => {
+            trigger.props.onClick?.(event);
+            if (!event.defaultPrevented) {
+              openTypedStep();
+            }
+          },
+        })
+      ) : (
+        <Button
+          className={triggerClassName ?? "bg-destructive text-white hover:bg-destructive/90"}
+          onClick={openTypedStep}
+          size={triggerSize}
+          type="button"
+        >
+          {triggerLabel}
+        </Button>
+      )}
 
       <AlertDialog
         onOpenChange={(open) => {

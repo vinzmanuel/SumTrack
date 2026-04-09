@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { DashboardBackLink } from "@/app/dashboard/_components/dashboard-back-link";
+import { DashboardHeaderConfigurator } from "@/app/dashboard/_components/dashboard-header-config";
 import { firstSearchValue, resolveBackNavigation } from "@/app/dashboard/back-navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getDashboardAuthContext } from "@/app/dashboard/auth";
@@ -54,6 +55,11 @@ export default async function ManagedUserDetailPage({
 
   return (
     <div className="space-y-6">
+      <DashboardHeaderConfigurator
+        config={{
+          title: `${detail.fullName} (${detail.companyId})`,
+        }}
+      />
       <DashboardBackLink href={backNavigation.href} label={backNavigation.label} />
 
       <Card>

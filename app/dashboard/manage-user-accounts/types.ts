@@ -13,6 +13,8 @@ export type ManageUserAccountsPageProps = {
 
 export type ManageUserAccountStatus = "active" | "inactive";
 export type ManageUserAccountsSort =
+  | "name_asc"
+  | "name_desc"
   | "date_created_asc"
   | "date_created_desc"
   | "role_asc"
@@ -141,6 +143,7 @@ export type ManagedUserListRow = {
   displayName: string;
   companyId: string;
   username: string;
+  dateCreated: string | null;
   roleName: string;
   scopeLabel: string;
   scopeContextLabel?: string | null;

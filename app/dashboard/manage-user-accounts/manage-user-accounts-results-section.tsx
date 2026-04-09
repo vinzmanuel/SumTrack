@@ -7,6 +7,7 @@ import { ManageUserAccountsTable } from "@/app/dashboard/manage-user-accounts/ma
 import type {
   ManagedCollectorReassignmentRequiredPayload,
   ManageUserAccountsPageData,
+  ManageUserAccountsSort,
 } from "@/app/dashboard/manage-user-accounts/types";
 
 const MANAGE_USERS_PAGE_SIZE_OPTIONS = [10, 20, 50] as const;
@@ -20,6 +21,8 @@ export function ManageUserAccountsResultsSection({
   onPageChange,
   onPageSizeChange,
   onReassignmentRequired,
+  onSortChange,
+  selectedSort,
 }: {
   data: ManageUserAccountsPageData;
   errorMessage: string | null;
@@ -32,6 +35,8 @@ export function ManageUserAccountsResultsSection({
     blocked: ManagedCollectorReassignmentRequiredPayload,
     retryAction: () => Promise<void>,
   ) => void;
+  onSortChange: (sort: ManageUserAccountsSort) => void;
+  selectedSort: ManageUserAccountsSort;
 }) {
   const totalPages = Math.max(Math.ceil(data.totalCount / data.pageSize), 1);
   const safePage = Math.min(Math.max(data.page, 1), totalPages);
@@ -44,6 +49,8 @@ export function ManageUserAccountsResultsSection({
         onDeleted={onDeleted}
         onEdit={onEdit}
         onReassignmentRequired={onReassignmentRequired}
+        onSortChange={onSortChange}
+        selectedSort={selectedSort}
         users={data.users}
       />
       <div className="px-1 py-1">
@@ -61,7 +68,7 @@ export function ManageUserAccountsResultsSection({
                 onValueChange={(value) => onPageSizeChange(Number(value))}
                 value={String(data.pageSize)}
               >
-                <SelectTrigger className="w-[84px] rounded-md">
+                <SelectTrigger className="w-[84px] rounded-md bg-white dark:bg-card">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>

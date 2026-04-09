@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { DashboardBackLink } from "@/app/dashboard/_components/dashboard-back-link";
+import { DashboardHeaderConfigurator } from "@/app/dashboard/_components/dashboard-header-config";
 import { firstSearchValue, resolveBackNavigation } from "@/app/dashboard/back-navigation";
 import { getDashboardAuthContext } from "@/app/dashboard/auth";
 import {
@@ -58,6 +59,11 @@ export async function renderRoleAccountProfilePage(params: {
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
+      <DashboardHeaderConfigurator
+        config={{
+          title: `${detail.fullName} (${detail.companyId})`,
+        }}
+      />
       <DashboardBackLink href={backNavigation.href} label={backNavigation.label} />
 
       <ManagedUserSummaryCard

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TremorCard, TremorDescription } from "@/components/tremor/raw/metric-card";
 import { DashboardBackLink } from "@/app/dashboard/_components/dashboard-back-link";
+import { DashboardHeaderConfigurator } from "@/app/dashboard/_components/dashboard-header-config";
 import {
   getDashboardAuthContext,
   getSingleAssignedBranchId,
@@ -300,6 +301,11 @@ export default async function BorrowerProfilePage({ params, searchParams }: Page
 
   return (
     <div className="space-y-6">
+      <DashboardHeaderConfigurator
+        config={{
+          title: `${fullName} (${borrower.company_id})`,
+        }}
+      />
       <DashboardBackLink href={backNavigation.href} label={backNavigation.label} />
 
       <TremorCard className="overflow-hidden p-0">

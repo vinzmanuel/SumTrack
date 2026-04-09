@@ -56,6 +56,8 @@ export function ManageUserAccountsModule({
         onPageChange={onPageChange}
         onPageSizeChange={onPageSizeChange}
         onReassignmentRequired={onReassignmentRequired}
+        onSortChange={onSortChange}
+        selectedSort={selectedSort}
       />
     </div>
   );

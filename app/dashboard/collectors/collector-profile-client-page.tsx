@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { DashboardBackLink } from "@/app/dashboard/_components/dashboard-back-link";
+import { DashboardHeaderConfigurator } from "@/app/dashboard/_components/dashboard-header-config";
 import { CollectorAccountOverviewTab } from "@/app/dashboard/collectors/collector-account-overview-tab";
 import { CollectorAssignedLoansTab } from "@/app/dashboard/collectors/collector-assigned-loans-tab";
 import { CollectorProfileFilters } from "@/app/dashboard/collectors/collector-profile-filters";
@@ -202,6 +203,11 @@ export function CollectorProfileClientPage({
 
   return (
     <div className="space-y-6">
+      <DashboardHeaderConfigurator
+        config={{
+          title: `${data.fullName} (${data.companyId})`,
+        }}
+      />
       <DashboardBackLink href={backHref} label={backLabel} />
 
       <Card className="gap-0 overflow-hidden py-0">

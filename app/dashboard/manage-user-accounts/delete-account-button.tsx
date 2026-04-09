@@ -1,5 +1,6 @@
 "use client";
 
+import { cloneElement, isValidElement, type MouseEvent as ReactMouseEvent, type ReactElement } from "react";
 import { toast } from "sonner";
 import { DestructiveDeleteFlow } from "@/app/dashboard/_components/destructive-delete-flow";
 import type {
@@ -12,6 +13,7 @@ export function DeleteAccountButton({
   userLabel,
   onDeleted,
   onReassignmentRequired,
+  trigger,
 }: {
   userId: string;
   userLabel: string;
@@ -20,6 +22,7 @@ export function DeleteAccountButton({
     blocked: ManagedCollectorReassignmentRequiredPayload,
     retryAction: () => Promise<void>,
   ) => void;
+  trigger?: ReactElement<{ onClick?: (event: ReactMouseEvent<HTMLElement>) => void }>;
 }) {
   async function performDelete() {
     const response = await fetch(`/dashboard/manage-user-accounts/${userId}/delete`, {
@@ -57,6 +60,7 @@ export function DeleteAccountButton({
       itemValue={userLabel}
       onExecute={performDelete}
       title="Delete Account"
+      trigger={isValidElement(trigger) ? cloneElement(trigger) : undefined}
       warningText={`Deleting ${userLabel} cannot be undone.`}
     />
   );

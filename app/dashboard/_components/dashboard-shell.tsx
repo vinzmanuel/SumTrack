@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import {
   BarChart3,
   BanknoteArrowDown,
@@ -54,6 +54,7 @@ import {
 } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ThemeToggle } from "@/app/dashboard/_components/theme-toggle";
+import { buildReturnTo, sanitizeReturnTo } from "@/app/dashboard/back-navigation";
 
 type NavItem = {
   href: string;
@@ -134,6 +135,66 @@ function formatBreadcrumbLabel(segment: string) {
     .replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
+type DashboardBreadcrumbItem = {
+  label: string;
+  href?: string;
+  current?: true;
+};
+
+function parseDashboardRouteHref(href: string) {
+  const url = new URL(href, "http://sumtrack.local");
+  return {
+    pathname: url.pathname,
+    searchParams: url.searchParams,
+  };
+}
+
+function resolveDashboardRouteLabel(params: {
+  pathname: string;
+  searchParams: URLSearchParams;
+  navItems: NavItem[];
+  fallbackLabel: string;
+}) {
+  const tab = params.searchParams.get("tab");
+
+  if (/^\/dashboard\/branches\/[^/]+$/.test(params.pathname)) {
+    if (tab === "employees") {
+      return "Employees";
+    }
+
+    if (tab === "areas") {
+      return "Areas";
+    }
+  }
+
+  if (/^\/dashboard\/borrowers\/[^/]+$/.test(params.pathname)) {
+    if (tab === "loan-history") {
+      return "Loan History";
+    }
+
+    if (tab === "documents") {
+      return "Documents";
+    }
+  }
+
+  if (/^\/dashboard\/collectors\/[^/]+$/.test(params.pathname)) {
+    if (tab === "assigned-loans") {
+      return "Assigned Loans";
+    }
+
+    if (tab === "performance") {
+      return "Collector Performance";
+    }
+  }
+
+  const directNav = params.navItems.find((item) => item.href === params.pathname);
+  if (directNav) {
+    return directNav.label;
+  }
+
+  return params.fallbackLabel;
+}
+
 function buildDashboardBreadcrumbs({
   currentPageLabel,
   navItems,
@@ -195,6 +256,55 @@ function buildDashboardBreadcrumbs({
   });
 
   return items;
+}
+
+function buildRouteAwareBreadcrumbs(params: {
+  pathname: string;
+  searchParams: URLSearchParams;
+  currentPageLabel: string;
+  navItems: NavItem[];
+  seenHrefs?: Set<string>;
+}): DashboardBreadcrumbItem[] {
+  const currentHref = buildReturnTo(params.pathname, params.searchParams);
+  const safeReturnTo = sanitizeReturnTo(params.searchParams.get("returnTo"), ["/dashboard"]);
+  const seenHrefs = params.seenHrefs ?? new Set<string>();
+
+  if (safeReturnTo && safeReturnTo !== currentHref && !seenHrefs.has(currentHref)) {
+    const nextSeen = new Set(seenHrefs);
+    nextSeen.add(currentHref);
+
+    const parentRoute = parseDashboardRouteHref(safeReturnTo);
+    const parentLabel = resolveDashboardRouteLabel({
+      pathname: parentRoute.pathname,
+      searchParams: parentRoute.searchParams,
+      navItems: params.navItems,
+      fallbackLabel: formatBreadcrumbLabel(
+        parentRoute.pathname.split("/").filter(Boolean).at(-1) ?? "Overview",
+      ),
+    });
+    const parentItems = buildRouteAwareBreadcrumbs({
+      pathname: parentRoute.pathname,
+      searchParams: parentRoute.searchParams,
+      currentPageLabel: parentLabel,
+      navItems: params.navItems,
+      seenHrefs: nextSeen,
+    }).map((item, index, items) =>
+      index === items.length - 1 && item.current
+        ? {
+            label: item.label,
+            href: safeReturnTo,
+          }
+        : item,
+    );
+
+    return [...parentItems, { label: params.currentPageLabel, current: true }];
+  }
+
+  return buildDashboardBreadcrumbs({
+    currentPageLabel: params.currentPageLabel,
+    navItems: params.navItems,
+    pathname: params.pathname,
+  });
 }
 
 function SidebarIcon({
@@ -545,6 +655,7 @@ export function DashboardShell({
   const [headerConfig, setHeaderConfig] = useState<DashboardHeaderConfig | null>(null);
   const normalizedItems = useMemo(() => navItems, [navItems]);
   const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   useEffect(() => {
     const html = document.documentElement;
@@ -594,20 +705,38 @@ export function DashboardShell({
       return "Branch Details";
     }
 
+    if (/^\/dashboard\/manage-user-accounts\/[^/]+$/.test(pathname)) {
+      return "User Details";
+    }
+
+    if (/^\/dashboard\/(admin|auditor|branch-manager|secretary)\/[^/]+$/.test(pathname)) {
+      return "User Details";
+    }
+
+    if (pathname === "/dashboard/reports/create") {
+      return "Create Report";
+    }
+
     return normalizedItems.find((item) => isActiveNav(pathname, item.href))?.label ?? "Overview";
   }, [normalizedItems, pathname]);
+  const resolvedBreadcrumbCurrentLabel = headerConfig?.title ?? currentPageLabel;
   const breadcrumbItems = useMemo(
-    () =>
-      buildDashboardBreadcrumbs({
-        currentPageLabel,
-        navItems: normalizedItems,
+    () => {
+      const activeSearchParams = new URLSearchParams(searchParams.toString());
+
+      return buildRouteAwareBreadcrumbs({
         pathname,
-      }),
-    [currentPageLabel, normalizedItems, pathname],
+        searchParams: activeSearchParams,
+        currentPageLabel: resolvedBreadcrumbCurrentLabel,
+        navItems: normalizedItems,
+      });
+    },
+    [normalizedItems, pathname, resolvedBreadcrumbCurrentLabel, searchParams],
   );
   const shouldShowBreadcrumb = useMemo(
-    () => pathname.split("/").filter(Boolean).length >= 2,
-    [pathname],
+    () =>
+      pathname.split("/").filter(Boolean).length >= 2 || Boolean(searchParams.get("returnTo")),
+    [pathname, searchParams],
   );
 
   return (

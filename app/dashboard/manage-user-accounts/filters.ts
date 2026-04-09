@@ -28,6 +28,8 @@ function normalizeStatus(value: string | undefined): ManageUserAccountStatus {
 
 function normalizeSort(value: string | undefined): ManageUserAccountsSort {
   if (
+    value === "name_asc" ||
+    value === "name_desc" ||
     value === "date_created_asc" ||
     value === "date_created_desc" ||
     value === "role_desc"

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Building2, MapPin } from "lucide-react";
 import { DashboardBackLink } from "@/app/dashboard/_components/dashboard-back-link";
+import { DashboardHeaderConfigurator } from "@/app/dashboard/_components/dashboard-header-config";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { BranchDeleteButton } from "@/app/dashboard/branches/branch-delete-button";
@@ -83,6 +84,11 @@ export function BranchDetailClientPage({
 
   return (
     <div className="space-y-4">
+      <DashboardHeaderConfigurator
+        config={{
+          title: data.branchName,
+        }}
+      />
       <DashboardBackLink href={backHref} label={backLabel} />
 
       <Card className="overflow-hidden border-border/70 py-0 shadow-sm">

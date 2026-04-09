@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import type { ManageUserAccountsSort } from "@/app/dashboard/manage-user-accounts/types";
 
 const SORT_OPTIONS: Array<{ value: ManageUserAccountsSort; label: string }> = [
+  { value: "name_asc", label: "Name Asc" },
+  { value: "name_desc", label: "Name Desc" },
   { value: "date_created_asc", label: "Date Created Asc" },
   { value: "date_created_desc", label: "Date Created Desc" },
   { value: "role_asc", label: "Role Asc" },

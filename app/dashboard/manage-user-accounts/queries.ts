@@ -62,6 +62,9 @@ const ROLE_SORT_ORDER_SQL = sql<number>`
     else 999
   end
 `;
+const SORTED_FIRST_NAME_SQL = sql<string>`coalesce(${employee_info.first_name}, ${borrower_info.first_name}, '')`;
+const SORTED_MIDDLE_NAME_SQL = sql<string>`coalesce(${employee_info.middle_name}, ${borrower_info.middle_name}, '')`;
+const SORTED_LAST_NAME_SQL = sql<string>`coalesce(${employee_info.last_name}, ${borrower_info.last_name}, '')`;
 
 type ActiveAssignmentState = {
   currentBranchId: number | null;
@@ -593,6 +596,24 @@ function resolveEditableRoleNames(scope: ManageUserAccountsScope, row: { roleNam
 }
 
 function buildManageUserSortOrder(sort: ManageUserAccountsSort) {
+  if (sort === "name_asc") {
+    return [
+      asc(SORTED_LAST_NAME_SQL),
+      asc(SORTED_FIRST_NAME_SQL),
+      asc(SORTED_MIDDLE_NAME_SQL),
+      asc(users.company_id),
+    ] as const;
+  }
+
+  if (sort === "name_desc") {
+    return [
+      desc(SORTED_LAST_NAME_SQL),
+      desc(SORTED_FIRST_NAME_SQL),
+      desc(SORTED_MIDDLE_NAME_SQL),
+      asc(users.company_id),
+    ] as const;
+  }
+
   if (sort === "date_created_asc") {
     return [asc(users.date_created), asc(users.company_id)] as const;
   }
@@ -1332,6 +1353,7 @@ export async function loadManageUserAccountsPageData(
       displayName,
       companyId: row.companyId,
       username: row.username,
+      dateCreated: row.dateCreated,
       roleName: row.roleName,
       scopeLabel: scopePresentation.scopeLabel,
       scopeContextLabel: normalizedStatus === "inactive" ? scopePresentation.scopeContextLabel : null,

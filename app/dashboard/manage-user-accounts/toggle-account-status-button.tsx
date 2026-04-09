@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { cloneElement, isValidElement, useEffect, useMemo, useState, useTransition, type MouseEvent as ReactMouseEvent, type ReactElement } from "react";
 import { AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -12,7 +12,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -45,6 +44,7 @@ export function ToggleAccountStatusButton({
   onReassignmentRequired,
   userId,
   userLabel,
+  trigger,
 }: {
   currentStatus: "active" | "inactive";
   onStatusChanged: () => void;
@@ -54,6 +54,7 @@ export function ToggleAccountStatusButton({
   ) => void;
   userId: string;
   userLabel: string;
+  trigger?: ReactElement<{ onClick?: (event: ReactMouseEvent<HTMLElement>) => void }>;
 }) {
   const [open, setOpen] = useState(false);
   const [reactivationOpen, setReactivationOpen] = useState(false);
@@ -67,6 +68,35 @@ export function ToggleAccountStatusButton({
   const [areaId, setAreaId] = useState("");
   const nextStatus = currentStatus === "active" ? "inactive" : "active";
   const actionLabel = currentStatus === "active" ? "Deactivate" : "Reactivate";
+
+  const defaultTriggerClassName =
+    currentStatus === "active"
+      ? "bg-amber-500 text-white hover:bg-amber-600"
+      : "bg-emerald-600 text-white hover:bg-emerald-700";
+
+  function renderTrigger(onOpen: () => void) {
+    if (isValidElement(trigger)) {
+        return cloneElement(trigger, {
+        onClick: (event: ReactMouseEvent<HTMLElement>) => {
+          trigger.props.onClick?.(event);
+          if (!event.defaultPrevented) {
+            onOpen();
+          }
+        },
+      });
+    }
+
+    return (
+      <Button
+        className={defaultTriggerClassName}
+        onClick={onOpen}
+        size="sm"
+        type="button"
+      >
+        {actionLabel}
+      </Button>
+    );
+  }
 
   useEffect(() => {
     if (!reactivationOpen || currentStatus !== "inactive") {
@@ -259,14 +289,7 @@ export function ToggleAccountStatusButton({
   if (currentStatus === "inactive") {
     return (
       <>
-        <Button
-          className="bg-emerald-600 text-white hover:bg-emerald-700"
-          onClick={() => setReactivationOpen(true)}
-          size="sm"
-          type="button"
-        >
-          Reactivate
-        </Button>
+        {renderTrigger(() => setReactivationOpen(true))}
 
         <Dialog onOpenChange={setReactivationOpen} open={reactivationOpen}>
           <DialogContent className="sm:max-w-2xl">
@@ -452,15 +475,7 @@ export function ToggleAccountStatusButton({
 
   return (
     <AlertDialog onOpenChange={setOpen} open={open}>
-      <AlertDialogTrigger asChild>
-        <Button
-          className="bg-amber-500 text-white hover:bg-amber-600"
-          size="sm"
-          type="button"
-        >
-          Deactivate
-        </Button>
-      </AlertDialogTrigger>
+      {renderTrigger(() => setOpen(true))}
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Deactivate user account?</AlertDialogTitle>
