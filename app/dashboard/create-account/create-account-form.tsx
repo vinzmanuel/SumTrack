@@ -4,7 +4,6 @@ import { useActionState, useMemo, useRef, useState, type FormEvent, type ReactNo
 import { AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
 import { useFormStatus } from "react-dom";
 import { toast } from "sonner";
-import { DashboardBackLink } from "@/app/dashboard/_components/dashboard-back-link";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -49,8 +48,6 @@ type AreaOption = {
 type AccountCategory = "Employee" | "Borrower";
 
 type CreateAccountFormProps = {
-  backHref: string;
-  backLabel: string;
   roles: RoleOption[];
   branches: BranchOption[];
   areas: AreaOption[];
@@ -201,8 +198,6 @@ function escapeHtml(value: string) {
 }
 
 export function CreateAccountForm({
-  backHref,
-  backLabel,
   roles,
   branches,
   areas,
@@ -438,10 +433,6 @@ export function CreateAccountForm({
 
   return (
     <div className="space-y-4">
-      <div className="px-1 py-1">
-        <DashboardBackLink href={backHref} label={backLabel} />
-      </div>
-
       <div className={CREATE_ACCOUNT_SURFACE_CLASS_NAME}>
         <form action={formAction} className="space-y-4 px-4 py-4 md:px-5" onSubmit={handleSubmit} ref={formRef}>
             <input name="account_category" type="hidden" value={accountCategory} />
@@ -774,7 +765,7 @@ export function CreateAccountForm({
               </FormSection>
             ) : null}
 
-            <div className="flex flex-col-reverse gap-3 border-t border-border/70 pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
               {state.status === "error" && state.message ? (
                 <p className="text-sm text-destructive">{state.message}</p>
               ) : (

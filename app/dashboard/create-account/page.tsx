@@ -313,8 +313,6 @@ export default async function CreateAccountPage({
       <div className="mx-auto w-full max-w-5xl space-y-4">
         <CreateAccountForm
           areas={mappedAreas}
-          backHref={backNavigation.href}
-          backLabel={backNavigation.label}
           borrowerOnly={isSecretary}
           branches={mappedBranches}
           fixedBranchId={fixedBranchId ? String(fixedBranchId) : null}

@@ -18,7 +18,7 @@ type VerifyLoginPageProps = {
 };
 
 export const metadata: Metadata = {
-  title: "Verify Admin Login | SumTrack",
+  title: "Verify Login | SumTrack",
 };
 
 export default async function VerifyLoginPage({ searchParams }: VerifyLoginPageProps) {
@@ -80,11 +80,11 @@ export default async function VerifyLoginPage({ searchParams }: VerifyLoginPageP
               </div>
             </div>
             <h1 className={`${displayFont.className} mb-2 text-2xl font-bold tracking-tight text-white sm:text-3xl`}>
-              Verify Admin Login
+              Verify Login
             </h1>
             <p className="text-sm text-white/55">
               {shouldChooseChannel
-                ? "Choose where to send your Admin verification code."
+                ? "Choose where to send your verification code."
                 : activeChannel && destinationLabel
                   ? `Enter the ${channelLabel} code sent to `
                   : availability.defaultChannel
@@ -204,7 +204,7 @@ export default async function VerifyLoginPage({ searchParams }: VerifyLoginPageP
               </button>
             </form>
             <p className="text-xs text-white/40">
-              This signs you out, clears the pending Admin verification step, and returns you to login.
+              This signs you out, clears the pending verification step, and returns you to login.
             </p>
           </div>
         </div>
