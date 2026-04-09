@@ -14,6 +14,7 @@ import {
   roles,
   users,
 } from "@/db/schema";
+import { hasVerifiedAdminTwoFactor } from "@/lib/auth/admin-two-factor";
 import { createClient } from "@/lib/supabase/server";
 
 export type RoleName =
@@ -28,13 +29,15 @@ export type RoleName =
 type AuthFailure =
   | { ok: false; reason: "unauthenticated"; message: string }
   | { ok: false; reason: "missing_app_user"; message: string }
-  | { ok: false; reason: "missing_role"; message: string };
+  | { ok: false; reason: "missing_role"; message: string }
+  | { ok: false; reason: "admin_2fa_required"; message: string };
 
 export type DashboardAuthContext = {
   ok: true;
   userId: string;
   roleName: RoleName;
   companyId: string;
+  contactNo: string | null;
   displayName: string;
   assignedBranchIds: number[];
   activeBranchId: number | null;
@@ -43,6 +46,12 @@ export type DashboardAuthContext = {
 };
 
 export type DashboardAuthResult = AuthFailure | DashboardAuthContext;
+export type AppAuthResult = Exclude<DashboardAuthResult, { ok: false; reason: "admin_2fa_required"; message: string }>;
+export type AppSessionAccessState =
+  | { status: "unauthenticated" | "missing_app_user" | "missing_role"; auth: AppAuthResult }
+  | { status: "non_admin_authenticated"; auth: DashboardAuthContext }
+  | { status: "admin_otp_pending"; auth: DashboardAuthContext }
+  | { status: "admin_otp_verified"; auth: DashboardAuthContext };
 
 function buildDisplayName(parts: {
   firstName?: string | null;
@@ -58,7 +67,7 @@ function buildDisplayName(parts: {
   return [firstName, middleInitial, lastName].filter(Boolean).join(" ").trim() || parts.fallback;
 }
 
-export const getDashboardAuthContext = cache(async (): Promise<DashboardAuthResult> => {
+export const getAuthenticatedAppContext = cache(async (): Promise<AppAuthResult> => {
   const supabase = await createClient();
   const {
     data: { user },
@@ -72,6 +81,7 @@ export const getDashboardAuthContext = cache(async (): Promise<DashboardAuthResu
     .select({
       user_id: users.user_id,
       company_id: users.company_id,
+      contact_no: users.contact_no,
       role_name: roles.role_name,
       employee_first_name: employee_info.first_name,
       employee_middle_name: employee_info.middle_name,
@@ -189,6 +199,7 @@ export const getDashboardAuthContext = cache(async (): Promise<DashboardAuthResu
     userId: user.id,
     roleName,
     companyId: appUser.company_id,
+    contactNo: appUser.contact_no,
     displayName,
     assignedBranchIds,
     activeBranchId,
@@ -197,11 +208,52 @@ export const getDashboardAuthContext = cache(async (): Promise<DashboardAuthResu
   };
 });
 
+export const getDashboardAuthContext = cache(async (): Promise<DashboardAuthResult> => {
+  const state = await getAppSessionAccessState();
+
+  if (state.status === "admin_otp_pending") {
+    return {
+      ok: false,
+      reason: "admin_2fa_required",
+      message: "Admin verification is required before accessing the dashboard.",
+    };
+  }
+
+  return state.auth;
+});
+
+export const getAppSessionAccessState = cache(async (): Promise<AppSessionAccessState> => {
+  const auth = await getAuthenticatedAppContext();
+
+  if (!auth.ok) {
+    return {
+      status: auth.reason,
+      auth,
+    };
+  }
+
+  if (auth.roleName !== "Admin") {
+    return {
+      status: "non_admin_authenticated",
+      auth,
+    };
+  }
+
+  const isVerified = await hasVerifiedAdminTwoFactor(auth.userId);
+  return {
+    status: isVerified ? "admin_otp_verified" : "admin_otp_pending",
+    auth,
+  };
+});
+
 export async function requireDashboardAuth(allowedRoles?: RoleName[]) {
   const auth = await getDashboardAuthContext();
   if (!auth.ok) {
     if (auth.reason === "unauthenticated") {
       redirect("/login");
+    }
+    if (auth.reason === "admin_2fa_required") {
+      redirect("/login/verify");
     }
     return auth;
   }

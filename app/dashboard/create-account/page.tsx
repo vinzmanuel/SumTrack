@@ -1,7 +1,8 @@
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { UserPlus } from "lucide-react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DashboardBackLink } from "@/app/dashboard/_components/dashboard-back-link";
+import { DashboardHeaderConfigurator } from "@/app/dashboard/_components/dashboard-header-config";
 import {
   getDashboardAuthContext,
   getSingleAssignedBranchId,
@@ -49,35 +50,6 @@ const ALLOWED_ROLE_NAMES = [
   "Collector",
   "Borrower",
 ];
-
-function renderCreateUserWorkspace(props: {
-  backHref: string;
-  backLabel: string;
-  description: string;
-  form: React.ReactNode;
-}) {
-  return (
-    <main className="mx-auto min-h-screen w-full max-w-5xl px-6 pb-6 pt-0">
-      <div className="space-y-4">
-        <DashboardBackLink href={props.backHref} label={props.backLabel} />
-
-        <Card className="gap-0 overflow-hidden py-0">
-          <div className="bg-gradient-to-r from-slate-50 via-background to-emerald-50/60 p-6 dark:from-zinc-950 dark:via-background dark:to-emerald-950/45">
-            <div className="space-y-1">
-              <CardTitle className="flex items-center gap-2 text-3xl font-semibold tracking-tight">
-                <UserPlus className="size-7 text-muted-foreground" />
-                Create User
-              </CardTitle>
-              <CardDescription>{props.description}</CardDescription>
-            </div>
-          </div>
-        </Card>
-      </div>
-
-      <div className="mt-6">{props.form}</div>
-    </main>
-  );
-}
 
 export default async function CreateAccountPage({
   searchParams,
@@ -321,25 +293,37 @@ export default async function CreateAccountPage({
     );
   }
 
-  return renderCreateUserWorkspace({
-    backHref: backNavigation.href,
-    backLabel: backNavigation.label,
-    description: isAdmin
-      ? "Provision employee and borrower accounts with role-aware branch and area assignments."
-      : isBranchManager
-        ? "Create secretary, collector, and borrower accounts within your assigned branch."
-        : "Create borrower accounts within your assigned branch.",
-    form: (
-      <CreateAccountForm
-        areas={mappedAreas}
-        borrowerOnly={isSecretary}
-        branches={mappedBranches}
-        fixedBranchId={fixedBranchId ? String(fixedBranchId) : null}
-        occupiedAuditorBranchIds={occupiedAssignments.occupiedAuditorBranchIds}
-        occupiedBranchManagerBranchIds={occupiedAssignments.occupiedBranchManagerBranchIds}
-        collectorWarningAreaIds={occupiedAssignments.collectorWarningAreaIds}
-        roles={mappedRoles}
+  const description = isAdmin
+    ? "Provision employee and borrower accounts with role-aware branch and area assignments."
+    : isBranchManager
+      ? "Create secretary, collector, and borrower accounts within your assigned branch."
+      : "Create borrower accounts within your assigned branch.";
+
+  return (
+    <>
+      <DashboardHeaderConfigurator
+        config={{
+          action: null,
+          description,
+          icon: <UserPlus className="size-9 text-sidebar-foreground/65" />,
+          title: "Create User",
+        }}
       />
-    ),
-  });
+
+      <div className="mx-auto w-full max-w-5xl space-y-4">
+        <CreateAccountForm
+          areas={mappedAreas}
+          backHref={backNavigation.href}
+          backLabel={backNavigation.label}
+          borrowerOnly={isSecretary}
+          branches={mappedBranches}
+          fixedBranchId={fixedBranchId ? String(fixedBranchId) : null}
+          occupiedAuditorBranchIds={occupiedAssignments.occupiedAuditorBranchIds}
+          occupiedBranchManagerBranchIds={occupiedAssignments.occupiedBranchManagerBranchIds}
+          collectorWarningAreaIds={occupiedAssignments.collectorWarningAreaIds}
+          roles={mappedRoles}
+        />
+      </div>
+    </>
+  );
 }

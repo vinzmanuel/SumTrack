@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import type { ComponentProps } from "react";
+import { redirect } from "next/navigation";
 import { ArrowRight, BookOpen, BrainCircuit, Calculator, CloudRain, Database, Lock, MapPin, Shield, Smartphone, TrendingUp } from "lucide-react";
+import { getAppSessionAccessState } from "@/app/dashboard/auth";
 import { cn } from "@/lib/utils";
 import { displayFont } from "@/components/marketing/display-font";
 import { MarketingNav } from "@/components/marketing/marketing-nav";
@@ -38,7 +40,15 @@ function SectionTitle({ className, ...props }: ComponentProps<"h2">) {
   return <h2 className={cn(displayFont.className, className)} {...props} />;
 }
 
-export default function Home() {
+export default async function Home() {
+  const authState = await getAppSessionAccessState();
+  if (authState.status === "non_admin_authenticated" || authState.status === "admin_otp_verified") {
+    redirect("/dashboard");
+  }
+  if (authState.status === "admin_otp_pending") {
+    redirect("/login/verify");
+  }
+
   return (
     <main className={cn(styles.page, "bg-[#0a0e17] font-sans text-slate-300 antialiased")}>
       <MarketingNav />

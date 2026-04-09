@@ -4,9 +4,9 @@ import { useActionState, useMemo, useRef, useState, type FormEvent, type ReactNo
 import { AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
 import { useFormStatus } from "react-dom";
 import { toast } from "sonner";
+import { DashboardBackLink } from "@/app/dashboard/_components/dashboard-back-link";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -17,7 +17,15 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { createAccountAction } from "@/app/dashboard/create-account/actions";
 import { initialCreateAccountState, type CreateAccountState } from "@/app/dashboard/create-account/state";
 
@@ -41,6 +49,8 @@ type AreaOption = {
 type AccountCategory = "Employee" | "Borrower";
 
 type CreateAccountFormProps = {
+  backHref: string;
+  backLabel: string;
   roles: RoleOption[];
   branches: BranchOption[];
   areas: AreaOption[];
@@ -53,12 +63,18 @@ type CreateAccountFormProps = {
 
 const EMPLOYEE_ROLE_NAMES = ["Admin", "Auditor", "Branch Manager", "Secretary", "Collector"];
 const BRANCH_ONLY_ROLE_NAMES = ["Branch Manager", "Secretary"];
+const CREATE_ACCOUNT_CONTROL_CLASS_NAME = "h-11 rounded-md bg-white py-0 text-sm dark:bg-background";
+const CREATE_ACCOUNT_SURFACE_CLASS_NAME = "rounded-md border border-border/70 bg-card shadow-sm";
 
 function SubmitButton() {
   const { pending } = useFormStatus();
 
   return (
-    <Button className="active:scale-[0.98]" disabled={pending} type="submit">
+    <Button
+      className="h-11 rounded-md bg-emerald-600 px-4 text-sm text-white hover:bg-emerald-700 hover:text-white dark:bg-green-500/60 dark:text-white dark:hover:bg-green-500/80 dark:hover:text-white"
+      disabled={pending}
+      type="submit"
+    >
       {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
       {pending ? "Creating..." : "Create account"}
     </Button>
@@ -117,6 +133,28 @@ function DetailSection({ title, description, children }: DetailSectionProps) {
   );
 }
 
+function FormSection({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="space-y-5">
+      <div className="space-y-1">
+        <h2 className="text-base font-semibold tracking-tight text-foreground md:text-[1.05rem]">
+          {title}
+        </h2>
+        <p className="text-sm text-muted-foreground">{description}</p>
+      </div>
+      {children}
+    </section>
+  );
+}
+
 function buildAccountDetailsLines(result: NonNullable<CreateAccountState["result"]>) {
   const lines = [
     "SumTrack Account Details",
@@ -163,6 +201,8 @@ function escapeHtml(value: string) {
 }
 
 export function CreateAccountForm({
+  backHref,
+  backLabel,
   roles,
   branches,
   areas,
@@ -397,113 +437,136 @@ export function CreateAccountForm({
   }
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>User Details</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form action={formAction} className="space-y-4" onSubmit={handleSubmit} ref={formRef}>
+    <div className="space-y-4">
+      <div className="px-1 py-1">
+        <DashboardBackLink href={backHref} label={backLabel} />
+      </div>
+
+      <div className={CREATE_ACCOUNT_SURFACE_CLASS_NAME}>
+        <form action={formAction} className="space-y-4 px-4 py-4 md:px-5" onSubmit={handleSubmit} ref={formRef}>
             <input name="account_category" type="hidden" value={accountCategory} />
             <input name="role_id" type="hidden" value={effectiveRoleId} />
             <input name="branch_id" type="hidden" value={singleBranchId} />
             <input name="area_id" type="hidden" value={areaId} />
 
-            {!borrowerOnly ? (
-              <div className="space-y-2">
-                <FieldLabel required>Account Category</FieldLabel>
-                <Select onValueChange={handleCategoryChange} value={accountCategory}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select account category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Employee">Employee</SelectItem>
-                    <SelectItem value="Borrower">Borrower</SelectItem>
-                  </SelectContent>
-                </Select>
-                {state.fieldErrors?.account_category ? (
-                  <p className="text-sm text-destructive">{state.fieldErrors.account_category}</p>
-                ) : null}
-              </div>
-            ) : null}
+          <FormSection
+              description="Select the type of account, assign the intended role, and capture the identity details before provisioning access."
+              title="Account Setup"
+            >
+              {!borrowerOnly ? (
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <FieldLabel required>Account Category</FieldLabel>
+                    <Select onValueChange={handleCategoryChange} value={accountCategory}>
+                      <SelectTrigger className={`${CREATE_ACCOUNT_CONTROL_CLASS_NAME} w-full`}>
+                        <SelectValue placeholder="Select account category" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectGroup>
+                          <SelectLabel>Account Category</SelectLabel>
+                          <SelectItem value="Employee">Employee</SelectItem>
+                          <SelectItem value="Borrower">Borrower</SelectItem>
+                        </SelectGroup>
+                      </SelectContent>
+                    </Select>
+                    {state.fieldErrors?.account_category ? (
+                      <p className="text-sm text-destructive">{state.fieldErrors.account_category}</p>
+                    ) : null}
+                  </div>
 
-            {showRoleSelector ? (
-              <div className="space-y-2">
-                <FieldLabel required>Role</FieldLabel>
-                <Select onValueChange={handleRoleChange} value={effectiveRoleId}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select role" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {employeeRoles.map((role) => (
-                      <SelectItem key={String(role.role_id)} value={String(role.role_id)}>
-                        {role.role_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {state.fieldErrors?.role_id ? (
-                  <p className="text-sm text-destructive">{state.fieldErrors.role_id}</p>
-                ) : null}
-              </div>
-            ) : null}
+                  {showRoleSelector ? (
+                    <div className="space-y-2">
+                    <FieldLabel required>Role</FieldLabel>
+                    <Select onValueChange={handleRoleChange} value={effectiveRoleId}>
+                      <SelectTrigger className={`${CREATE_ACCOUNT_CONTROL_CLASS_NAME} w-full`}>
+                        <SelectValue placeholder="Select role" />
+                      </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            <SelectLabel>Role</SelectLabel>
+                            {employeeRoles.map((role) => (
+                              <SelectItem key={String(role.role_id)} value={String(role.role_id)}>
+                                {role.role_name}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                      {state.fieldErrors?.role_id ? (
+                        <p className="text-sm text-destructive">{state.fieldErrors.role_id}</p>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
 
-            <div className="grid gap-4 md:grid-cols-3">
-              <div className="space-y-2">
-                <FieldLabel htmlFor="first_name" required>
-                  First Name
-                </FieldLabel>
-                <Input
-                  id="first_name"
-                  name="first_name"
-                  onChange={(event) => setFirstName(event.target.value)}
-                  value={firstName}
-                />
-                {state.fieldErrors?.first_name ? (
-                  <p className="text-sm text-destructive">{state.fieldErrors.first_name}</p>
-                ) : null}
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="space-y-2">
+                  <FieldLabel htmlFor="first_name" required>
+                    First Name
+                  </FieldLabel>
+                  <Input
+                    className={CREATE_ACCOUNT_CONTROL_CLASS_NAME}
+                    id="first_name"
+                    name="first_name"
+                    onChange={(event) => setFirstName(event.target.value)}
+                    value={firstName}
+                  />
+                  {state.fieldErrors?.first_name ? (
+                    <p className="text-sm text-destructive">{state.fieldErrors.first_name}</p>
+                  ) : null}
+                </div>
+                <div className="space-y-2">
+                  <FieldLabel htmlFor="middle_name">Middle Name</FieldLabel>
+                  <Input
+                    className={CREATE_ACCOUNT_CONTROL_CLASS_NAME}
+                    id="middle_name"
+                    name="middle_name"
+                    onChange={(event) => setMiddleName(event.target.value)}
+                    value={middleName}
+                  />
+                  {state.fieldErrors?.middle_name ? (
+                    <p className="text-sm text-destructive">{state.fieldErrors.middle_name}</p>
+                  ) : null}
+                </div>
+                <div className="space-y-2">
+                  <FieldLabel htmlFor="last_name" required>
+                    Last Name
+                  </FieldLabel>
+                  <Input
+                    className={CREATE_ACCOUNT_CONTROL_CLASS_NAME}
+                    id="last_name"
+                    name="last_name"
+                    onChange={(event) => setLastName(event.target.value)}
+                    value={lastName}
+                  />
+                  {state.fieldErrors?.last_name ? (
+                    <p className="text-sm text-destructive">{state.fieldErrors.last_name}</p>
+                  ) : null}
+                </div>
               </div>
-              <div className="space-y-2">
-                <FieldLabel htmlFor="middle_name">Middle Name</FieldLabel>
-                <Input
-                  id="middle_name"
-                  name="middle_name"
-                  onChange={(event) => setMiddleName(event.target.value)}
-                  value={middleName}
-                />
-                {state.fieldErrors?.middle_name ? (
-                  <p className="text-sm text-destructive">{state.fieldErrors.middle_name}</p>
-                ) : null}
-              </div>
-              <div className="space-y-2">
-                <FieldLabel htmlFor="last_name" required>
-                  Last Name
-                </FieldLabel>
-                <Input
-                  id="last_name"
-                  name="last_name"
-                  onChange={(event) => setLastName(event.target.value)}
-                  value={lastName}
-                />
-                {state.fieldErrors?.last_name ? (
-                  <p className="text-sm text-destructive">{state.fieldErrors.last_name}</p>
-                ) : null}
-              </div>
-            </div>
 
-            <div className="rounded-md border p-3">
-              <p className="text-sm">Username will be set to the generated Company ID.</p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                New accounts are created as active, and a temporary password will be generated automatically.
-              </p>
-            </div>
+              <div className="rounded-md border border-border/70 bg-background/70 px-4 py-3">
+                <p className="text-sm text-foreground">Username will be set to the generated Company ID.</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  New accounts are created as active, and a temporary password will be generated automatically.
+                </p>
+              </div>
+            </FormSection>
 
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="border-t border-border/70" />
+
+            <FormSection
+              description="Store the contact details that belong to the new user record."
+              title="Contact Details"
+            >
+              <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <FieldLabel htmlFor="contact_no" required={requiresContactNo}>
                   Contact Number
                 </FieldLabel>
                 <Input
+                  className={CREATE_ACCOUNT_CONTROL_CLASS_NAME}
                   id="contact_no"
                   inputMode="numeric"
                   maxLength={11}
@@ -522,6 +585,7 @@ export function CreateAccountForm({
               <div className="space-y-2">
                 <FieldLabel htmlFor="email">Email</FieldLabel>
                 <Input
+                  className={CREATE_ACCOUNT_CONTROL_CLASS_NAME}
                   id="email"
                   name="email"
                   onChange={(event) => setEmail(event.target.value)}
@@ -533,10 +597,37 @@ export function CreateAccountForm({
                   <p className="text-sm text-destructive">{state.fieldErrors.email}</p>
                 ) : null}
               </div>
-            </div>
+              </div>
 
-            {showAreaFlow ? (
-              <div className="space-y-4">
+              {showBorrowerFields ? (
+                <div className="space-y-2">
+                    <FieldLabel htmlFor="address" required>
+                      Address
+                    </FieldLabel>
+                    <Input
+                      className={CREATE_ACCOUNT_CONTROL_CLASS_NAME}
+                      id="address"
+                      name="address"
+                      onChange={(event) => setAddress(event.target.value)}
+                      value={address}
+                    />
+                    {state.fieldErrors?.address ? (
+                      <p className="text-sm text-destructive">{state.fieldErrors.address}</p>
+                    ) : null}
+                </div>
+              ) : null}
+            </FormSection>
+
+            {showAreaFlow || showBranchOnlySelector || showAuditorBranchSelector ? (
+              <div className="border-t border-border/70" />
+            ) : null}
+
+            {showAreaFlow || showBranchOnlySelector || showAuditorBranchSelector ? (
+              <FormSection
+                description="Define where this account will operate once it is provisioned."
+                title="Assignments"
+              >
+                {showAreaFlow ? (
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
                     <FieldLabel required>Branch</FieldLabel>
@@ -545,15 +636,18 @@ export function CreateAccountForm({
                       onValueChange={handleBranchChange}
                       value={singleBranchId}
                     >
-                      <SelectTrigger className="w-full">
+                      <SelectTrigger className={`${CREATE_ACCOUNT_CONTROL_CLASS_NAME} w-full`}>
                         <SelectValue placeholder="Select branch" />
                       </SelectTrigger>
                       <SelectContent>
-                        {selectableSingleBranchOptions.map((item) => (
-                          <SelectItem key={String(item.branch_id)} value={String(item.branch_id)}>
-                            {item.branch_name}
-                          </SelectItem>
-                        ))}
+                        <SelectGroup>
+                          <SelectLabel>Branch</SelectLabel>
+                          {selectableSingleBranchOptions.map((item) => (
+                            <SelectItem key={String(item.branch_id)} value={String(item.branch_id)}>
+                              {item.branch_name}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
                       </SelectContent>
                     </Select>
                     {selectableSingleBranchOptions.length === 0 ? (
@@ -569,7 +663,7 @@ export function CreateAccountForm({
                   <div className="space-y-2">
                     <FieldLabel required>Area</FieldLabel>
                     <Select disabled={!singleBranchId} onValueChange={setAreaId} value={areaId}>
-                      <SelectTrigger className="w-full">
+                      <SelectTrigger className={`${CREATE_ACCOUNT_CONTROL_CLASS_NAME} w-full`}>
                         <SelectValue
                           placeholder={
                             singleBranchId ? "Select area" : "Select branch first"
@@ -577,11 +671,14 @@ export function CreateAccountForm({
                         />
                       </SelectTrigger>
                       <SelectContent>
-                        {selectableAreaOptions.map((item) => (
-                          <SelectItem key={String(item.area_id)} value={String(item.area_id)}>
-                            {item.area_code}
-                          </SelectItem>
-                        ))}
+                        <SelectGroup>
+                          <SelectLabel>Area</SelectLabel>
+                          {selectableAreaOptions.map((item) => (
+                            <SelectItem key={String(item.area_id)} value={String(item.area_id)}>
+                              {item.area_code}
+                            </SelectItem>
+                          ))}
+                        </SelectGroup>
                       </SelectContent>
                     </Select>
                     {singleBranchId && selectableAreaOptions.length === 0 ? (
@@ -594,6 +691,7 @@ export function CreateAccountForm({
                     ) : null}
                   </div>
                 </div>
+                ) : null}
 
                 {selectedAreaHasCollectorWarning ? (
                   <Alert className="border-amber-200 bg-amber-50/80 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
@@ -603,43 +701,27 @@ export function CreateAccountForm({
                     </AlertDescription>
                   </Alert>
                 ) : null}
-              </div>
-            ) : null}
 
-            {showBorrowerFields ? (
-              <div className="space-y-2">
-                  <FieldLabel htmlFor="address" required>
-                    Address
-                  </FieldLabel>
-                  <Input
-                    id="address"
-                    name="address"
-                    onChange={(event) => setAddress(event.target.value)}
-                    value={address}
-                  />
-                  {state.fieldErrors?.address ? (
-                    <p className="text-sm text-destructive">{state.fieldErrors.address}</p>
-                  ) : null}
-              </div>
-            ) : null}
-
-            {showBranchOnlySelector ? (
-              <div className="space-y-2">
+                {showBranchOnlySelector ? (
+                  <div className="space-y-2">
                 <FieldLabel required>Branch</FieldLabel>
                 <Select
                   disabled={Boolean(fixedBranchId)}
                   onValueChange={handleBranchChange}
                   value={singleBranchId}
                 >
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger className={`${CREATE_ACCOUNT_CONTROL_CLASS_NAME} w-full`}>
                     <SelectValue placeholder="Select branch" />
                   </SelectTrigger>
                   <SelectContent>
-                    {selectableSingleBranchOptions.map((item) => (
-                      <SelectItem key={String(item.branch_id)} value={String(item.branch_id)}>
-                        {item.branch_name}
-                      </SelectItem>
-                    ))}
+                    <SelectGroup>
+                      <SelectLabel>Branch</SelectLabel>
+                      {selectableSingleBranchOptions.map((item) => (
+                        <SelectItem key={String(item.branch_id)} value={String(item.branch_id)}>
+                          {item.branch_name}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
                   </SelectContent>
                 </Select>
                 {selectableSingleBranchOptions.length === 0 ? (
@@ -650,13 +732,13 @@ export function CreateAccountForm({
                 {state.fieldErrors?.branch_id ? (
                   <p className="text-sm text-destructive">{state.fieldErrors.branch_id}</p>
                 ) : null}
-              </div>
-            ) : null}
+                  </div>
+                ) : null}
 
-            {showAuditorBranchSelector ? (
-              <div className="space-y-2">
+                {showAuditorBranchSelector ? (
+                  <div className="space-y-2">
                 <FieldLabel required>Assigned Branches (Select one or more)</FieldLabel>
-                <div className="space-y-2 rounded-md border p-3">
+                <div className="space-y-2 rounded-md border border-border/70 bg-background/70 p-3">
                   {selectableAuditorBranchOptions.map((item) => (
                     <label className="flex items-center gap-2 text-sm" key={String(item.branch_id)}>
                       <input
@@ -687,14 +769,19 @@ export function CreateAccountForm({
                 {state.fieldErrors?.branch_ids ? (
                   <p className="text-sm text-destructive">{state.fieldErrors.branch_ids}</p>
                 ) : null}
-              </div>
+                  </div>
+                ) : null}
+              </FormSection>
             ) : null}
 
-            {state.status === "error" && state.message ? (
-              <p className="text-sm text-destructive">{state.message}</p>
-            ) : null}
-
-            <SubmitButton />
+            <div className="flex flex-col-reverse gap-3 border-t border-border/70 pt-4 sm:flex-row sm:items-center sm:justify-between">
+              {state.status === "error" && state.message ? (
+                <p className="text-sm text-destructive">{state.message}</p>
+              ) : (
+                <div />
+              )}
+              <SubmitButton />
+            </div>
           </form>
 
           <Dialog onOpenChange={setIsConfirmOpen} open={isConfirmOpen}>
@@ -764,8 +851,7 @@ export function CreateAccountForm({
               </DialogFooter>
             </DialogContent>
           </Dialog>
-        </CardContent>
-      </Card>
+      </div>
 
       {state.status === "success" && state.result ? (
         <>

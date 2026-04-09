@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { AlertTriangle, ArrowLeft } from "lucide-react";
+import { getAppSessionAccessState } from "@/app/dashboard/auth";
 import { login } from "@/app/login/actions";
 import { LoginPasswordField } from "@/components/login/login-password-field";
 import styles from "@/components/login/login-page.module.css";
@@ -17,6 +19,14 @@ export const metadata: Metadata = {
 };
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {
+  const authState = await getAppSessionAccessState();
+  if (authState.status === "non_admin_authenticated" || authState.status === "admin_otp_verified") {
+    redirect("/dashboard");
+  }
+  if (authState.status === "admin_otp_pending") {
+    redirect("/login/verify");
+  }
+
   const { error } = await searchParams;
   const resolvedError = error ? decodeURIComponent(error) : undefined;
 
