@@ -1,8 +1,22 @@
+:global(html) {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :global(html) {
+    scroll-behavior: auto;
+  }
+}
+
 .page {
   width: 100%;
   max-width: 100vw;
   overflow-x: hidden;
   line-height: 1.7;
+}
+
+.sectionAnchor {
+  scroll-margin-top: 5rem;
 }
 
 .grain {
@@ -170,6 +184,10 @@
 @media (min-width: 640px) {
   .mapWrap {
     border-radius: 20px;
+  }
+
+  .sectionAnchor {
+    scroll-margin-top: 5.5rem;
   }
 }
 

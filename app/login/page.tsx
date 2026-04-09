@@ -55,13 +55,13 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
 
             <div className="space-y-1.5">
               <label className="block text-sm font-medium text-white/80" htmlFor="username">
-                Company ID
+                Username
               </label>
               <input
                 className="block w-full rounded-xl border border-white/10 bg-slate-950 px-4 py-3 text-white shadow-inner outline-none transition-all placeholder:text-white/20 focus:border-[#d94f1e] focus:ring-1 focus:ring-[#d94f1e] sm:text-sm"
                 id="username"
                 name="username"
-                placeholder="e.g. 000567 or ABC-DEF-01-0001"
+                placeholder="Enter username"
                 required
                 type="text"
               />
@@ -71,7 +71,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
               <label className="block text-sm font-medium text-white/80" htmlFor="password">
                 Password
               </label>
-              <LoginPasswordField id="password" name="password" placeholder="........" />
+              <LoginPasswordField id="password" name="password" placeholder="Enter password" />
             </div>
 
             <div className="flex items-center justify-between pb-2 pt-1">
