@@ -1,12 +1,20 @@
 import type { Metadata } from "next";
 import { AlertTriangle, ShieldCheck } from "lucide-react";
 import { resolvePendingAdminVerificationContext } from "@/app/login/verify/helpers";
+import type { AdminOtpChannel } from "@/lib/auth/admin-otp-channels";
+import { OtpCodeInput } from "@/components/login/otp-code-input";
 import styles from "@/components/login/login-page.module.css";
 import { displayFont } from "@/components/marketing/display-font";
 import { SumtrackBrand } from "@/components/marketing/sumtrack-brand";
 
 type VerifyLoginPageProps = {
-  searchParams: Promise<{ error?: string; resent?: string; sent?: string }>;
+  searchParams: Promise<{
+    channel?: string;
+    choose?: string;
+    error?: string;
+    resent?: string;
+    sent?: string;
+  }>;
 };
 
 export const metadata: Metadata = {
@@ -14,13 +22,30 @@ export const metadata: Metadata = {
 };
 
 export default async function VerifyLoginPage({ searchParams }: VerifyLoginPageProps) {
-  const [{ maskedPhone }, params] = await Promise.all([
+  const [{ availability, pendingChallenge }, params] = await Promise.all([
     resolvePendingAdminVerificationContext(),
     searchParams,
   ]);
 
   const resolvedError = params.error ? decodeURIComponent(params.error) : undefined;
   const codeWasSent = params.sent === "1" || params.resent === "1";
+  const requestedChannel =
+    params.channel === "sms" || params.channel === "email"
+      ? (params.channel as AdminOtpChannel)
+      : null;
+  const activeChannel = pendingChallenge?.channel ?? requestedChannel ?? null;
+  const hasChannelChoice = availability.hasChoice;
+  const shouldChooseChannel = hasChannelChoice && !pendingChallenge?.channel;
+  const destinationLabel =
+    activeChannel === "email"
+      ? availability.maskedEmail
+      : activeChannel === "sms"
+        ? availability.maskedPhone
+        : null;
+  const channelLabel = activeChannel === "email" ? "Email" : "SMS";
+  const alternateChannel =
+    activeChannel === "sms" ? "email" : activeChannel === "email" ? "sms" : null;
+  const alternateChannelLabel = alternateChannel === "email" ? "Email" : "SMS";
 
   return (
     <main
@@ -58,7 +83,18 @@ export default async function VerifyLoginPage({ searchParams }: VerifyLoginPageP
               Verify Admin Login
             </h1>
             <p className="text-sm text-white/55">
-              Enter the SMS code sent to <span className="font-medium text-white/80">{maskedPhone}</span>.
+              {shouldChooseChannel
+                ? "Choose where to send your Admin verification code."
+                : activeChannel && destinationLabel
+                  ? `Enter the ${channelLabel} code sent to `
+                  : availability.defaultChannel
+                    ? `Send a verification code via ${
+                        availability.defaultChannel === "email" ? "Email" : "SMS"
+                      } to continue.`
+                    : "No verification destination is currently available."}
+              {activeChannel && destinationLabel ? (
+                <span className="font-medium text-white/80">{destinationLabel}</span>
+              ) : null}
             </p>
           </div>
 
@@ -72,45 +108,89 @@ export default async function VerifyLoginPage({ searchParams }: VerifyLoginPageP
 
             {!resolvedError && codeWasSent ? (
               <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
-                A verification code has been sent to your registered Admin mobile number.
+                A verification code has been sent via {channelLabel}.
               </div>
             ) : null}
 
-            <form action="/login/verify/submit" className="space-y-5" method="post">
-              <div className="space-y-1.5">
-                <label className="block text-sm font-medium text-white/80" htmlFor="code">
-                  Verification Code
-                </label>
-                <input
-                  autoComplete="one-time-code"
-                  className="block w-full rounded-xl border border-white/10 bg-slate-950 px-4 py-3 text-white shadow-inner outline-none transition-all placeholder:text-white/20 focus:border-[#d94f1e] focus:ring-1 focus:ring-[#d94f1e] sm:text-sm"
-                  id="code"
-                  inputMode="numeric"
-                  maxLength={10}
-                  name="code"
-                  pattern="[0-9]*"
-                  placeholder="Enter the SMS code"
-                  required
-                  type="text"
-                />
+            {availability.errorMessage ? (
+              <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+                {availability.errorMessage}
               </div>
+            ) : null}
 
-              <button
-                className={`${styles.baseButton} flex w-full items-center justify-center rounded-xl bg-[#d94f1e] px-4 py-3.5 text-sm font-bold text-white shadow-lg shadow-[#d94f1e]/20 hover:bg-[#e8662f] active:scale-[0.98]`}
-                type="submit"
-              >
-                Verify Code
-              </button>
-            </form>
+            {shouldChooseChannel ? (
+              <div className="space-y-3">
+                {availability.maskedPhone ? (
+                  <form action="/login/verify/send" method="post">
+                    <input name="channel" type="hidden" value="sms" />
+                    <button
+                      className={`${styles.baseButton} flex w-full items-center justify-center rounded-xl bg-[#d94f1e] px-4 py-3.5 text-sm font-bold text-white shadow-lg shadow-[#d94f1e]/20 hover:bg-[#e8662f] active:scale-[0.98]`}
+                      type="submit"
+                    >
+                      Send code via SMS
+                    </button>
+                  </form>
+                ) : null}
 
-            <form action="/login/verify/resend" method="post">
-              <button
-                className="w-full rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-medium text-white/75 transition-colors hover:border-white/20 hover:bg-white/[0.06] hover:text-white"
-                type="submit"
-              >
-                Resend verification code
-              </button>
-            </form>
+                {availability.maskedEmail ? (
+                  <form action="/login/verify/send" method="post">
+                    <input name="channel" type="hidden" value="email" />
+                    <button
+                      className="w-full rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-medium text-white/75 transition-colors hover:border-white/20 hover:bg-white/[0.06] hover:text-white"
+                      type="submit"
+                    >
+                      Send code via Email
+                    </button>
+                  </form>
+                ) : null}
+              </div>
+            ) : !pendingChallenge?.channel && availability.defaultChannel ? (
+              <form action="/login/verify/send" method="post">
+                <input name="channel" type="hidden" value={availability.defaultChannel} />
+                <button
+                  className={`${styles.baseButton} flex w-full items-center justify-center rounded-xl bg-[#d94f1e] px-4 py-3.5 text-sm font-bold text-white shadow-lg shadow-[#d94f1e]/20 hover:bg-[#e8662f] active:scale-[0.98]`}
+                  type="submit"
+                >
+                  Send code via {availability.defaultChannel === "email" ? "Email" : "SMS"}
+                </button>
+              </form>
+            ) : activeChannel ? (
+              <>
+                <form action="/login/verify/submit" className="space-y-5" method="post">
+                  <OtpCodeInput label="Verification Code" name="code" />
+
+                  <button
+                    className={`${styles.baseButton} flex w-full items-center justify-center rounded-xl bg-[#d94f1e] px-4 py-3.5 text-sm font-bold text-white shadow-lg shadow-[#d94f1e]/20 hover:bg-[#e8662f] active:scale-[0.98]`}
+                    type="submit"
+                  >
+                    Verify Code
+                  </button>
+                </form>
+
+                <div className="space-y-3">
+                  <form action="/login/verify/resend" method="post">
+                    <button
+                      className="w-full rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-medium text-white/75 transition-colors hover:border-white/20 hover:bg-white/[0.06] hover:text-white"
+                      type="submit"
+                    >
+                      Resend via {channelLabel}
+                    </button>
+                  </form>
+
+                  {hasChannelChoice && alternateChannel ? (
+                    <form action="/login/verify/send" method="post">
+                      <input name="channel" type="hidden" value={alternateChannel} />
+                      <button
+                        className="w-full rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm font-medium text-white/75 transition-colors hover:border-white/20 hover:bg-white/[0.06] hover:text-white"
+                        type="submit"
+                      >
+                        Send code via {alternateChannelLabel} instead
+                      </button>
+                    </form>
+                  ) : null}
+                </div>
+              </>
+            ) : null}
           </div>
 
           <div className="mt-6 space-y-3 text-center">

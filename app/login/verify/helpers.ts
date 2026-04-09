@@ -3,10 +3,16 @@ import "server-only";
 import { redirect } from "next/navigation";
 import { getAppSessionAccessState } from "@/app/dashboard/auth";
 import {
+  getAdminTwoFactorPendingChallenge,
   hasAdminTwoFactorPendingChallenge,
   setAdminTwoFactorPendingChallenge,
 } from "@/lib/auth/admin-two-factor";
-import { maskPhilippineMobile, startSmsVerification } from "@/lib/twilio/verify";
+import {
+  type AdminOtpChannel,
+  resolveAdminOtpChannelAvailability,
+} from "@/lib/auth/admin-otp-channels";
+import { generateEmailOtpCode, sendEmailOtpCode } from "@/lib/resend/otp";
+import { startSmsVerification } from "@/lib/twilio/verify";
 
 export async function resolvePendingAdminVerificationContext() {
   const authState = await getAppSessionAccessState();
@@ -32,16 +38,57 @@ export async function resolvePendingAdminVerificationContext() {
   }
 
   const auth = authState.auth;
+  const availability = resolveAdminOtpChannelAvailability({
+    contactNo: auth.contactNo,
+    email: auth.email,
+  });
+  const pendingChallenge = await getAdminTwoFactorPendingChallenge(auth.userId);
 
   return {
     auth,
     hasPendingChallenge: await hasAdminTwoFactorPendingChallenge(auth.userId),
-    maskedPhone: maskPhilippineMobile(auth.contactNo),
+    availability,
+    pendingChallenge,
   };
 }
 
-export async function startAdminVerificationChallenge() {
+export async function startAdminVerificationChallenge(channel?: AdminOtpChannel) {
   const { auth } = await resolvePendingAdminVerificationContext();
-  await startSmsVerification(auth.contactNo);
-  await setAdminTwoFactorPendingChallenge(auth.userId);
+  const availability = resolveAdminOtpChannelAvailability({
+    contactNo: auth.contactNo,
+    email: auth.email,
+  });
+
+  if (availability.availableChannels.length === 0) {
+    throw new Error(
+      availability.errorMessage ?? "No OTP destination is available for this Admin account.",
+    );
+  }
+
+  const selectedChannel =
+    channel ??
+    availability.defaultChannel;
+
+  if (!selectedChannel) {
+    return { needsChoice: true as const };
+  }
+
+  if (!availability.availableChannels.includes(selectedChannel)) {
+    throw new Error("The selected verification channel is unavailable for this Admin account.");
+  }
+
+  if (selectedChannel === "sms") {
+    await startSmsVerification(auth.contactNo);
+    await setAdminTwoFactorPendingChallenge(auth.userId, { channel: "sms" });
+    return { channel: "sms" as const, needsChoice: false as const };
+  }
+
+  const code = generateEmailOtpCode();
+  await sendEmailOtpCode(auth.email, code);
+  await setAdminTwoFactorPendingChallenge(auth.userId, {
+    channel: "email",
+    emailCode: code,
+  });
+
+  return { channel: "email" as const, needsChoice: false as const };
 }

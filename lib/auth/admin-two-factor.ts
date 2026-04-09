@@ -2,6 +2,7 @@ import "server-only";
 
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
+import type { AdminOtpChannel } from "@/lib/auth/admin-otp-channels";
 
 const ADMIN_2FA_PENDING_COOKIE = "sumtrack_admin_2fa_pending";
 const ADMIN_2FA_VERIFIED_COOKIE = "sumtrack_admin_2fa_verified";
@@ -15,6 +16,8 @@ type AdminTwoFactorTokenPayload = {
   purpose: AdminTwoFactorTokenPurpose;
   issuedAt: number;
   expiresAt: number;
+  channel?: AdminOtpChannel;
+  emailCodeHash?: string | null;
 };
 
 function getAdminTwoFactorSigningSecret() {
@@ -110,9 +113,28 @@ async function readTokenPayload(expectedPurpose: AdminTwoFactorTokenPurpose) {
   return decodeSignedToken(cookieStore.get(cookieName)?.value, expectedPurpose);
 }
 
+function hashOtpCode(code: string) {
+  return createHmac("sha256", getAdminTwoFactorSigningSecret())
+    .update(code)
+    .digest("base64url");
+}
+
 export async function hasAdminTwoFactorPendingChallenge(userId: string) {
   const payload = await readTokenPayload("pending");
   return payload?.userId === userId;
+}
+
+export async function getAdminTwoFactorPendingChallenge(userId: string) {
+  const payload = await readTokenPayload("pending");
+  if (!payload || payload.userId !== userId) {
+    return null;
+  }
+
+  return {
+    channel: payload.channel ?? null,
+    emailCodeHash: payload.emailCodeHash ?? null,
+    expiresAt: payload.expiresAt,
+  };
 }
 
 export async function hasVerifiedAdminTwoFactor(userId: string) {
@@ -120,7 +142,13 @@ export async function hasVerifiedAdminTwoFactor(userId: string) {
   return payload?.userId === userId;
 }
 
-export async function setAdminTwoFactorPendingChallenge(userId: string) {
+export async function setAdminTwoFactorPendingChallenge(
+  userId: string,
+  options?: {
+    channel?: AdminOtpChannel;
+    emailCode?: string | null;
+  },
+) {
   const cookieStore = await cookies();
   const now = Date.now();
 
@@ -131,10 +159,29 @@ export async function setAdminTwoFactorPendingChallenge(userId: string) {
       purpose: "pending",
       issuedAt: now,
       expiresAt: now + ADMIN_2FA_PENDING_MAX_AGE_SECONDS * 1000,
+      channel: options?.channel,
+      emailCodeHash: options?.emailCode ? hashOtpCode(options.emailCode) : null,
     }),
     getCookieOptions(ADMIN_2FA_PENDING_MAX_AGE_SECONDS),
   );
   cookieStore.delete(ADMIN_2FA_VERIFIED_COOKIE);
+}
+
+export async function verifyPendingAdminEmailOtpCode(userId: string, code: string) {
+  const pending = await getAdminTwoFactorPendingChallenge(userId);
+  if (!pending || pending.channel !== "email" || !pending.emailCodeHash) {
+    return false;
+  }
+
+  const normalizedCode = code.replace(/\D/g, "").trim();
+  const providedBuffer = Buffer.from(hashOtpCode(normalizedCode));
+  const expectedBuffer = Buffer.from(pending.emailCodeHash);
+
+  if (providedBuffer.length !== expectedBuffer.length) {
+    return false;
+  }
+
+  return timingSafeEqual(providedBuffer, expectedBuffer);
 }
 
 export async function setAdminTwoFactorVerified(userId: string) {

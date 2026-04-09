@@ -2,8 +2,12 @@
 
 import { eq } from "drizzle-orm";
 import { redirect } from "next/navigation";
-import { clearAdminTwoFactorCookies } from "@/lib/auth/admin-two-factor";
-import { assertTwilioVerifyReady, normalizePhilippineMobileToE164 } from "@/lib/twilio/verify";
+import {
+  clearAdminTwoFactorCookies,
+  setAdminTwoFactorVerified,
+} from "@/lib/auth/admin-two-factor";
+import { consumePasswordRecoveryLoginBypass } from "@/lib/auth/password-recovery";
+import { resolveAdminOtpChannelAvailability } from "@/lib/auth/admin-otp-channels";
 import { db } from "@/db";
 import { roles, users } from "@/db/schema";
 import { createClient } from "@/lib/supabase/server";
@@ -24,6 +28,7 @@ export async function login(formData: FormData) {
       user_id: users.user_id,
       role_name: roles.role_name,
       contact_no: users.contact_no,
+      email: users.email,
     })
     .from(users)
     .innerJoin(roles, eq(roles.role_id, users.role_id))
@@ -37,14 +42,15 @@ export async function login(formData: FormData) {
   }
 
   if (appUser.role_name === "Admin") {
-    try {
-      assertTwilioVerifyReady();
-      normalizePhilippineMobileToE164(appUser.contact_no);
-    } catch (error) {
+    const availability = resolveAdminOtpChannelAvailability({
+      contactNo: appUser.contact_no,
+      email: appUser.email,
+    });
+
+    if (availability.availableChannels.length === 0) {
       const message =
-        error instanceof Error
-          ? error.message
-          : "Admin two-factor verification could not be started.";
+        availability.errorMessage ??
+        "No OTP destination is available for this Admin account.";
       redirect(`/login?error=${encodeURIComponent(message)}`);
     }
   }
@@ -56,7 +62,16 @@ export async function login(formData: FormData) {
     redirect("/login?error=Invalid%20username%20or%20password");
   }
 
+  const hasPostResetBypass = await consumePasswordRecoveryLoginBypass(appUser.user_id);
   await clearAdminTwoFactorCookies();
+
+  if (hasPostResetBypass) {
+    if (appUser.role_name === "Admin") {
+      await setAdminTwoFactorVerified(appUser.user_id);
+    }
+
+    redirect("/dashboard");
+  }
 
   if (appUser.role_name === "Admin") {
     redirect("/login/verify/start");

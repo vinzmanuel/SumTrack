@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { getAppSessionAccessState } from "@/app/dashboard/auth";
 import {
-  hasAdminTwoFactorPendingChallenge,
+  getAdminTwoFactorPendingChallenge,
   setAdminTwoFactorVerified,
+  verifyPendingAdminEmailOtpCode,
 } from "@/lib/auth/admin-two-factor";
 import { checkSmsVerificationCode } from "@/lib/twilio/verify";
 
@@ -33,16 +34,23 @@ export async function POST(request: Request) {
 
     const formData = await request.formData();
     const code = String(formData.get("code") ?? "").trim();
-
-    if (!(await hasAdminTwoFactorPendingChallenge(auth.userId))) {
+    const pendingChallenge = await getAdminTwoFactorPendingChallenge(auth.userId);
+    if (!pendingChallenge?.channel) {
       return buildRedirect(
         request,
         "/login/verify?error=Request%20a%20new%20verification%20code%20first.",
       );
     }
 
-    const result = await checkSmsVerificationCode(auth.contactNo, code);
-    if (!result.approved) {
+    let approved = false;
+    if (pendingChallenge.channel === "sms") {
+      const result = await checkSmsVerificationCode(auth.contactNo, code);
+      approved = result.approved;
+    } else if (pendingChallenge.channel === "email") {
+      approved = await verifyPendingAdminEmailOtpCode(auth.userId, code);
+    }
+
+    if (!approved) {
       return buildRedirect(
         request,
         "/login/verify?error=Invalid%20or%20expired%20verification%20code.",

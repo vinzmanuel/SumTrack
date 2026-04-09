@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { clearAdminTwoFactorCookiesOnResponse } from "@/lib/auth/admin-two-factor";
+import { clearPasswordRecoveryCookiesOnResponse } from "@/lib/auth/password-recovery";
 import { createClient } from "@/lib/supabase/server";
 
 function resolvePostLogoutRedirect(request: Request, value: string | null) {
@@ -25,5 +26,6 @@ export async function POST(request: Request) {
 
   const response = NextResponse.redirect(redirectTo);
   clearAdminTwoFactorCookiesOnResponse(response);
+  clearPasswordRecoveryCookiesOnResponse(response);
   return response;
 }

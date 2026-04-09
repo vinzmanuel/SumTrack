@@ -367,11 +367,13 @@ function SidebarProfileStrip({
   companyId,
   displayName,
   isCollapsed,
+  menuTriggerId,
 }: {
   roleName: string;
   companyId: string;
   displayName: string;
   isCollapsed: boolean;
+  menuTriggerId: string;
 }) {
   if (isCollapsed) {
     return (
@@ -382,6 +384,7 @@ function SidebarProfileStrip({
               <DropdownMenuTrigger asChild>
                 <Button
                   className="size-9 rounded-xl text-muted-foreground shadow-none hover:bg-sidebar-accent/60 hover:text-foreground"
+                  id={menuTriggerId}
                   size="icon"
                   type="button"
                   variant="ghost"
@@ -422,6 +425,7 @@ function SidebarProfileStrip({
         <DropdownMenuTrigger asChild>
           <Button
             className="size-9 rounded-xl text-muted-foreground shadow-none hover:bg-sidebar-accent/60 hover:text-foreground"
+            id={menuTriggerId}
             size="icon"
             type="button"
             variant="ghost"
@@ -563,6 +567,9 @@ function NavContent({
   onToggleCollapsed?: (value: boolean) => void;
 }) {
   const pathname = usePathname();
+  const menuTriggerId = `sidebar-profile-menu-trigger-${closeDrawer ? "mobile" : "desktop"}-${
+    isCollapsed ? "collapsed" : "expanded"
+  }`;
   const profileItem =
     navItems.find((item) => item.href === "/dashboard/my-profile") ?? null;
   const visibleNavItems = navItems.filter((item) => item.href !== "/dashboard/my-profile");
@@ -635,6 +642,7 @@ function NavContent({
             companyId={companyId}
             displayName={displayName}
             isCollapsed={isCollapsed}
+            menuTriggerId={menuTriggerId}
             roleName={roleName}
           />
         </div>

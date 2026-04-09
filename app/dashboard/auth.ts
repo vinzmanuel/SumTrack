@@ -38,6 +38,7 @@ export type DashboardAuthContext = {
   roleName: RoleName;
   companyId: string;
   contactNo: string | null;
+  email: string | null;
   displayName: string;
   assignedBranchIds: number[];
   activeBranchId: number | null;
@@ -82,6 +83,7 @@ export const getAuthenticatedAppContext = cache(async (): Promise<AppAuthResult>
       user_id: users.user_id,
       company_id: users.company_id,
       contact_no: users.contact_no,
+      email: users.email,
       role_name: roles.role_name,
       employee_first_name: employee_info.first_name,
       employee_middle_name: employee_info.middle_name,
@@ -200,6 +202,7 @@ export const getAuthenticatedAppContext = cache(async (): Promise<AppAuthResult>
     roleName,
     companyId: appUser.company_id,
     contactNo: appUser.contact_no,
+    email: appUser.email,
     displayName,
     assignedBranchIds,
     activeBranchId,

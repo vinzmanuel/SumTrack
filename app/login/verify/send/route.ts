@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
 import { getAppSessionAccessState } from "@/app/dashboard/auth";
-import { getAdminTwoFactorPendingChallenge } from "@/lib/auth/admin-two-factor";
-import { resolveAdminOtpChannelAvailability } from "@/lib/auth/admin-otp-channels";
+import type { AdminOtpChannel } from "@/lib/auth/admin-otp-channels";
 import { startAdminVerificationChallenge } from "@/app/login/verify/helpers";
 
 function buildRedirect(request: Request, path: string) {
   return NextResponse.redirect(new URL(path, request.url));
+}
+
+function parseChannel(value: FormDataEntryValue | null): AdminOtpChannel | null {
+  return value === "sms" || value === "email" ? value : null;
 }
 
 export async function POST(request: Request) {
@@ -27,16 +30,10 @@ export async function POST(request: Request) {
       return buildRedirect(request, "/login");
     }
 
-    const auth = authState.auth;
-    const pendingChallenge = await getAdminTwoFactorPendingChallenge(auth.userId);
-    const availability = resolveAdminOtpChannelAvailability({
-      contactNo: auth.contactNo,
-      email: auth.email,
-    });
-    const channel = pendingChallenge?.channel ?? availability.defaultChannel;
-
+    const formData = await request.formData();
+    const channel = parseChannel(formData.get("channel"));
     if (!channel) {
-      return buildRedirect(request, "/login/verify?error=Choose%20where%20to%20send%20the%20code%20first.");
+      return buildRedirect(request, "/login/verify?error=Choose%20a%20verification%20channel.");
     }
 
     const result = await startAdminVerificationChallenge(channel);
@@ -46,11 +43,11 @@ export async function POST(request: Request) {
 
     return buildRedirect(
       request,
-      `/login/verify?resent=1&channel=${encodeURIComponent(result.channel)}`,
+      `/login/verify?sent=1&channel=${encodeURIComponent(result.channel)}`,
     );
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : "Unable to resend the verification code.";
+      error instanceof Error ? error.message : "Unable to send the verification code.";
     return buildRedirect(request, `/login/verify?error=${encodeURIComponent(message)}`);
   }
 }

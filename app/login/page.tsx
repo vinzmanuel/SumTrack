@@ -11,7 +11,7 @@ import { displayFont } from "@/components/marketing/display-font";
 import { SumtrackBrand } from "@/components/marketing/sumtrack-brand";
 
 type LoginPageProps = {
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; message?: string }>;
 };
 
 export const metadata: Metadata = {
@@ -27,8 +27,9 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
     redirect("/login/verify");
   }
 
-  const { error } = await searchParams;
+  const { error, message } = await searchParams;
   const resolvedError = error ? decodeURIComponent(error) : undefined;
+  const resolvedMessage = message ? decodeURIComponent(message) : undefined;
 
   return (
     <main className={`${styles.page} ${styles.grain} relative flex items-center justify-center bg-[#0a0e17] font-sans text-slate-300 antialiased`}>
@@ -50,9 +51,6 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
             <h1 className={`${displayFont.className} mb-2 text-2xl font-bold tracking-tight text-white sm:text-3xl`}>
               Log In
             </h1>
-            <p className="text-sm text-white/50">
-              Access the secure employee network.
-            </p>
           </div>
 
           <form action={login} className="space-y-5">
@@ -60,6 +58,12 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
               <div className="mb-5 flex items-start gap-3 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                 <span>{resolvedError}</span>
+              </div>
+            ) : null}
+
+            {!resolvedError && resolvedMessage ? (
+              <div className="mb-5 rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
+                {resolvedMessage}
               </div>
             ) : null}
 
@@ -84,12 +88,13 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
               <LoginPasswordField id="password" name="password" placeholder="Enter password" />
             </div>
 
-            <div className="flex items-center justify-between pb-2 pt-1">
-              <label className="flex cursor-pointer items-center text-sm text-white/60 transition-colors hover:text-white">
-                <input className="mr-2 rounded border-white/20 bg-slate-950 accent-[#d94f1e]" type="checkbox" />
-                Remember device
-              </label>
-              <span className="text-sm font-medium text-[#d94f1e]">Forgot password?</span>
+            <div className="flex items-center justify-end pb-2 pt-1">
+              <Link
+                className="text-sm font-medium text-[#d94f1e] transition-colors hover:text-[#f5a623]"
+                href="/forgot-password"
+              >
+                Forgot password?
+              </Link>
             </div>
 
             <LoginSubmitButton />
