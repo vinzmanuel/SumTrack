@@ -1,0 +1,197 @@
+.page {
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+  line-height: 1.7;
+}
+
+.grain {
+  position: relative;
+}
+
+.grain::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+}
+
+@keyframes heroGrow {
+  0% {
+    opacity: 0;
+    transform: scale(0.85) translateY(20px);
+    filter: blur(6px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+    filter: blur(0);
+  }
+}
+
+.heroAnimate {
+  animation: heroGrow 1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.heroAnimateDelay {
+  opacity: 0;
+  animation: heroGrow 1s cubic-bezier(0.16, 1, 0.3, 1) 0.15s forwards;
+}
+
+.heroAnimateDelay2 {
+  opacity: 0;
+  animation: heroGrow 1s cubic-bezier(0.16, 1, 0.3, 1) 0.3s forwards;
+}
+
+@keyframes glowPulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 20px rgb(217 79 30 / 0.3),
+      0 0 40px rgb(217 79 30 / 0.1);
+  }
+
+  50% {
+    box-shadow:
+      0 0 30px rgb(217 79 30 / 0.5),
+      0 0 60px rgb(217 79 30 / 0.2);
+  }
+}
+
+.glowButton {
+  animation: glowPulse 3s ease-in-out infinite;
+  transition:
+    transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 0.2s ease;
+}
+
+.glowButton:hover {
+  transform: translateY(-2px);
+}
+
+.glowButton:active {
+  transform: translateY(1px);
+  opacity: 0.9;
+}
+
+.glowButton:focus-visible {
+  outline: 2px solid #e8662f;
+  outline-offset: 3px;
+}
+
+.arrow {
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glowButton:hover .arrow {
+  transform: translateX(4px);
+}
+
+.baseButton {
+  transition:
+    transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.baseButton:hover {
+  transform: translateY(-1px);
+}
+
+.baseButton:active {
+  transform: translateY(1px);
+  opacity: 0.9;
+}
+
+.baseButton:focus-visible {
+  outline: 2px solid #f0a818;
+  outline-offset: 3px;
+}
+
+.navLink {
+  transition:
+    opacity 0.2s ease,
+    transform 0.15s ease;
+}
+
+.navLink:hover {
+  opacity: 0.8;
+}
+
+.navLink:active {
+  transform: scale(0.97);
+}
+
+.navLink:focus-visible {
+  outline: 2px solid #f0a818;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.cardLift {
+  transition:
+    transform 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.4s ease;
+}
+
+.cardLift:hover {
+  transform: translateY(-6px);
+  box-shadow:
+    0 12px 40px rgb(0 0 0 / 0.3),
+    0 2px 8px rgb(240 168 24 / 0.08);
+}
+
+@keyframes marquee {
+  0% {
+    transform: translateX(0);
+  }
+
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.marqueeTrack {
+  animation: marquee 25s linear infinite;
+}
+
+.mapWrap {
+  overflow: hidden;
+  border-radius: 12px;
+  box-shadow:
+    0 8px 32px rgb(0 0 0 / 0.25),
+    0 2px 8px rgb(13 79 79 / 0.1);
+}
+
+@media (min-width: 640px) {
+  .mapWrap {
+    border-radius: 20px;
+  }
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+
+  33% {
+    transform: translate(15px, -20px) scale(1.04);
+  }
+
+  66% {
+    transform: translate(-10px, 12px) scale(0.96);
+  }
+}
+
+.floatOrb {
+  animation: float 10s ease-in-out infinite;
+}
+
+.floatOrbSlow {
+  animation: float 14s ease-in-out infinite reverse;
+}
