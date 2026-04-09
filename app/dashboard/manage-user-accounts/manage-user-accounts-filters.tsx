@@ -4,7 +4,15 @@ import type { ReactNode } from "react";
 import { Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import type {
   ManagedUserAreaOption,
   ManagedUserBranchOption,
@@ -59,7 +67,7 @@ export function ManageUserAccountsFilters({
           className={`${controlClassName} pl-10 placeholder:text-muted-foreground/75`}
           id="accountSearch"
           onChange={(event) => onSearchChange(event.target.value)}
-          placeholder="Search full name, username, or company ID"
+          placeholder="Search full name or company ID"
           value={selectedSearchQuery}
         />
       </div>
@@ -78,12 +86,15 @@ export function ManageUserAccountsFilters({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="__all">{allBranchLabel}</SelectItem>
-              {branches.map((item) => (
-                <SelectItem key={item.branchId} value={String(item.branchId)}>
-                  {item.branchName}
-                </SelectItem>
-              ))}
+              <SelectGroup>
+                <SelectLabel>Branch</SelectLabel>
+                <SelectItem value="__all">{allBranchLabel}</SelectItem>
+                {branches.map((item) => (
+                  <SelectItem key={item.branchId} value={String(item.branchId)}>
+                    {item.branchName}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
             </SelectContent>
           </Select>
         ) : null}
@@ -101,12 +112,15 @@ export function ManageUserAccountsFilters({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="__all">All areas</SelectItem>
-              {areas.map((item) => (
-                <SelectItem key={item.areaId} value={String(item.areaId)}>
-                  {item.areaCode}
-                </SelectItem>
-              ))}
+              <SelectGroup>
+                <SelectLabel>Area</SelectLabel>
+                <SelectItem value="__all">All areas</SelectItem>
+                {areas.map((item) => (
+                  <SelectItem key={item.areaId} value={String(item.areaId)}>
+                    {item.areaCode}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
             </SelectContent>
           </Select>
         ) : null}
@@ -123,12 +137,15 @@ export function ManageUserAccountsFilters({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="__all">All roles</SelectItem>
-            {roles.map((item) => (
-              <SelectItem key={item.roleName} value={item.roleName}>
-                {item.roleName}
-              </SelectItem>
-            ))}
+            <SelectGroup>
+              <SelectLabel>Role</SelectLabel>
+              <SelectItem value="__all">All roles</SelectItem>
+              {roles.map((item) => (
+                <SelectItem key={item.roleName} value={item.roleName}>
+                  {item.roleName}
+                </SelectItem>
+              ))}
+            </SelectGroup>
           </SelectContent>
         </Select>
 

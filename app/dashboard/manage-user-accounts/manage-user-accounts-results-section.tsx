@@ -2,7 +2,15 @@
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ManageUserAccountsTable } from "@/app/dashboard/manage-user-accounts/manage-user-accounts-table";
 import type {
   ManagedCollectorReassignmentRequiredPayload,
@@ -44,15 +52,24 @@ export function ManageUserAccountsResultsSection({
   const showingTo = data.totalCount === 0 ? 0 : Math.min(safePage * data.pageSize, data.totalCount);
 
   return (
-    <div className="relative space-y-5">
-      <ManageUserAccountsTable
-        onDeleted={onDeleted}
-        onEdit={onEdit}
-        onReassignmentRequired={onReassignmentRequired}
-        onSortChange={onSortChange}
-        selectedSort={selectedSort}
-        users={data.users}
-      />
+    <div className="space-y-5">
+      <div className="relative">
+        <ManageUserAccountsTable
+          onDeleted={onDeleted}
+          onEdit={onEdit}
+          onReassignmentRequired={onReassignmentRequired}
+          onSortChange={onSortChange}
+          selectedSort={selectedSort}
+          users={data.users}
+        />
+        {isPending ? (
+          <div className="bg-background/65 absolute inset-0 flex items-center justify-center rounded-xl backdrop-blur-[1px]">
+            <div className="rounded-md border bg-background px-3 py-2 text-sm text-muted-foreground shadow-sm">
+              Updating user accounts...
+            </div>
+          </div>
+        ) : null}
+      </div>
       <div className="px-1 py-1">
         <div className="flex flex-col gap-3 text-sm xl:flex-row xl:items-center xl:justify-between">
           <div className="space-y-1">
@@ -72,11 +89,14 @@ export function ManageUserAccountsResultsSection({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {MANAGE_USERS_PAGE_SIZE_OPTIONS.map((option) => (
-                    <SelectItem key={option} value={String(option)}>
-                      {option}
-                    </SelectItem>
-                  ))}
+                  <SelectGroup>
+                    <SelectLabel>Rows</SelectLabel>
+                    {MANAGE_USERS_PAGE_SIZE_OPTIONS.map((option) => (
+                      <SelectItem key={option} value={String(option)}>
+                        {option}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
                 </SelectContent>
               </Select>
             </div>
@@ -109,13 +129,6 @@ export function ManageUserAccountsResultsSection({
           </div>
         </div>
       </div>
-      {isPending ? (
-        <div className="bg-background/65 absolute inset-0 flex items-center justify-center rounded-xl backdrop-blur-[1px]">
-          <div className="rounded-md border bg-background px-3 py-2 text-sm text-muted-foreground shadow-sm">
-            Updating user accounts...
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }

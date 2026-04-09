@@ -29,13 +29,13 @@ const manageUserDateFormatter = new Intl.DateTimeFormat("en-PH", {
 });
 
 function roleBadgeClass(roleName: string) {
-  if (roleName === "Admin") return "whitespace-nowrap rounded-md border border-red-200 bg-red-50 py-1 text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300";
-  if (roleName === "Auditor") return "whitespace-nowrap rounded-md border border-blue-200 bg-blue-50 py-1 text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300";
-  if (roleName === "Branch Manager") return "whitespace-nowrap rounded-md border border-amber-200 bg-amber-50 py-1 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300";
-  if (roleName === "Secretary") return "whitespace-nowrap rounded-md border border-violet-200 bg-violet-50 py-1 text-violet-700 dark:border-violet-500/30 dark:bg-violet-500/10 dark:text-violet-300";
-  if (roleName === "Collector") return "whitespace-nowrap rounded-md border border-emerald-200 bg-emerald-50 py-1 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300";
-  if (roleName === "Borrower") return "whitespace-nowrap rounded-md border border-zinc-200 bg-zinc-50 py-1 text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100";
-  return "whitespace-nowrap rounded-md border border-zinc-200 bg-zinc-50 py-1 text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100";
+  if (roleName === "Admin") return "whitespace-nowrap rounded-md border border-red-200 bg-red-50 py-1 text-red-700 hover:bg-red-50 hover:text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300 dark:hover:bg-red-500/10 dark:hover:text-red-300";
+  if (roleName === "Auditor") return "whitespace-nowrap rounded-md border border-blue-200 bg-blue-50 py-1 text-blue-700 hover:bg-blue-50 hover:text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300 dark:hover:bg-blue-500/10 dark:hover:text-blue-300";
+  if (roleName === "Branch Manager") return "whitespace-nowrap rounded-md border border-amber-200 bg-amber-50 py-1 text-amber-700 hover:bg-amber-50 hover:text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300 dark:hover:bg-amber-500/10 dark:hover:text-amber-300";
+  if (roleName === "Secretary") return "whitespace-nowrap rounded-md border border-violet-200 bg-violet-50 py-1 text-violet-700 hover:bg-violet-50 hover:text-violet-700 dark:border-violet-500/30 dark:bg-violet-500/10 dark:text-violet-300 dark:hover:bg-violet-500/10 dark:hover:text-violet-300";
+  if (roleName === "Collector") return "whitespace-nowrap rounded-md border border-emerald-200 bg-emerald-50 py-1 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-300";
+  if (roleName === "Borrower") return "whitespace-nowrap rounded-md bg-zinc-50 py-1 text-zinc-700 hover:bg-zinc-50 hover:text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100 dark:hover:bg-white/[0.06] dark:hover:text-zinc-100";
+  return "whitespace-nowrap rounded-md bg-zinc-50 py-1 text-zinc-700 hover:bg-zinc-50 hover:text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100 dark:hover:bg-white/[0.06] dark:hover:text-zinc-100";
 }
 
 function formatDateCreated(value: string | null) {
@@ -53,19 +53,19 @@ function formatDateCreated(value: string | null) {
 
 function rowActionItemClassName(tone: "default" | "blue" | "amber" | "red" | "green") {
   if (tone === "blue") {
-    return "w-full cursor-pointer justify-start rounded-md px-3 py-2 text-left text-sm font-medium text-blue-600 outline-hidden transition-colors hover:bg-blue-50 focus:bg-blue-50 dark:text-blue-300 dark:hover:bg-blue-500/10 dark:focus:bg-blue-500/10";
+    return "w-full cursor-pointer justify-start rounded-md px-3 py-2 text-left text-sm font-medium text-blue-600 outline-hidden transition-colors hover:bg-blue-50 focus:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-500/10 dark:focus:bg-blue-500/10";
   }
 
   if (tone === "amber") {
-    return "w-full cursor-pointer justify-start rounded-md px-3 py-2 text-left text-sm font-medium text-amber-600 outline-hidden transition-colors hover:bg-amber-50 focus:bg-amber-50 dark:text-amber-300 dark:hover:bg-amber-500/10 dark:focus:bg-amber-500/10";
+    return "w-full cursor-pointer justify-start rounded-md px-3 py-2 text-left text-sm font-medium text-amber-600 outline-hidden transition-colors hover:bg-amber-50 focus:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-500/10 dark:focus:bg-amber-500/10";
   }
 
   if (tone === "red") {
-    return "w-full cursor-pointer justify-start rounded-md px-3 py-2 text-left text-sm font-medium text-red-600 outline-hidden transition-colors hover:bg-red-50 focus:bg-red-50 dark:text-red-300 dark:hover:bg-red-500/10 dark:focus:bg-red-500/10";
+    return "w-full cursor-pointer justify-start rounded-md px-3 py-2 text-left text-sm font-medium text-red-600 outline-hidden transition-colors hover:bg-red-50 focus:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10 dark:focus:bg-red-500/10";
   }
 
   if (tone === "green") {
-    return "w-full cursor-pointer justify-start rounded-md px-3 py-2 text-left text-sm font-medium text-emerald-600 outline-hidden transition-colors hover:bg-emerald-50 focus:bg-emerald-50 dark:text-emerald-300 dark:hover:bg-emerald-500/10 dark:focus:bg-emerald-500/10";
+    return "w-full cursor-pointer justify-start rounded-md px-3 py-2 text-left text-sm font-medium text-emerald-600 outline-hidden transition-colors hover:bg-emerald-50 focus:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-500/10 dark:focus:bg-emerald-500/10";
   }
 
   return "w-full cursor-pointer justify-start rounded-md px-3 py-2 text-left text-sm font-medium text-foreground outline-hidden transition-colors hover:bg-accent focus:bg-accent";
@@ -94,14 +94,14 @@ function SortIcon({
   const isDesc = activeSort === `${field}_desc`;
 
   if (isAsc) {
-    return <ArrowUp className="h-4 w-4" />;
+    return <ArrowUp className="h-4 w-4 text-foreground" />;
   }
 
   if (isDesc) {
-    return <ArrowDown className="h-4 w-4" />;
+    return <ArrowDown className="h-4 w-4 text-foreground" />;
   }
 
-  return <ArrowUpDown className="h-4 w-4" />;
+  return <ArrowUpDown className="h-4 w-4 text-muted-foreground" />;
 }
 
 function SortableHeader({
@@ -115,13 +115,9 @@ function SortableHeader({
   selectedSort: ManageUserAccountsSort;
   onSortChange: (sort: ManageUserAccountsSort) => void;
 }) {
-  const isActive = selectedSort === `${field}_asc` || selectedSort === `${field}_desc`;
-
   return (
     <Button
-      className={`-ml-3 h-auto gap-1.5 px-3 py-1.5 text-sm font-semibold ${
-        isActive ? "text-foreground" : "text-muted-foreground"
-      }`}
+      className="-ml-3 h-auto gap-1.5 px-3 py-1.5 text-left font-medium text-foreground hover:bg-transparent hover:text-foreground"
       onClick={() => onSortChange(getNextSort(selectedSort, field))}
       size="sm"
       type="button"
@@ -156,10 +152,6 @@ export function ManageUserAccountsTable({
   const searchParams = useSearchParams();
   const query = searchParams.toString();
   const returnTo = query ? `${pathname}?${query}` : pathname;
-
-  if (users.length === 0) {
-    return <p className="text-sm text-muted-foreground">No user accounts found for your scope.</p>;
-  }
 
   return (
     <div className="overflow-x-auto rounded-md border border-border/70 bg-card shadow-sm">
@@ -200,126 +192,133 @@ export function ManageUserAccountsTable({
           </TableRow>
         </TableHeader>
         <TableBody>
-          {users.map((row) => {
-            const deactivateTone = row.status === "active" ? "amber" : "green";
-            const deactivateLabel = row.status === "active" ? "Deactivate" : "Reactivate";
-            const viewHref = getManagedUserViewHref(row, { returnTo, source: "manage-users" });
+          {users.length === 0 ? (
+            <TableRow>
+              <TableCell className="py-10 text-center text-sm text-muted-foreground" colSpan={8}>
+                No user accounts found for your scope.
+              </TableCell>
+            </TableRow>
+          ) : (
+            users.map((row) => {
+              const deactivateTone = row.status === "active" ? "amber" : "green";
+              const deactivateLabel = row.status === "active" ? "Deactivate" : "Reactivate";
+              const viewHref = getManagedUserViewHref(row, { returnTo, source: "manage-users" });
 
-            return (
-              <TableRow
-                className={row.canView ? "cursor-pointer transition-colors hover:bg-accent/35" : undefined}
-                key={row.userId}
-                onClick={() => {
-                  if (row.canView) {
-                    router.push(viewHref);
-                  }
-                }}
-                onKeyDown={(event) => {
-                  if (!row.canView) {
-                    return;
-                  }
+              return (
+                <TableRow
+                  className={row.canView ? "cursor-pointer transition-colors hover:bg-accent/35" : undefined}
+                  key={row.userId}
+                  onClick={() => {
+                    if (row.canView) {
+                      router.push(viewHref);
+                    }
+                  }}
+                  onKeyDown={(event) => {
+                    if (!row.canView) {
+                      return;
+                    }
 
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    router.push(viewHref);
-                  }
-                }}
-                tabIndex={row.canView ? 0 : undefined}
-              >
-                <TableCell className="py-3 pl-5 font-medium">{row.displayName}</TableCell>
-                <TableCell className="py-3">
-                  <Badge
-                    className="whitespace-nowrap rounded-md border border-zinc-200 bg-zinc-100/65 py-1 text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100"
-                    variant="outline"
-                  >
-                    {row.companyId}
-                  </Badge>
-                </TableCell>
-                <TableCell className="py-3">
-                  <Badge className={roleBadgeClass(row.roleName)} variant="outline">
-                    {row.roleName}
-                  </Badge>
-                </TableCell>
-                <TableCell className="py-3">
-                  <div className="space-y-0.5">
-                    <p>{row.scopeLabel}</p>
-                    {row.scopeContextLabel ? (
-                      <p className="text-xs text-muted-foreground">{row.scopeContextLabel}</p>
-                    ) : null}
-                  </div>
-                </TableCell>
-                <TableCell className="py-3 text-muted-foreground">{row.contactNo || "-"}</TableCell>
-                <TableCell className="py-3 text-muted-foreground">{row.email || "-"}</TableCell>
-                <TableCell className="py-3 text-muted-foreground">{formatDateCreated(row.dateCreated)}</TableCell>
-                <TableCell
-                  className="py-3"
-                  onClick={(event) => event.stopPropagation()}
-                  onKeyDown={(event) => event.stopPropagation()}
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      router.push(viewHref);
+                    }
+                  }}
+                  tabIndex={row.canView ? 0 : undefined}
                 >
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        className="h-9 w-9 rounded-md border-0 bg-transparent text-muted-foreground shadow-none hover:bg-accent hover:text-foreground dark:bg-transparent dark:hover:bg-white/[0.08]"
-                        onClick={(event) => event.stopPropagation()}
-                        size="icon"
-                        type="button"
-                        variant="ghost"
-                      >
-                        <MoreHorizontal className="h-4 w-4" />
-                        <span className="sr-only">Open actions for {row.displayName}</span>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-44 rounded-xl p-1.5">
-                      {row.canView ? (
-                        <DropdownMenuItem asChild className={rowActionItemClassName("default")}>
-                          <button
-                            onClick={() => router.push(viewHref)}
-                            type="button"
-                          >
-                            View
-                          </button>
-                        </DropdownMenuItem>
+                  <TableCell className="py-3 pl-5 font-medium">{row.displayName}</TableCell>
+                  <TableCell className="py-3">
+                    <Badge
+                      className="whitespace-nowrap rounded-md bg-zinc-100/65 py-1 text-zinc-700 hover:bg-zinc-100/65 hover:text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100 dark:hover:bg-white/[0.06] dark:hover:text-zinc-100"
+                    >
+                      {row.companyId}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="py-3">
+                    <Badge className={roleBadgeClass(row.roleName)}>
+                      {row.roleName}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="py-3">
+                    <div className="space-y-0.5">
+                      <p className="text-sm">{row.scopeLabel}</p>
+                      {row.scopeContextLabel ? (
+                        <p className="text-xs text-muted-foreground">{row.scopeContextLabel}</p>
                       ) : null}
-                      {row.canEdit ? (
-                        <DropdownMenuItem asChild className={rowActionItemClassName("blue")}>
-                          <button onClick={() => onEdit(row.userId)} type="button">
-                            Edit
-                          </button>
-                        </DropdownMenuItem>
-                      ) : null}
-                      {row.canManageStatus ? (
-                        <ToggleAccountStatusButton
-                          currentStatus={row.status}
-                          onStatusChanged={onDeleted}
-                          onReassignmentRequired={onReassignmentRequired}
-                          trigger={
-                            <button className={rowActionItemClassName(deactivateTone)} type="button">
-                              {deactivateLabel}
+                    </div>
+                  </TableCell>
+                  <TableCell className="py-3 text-sm text-muted-foreground">{row.contactNo || "-"}</TableCell>
+                  <TableCell className="py-3 text-sm text-muted-foreground">{row.email || "-"}</TableCell>
+                  <TableCell className="py-3 text-sm text-muted-foreground">{formatDateCreated(row.dateCreated)}</TableCell>
+                  <TableCell
+                    className="py-3"
+                    onClick={(event) => event.stopPropagation()}
+                    onKeyDown={(event) => event.stopPropagation()}
+                  >
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          className="h-9 w-9 rounded-md border-0 bg-transparent text-muted-foreground shadow-none hover:bg-accent hover:text-foreground dark:bg-transparent dark:hover:bg-white/[0.08]"
+                          onClick={(event) => event.stopPropagation()}
+                          size="icon"
+                          type="button"
+                          variant="ghost"
+                        >
+                          <MoreHorizontal className="h-4 w-4" />
+                          <span className="sr-only">Open actions for {row.displayName}</span>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-44 rounded-xl p-1.5">
+                        {row.canView ? (
+                          <DropdownMenuItem asChild className={rowActionItemClassName("default")}>
+                            <button
+                              onClick={() => router.push(viewHref)}
+                              type="button"
+                            >
+                              View
                             </button>
-                          }
-                          userId={row.userId}
-                          userLabel={row.fullName}
-                        />
-                      ) : null}
-                      {row.canDelete ? (
-                        <DeleteAccountButton
-                          onDeleted={onDeleted}
-                          onReassignmentRequired={onReassignmentRequired}
-                          trigger={
-                            <button className={rowActionItemClassName("red")} type="button">
-                              Delete
+                          </DropdownMenuItem>
+                        ) : null}
+                        {row.canEdit ? (
+                          <DropdownMenuItem asChild className={rowActionItemClassName("blue")}>
+                            <button onClick={() => onEdit(row.userId)} type="button">
+                              Edit
                             </button>
-                          }
-                          userId={row.userId}
-                          userLabel={row.fullName}
-                        />
-                      ) : null}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>
-              </TableRow>
-            );
-          })}
+                          </DropdownMenuItem>
+                        ) : null}
+                        {row.canManageStatus ? (
+                          <ToggleAccountStatusButton
+                            currentStatus={row.status}
+                            onStatusChanged={onDeleted}
+                            onReassignmentRequired={onReassignmentRequired}
+                            trigger={
+                              <button className={rowActionItemClassName(deactivateTone)} type="button">
+                                {deactivateLabel}
+                              </button>
+                            }
+                            userId={row.userId}
+                            userLabel={row.fullName}
+                          />
+                        ) : null}
+                        {row.canDelete ? (
+                          <DeleteAccountButton
+                            onDeleted={onDeleted}
+                            onReassignmentRequired={onReassignmentRequired}
+                            trigger={
+                              <button className={rowActionItemClassName("red")} type="button">
+                                Delete
+                              </button>
+                            }
+                            userId={row.userId}
+                            userLabel={row.fullName}
+                          />
+                        ) : null}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              );
+            })
+          )}
         </TableBody>
       </Table>
     </div>

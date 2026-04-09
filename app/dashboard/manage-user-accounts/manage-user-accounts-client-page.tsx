@@ -347,7 +347,7 @@ export function ManageUserAccountsClientPage({
         })}
       >
         <Button
-          className="h-11 rounded-md bg-emerald-600 px-4 text-sm text-white hover:bg-emerald-700 hover:text-white"
+          className="h-11 rounded-md bg-emerald-600 px-4 text-sm text-white hover:bg-emerald-700 hover:text-white dark:bg-green-500/60 dark:text-white dark:hover:bg-green-500/80 dark:hover:text-white"
           type="button"
         >
           <Plus className="h-4 w-4" />
