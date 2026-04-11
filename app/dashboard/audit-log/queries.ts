@@ -15,7 +15,7 @@ import type {
   AuditLogPageAccess,
   AuditLogPageData,
 } from "@/app/dashboard/audit-log/types";
-import { AUDIT_ACTIONS, AUDIT_ENTITY_TYPES, type AuditAction } from "@/lib/audit/taxonomy";
+import { AUDIT_ACTIONS, AUDIT_ENTITY_TYPES, type AuditAction, type AuditEntityType } from "@/lib/audit/taxonomy";
 
 const DEFAULT_PAGE_SIZE = 25;
 const actorUsers = alias(users, "audit_log_actor_users");

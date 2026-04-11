@@ -17,6 +17,7 @@ type NavItem = {
     | "receipt-text"
     | "banknote-arrow-down"
     | "wallet"
+    | "logs"
     | "user-plus"
     | "user-round"
     | "settings";

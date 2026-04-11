@@ -610,6 +610,8 @@ type ReportsSystemGenerationAccessState = Extract<ReportsReadyAccessState, { vie
 
 type ReportsSystemGenerationRecipient = {
   userId: string;
+  companyId: string;
+  displayName: string;
   roleName: ReportsSystemRecipientRole;
   scopeBranchIds: number[];
   scopeLabel: string;
@@ -738,6 +740,8 @@ function buildSystemRecipientAccessState(
   return {
     view: "ready",
     userId: recipient.userId,
+    companyId: recipient.companyId,
+    displayName: recipient.displayName,
     roleName: recipient.roleName,
     canAccessAnalytics: true,
     canAccessOperationalDocuments: recipient.roleName !== "Auditor",
@@ -4050,9 +4054,15 @@ async function loadSystemMonthlyGenerationRecipients(
     db
       .select({
         userId: users.user_id,
+        companyId: users.company_id,
+        username: users.username,
+        firstName: employee_info.first_name,
+        middleName: employee_info.middle_name,
+        lastName: employee_info.last_name,
       })
       .from(users)
       .innerJoin(roles, eq(roles.role_id, users.role_id))
+      .leftJoin(employee_info, eq(employee_info.user_id, users.user_id))
       .where(
         and(
           eq(users.status, "active"),
@@ -4064,12 +4074,18 @@ async function loadSystemMonthlyGenerationRecipients(
     db
       .select({
         userId: users.user_id,
+        companyId: users.company_id,
+        username: users.username,
+        firstName: employee_info.first_name,
+        middleName: employee_info.middle_name,
+        lastName: employee_info.last_name,
         roleName: roles.role_name,
         branchId: employee_branch_assignment.branch_id,
         branchName: branch.branch_name,
       })
       .from(users)
       .innerJoin(roles, eq(roles.role_id, users.role_id))
+      .leftJoin(employee_info, eq(employee_info.user_id, users.user_id))
       .innerJoin(
         employee_branch_assignment,
         and(
@@ -4099,6 +4115,14 @@ async function loadSystemMonthlyGenerationRecipients(
 
     recipients.push({
       userId: row.userId,
+      companyId: row.companyId?.trim() || row.userId,
+      displayName: buildReportUserOptionLabel({
+        firstName: row.firstName,
+        middleName: row.middleName,
+        lastName: row.lastName,
+        companyId: row.companyId,
+        username: row.username,
+      }),
       roleName: "Admin",
       scopeBranchIds: allBranchIds,
       scopeLabel: "Global Scope",
@@ -4110,6 +4134,11 @@ async function loadSystemMonthlyGenerationRecipients(
   const assignmentsByUser = new Map<
     string,
     {
+      companyId: string | null;
+      username: string | null;
+      firstName: string | null;
+      middleName: string | null;
+      lastName: string | null;
       roleName: ReportsSystemRecipientRole;
       branches: Array<{ branchId: number; branchName: string }>;
     }
@@ -4121,6 +4150,11 @@ async function loadSystemMonthlyGenerationRecipients(
     }
 
     const entry = assignmentsByUser.get(row.userId) ?? {
+      companyId: row.companyId,
+      username: row.username,
+      firstName: row.firstName,
+      middleName: row.middleName,
+      lastName: row.lastName,
       roleName: row.roleName,
       branches: [],
     };
@@ -4144,6 +4178,14 @@ async function loadSystemMonthlyGenerationRecipients(
     if (entry.roleName === "Auditor") {
       recipients.push({
         userId,
+        companyId: entry.companyId?.trim() || userId,
+        displayName: buildReportUserOptionLabel({
+          firstName: entry.firstName,
+          middleName: entry.middleName,
+          lastName: entry.lastName,
+          companyId: entry.companyId,
+          username: entry.username,
+        }),
         roleName: "Auditor",
         scopeBranchIds: dedupedBranches.map((branchRow) => branchRow.branchId),
         scopeLabel: formatAssignedBranchScopeLabel(dedupedBranches.length),
@@ -4159,6 +4201,14 @@ async function loadSystemMonthlyGenerationRecipients(
 
     recipients.push({
       userId,
+      companyId: entry.companyId?.trim() || userId,
+      displayName: buildReportUserOptionLabel({
+        firstName: entry.firstName,
+        middleName: entry.middleName,
+        lastName: entry.lastName,
+        companyId: entry.companyId,
+        username: entry.username,
+      }),
       roleName: "Branch Manager",
       scopeBranchIds: [dedupedBranches[0]!.branchId],
       scopeLabel: dedupedBranches[0]!.branchName,
