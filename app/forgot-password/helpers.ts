@@ -9,6 +9,8 @@ import {
   setPasswordRecoveryPendingChallenge,
   type PasswordRecoveryChannel,
 } from "@/lib/auth/password-recovery";
+import { logAuditEvent } from "@/lib/audit/logger";
+import type { AuditRequestContext } from "@/lib/audit/request-context";
 import { generateEmailOtpCode, sendEmailOtpCode } from "@/lib/resend/otp";
 import { startSmsVerification } from "@/lib/twilio/verify";
 
@@ -33,9 +35,32 @@ async function findUserByRecoveryIdentifier(
     .catch(() => null);
 }
 
-export async function startPasswordRecoveryChallenge(rawIdentifier: string) {
+export async function startPasswordRecoveryChallenge(
+  rawIdentifier: string,
+  requestContext?: AuditRequestContext,
+) {
   const resolved = resolvePasswordRecoveryIdentifier(rawIdentifier);
   const matchedUser = await findUserByRecoveryIdentifier(resolved.channel, resolved.identifier);
+
+  await logAuditEvent({
+    action: "auth.password_reset_requested",
+    entityType: "auth",
+    entityId: matchedUser?.userId ?? resolved.identifier,
+    description: `Password reset requested using ${resolved.channel === "sms" ? "mobile number" : "email"}.`,
+    target: matchedUser?.userId
+      ? {
+          userId: matchedUser.userId,
+          displayName: resolved.maskedDestination,
+        }
+      : null,
+    requestContext,
+    metadata: {
+      channel: resolved.channel,
+      identifierType: resolved.channel === "sms" ? "contact_no" : "email",
+      maskedDestination: resolved.maskedDestination,
+      matchedAccount: Boolean(matchedUser?.userId),
+    },
+  });
 
   if (matchedUser?.userId) {
     if (resolved.channel === "sms") {
@@ -45,6 +70,22 @@ export async function startPasswordRecoveryChallenge(rawIdentifier: string) {
         channel: "sms",
         identifier: resolved.identifier,
         maskedDestination: resolved.maskedDestination,
+      });
+      await logAuditEvent({
+        action: "auth.otp_sent",
+        entityType: "auth",
+        entityId: matchedUser.userId,
+        target: {
+          userId: matchedUser.userId,
+          displayName: resolved.maskedDestination,
+        },
+        description: "Sent a password reset code by SMS.",
+        requestContext,
+        metadata: {
+          channel: "sms",
+          identifierType: "contact_no",
+          maskedDestination: resolved.maskedDestination,
+        },
       });
     } else {
       const code = generateEmailOtpCode();
@@ -58,6 +99,22 @@ export async function startPasswordRecoveryChallenge(rawIdentifier: string) {
         identifier: resolved.identifier,
         maskedDestination: resolved.maskedDestination,
         emailCode: code,
+      });
+      await logAuditEvent({
+        action: "auth.otp_sent",
+        entityType: "auth",
+        entityId: matchedUser.userId,
+        target: {
+          userId: matchedUser.userId,
+          displayName: resolved.maskedDestination,
+        },
+        description: "Sent a password reset code by email.",
+        requestContext,
+        metadata: {
+          channel: "email",
+          identifierType: "email",
+          maskedDestination: resolved.maskedDestination,
+        },
       });
     }
   } else {
@@ -75,7 +132,7 @@ export async function startPasswordRecoveryChallenge(rawIdentifier: string) {
   };
 }
 
-export async function resendPasswordRecoveryChallenge() {
+export async function resendPasswordRecoveryChallenge(requestContext?: AuditRequestContext) {
   const pending = await getPasswordRecoveryPendingChallenge();
   if (!pending) {
     throw new Error("Start password recovery again to receive a new code.");
@@ -90,6 +147,23 @@ export async function resendPasswordRecoveryChallenge() {
         identifier: pending.identifier,
         maskedDestination: pending.maskedDestination,
       });
+      await logAuditEvent({
+        action: "auth.otp_sent",
+        entityType: "auth",
+        entityId: pending.userId,
+        target: {
+          userId: pending.userId,
+          displayName: pending.maskedDestination,
+        },
+        description: "Resent a password reset code by SMS.",
+        requestContext,
+        metadata: {
+          channel: "sms",
+          identifierType: "contact_no",
+          maskedDestination: pending.maskedDestination,
+          resend: true,
+        },
+      });
     } else {
       const code = generateEmailOtpCode();
       await sendEmailOtpCode(pending.identifier, code, {
@@ -102,6 +176,23 @@ export async function resendPasswordRecoveryChallenge() {
         identifier: pending.identifier,
         maskedDestination: pending.maskedDestination,
         emailCode: code,
+      });
+      await logAuditEvent({
+        action: "auth.otp_sent",
+        entityType: "auth",
+        entityId: pending.userId,
+        target: {
+          userId: pending.userId,
+          displayName: pending.maskedDestination,
+        },
+        description: "Resent a password reset code by email.",
+        requestContext,
+        metadata: {
+          channel: "email",
+          identifierType: "email",
+          maskedDestination: pending.maskedDestination,
+          resend: true,
+        },
       });
     }
   } else {

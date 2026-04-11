@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { startAdminVerificationChallenge } from "@/app/login/verify/helpers";
+import { getAuditRequestContextFromRequest } from "@/lib/audit/request-context";
 
 export async function GET(request: Request) {
   try {
-    const result = await startAdminVerificationChallenge();
+    const result = await startAdminVerificationChallenge(undefined, getAuditRequestContextFromRequest(request));
     if (result.needsChoice) {
       return NextResponse.redirect(new URL("/login/verify?choose=1", request.url));
     }

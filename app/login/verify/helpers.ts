@@ -11,6 +11,8 @@ import {
   type AdminOtpChannel,
   resolveAdminOtpChannelAvailability,
 } from "@/lib/auth/admin-otp-channels";
+import { buildAuditActorFromAuth, logAuditEvent } from "@/lib/audit/logger";
+import type { AuditRequestContext } from "@/lib/audit/request-context";
 import { generateEmailOtpCode, sendEmailOtpCode } from "@/lib/resend/otp";
 import { startSmsVerification } from "@/lib/twilio/verify";
 
@@ -52,7 +54,10 @@ export async function resolvePendingAdminVerificationContext() {
   };
 }
 
-export async function startAdminVerificationChallenge(channel?: AdminOtpChannel) {
+export async function startAdminVerificationChallenge(
+  channel?: AdminOtpChannel,
+  requestContext?: AuditRequestContext,
+) {
   const { auth } = await resolvePendingAdminVerificationContext();
   const availability = resolveAdminOtpChannelAvailability({
     contactNo: auth.contactNo,
@@ -80,6 +85,25 @@ export async function startAdminVerificationChallenge(channel?: AdminOtpChannel)
   if (selectedChannel === "sms") {
     await startSmsVerification(auth.contactNo);
     await setAdminTwoFactorPendingChallenge(auth.userId, { channel: "sms" });
+    await logAuditEvent({
+      action: "auth.otp_sent",
+      entityType: "auth",
+      entityId: auth.userId,
+      actor: buildAuditActorFromAuth(auth),
+      target: {
+        userId: auth.userId,
+        companyId: auth.companyId,
+        displayName: auth.displayName,
+      },
+      description: `Sent a verification code by SMS to ${auth.displayName}.`,
+      branchId: auth.activeBranchId,
+      branchScope: auth.assignedBranchIds,
+      requestContext,
+      metadata: {
+        channel: "sms",
+        identifierType: "contact_no",
+      },
+    });
     return { channel: "sms" as const, needsChoice: false as const };
   }
 
@@ -88,6 +112,25 @@ export async function startAdminVerificationChallenge(channel?: AdminOtpChannel)
   await setAdminTwoFactorPendingChallenge(auth.userId, {
     channel: "email",
     emailCode: code,
+  });
+  await logAuditEvent({
+    action: "auth.otp_sent",
+    entityType: "auth",
+    entityId: auth.userId,
+    actor: buildAuditActorFromAuth(auth),
+    target: {
+      userId: auth.userId,
+      companyId: auth.companyId,
+      displayName: auth.displayName,
+    },
+    description: `Sent a verification code by email to ${auth.displayName}.`,
+    branchId: auth.activeBranchId,
+    branchScope: auth.assignedBranchIds,
+    requestContext,
+    metadata: {
+      channel: "email",
+      identifierType: "email",
+    },
   });
 
   return { channel: "email" as const, needsChoice: false as const };

@@ -36,6 +36,8 @@ export type CreatorRoleName = "Admin" | "Branch Manager" | "Secretary";
 
 export type CreatorAccess = {
   userId: string;
+  companyId: string;
+  displayName: string;
   roleName: CreatorRoleName;
   isAdmin: boolean;
   isBranchManager: boolean;

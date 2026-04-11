@@ -35,6 +35,8 @@ export type ManageUserAccountsScope = {
   view: "staff";
   roleName: "Admin" | "Auditor" | "Branch Manager";
   viewerUserId: string;
+  viewerCompanyId: string;
+  viewerDisplayName: string;
   selectedBranchId: number | null;
   selectedAreaId: number | null;
   selectedRoleName: string | null;

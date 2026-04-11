@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { resendPasswordRecoveryChallenge } from "@/app/forgot-password/helpers";
+import { getAuditRequestContextFromRequest } from "@/lib/audit/request-context";
 
 function buildRedirect(request: Request, path: string) {
   return NextResponse.redirect(new URL(path, request.url));
@@ -7,7 +8,7 @@ function buildRedirect(request: Request, path: string) {
 
 export async function POST(request: Request) {
   try {
-    await resendPasswordRecoveryChallenge();
+    await resendPasswordRecoveryChallenge(getAuditRequestContextFromRequest(request));
     return buildRedirect(request, "/forgot-password/verify?resent=1");
   } catch (error) {
     const message =

@@ -683,6 +683,131 @@ export const reports = pgTable(
   ]
 );
 
+export const audit_logs = pgTable(
+  "audit_logs",
+  {
+    audit_log_id: bigint("audit_log_id", { mode: "number" })
+      .primaryKey()
+      .generatedAlwaysAsIdentity({
+        name: "audit_logs_audit_log_id_seq",
+        startWith: 1,
+        increment: 1,
+        minValue: 1,
+        maxValue: 9223372036854775807,
+        cache: 1,
+      }),
+    occurred_at: timestamp("occurred_at", { mode: "string", withTimezone: true }).notNull().defaultNow(),
+    actor_type: text("actor_type")
+      .$type<"user" | "system">()
+      .notNull()
+      .default("user"),
+    actor_user_id: uuid("actor_user_id"),
+    actor_company_id: varchar("actor_company_id", { length: 80 }),
+    actor_display_name: text("actor_display_name"),
+    actor_role_name: varchar("actor_role_name", { length: 80 }),
+    action: varchar("action", { length: 120 }).notNull(),
+    entity_type: varchar("entity_type", { length: 80 }).notNull(),
+    entity_id: varchar("entity_id", { length: 160 }),
+    branch_id: integer("branch_id"),
+    branch_scope: integer("branch_scope")
+      .array()
+      .notNull()
+      .default(sql`'{}'::integer[]`),
+    target_user_id: uuid("target_user_id"),
+    target_company_id: varchar("target_company_id", { length: 80 }),
+    target_display_name: text("target_display_name"),
+    description: text("description").notNull(),
+    metadata: jsonb("metadata").notNull().default(sql`'{}'::jsonb`),
+    ip_address: varchar("ip_address", { length: 120 }),
+    user_agent: text("user_agent"),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.actor_user_id],
+      foreignColumns: [users.user_id],
+      name: "audit_logs_actor_user_id_fkey",
+    }).onDelete("set null"),
+    foreignKey({
+      columns: [table.branch_id],
+      foreignColumns: [branch.branch_id],
+      name: "audit_logs_branch_id_fkey",
+    }).onDelete("set null"),
+    foreignKey({
+      columns: [table.target_user_id],
+      foreignColumns: [users.user_id],
+      name: "audit_logs_target_user_id_fkey",
+    }).onDelete("set null"),
+    check("audit_logs_actor_type_check", sql`${table.actor_type} in ('user', 'system')`),
+    check(
+      "audit_logs_actor_consistency_check",
+      sql`(${table.actor_type} = 'system') or (${table.actor_type} = 'user' and ${table.actor_user_id} is not null)`,
+    ),
+    check(
+      "audit_logs_action_check",
+      sql`${table.action} in (
+        'auth.login_succeeded',
+        'auth.login_failed',
+        'auth.logout',
+        'auth.otp_sent',
+        'auth.otp_verified',
+        'auth.otp_failed',
+        'auth.password_reset_requested',
+        'auth.password_reset_completed',
+          'user.created',
+          'user.deactivated',
+          'user.reactivated',
+          'user.details_updated',
+          'user.role_changed',
+          'assignment.branch_started',
+          'assignment.branch_ended',
+          'assignment.area_started',
+          'assignment.area_ended',
+          'user.promoted',
+          'user.reassigned',
+          'user.deleted',
+          'loan.created',
+          'loan.deleted',
+          'loan.status_changed_manual',
+        'loan.status_changed_system',
+        'loan.collector_changed',
+        'collection.recorded',
+        'expense.created',
+        'document.uploaded',
+        'document.deleted',
+        'document.replaced',
+        'report.generated',
+        'report.exported',
+        'report.generated_system_monthly',
+        'incentive.rule_created',
+        'incentive.batch_finalized',
+        'incentive.payout_recorded',
+        'incentive.report_generated'
+      )`,
+    ),
+    check(
+      "audit_logs_entity_type_check",
+      sql`${table.entity_type} in (
+        'auth',
+        'user',
+        'assignment',
+        'loan',
+        'collection',
+        'expense',
+        'document',
+        'report',
+        'incentive'
+      )`,
+    ),
+    index("audit_logs_occurred_at_idx").on(table.occurred_at),
+    index("audit_logs_action_occurred_at_idx").on(table.action, table.occurred_at),
+    index("audit_logs_entity_lookup_idx").on(table.entity_type, table.entity_id),
+    index("audit_logs_actor_user_occurred_at_idx").on(table.actor_user_id, table.occurred_at),
+    index("audit_logs_target_user_occurred_at_idx").on(table.target_user_id, table.occurred_at),
+    index("audit_logs_branch_occurred_at_idx").on(table.branch_id, table.occurred_at),
+    index("audit_logs_branch_scope_gin_idx").using("gin", table.branch_scope),
+  ],
+);
+
 export const loan_docs = pgTable(
   "loan_docs",
   {

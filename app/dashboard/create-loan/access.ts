@@ -16,6 +16,8 @@ export type CreateLoanAccessResult =
   | {
       ok: true;
       userId: string;
+      companyId: string;
+      displayName: string;
       roleName: CreateLoanRoleName;
       isAdmin: boolean;
       fixedBranchId: number | null;
@@ -47,6 +49,8 @@ export async function resolveCreateLoanAccess(): Promise<CreateLoanAccessResult>
     return {
       ok: true,
       userId: auth.userId,
+      companyId: auth.companyId,
+      displayName: auth.displayName,
       roleName: auth.roleName,
       isAdmin: true,
       fixedBranchId: null,
@@ -65,6 +69,8 @@ export async function resolveCreateLoanAccess(): Promise<CreateLoanAccessResult>
   return {
     ok: true,
     userId: auth.userId,
+    companyId: auth.companyId,
+    displayName: auth.displayName,
     roleName: auth.roleName,
     isAdmin: false,
     fixedBranchId,

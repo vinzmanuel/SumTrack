@@ -97,6 +97,8 @@ export function resolveManageUserAccountsAccess(
       view: "staff",
       roleName: "Admin",
       viewerUserId: auth.userId,
+      viewerCompanyId: auth.companyId,
+      viewerDisplayName: auth.displayName,
       selectedBranchId: filters.requestedBranchId,
       selectedAreaId: filters.requestedAreaId,
       selectedRoleName: filters.requestedRoleName,
@@ -124,6 +126,8 @@ export function resolveManageUserAccountsAccess(
       view: "staff",
       roleName: "Auditor",
       viewerUserId: auth.userId,
+      viewerCompanyId: auth.companyId,
+      viewerDisplayName: auth.displayName,
       selectedBranchId:
         filters.requestedBranchId && auth.assignedBranchIds.includes(filters.requestedBranchId)
           ? filters.requestedBranchId
@@ -153,6 +157,8 @@ export function resolveManageUserAccountsAccess(
     view: "staff",
     roleName: "Branch Manager",
     viewerUserId: auth.userId,
+    viewerCompanyId: auth.companyId,
+    viewerDisplayName: auth.displayName,
     selectedBranchId: auth.activeBranchId,
     selectedAreaId: filters.requestedAreaId,
     selectedRoleName: filters.requestedRoleName,

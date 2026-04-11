@@ -7,6 +7,8 @@ import {
   getPasswordRecoveryVerifiedChallenge,
   issuePasswordRecoveryLoginBypass,
 } from "@/lib/auth/password-recovery";
+import { getAuditRequestContextFromRequest } from "@/lib/audit/request-context";
+import { logAuditEvent } from "@/lib/audit/logger";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 function buildRedirect(request: Request, path: string) {
@@ -15,6 +17,7 @@ function buildRedirect(request: Request, path: string) {
 
 export async function POST(request: Request) {
   try {
+    const requestContext = getAuditRequestContextFromRequest(request);
     const verifiedChallenge = await getPasswordRecoveryVerifiedChallenge();
     if (!verifiedChallenge?.userId) {
       return buildRedirect(
@@ -69,6 +72,19 @@ export async function POST(request: Request) {
 
     await clearPasswordRecoveryCookies();
     await issuePasswordRecoveryLoginBypass(verifiedChallenge.userId);
+    await logAuditEvent({
+      action: "auth.password_reset_completed",
+      entityType: "auth",
+      entityId: verifiedChallenge.userId,
+      target: {
+        userId: verifiedChallenge.userId,
+      },
+      description: "Password reset completed successfully.",
+      requestContext,
+      metadata: {
+        postResetBypassIssued: true,
+      },
+    });
 
     return buildRedirect(
       request,

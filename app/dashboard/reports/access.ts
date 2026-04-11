@@ -33,6 +33,8 @@ export function resolveReportsPageAccess(
     return {
       view: "ready",
       userId: auth.userId,
+      companyId: auth.companyId,
+      displayName: auth.displayName,
       roleName: "Admin",
       canAccessAnalytics: true,
       canAccessOperationalDocuments: true,
@@ -55,6 +57,8 @@ export function resolveReportsPageAccess(
     return {
       view: "ready",
       userId: auth.userId,
+      companyId: auth.companyId,
+      displayName: auth.displayName,
       roleName: "Auditor",
       canAccessAnalytics: true,
       canAccessOperationalDocuments: false,
@@ -77,6 +81,8 @@ export function resolveReportsPageAccess(
     return {
       view: "ready",
       userId: auth.userId,
+      companyId: auth.companyId,
+      displayName: auth.displayName,
       roleName: "Branch Manager",
       canAccessAnalytics: true,
       canAccessOperationalDocuments: true,
@@ -99,6 +105,8 @@ export function resolveReportsPageAccess(
     return {
       view: "ready",
       userId: auth.userId,
+      companyId: auth.companyId,
+      displayName: auth.displayName,
       roleName: "Secretary",
       canAccessAnalytics: false,
       canAccessOperationalDocuments: true,

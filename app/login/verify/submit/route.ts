@@ -5,6 +5,8 @@ import {
   setAdminTwoFactorVerified,
   verifyPendingAdminEmailOtpCode,
 } from "@/lib/auth/admin-two-factor";
+import { buildAuditActorFromAuth, logAuditEvent } from "@/lib/audit/logger";
+import { getAuditRequestContextFromRequest } from "@/lib/audit/request-context";
 import { checkSmsVerificationCode } from "@/lib/twilio/verify";
 
 function buildRedirect(request: Request, path: string) {
@@ -31,6 +33,7 @@ export async function POST(request: Request) {
     }
 
     const auth = authState.auth;
+    const requestContext = getAuditRequestContextFromRequest(request);
 
     const formData = await request.formData();
     const code = String(formData.get("code") ?? "").trim();
@@ -51,6 +54,25 @@ export async function POST(request: Request) {
     }
 
     if (!approved) {
+      await logAuditEvent({
+        action: "auth.otp_failed",
+        entityType: "auth",
+        entityId: auth.userId,
+        actor: buildAuditActorFromAuth(auth),
+        target: {
+          userId: auth.userId,
+          companyId: auth.companyId,
+          displayName: auth.displayName,
+        },
+        description: `Verification failed for ${auth.displayName}.`,
+        branchId: auth.activeBranchId,
+        branchScope: auth.assignedBranchIds,
+        requestContext,
+        metadata: {
+          channel: pendingChallenge.channel,
+          failureReason: "invalid_or_expired_code",
+        },
+      });
       return buildRedirect(
         request,
         "/login/verify?error=Invalid%20or%20expired%20verification%20code.",
@@ -58,6 +80,24 @@ export async function POST(request: Request) {
     }
 
     await setAdminTwoFactorVerified(auth.userId);
+    await logAuditEvent({
+      action: "auth.otp_verified",
+      entityType: "auth",
+      entityId: auth.userId,
+      actor: buildAuditActorFromAuth(auth),
+      target: {
+        userId: auth.userId,
+        companyId: auth.companyId,
+        displayName: auth.displayName,
+      },
+      description: `Verification succeeded for ${auth.displayName}.`,
+      branchId: auth.activeBranchId,
+      branchScope: auth.assignedBranchIds,
+      requestContext,
+      metadata: {
+        channel: pendingChallenge.channel,
+      },
+    });
     return buildRedirect(request, "/dashboard");
   } catch (error) {
     const message =

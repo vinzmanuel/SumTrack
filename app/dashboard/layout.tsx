@@ -17,7 +17,6 @@ type NavItem = {
     | "receipt-text"
     | "banknote-arrow-down"
     | "wallet"
-    | "file-text"
     | "user-plus"
     | "user-round"
     | "settings";
@@ -26,7 +25,12 @@ type NavItem = {
 function buildSharedOperationalNavItems(options?: {
   branchLabel?: string;
   branchHref?: string;
+  includeAuditLog?: boolean;
 }): NavItem[] {
+  const auditLogItems: NavItem[] = options?.includeAuditLog
+    ? [{ href: "/dashboard/audit-log", label: "Audit Log", section: "system", icon: "logs" }]
+    : [];
+
   return [
     { href: "/dashboard", label: "Overview", section: "main", icon: "layout-dashboard" },
     { href: "/dashboard/loans", label: "Loans", section: "main", icon: "hand-coins" },
@@ -42,7 +46,7 @@ function buildSharedOperationalNavItems(options?: {
     { href: "/dashboard/incentives", label: "Incentives", section: "finance", icon: "wallet" },
     { href: "/dashboard/expenses", label: "Expenses", section: "finance", icon: "banknote-arrow-down" },
     { href: "/dashboard/reports", label: "Reports", section: "system", icon: "bar-chart-3" },
-    { href: "/dashboard/recent-activity", label: "Recent Activity", section: "system", icon: "file-text" },
+    ...auditLogItems,
     { href: "/dashboard/manage-user-accounts", label: "Manage User Accounts", section: "system", icon: "user-cog" },
     { href: "/dashboard/my-profile", label: "My Profile", section: "system", icon: "user-round" },
   ];
@@ -50,7 +54,7 @@ function buildSharedOperationalNavItems(options?: {
 
 function navItemsForRole(roleName: string, options?: { branchManagerBranchHref?: string | null }): NavItem[] {
   if (roleName === "Admin") {
-    return buildSharedOperationalNavItems();
+    return buildSharedOperationalNavItems({ includeAuditLog: true });
   }
 
   if (roleName === "Branch Manager") {
@@ -72,7 +76,7 @@ function navItemsForRole(roleName: string, options?: { branchManagerBranchHref?:
   }
 
   if (roleName === "Auditor") {
-    return buildSharedOperationalNavItems();
+    return buildSharedOperationalNavItems({ includeAuditLog: true });
   }
 
   if (roleName === "Collector") {

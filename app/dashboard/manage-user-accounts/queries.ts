@@ -41,6 +41,8 @@ import {
 import { deleteAuthUserSafely } from "@/app/dashboard/create-account/action-identifiers";
 import { LIVE_STORED_LOAN_STATUSES } from "@/app/dashboard/loans/loan-state";
 import { resolveReportsSystemUser } from "@/app/dashboard/reports/queries";
+import { getAuditRequestContext } from "@/lib/audit/request-context";
+import { logAuditEvent, logAuditEvents } from "@/lib/audit/logger";
 
 const DEFAULT_MANAGE_USERS_PAGE_SIZE = 20;
 const EDITABLE_EMPLOYEE_ROLE_NAMES = [
@@ -123,6 +125,63 @@ function formatManagedUserDisplayName(
 
   const middleInitial = safeMiddleName.charAt(0);
   return [safeFirstName, `${middleInitial}.`, safeLastName].filter(Boolean).join(" ").trim();
+}
+
+function buildManageUserAuditActor(scope: ManageUserAccountsScope) {
+  return {
+    type: "user" as const,
+    userId: scope.viewerUserId,
+    companyId: scope.viewerCompanyId,
+    displayName: scope.viewerDisplayName,
+    roleName: scope.roleName,
+  };
+}
+
+function buildTargetUserAudit(detail: ManagedUserDetail) {
+  return {
+    userId: detail.userId,
+    companyId: detail.companyId,
+    displayName: detail.fullName,
+  };
+}
+
+const BASIC_SELF_PROFILE_AUDIT_FIELDS = new Set([
+  "first_name",
+  "middle_name",
+  "last_name",
+  "contact_no",
+  "email",
+  "username",
+]);
+
+function shouldAuditAccountDetailsUpdate(params: {
+  actorUserId: string;
+  targetUserId: string;
+  changedFields: string[];
+}) {
+  const isSelfEdit = params.actorUserId === params.targetUserId;
+
+  if (!isSelfEdit) {
+    return true;
+  }
+
+  return !params.changedFields.every((field) => BASIC_SELF_PROFILE_AUDIT_FIELDS.has(field));
+}
+
+function resolveAssignmentAuditBranchIds(params: {
+  roleName: string;
+  explicitBranchIds: number[];
+  inferredBranchId: number | null;
+}) {
+  if (params.explicitBranchIds.length > 0) {
+    return [...params.explicitBranchIds].sort((a, b) => a - b);
+  }
+
+  if (params.roleName === "Collector" && params.inferredBranchId !== null) {
+    return [params.inferredBranchId];
+  }
+
+  return [];
 }
 
 function buildScopedBranchIds(scope: ManageUserAccountsScope) {
@@ -1059,6 +1118,7 @@ export async function reassignCollectorLiveLoans(params: {
   nextBranchId?: number | null;
   nextAreaId?: number | null;
 }): Promise<ManagedCollectorReassignmentResult | ManagedUserMutationResult> {
+  const requestContext = await getAuditRequestContext();
   const context = await loadCollectorReassignmentContext(params);
 
   if ("ok" in context) {
@@ -1091,6 +1151,37 @@ export async function reassignCollectorLiveLoans(params: {
       ),
     )
     .returning({ loanId: loan_records.loan_id });
+
+  if (reassignedRows.length > 0) {
+    await logAuditEvent({
+      action: "loan.collector_changed",
+      entityType: "loan",
+      actor: buildManageUserAuditActor(params.scope),
+      branchId: replacementCollector.branchId,
+      branchScope: [replacementCollector.branchId],
+      target: {
+        userId: replacementCollector.userId,
+        companyId: replacementCollector.companyId,
+        displayName: replacementCollector.fullName,
+      },
+      description: `Reassigned ${reassignedRows.length} live loans from ${context.collectorName} to ${replacementCollector.fullName}.`,
+      requestContext,
+      metadata: {
+        previousCollector: {
+          userId: context.collectorId,
+          companyId: context.collectorCompanyId,
+          displayName: context.collectorName,
+        },
+        newCollector: {
+          userId: replacementCollector.userId,
+          companyId: replacementCollector.companyId,
+          displayName: replacementCollector.fullName,
+        },
+        loanIds: reassignedRows.map((row) => row.loanId),
+        actionType: context.actionType,
+      },
+    });
+  }
 
   return {
     ok: true as const,
@@ -1699,6 +1790,7 @@ export async function updateManagedUserAccount(params: {
   branchIds: number[];
   areaId: number | null;
 }): Promise<ManagedUserMutationResult> {
+  const requestContext = await getAuditRequestContext();
   const detail = await loadManagedUserDetail(params.scope, params.userId);
 
   if (!detail) {
@@ -1876,6 +1968,7 @@ export async function updateManagedUserAccount(params: {
 
   let validatedBranchId: number | null = null;
   let validatedAreaId: number | null = null;
+  let validatedAreaCode: string | null = null;
   let validatedBranchIds: number[] = [];
 
   if (needsCollectorArea) {
@@ -1931,6 +2024,7 @@ export async function updateManagedUserAccount(params: {
     }
 
     validatedAreaId = areaRow.areaId;
+    validatedAreaCode = areaRow.areaCode;
     validatedBranchId = areaRow.branchId;
   } else if (needsAuditorBranchAssignments) {
     if (params.scope.roleName !== "Admin") {
@@ -2208,6 +2302,219 @@ export async function updateManagedUserAccount(params: {
       );
   }
 
+  const roleRankOrder = ["Admin", "Auditor", "Branch Manager", "Secretary", "Collector", "Borrower"];
+  const previousBranchIds = resolveAssignmentAuditBranchIds({
+    roleName: detail.roleName,
+    explicitBranchIds: assignmentState.activeBranchAssignments.map((item) => item.branchId),
+    inferredBranchId: currentBranchId,
+  });
+  const nextBranchIdsRaw =
+    nextRoleName === "Auditor"
+      ? [...validatedBranchIds].sort((a, b) => a - b)
+      : validatedBranchId !== null
+        ? [validatedBranchId]
+        : [];
+  const nextBranchIds = resolveAssignmentAuditBranchIds({
+    roleName: nextRoleName,
+    explicitBranchIds: nextBranchIdsRaw,
+    inferredBranchId: validatedBranchId ?? currentBranchId,
+  });
+  const endedBranchIds = previousBranchIds.filter((branchId) => !nextBranchIds.includes(branchId));
+  const startedBranchIds = nextBranchIds.filter((branchId) => !previousBranchIds.includes(branchId));
+  const areaEnded = currentAreaId !== null && currentAreaId !== validatedAreaId;
+  const areaStarted = validatedAreaId !== null && currentAreaId !== validatedAreaId;
+  const reassigned = endedBranchIds.length > 0 || startedBranchIds.length > 0 || areaEnded || areaStarted;
+  const effectiveBranchScope = Array.from(
+    new Set([...previousBranchIds, ...nextBranchIds, ...(validatedBranchId ? [validatedBranchId] : [])]),
+  );
+  const nextEmail = params.email || null;
+  const nextContactNo = params.contactNo || null;
+  const changedDetailFields = [
+    detail.firstName !== params.firstName ? "first_name" : null,
+    detail.middleName !== params.middleName ? "middle_name" : null,
+    detail.lastName !== params.lastName ? "last_name" : null,
+    (detail.email ?? null) !== nextEmail ? "email" : null,
+    (detail.contactNo ?? null) !== nextContactNo ? "contact_no" : null,
+  ].filter((field): field is string => field !== null);
+  const detailsUpdated =
+    changedDetailFields.length > 0;
+
+  const auditEvents = [];
+
+  if (
+    detailsUpdated &&
+    shouldAuditAccountDetailsUpdate({
+      actorUserId: params.scope.viewerUserId,
+      targetUserId: detail.userId,
+      changedFields: changedDetailFields,
+    })
+  ) {
+    auditEvents.push({
+      action: "user.details_updated" as const,
+      entityType: "user" as const,
+      entityId: detail.userId,
+      actor: buildManageUserAuditActor(params.scope),
+      target: buildTargetUserAudit(detail),
+      branchId: nextBranchIds[0] ?? currentBranchId,
+      branchScope: effectiveBranchScope,
+      description: `Updated account details for ${detail.fullName}.`,
+      requestContext,
+      metadata: {
+        accountCategory: detail.accountCategory,
+        old_values: {
+          firstName: detail.firstName,
+          middleName: detail.middleName,
+          lastName: detail.lastName,
+          email: detail.email,
+          contactNo: detail.contactNo,
+        },
+        new_values: {
+          firstName: params.firstName,
+          middleName: params.middleName,
+          lastName: params.lastName,
+          email: nextEmail,
+          contactNo: nextContactNo,
+        },
+      },
+    });
+  }
+
+  if (roleChanged) {
+    auditEvents.push({
+      action: "user.role_changed" as const,
+      entityType: "user" as const,
+      entityId: detail.userId,
+      actor: buildManageUserAuditActor(params.scope),
+      target: buildTargetUserAudit(detail),
+      branchId: nextBranchIds[0] ?? currentBranchId,
+      branchScope: effectiveBranchScope,
+      description: `Changed ${detail.fullName}'s role from ${detail.roleName} to ${nextRoleName}.`,
+      requestContext,
+      metadata: {
+        old_values: { roleId: detail.roleId, roleName: detail.roleName },
+        new_values: { roleId: nextRoleId, roleName: nextRoleName },
+      },
+    });
+
+    if (roleRankOrder.indexOf(nextRoleName) >= 0 && roleRankOrder.indexOf(detail.roleName) >= 0) {
+      if (roleRankOrder.indexOf(nextRoleName) < roleRankOrder.indexOf(detail.roleName)) {
+        auditEvents.push({
+          action: "user.promoted" as const,
+          entityType: "user" as const,
+          entityId: detail.userId,
+          actor: buildManageUserAuditActor(params.scope),
+          target: buildTargetUserAudit(detail),
+          branchId: nextBranchIds[0] ?? currentBranchId,
+          branchScope: effectiveBranchScope,
+          description: `Promoted ${detail.fullName} from ${detail.roleName} to ${nextRoleName}.`,
+          requestContext,
+          metadata: {
+            old_values: { roleName: detail.roleName },
+            new_values: { roleName: nextRoleName },
+          },
+        });
+      }
+    }
+  }
+
+  for (const branchId of endedBranchIds) {
+    auditEvents.push({
+      action: "assignment.branch_ended" as const,
+      entityType: "assignment" as const,
+      entityId: detail.userId,
+      actor: buildManageUserAuditActor(params.scope),
+      target: buildTargetUserAudit(detail),
+      branchId,
+      branchScope: effectiveBranchScope,
+      description: `Ended branch assignment for ${detail.fullName}.`,
+      requestContext,
+      metadata: {
+        old_values: { branchId },
+      },
+    });
+  }
+
+  for (const branchId of startedBranchIds) {
+    auditEvents.push({
+      action: "assignment.branch_started" as const,
+      entityType: "assignment" as const,
+      entityId: detail.userId,
+      actor: buildManageUserAuditActor(params.scope),
+      target: buildTargetUserAudit(detail),
+      branchId,
+      branchScope: effectiveBranchScope,
+      description: `Started branch assignment for ${detail.fullName}.`,
+      requestContext,
+      metadata: {
+        new_values: { branchId },
+      },
+    });
+  }
+
+  if (areaEnded) {
+    auditEvents.push({
+      action: "assignment.area_ended" as const,
+      entityType: "assignment" as const,
+      entityId: detail.userId,
+      actor: buildManageUserAuditActor(params.scope),
+      target: buildTargetUserAudit(detail),
+      branchId: currentBranchId,
+      branchScope: effectiveBranchScope,
+      description: `Ended area assignment for ${detail.fullName}.`,
+      requestContext,
+      metadata: {
+        old_values: { areaId: currentAreaId, areaCode: detail.currentAreaCode },
+      },
+    });
+  }
+
+  if (areaStarted) {
+    auditEvents.push({
+      action: "assignment.area_started" as const,
+      entityType: "assignment" as const,
+      entityId: detail.userId,
+      actor: buildManageUserAuditActor(params.scope),
+      target: buildTargetUserAudit(detail),
+      branchId: validatedBranchId,
+      branchScope: effectiveBranchScope,
+      description: `Started area assignment for ${detail.fullName}.`,
+      requestContext,
+      metadata: {
+        new_values: { areaId: validatedAreaId, areaCode: validatedAreaCode },
+      },
+    });
+  }
+
+  if (reassigned) {
+    auditEvents.push({
+      action: "user.reassigned" as const,
+      entityType: "user" as const,
+      entityId: detail.userId,
+      actor: buildManageUserAuditActor(params.scope),
+      target: buildTargetUserAudit(detail),
+      branchId: nextBranchIds[0] ?? validatedBranchId ?? currentBranchId,
+      branchScope: effectiveBranchScope,
+      description: `Reassigned ${detail.fullName}.`,
+      requestContext,
+      metadata: {
+        old_values: {
+          branchIds: previousBranchIds,
+          areaId: currentAreaId,
+          areaCode: detail.currentAreaCode,
+        },
+        new_values: {
+          branchIds: nextBranchIds,
+          areaId: validatedAreaId,
+          areaCode: validatedAreaCode,
+        },
+      },
+    });
+  }
+
+  if (auditEvents.length > 0) {
+    await logAuditEvents(auditEvents);
+  }
+
   return { ok: true as const };
 }
 
@@ -2220,6 +2527,7 @@ export async function updateManagedUserStatus(params: {
   branchIds?: number[];
   areaId?: number | null;
 }): Promise<ManagedUserMutationResult> {
+  const requestContext = await getAuditRequestContext();
   const detail = await loadManagedUserDetail(params.scope, params.userId);
 
   if (!detail) {
@@ -2534,6 +2842,149 @@ export async function updateManagedUserStatus(params: {
     return { ok: false as const, message };
   }
 
+  const auditNextRoleName =
+    (params.nextStatus === "active" &&
+      (detail.editableRoleOptions.find((item) => item.roleId === (params.roleId ?? detail.roleId))?.roleName ??
+        detail.roleName)) ||
+    detail.roleName;
+  const reactivatedBranchIds =
+    auditNextRoleName === "Auditor"
+      ? Array.from(new Set((params.branchIds ?? []).filter((value): value is number => Number.isFinite(value))))
+      : params.branchId
+        ? [params.branchId]
+        : detail.currentBranchAssignments.map((item) => item.branchId);
+  const roleRankOrder = ["Admin", "Auditor", "Branch Manager", "Secretary", "Collector", "Borrower"];
+  const auditEvents = [];
+
+  auditEvents.push({
+    action: (params.nextStatus === "inactive" ? "user.deactivated" : "user.reactivated") as
+      | "user.deactivated"
+      | "user.reactivated",
+    entityType: "user" as const,
+    entityId: detail.userId,
+    actor: buildManageUserAuditActor(params.scope),
+    target: buildTargetUserAudit(detail),
+    branchId: reactivatedBranchIds[0] ?? detail.currentBranchId,
+    branchScope: Array.from(new Set([...detail.currentBranchAssignments.map((item) => item.branchId), ...reactivatedBranchIds])),
+    description:
+      params.nextStatus === "inactive"
+        ? `Deactivated ${detail.fullName}.`
+        : `Reactivated ${detail.fullName}.`,
+    requestContext,
+    metadata: {
+      old_values: { status: detail.status, roleName: detail.roleName },
+      new_values: { status: params.nextStatus, roleName: auditNextRoleName },
+    },
+  });
+
+  if (params.nextStatus === "inactive") {
+    for (const branchAssignment of detail.currentBranchAssignments) {
+      auditEvents.push({
+        action: "assignment.branch_ended" as const,
+        entityType: "assignment" as const,
+        entityId: detail.userId,
+        actor: buildManageUserAuditActor(params.scope),
+        target: buildTargetUserAudit(detail),
+        branchId: branchAssignment.branchId,
+        branchScope: detail.currentBranchAssignments.map((item) => item.branchId),
+        description: `Ended branch assignment for ${detail.fullName} during deactivation.`,
+        requestContext,
+        metadata: {
+          old_values: { branchId: branchAssignment.branchId, branchName: branchAssignment.branchName },
+        },
+      });
+    }
+
+    if (detail.currentAreaId) {
+      auditEvents.push({
+        action: "assignment.area_ended" as const,
+        entityType: "assignment" as const,
+        entityId: detail.userId,
+        actor: buildManageUserAuditActor(params.scope),
+        target: buildTargetUserAudit(detail),
+        branchId: detail.currentBranchId,
+        branchScope: detail.currentBranchAssignments.map((item) => item.branchId),
+        description: `Ended area assignment for ${detail.fullName} during deactivation.`,
+        requestContext,
+        metadata: {
+          old_values: { areaId: detail.currentAreaId, areaCode: detail.currentAreaCode },
+        },
+      });
+    }
+  } else {
+    if (auditNextRoleName !== detail.roleName) {
+      auditEvents.push({
+        action: "user.role_changed" as const,
+        entityType: "user" as const,
+        entityId: detail.userId,
+        actor: buildManageUserAuditActor(params.scope),
+        target: buildTargetUserAudit(detail),
+        branchId: reactivatedBranchIds[0] ?? detail.currentBranchId,
+        branchScope: reactivatedBranchIds,
+        description: `Changed ${detail.fullName}'s role from ${detail.roleName} to ${auditNextRoleName} during reactivation.`,
+        requestContext,
+        metadata: {
+          old_values: { roleId: detail.roleId, roleName: detail.roleName },
+          new_values: { roleId: params.roleId ?? detail.roleId, roleName: auditNextRoleName },
+        },
+      });
+
+      if (roleRankOrder.indexOf(auditNextRoleName) < roleRankOrder.indexOf(detail.roleName)) {
+        auditEvents.push({
+          action: "user.promoted" as const,
+          entityType: "user" as const,
+          entityId: detail.userId,
+          actor: buildManageUserAuditActor(params.scope),
+          target: buildTargetUserAudit(detail),
+          branchId: reactivatedBranchIds[0] ?? detail.currentBranchId,
+          branchScope: reactivatedBranchIds,
+          description: `Promoted ${detail.fullName} from ${detail.roleName} to ${auditNextRoleName} during reactivation.`,
+          requestContext,
+          metadata: {
+            old_values: { roleName: detail.roleName },
+            new_values: { roleName: auditNextRoleName },
+          },
+        });
+      }
+    }
+
+    for (const branchId of reactivatedBranchIds) {
+      auditEvents.push({
+        action: "assignment.branch_started" as const,
+        entityType: "assignment" as const,
+        entityId: detail.userId,
+        actor: buildManageUserAuditActor(params.scope),
+        target: buildTargetUserAudit(detail),
+        branchId,
+        branchScope: reactivatedBranchIds,
+        description: `Started branch assignment for ${detail.fullName} during reactivation.`,
+        requestContext,
+        metadata: {
+          new_values: { branchId },
+        },
+      });
+    }
+
+    if (params.areaId) {
+      auditEvents.push({
+        action: "assignment.area_started" as const,
+        entityType: "assignment" as const,
+        entityId: detail.userId,
+        actor: buildManageUserAuditActor(params.scope),
+        target: buildTargetUserAudit(detail),
+        branchId: params.branchId ?? detail.currentBranchId,
+        branchScope: reactivatedBranchIds,
+        description: `Started area assignment for ${detail.fullName} during reactivation.`,
+        requestContext,
+        metadata: {
+          new_values: { areaId: params.areaId },
+        },
+      });
+    }
+  }
+
+  await logAuditEvents(auditEvents);
+
   return { ok: true as const };
 }
 
@@ -2541,6 +2992,7 @@ export async function deleteManagedUserAccount(
   scope: ManageUserAccountsScope,
   userId: string,
 ): Promise<ManagedUserMutationResult> {
+  const requestContext = await getAuditRequestContext();
   const detail = await loadManagedUserDetail(scope, userId);
 
   if (!detail) {
@@ -2601,6 +3053,31 @@ export async function deleteManagedUserAccount(
   await db.delete(employee_info).where(eq(employee_info.user_id, userId));
   await db.delete(users).where(eq(users.user_id, userId));
   await deleteAuthUserSafely(userId);
+
+  await logAuditEvent({
+    action: "user.deleted",
+    entityType: "user",
+    entityId: detail.userId,
+    actor: buildManageUserAuditActor(scope),
+    target: buildTargetUserAudit(detail),
+    branchId: detail.currentBranchId,
+    branchScope: detail.currentBranchAssignments.map((item) => item.branchId),
+    description: `Deleted ${detail.fullName}.`,
+    requestContext,
+    metadata: {
+      accountCategory: detail.accountCategory,
+      roleName: detail.roleName,
+      companyId: detail.companyId,
+      status: detail.status,
+      currentBranchAssignments: detail.currentBranchAssignments.map((item) => ({
+        branchId: item.branchId,
+        branchCode: item.branchCode ?? null,
+        branchName: item.branchName,
+      })),
+      currentAreaId: detail.currentAreaId,
+      currentAreaCode: detail.currentAreaCode,
+    },
+  });
 
   return { ok: true as const };
 }

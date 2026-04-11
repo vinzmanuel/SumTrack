@@ -12,6 +12,8 @@ import type { ParsedCreateAccountInput, ResolvedCreateAccountScope, SelectedRole
 import { persistCreateAccountRecords } from "@/app/dashboard/create-account/action-persistence";
 import { createErrorState, parseCreateAccountForm, validateCreateAccountInput } from "@/app/dashboard/create-account/action-validation";
 import { isValidPhilippineMobile } from "@/app/dashboard/account-field-validation";
+import { getAuditRequestContext } from "@/lib/audit/request-context";
+import { logAuditEvents } from "@/lib/audit/logger";
 
 async function resolveCompanyId(
   input: ParsedCreateAccountInput,
@@ -117,6 +119,106 @@ export async function createAccountAction(
     await deleteAuthUserSafely(authProvision.data.userId);
     return createErrorState(persistence.message);
   }
+
+  const requestContext = await getAuditRequestContext();
+  const fullName = [input.firstName, input.middleName, input.lastName].filter(Boolean).join(" ");
+  const branchScope =
+    resolvedScope.data.selectedBranches.length > 0
+      ? resolvedScope.data.selectedBranches.map((item) => item.branch_id)
+      : resolvedScope.data.selectedSingleBranch
+        ? [resolvedScope.data.selectedSingleBranch.branch_id]
+        : resolvedScope.data.selectedArea
+          ? [resolvedScope.data.selectedArea.branch_id]
+          : [];
+
+  await logAuditEvents([
+    {
+      action: "user.created",
+      entityType: "user",
+      entityId: authProvision.data.userId,
+      actor: {
+        type: "user",
+        userId: creatorAccess.data.userId,
+        companyId: creatorAccess.data.companyId,
+        displayName: creatorAccess.data.displayName,
+        roleName: creatorAccess.data.roleName,
+      },
+      target: {
+        userId: authProvision.data.userId,
+        companyId,
+        displayName: fullName,
+      },
+      branchId: resolvedScope.data.selectedSingleBranch?.branch_id ?? resolvedScope.data.selectedArea?.branch_id ?? null,
+      branchScope,
+      description: `Created ${selectedRole.data.roleName} account for ${fullName}.`,
+      requestContext,
+      metadata: {
+        accountCategory: input.accountCategory,
+        roleName: selectedRole.data.roleName,
+        branchIds: branchScope,
+        areaId: resolvedScope.data.selectedArea?.area_id ?? null,
+        areaCode: resolvedScope.data.selectedArea?.area_code ?? null,
+      },
+    },
+    ...(resolvedScope.data.selectedBranches.length > 0
+      ? resolvedScope.data.selectedBranches.map((item) => ({
+          action: "assignment.branch_started" as const,
+          entityType: "assignment" as const,
+          entityId: authProvision.data.userId,
+          actor: {
+            type: "user" as const,
+            userId: creatorAccess.data.userId,
+            companyId: creatorAccess.data.companyId,
+            displayName: creatorAccess.data.displayName,
+            roleName: creatorAccess.data.roleName,
+          },
+          target: {
+            userId: authProvision.data.userId,
+            companyId,
+            displayName: fullName,
+          },
+          branchId: item.branch_id,
+          branchScope,
+          description: `Started branch assignment for ${fullName} in ${item.branch_name}.`,
+          requestContext,
+          metadata: {
+            branchId: item.branch_id,
+            branchName: item.branch_name,
+            roleName: selectedRole.data.roleName,
+          },
+        }))
+      : []),
+    ...(resolvedScope.data.selectedArea
+      ? [
+          {
+            action: "assignment.area_started" as const,
+            entityType: "assignment" as const,
+            entityId: authProvision.data.userId,
+            actor: {
+              type: "user" as const,
+              userId: creatorAccess.data.userId,
+              companyId: creatorAccess.data.companyId,
+              displayName: creatorAccess.data.displayName,
+              roleName: creatorAccess.data.roleName,
+            },
+            target: {
+              userId: authProvision.data.userId,
+              companyId,
+              displayName: fullName,
+            },
+            branchId: resolvedScope.data.selectedArea.branch_id,
+            branchScope,
+            description: `Started area assignment for ${fullName} in ${resolvedScope.data.selectedArea.area_code}.`,
+            requestContext,
+            metadata: {
+              areaId: resolvedScope.data.selectedArea.area_id,
+              areaCode: resolvedScope.data.selectedArea.area_code,
+              branchId: resolvedScope.data.selectedArea.branch_id,
+            },
+          },
+        ]
+      : []),
+  ]);
 
   return buildSuccessState({
     input,

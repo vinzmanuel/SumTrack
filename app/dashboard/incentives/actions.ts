@@ -13,6 +13,8 @@ import {
 import type { FinalizeIncentiveState } from "@/app/dashboard/incentives/state";
 import { db } from "@/db";
 import { branch, incentive_payout_batches, incentive_payout_history } from "@/db/schema";
+import { getAuditRequestContext } from "@/lib/audit/request-context";
+import { buildAuditActorFromAuth, logAuditEvents } from "@/lib/audit/logger";
 
 function readTrimmed(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
@@ -26,6 +28,7 @@ export async function finalizeIncentivePayoutAction(
   _prevState: FinalizeIncentiveState,
   formData: FormData,
 ): Promise<FinalizeIncentiveState> {
+  const requestContext = await getAuditRequestContext();
   const selectedMonth = readTrimmed(formData, "month");
   const requestedBranchRaw = readTrimmed(formData, "branch_id");
 
@@ -146,6 +149,7 @@ export async function finalizeIncentivePayoutAction(
     };
   }
 
+  let createdBatchId: number | null = null;
   try {
     await db.transaction(async (tx) => {
       const insertedBatch = await tx
@@ -163,6 +167,7 @@ export async function finalizeIncentivePayoutAction(
       if (!insertedBatch) {
         throw new Error("Failed to create payout batch.");
       }
+      createdBatchId = insertedBatch.batch_id;
 
       if (allRows.length === 0) {
         return;
@@ -199,6 +204,58 @@ export async function finalizeIncentivePayoutAction(
   }
 
   revalidatePath("/dashboard/incentives");
+
+  if (createdBatchId !== null) {
+    await logAuditEvents([
+      {
+        action: "incentive.batch_finalized",
+        entityType: "incentive",
+        entityId: createdBatchId,
+        actor: buildAuditActorFromAuth(auth),
+        branchId,
+        branchScope: [branchId],
+        description: `Finalized incentive batch for ${branchName} (${payPeriod.label}).`,
+        requestContext,
+        metadata: {
+          incentiveKind: "batch",
+          batchId: createdBatchId,
+          branchId,
+          branchName,
+          periodLabel: payPeriod.label,
+          periodStart: payPeriod.periodStart,
+          periodEnd: payPeriod.periodEnd,
+          payoutRecordCount: allRows.length,
+        },
+      },
+      ...allRows.map((row) => ({
+        action: "incentive.payout_recorded" as const,
+        entityType: "incentive" as const,
+        entityId: `${createdBatchId}:${row.userId}`,
+        actor: buildAuditActorFromAuth(auth),
+        branchId,
+        branchScope: [branchId],
+        description: `Recorded finalized incentive payout for ${row.employeeName}.`,
+        requestContext,
+        target: {
+          userId: row.userId,
+          displayName: row.employeeName,
+        },
+        metadata: {
+          incentiveKind: "payout",
+          batchId: createdBatchId,
+          employeeUserId: row.userId,
+          employeeName: row.employeeName,
+          roleId: row.roleId,
+          roleName: row.roleName,
+          baseAmount: row.baseAmount,
+          percentValue: row.percentValue ?? 0,
+          flatAmount: row.flatAmount ?? 0,
+          computedIncentive: row.computedIncentive ?? 0,
+          periodLabel: payPeriod.label,
+        },
+      })),
+    ]);
+  }
   return {
     status: "success",
     message: "Payout finalized and saved to payout history.",

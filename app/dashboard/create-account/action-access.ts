@@ -102,6 +102,8 @@ export async function resolveCreateAccountCreatorAccess(): Promise<CreateAccount
     ok: true,
     data: {
       userId: auth.userId,
+      companyId: auth.companyId,
+      displayName: auth.displayName,
       roleName: auth.roleName as CreatorAccess["roleName"],
       isAdmin,
       isBranchManager,

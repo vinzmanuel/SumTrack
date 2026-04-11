@@ -10,10 +10,10 @@ import {
   Building2,
   CircleUserRound,
   EllipsisVertical,
-  FileText,
   HandCoins,
   LayoutDashboard,
   LogOut,
+  Logs,
   Menu,
   PanelRightClose,
   PanelRightOpen,
@@ -70,7 +70,7 @@ type NavItem = {
     | "receipt-text"
     | "banknote-arrow-down"
     | "wallet"
-    | "file-text"
+    | "logs"
     | "user-plus"
     | "user-round"
     | "settings";
@@ -307,6 +307,47 @@ function buildRouteAwareBreadcrumbs(params: {
   });
 }
 
+function buildDefaultDashboardHeaderConfig(
+  pathname: string,
+  roleName: string,
+): DashboardHeaderConfig | null {
+  if (pathname === "/dashboard/audit-log") {
+    return {
+      action: null,
+      description: "Review security and operational event logs that happen across the system based on your scope",
+      icon: <Logs className="size-9 text-sidebar-foreground/65" />,
+      title: "Audit Log",
+    };
+  }
+
+  if (pathname === "/dashboard/manage-user-accounts") {
+    return {
+      action: null,
+      description: "Review, filter, and manage user accounts within your current scope.",
+      icon: <UserCog className="size-9 text-sidebar-foreground/65" />,
+      title: "Manage User Accounts",
+    };
+  }
+
+  if (pathname === "/dashboard/create-account") {
+    const description =
+      roleName === "Admin"
+        ? "Provision employee and borrower accounts with role-aware branch and area assignments."
+        : roleName === "Branch Manager"
+          ? "Create secretary, collector, and borrower accounts within your assigned branch."
+          : "Create borrower accounts within your assigned branch.";
+
+    return {
+      action: null,
+      description,
+      icon: <UserPlus className="size-9 text-sidebar-foreground/65" />,
+      title: "Create User",
+    };
+  }
+
+  return null;
+}
+
 function SidebarIcon({
   icon,
   className,
@@ -325,7 +366,7 @@ function SidebarIcon({
     return <BanknoteArrowDown className={cn("size-4 shrink-0", className)} />;
   }
   if (icon === "wallet") return <Wallet className={cn("size-4 shrink-0", className)} />;
-  if (icon === "file-text") return <FileText className={cn("size-4 shrink-0", className)} />;
+  if (icon === "logs") return <Logs className={cn("size-4 shrink-0", className)} />;
   if (icon === "user-plus") return <UserPlus className={cn("size-4 shrink-0", className)} />;
   if (icon === "user-round") return <CircleUserRound className={cn("size-4 shrink-0", className)} />;
   return <Settings className={cn("size-4 shrink-0", className)} />;
@@ -701,6 +742,10 @@ export function DashboardShell({
   }, []);
 
   const currentPageLabel = useMemo(() => {
+    if (pathname === "/dashboard/create-account") {
+      return "Create User";
+    }
+
     if (/^\/dashboard\/collectors\/[^/]+$/.test(pathname)) {
       return "Collector Details";
     }
@@ -727,7 +772,12 @@ export function DashboardShell({
 
     return normalizedItems.find((item) => isActiveNav(pathname, item.href))?.label ?? "Overview";
   }, [normalizedItems, pathname]);
-  const resolvedBreadcrumbCurrentLabel = headerConfig?.title ?? currentPageLabel;
+  const defaultHeaderConfig = useMemo(
+    () => buildDefaultDashboardHeaderConfig(pathname, roleName),
+    [pathname, roleName],
+  );
+  const resolvedHeaderConfig = headerConfig ?? defaultHeaderConfig;
+  const resolvedBreadcrumbCurrentLabel = resolvedHeaderConfig?.title ?? currentPageLabel;
   const breadcrumbItems = useMemo(
     () => {
       const activeSearchParams = new URLSearchParams(searchParams.toString());
@@ -797,7 +847,7 @@ export function DashboardShell({
 
         <main className="min-h-0 min-w-0 flex-1 bg-[var(--app-background)] md:h-screen md:overflow-y-auto">
           <DashboardHeaderConfigProvider setConfig={setHeaderConfig}>
-            <DashboardPageHeader config={headerConfig} title={currentPageLabel} />
+            <DashboardPageHeader config={resolvedHeaderConfig} title={currentPageLabel} />
             <div className="px-3 pb-4 pt-4 md:p-4">
               <div className="w-full">
                 {shouldShowBreadcrumb ? (

@@ -108,6 +108,8 @@ import {
   employee_area_assignment,
 } from "@/db/schema";
 import type { CollectorsAccessState } from "@/app/dashboard/collectors/types";
+import { buildAuditActorFromAuth, buildSystemAuditActor, logAuditEvent } from "@/lib/audit/logger";
+import type { AuditRequestContext } from "@/lib/audit/request-context";
 
 const borrowerUsers = alias(users, "reports_borrower_users");
 const collectorUsers = alias(users, "reports_collector_users");
@@ -135,6 +137,7 @@ type GenerateAnalyticsReportOptions = {
   generatedType?: "user" | "system";
   generatedByUserId?: string;
   additionalFilters?: Record<string, unknown>;
+  requestContext?: AuditRequestContext;
 };
 
 function toNumber(value: unknown) {
@@ -5158,6 +5161,67 @@ async function generateAnalyticsReportInternal(
     };
   }
 
+  const reportAction =
+    options.generatedType === "system" ? "report.generated_system_monthly" : "report.generated";
+
+  await logAuditEvent({
+    action: reportAction,
+    entityType: "report",
+    entityId: reportRow.reportId,
+    actor:
+      options.generatedType === "system"
+        ? buildSystemAuditActor({
+            userId: options.generatedByUserId ?? access.userId,
+          })
+        : buildAuditActorFromAuth(access),
+    branchId: normalizedBranchIds[0] ?? null,
+    branchScope: normalizedBranchIds,
+    description:
+      options.generatedType === "system"
+        ? `Generated system monthly ${template.label}.`
+        : `Generated ${template.label}.`,
+    requestContext: options.requestContext,
+    metadata: {
+      templateKey: template.key,
+      templateLabel: template.label,
+      generatedType: options.generatedType ?? "user",
+      reportCategory: "analytics",
+      reportId: reportRow.reportId,
+      branchScope: normalizedBranchIds,
+      dateFrom,
+      dateTo,
+      month: input.month,
+      collectorId: input.collectorId,
+      ...(options.additionalFilters ?? {}),
+    },
+  });
+
+  if (template.key === "incentive_payout_history") {
+    await logAuditEvent({
+      action: "incentive.report_generated",
+      entityType: "report",
+      entityId: reportRow.reportId,
+      actor:
+        options.generatedType === "system"
+          ? buildSystemAuditActor({
+              userId: options.generatedByUserId ?? access.userId,
+            })
+          : buildAuditActorFromAuth(access),
+      branchId: normalizedBranchIds[0] ?? null,
+      branchScope: normalizedBranchIds,
+      description: "Generated Incentive Payout History report.",
+      requestContext: options.requestContext,
+      metadata: {
+        reportId: reportRow.reportId,
+        templateKey: template.key,
+        month: input.month,
+        dateFrom,
+        dateTo,
+        branchScope: normalizedBranchIds,
+      },
+    });
+  }
+
   return {
     ok: true as const,
     reportId: reportRow.reportId,
@@ -5174,8 +5238,9 @@ async function generateAnalyticsReportInternal(
 export async function generateAnalyticsReport(
   access: ReportsReadyAccessState,
   input: GenerateAnalyticsReportInput,
+  options?: GenerateAnalyticsReportOptions,
 ) {
-  return generateAnalyticsReportInternal(access, input);
+  return generateAnalyticsReportInternal(access, input, options);
 }
 
 async function generatePreviousMonthSystemReportsCore(): Promise<ReportsSystemMonthlyGenerationResult> {
@@ -5761,6 +5826,7 @@ async function loadCollectionDocumentSource(
 export async function generateOperationalDocument(
   access: ReportsReadyAccessState,
   input: GenerateOperationalDocumentInput,
+  options?: { requestContext?: AuditRequestContext },
 ) {
   if (!access.canAccessOperationalDocuments) {
     return {
@@ -5934,6 +6000,26 @@ export async function generateOperationalDocument(
       message: "Unable to save the generated document right now.",
     };
   }
+
+  await logAuditEvent({
+    action: "report.generated",
+    entityType: "report",
+    entityId: reportRow.reportId,
+    actor: buildAuditActorFromAuth(access),
+    branchId: branchScope[0] ?? null,
+    branchScope,
+    description: `Generated ${template.label}.`,
+    requestContext: options?.requestContext,
+    metadata: {
+      templateKey: template.key,
+      templateLabel: template.label,
+      reportCategory: "document",
+      reportId: reportRow.reportId,
+      sourceEntityType,
+      sourceEntityId,
+      branchScope,
+    },
+  });
 
   return {
     ok: true as const,

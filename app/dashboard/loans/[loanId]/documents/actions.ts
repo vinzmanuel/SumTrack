@@ -11,6 +11,8 @@ import {
   isAllowedDocMimeType,
 } from "@/app/dashboard/documents/config";
 import { checkLoanDocAccess } from "@/app/dashboard/documents/access";
+import { getAuditRequestContext } from "@/lib/audit/request-context";
+import { logAuditEvent } from "@/lib/audit/logger";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 type ActionResult = {
@@ -31,6 +33,7 @@ function isLoanDocType(value: string): value is (typeof LOAN_DOCUMENT_TYPES)[num
 }
 
 export async function uploadLoanDocAction(formData: FormData): Promise<ActionResult> {
+  const requestContext = await getAuditRequestContext();
   const loanId = parsePositiveInt(String(formData.get("loan_id") ?? "").trim());
   const documentType = String(formData.get("document_type") ?? "").trim();
   const fileValue = formData.get("file");
@@ -111,6 +114,25 @@ export async function uploadLoanDocAction(formData: FormData): Promise<ActionRes
 
     const removeOld = await bucket.remove([existingDoc.file_path]);
     if (removeOld.error) {
+      await logAuditEvent({
+        action: "document.replaced",
+        entityType: "document",
+        entityId: updatedDoc.loan_doc_id,
+        actor: {
+          type: "user",
+          userId: access.userId,
+          roleName: access.roleName,
+        },
+        description: `Replaced ${documentType} loan document for loan ${loanId}.`,
+        requestContext,
+        metadata: {
+          subjectType: "loan",
+          subjectId: loanId,
+          documentType,
+          replacementWarning: removeOld.error.message,
+          originalFilename: fileValue.name || "unnamed",
+        },
+      });
       return {
         status: "success",
         message: "Document replaced, but old file cleanup failed.",
@@ -118,6 +140,24 @@ export async function uploadLoanDocAction(formData: FormData): Promise<ActionRes
       };
     }
 
+    await logAuditEvent({
+      action: "document.replaced",
+      entityType: "document",
+      entityId: updatedDoc.loan_doc_id,
+      actor: {
+        type: "user",
+        userId: access.userId,
+        roleName: access.roleName,
+      },
+      description: `Replaced ${documentType} loan document for loan ${loanId}.`,
+      requestContext,
+      metadata: {
+        subjectType: "loan",
+        subjectId: loanId,
+        documentType,
+        originalFilename: fileValue.name || "unnamed",
+      },
+    });
     return { status: "success", message: "Loan document replaced." };
   }
 
@@ -141,10 +181,30 @@ export async function uploadLoanDocAction(formData: FormData): Promise<ActionRes
     return { status: "error", message: "File uploaded but DB insert failed." };
   }
 
+  await logAuditEvent({
+    action: "document.uploaded",
+    entityType: "document",
+    entityId: insertedDoc.loan_doc_id,
+    actor: {
+      type: "user",
+      userId: access.userId,
+      roleName: access.roleName,
+    },
+    description: `Uploaded ${documentType} loan document for loan ${loanId}.`,
+    requestContext,
+    metadata: {
+      subjectType: "loan",
+      subjectId: loanId,
+      documentType,
+      originalFilename: fileValue.name || "unnamed",
+    },
+  });
+
   return { status: "success", message: "Loan document uploaded." };
 }
 
 export async function deleteLoanDocAction(formData: FormData): Promise<ActionResult> {
+  const requestContext = await getAuditRequestContext();
   const loanId = parsePositiveInt(String(formData.get("loan_id") ?? "").trim());
   const loanDocId = parsePositiveInt(String(formData.get("loan_doc_id") ?? "").trim());
 
@@ -195,6 +255,24 @@ export async function deleteLoanDocAction(formData: FormData): Promise<ActionRes
   if (!deleted) {
     return { status: "error", message: "Storage file removed but DB delete failed." };
   }
+
+  await logAuditEvent({
+    action: "document.deleted",
+    entityType: "document",
+    entityId: deleted.loan_doc_id,
+    actor: {
+      type: "user",
+      userId: access.userId,
+      roleName: access.roleName,
+    },
+    description: `Deleted loan document ${loanDocId} for loan ${loanId}.`,
+    requestContext,
+    metadata: {
+      subjectType: "loan",
+      subjectId: loanId,
+      documentId: loanDocId,
+    },
+  });
 
   return { status: "success", message: "Loan document deleted." };
 }

@@ -9,6 +9,8 @@ import {
 import { db } from "@/db";
 import { branch, incentive_rules, roles } from "@/db/schema";
 import type { IncentiveRuleFormState } from "@/app/dashboard/incentives/rules/state";
+import { getAuditRequestContext } from "@/lib/audit/request-context";
+import { buildAuditActorFromAuth, logAuditEvent } from "@/lib/audit/logger";
 import {
   getCurrentPayPeriod,
   getNextPayPeriod,
@@ -51,6 +53,7 @@ export async function upsertIncentiveRuleAction(
   _prevState: IncentiveRuleFormState,
   formData: FormData,
 ): Promise<IncentiveRuleFormState> {
+  const requestContext = await getAuditRequestContext();
   const branchIdRaw = getTrimmed(formData, "branch_id");
   const roleIdRaw = getTrimmed(formData, "role_id");
   const percentValueRaw = getTrimmed(formData, "percent_value");
@@ -315,6 +318,33 @@ export async function upsertIncentiveRuleAction(
   }
 
   revalidatePath("/dashboard/incentives/rules");
+
+  await logAuditEvent({
+    action: "incentive.rule_created",
+    entityType: "incentive",
+    entityId: `${branchRow.branch_id}:${resolvedRole.role_id}:${effectiveStart}`,
+    actor: buildAuditActorFromAuth(auth),
+    branchId: branchRow.branch_id,
+    branchScope: [branchRow.branch_id],
+    description: `${mode === "created" ? "Created" : "Updated"} ${resolvedRole.role_name} incentive rule for ${branchRow.branch_name}.`,
+    requestContext,
+    metadata: {
+      incentiveKind: "rule",
+      mode,
+      branchId: branchRow.branch_id,
+      branchName: branchRow.branch_name,
+      roleId: resolvedRole.role_id,
+      roleName: resolvedRole.role_name,
+      ruleDetails: {
+        percentValue: percentValue!,
+        flatAmount: flatAmount!,
+        effectiveStart,
+        effectiveEnd,
+        appliesTo,
+        periodLabel,
+      },
+    },
+  });
 
   return {
     status: "success",

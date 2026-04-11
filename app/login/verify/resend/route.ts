@@ -3,6 +3,7 @@ import { getAppSessionAccessState } from "@/app/dashboard/auth";
 import { getAdminTwoFactorPendingChallenge } from "@/lib/auth/admin-two-factor";
 import { resolveAdminOtpChannelAvailability } from "@/lib/auth/admin-otp-channels";
 import { startAdminVerificationChallenge } from "@/app/login/verify/helpers";
+import { getAuditRequestContextFromRequest } from "@/lib/audit/request-context";
 
 function buildRedirect(request: Request, path: string) {
   return NextResponse.redirect(new URL(path, request.url));
@@ -39,7 +40,7 @@ export async function POST(request: Request) {
       return buildRedirect(request, "/login/verify?error=Choose%20where%20to%20send%20the%20code%20first.");
     }
 
-    const result = await startAdminVerificationChallenge(channel);
+    const result = await startAdminVerificationChallenge(channel, getAuditRequestContextFromRequest(request));
     if (result.needsChoice) {
       return buildRedirect(request, "/login/verify?choose=1");
     }

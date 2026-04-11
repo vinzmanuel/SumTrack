@@ -19,6 +19,8 @@ import {
 } from "@/app/dashboard/loans/loan-schedule";
 import { LIVE_STORED_LOAN_STATUSES } from "@/app/dashboard/loans/loan-state";
 import type { CreateLoanState } from "@/app/dashboard/create-loan/state";
+import { getAuditRequestContext } from "@/lib/audit/request-context";
+import { logAuditEvent } from "@/lib/audit/logger";
 
 type FormFields = {
   borrower_id: string;
@@ -91,6 +93,7 @@ export async function createLoanAction(
   _prevState: CreateLoanState,
   formData: FormData,
 ): Promise<CreateLoanState> {
+  const requestContext = await getAuditRequestContext();
   const borrowerId = getTrimmed(formData, "borrower_id");
   const branchId = getTrimmed(formData, "branch_id");
   const areaId = getTrimmed(formData, "area_id");
@@ -461,6 +464,37 @@ export async function createLoanAction(
       message: "Failed to create loan: Unknown error.",
     };
   }
+
+  await logAuditEvent({
+    action: "loan.created",
+    entityType: "loan",
+    entityId: insertedLoan.loan_code,
+    actor: {
+      type: "user",
+      userId: access.userId,
+      roleName: access.roleName,
+    },
+    branchId: borrowerInfo.borrower_branch_id,
+    branchScope: [borrowerInfo.borrower_branch_id],
+    description: `Created loan ${insertedLoan.loan_code} for ${borrowerName}.`,
+    requestContext,
+    metadata: {
+      loanCode: insertedLoan.loan_code,
+      borrowerId: borrowerInfo.user_id,
+      borrowerCompanyId: borrowerInfo.company_id,
+      borrowerName,
+      collectorId: collectorUser.user_id,
+      collectorName,
+      branchId: borrowerInfo.borrower_branch_id,
+      areaId: borrowerInfo.borrower_area_id,
+      principal: principal!,
+      interest: interest!,
+      startDate,
+      dueDate,
+      termDays,
+      status: NEW_LOAN_STATUS,
+    },
+  });
 
   return {
     status: "success",

@@ -5,6 +5,8 @@ import type { DashboardAuthContext } from "@/app/dashboard/auth";
 import { db } from "@/db";
 import { collections, loan_docs, loan_records } from "@/db/schema";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { buildAuditActorFromAuth, logAuditEvent } from "@/lib/audit/logger";
+import { getAuditRequestContext } from "@/lib/audit/request-context";
 import {
   buildLoanComputedState,
   getManilaTodayDateString,
@@ -17,6 +19,7 @@ type LoanLifecycleResult =
 
 type LoanLifecycleContext = {
   loanId: number;
+  loanCode: string;
   branchId: number;
   dueDate: string;
   principal: number;
@@ -34,6 +37,7 @@ async function loadLoanLifecycleContext(loanId: number): Promise<LoanLifecycleCo
   const loanRow = await db
     .select({
       loanId: loan_records.loan_id,
+      loanCode: loan_records.loan_code,
       branchId: loan_records.branch_id,
       dueDate: loan_records.due_date,
       principal: loan_records.principal,
@@ -63,6 +67,7 @@ async function loadLoanLifecycleContext(loanId: number): Promise<LoanLifecycleCo
 
   return {
     loanId: loanRow.loanId,
+    loanCode: loanRow.loanCode,
     branchId: loanRow.branchId,
     dueDate: loanRow.dueDate,
     principal: Number(loanRow.principal) || 0,
@@ -132,6 +137,27 @@ export async function archiveLoanRecord(
     .set({ status: nextStoredStatus })
     .where(eq(loan_records.loan_id, loan.loanId));
 
+  await logAuditEvent({
+    action: "loan.status_changed_manual",
+    entityType: "loan",
+    entityId: loan.loanCode,
+    actor: buildAuditActorFromAuth(auth),
+    branchId: loan.branchId,
+    branchScope: [loan.branchId],
+    description:
+      nextStoredStatus === "abandoned"
+        ? `Marked loan ${loan.loanCode} as abandoned manually.`
+        : `Archived loan ${loan.loanCode} manually.`,
+    metadata: {
+      loanCode: loan.loanCode,
+      previousStatus: loan.storedStatus,
+      nextStatus: nextStoredStatus,
+      dueDate: loan.dueDate,
+      totalCollected: loan.totalCollected,
+      collectionCount: loan.collectionCount,
+    },
+  });
+
   return {
     ok: true,
     nextStoredStatus,
@@ -146,6 +172,7 @@ export async function deleteLoanRecord(
   auth: DashboardAuthContext,
   loanIdRaw: string,
 ): Promise<LoanLifecycleResult> {
+  const requestContext = await getAuditRequestContext();
   const loanId = parseLoanId(loanIdRaw);
   if (!loanId) {
     return { ok: false, message: "Loan not found." };
@@ -190,6 +217,24 @@ export async function deleteLoanRecord(
   }
 
   await db.delete(loan_records).where(eq(loan_records.loan_id, loan.loanId));
+
+  await logAuditEvent({
+    action: "loan.deleted",
+    entityType: "loan",
+    entityId: loan.loanCode,
+    actor: buildAuditActorFromAuth(auth),
+    branchId: loan.branchId,
+    branchScope: [loan.branchId],
+    description: `Deleted loan ${loan.loanCode}.`,
+    requestContext,
+    metadata: {
+      loanCode: loan.loanCode,
+      previousStatus: loan.storedStatus,
+      collectionCount: loan.collectionCount,
+      totalCollected: loan.totalCollected,
+      dueDate: loan.dueDate,
+    },
+  });
 
   return {
     ok: true,

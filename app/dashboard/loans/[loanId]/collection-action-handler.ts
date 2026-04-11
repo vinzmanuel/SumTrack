@@ -16,6 +16,8 @@ import {
   parseCollectionFormData,
   validateCollectionInput,
 } from "@/app/dashboard/loans/[loanId]/collection-action-validation";
+import { getAuditRequestContext } from "@/lib/audit/request-context";
+import { logAuditEvent } from "@/lib/audit/logger";
 
 function buildCollectionHistoryRow(params: {
   collectionId: number;
@@ -80,6 +82,7 @@ export async function createCollectionAction(
   prevState: LoanDetailState,
   formData: FormData,
 ): Promise<LoanDetailState> {
+  const requestContext = await getAuditRequestContext();
   const stateFactory = buildCollectionStateFactory(prevState);
   const input = parseCollectionFormData(formData);
   const fieldErrors = validateCollectionInput(input);
@@ -164,6 +167,59 @@ export async function createCollectionAction(
       insertedCollectionCode: transactionResult.persistedCollection.collectionCode,
       reconciliation: transactionResult.reconciliation,
     });
+
+    await logAuditEvent({
+      action: "collection.recorded",
+      entityType: "collection",
+      entityId: transactionResult.persistedCollection.collectionId,
+      actor: {
+        type: "user",
+        userId: creatorAccess.data.userId,
+        displayName: creatorAccess.data.displayName,
+      },
+      branchId: loanContext.data.branchId,
+      branchScope: [loanContext.data.branchId],
+      description: input.missedPayment
+        ? `Recorded missed payment ${transactionResult.persistedCollection.collectionCode} for loan ${loanContext.data.loanCode}.`
+        : `Recorded collection ${transactionResult.persistedCollection.collectionCode} for loan ${loanContext.data.loanCode}.`,
+      requestContext,
+      metadata: {
+        loanId: loanContext.data.loanId,
+        loanCode: loanContext.data.loanCode,
+        collectorId: loanContext.data.collectorId,
+        collectorName: loanContext.data.collectorName,
+        amount: transactionResult.persistedCollection.amount,
+        collectionDate: transactionResult.persistedCollection.collectionDate,
+        note: transactionResult.persistedCollection.note,
+        missedPayment: input.missedPayment,
+      },
+    });
+
+    if (transactionResult.reconciliation?.changed) {
+      await logAuditEvent({
+        action: "loan.status_changed_system",
+        entityType: "loan",
+        entityId: loanContext.data.loanCode,
+        actor: {
+          type: "system",
+          displayName: "System",
+          roleName: "System",
+        },
+        branchId: loanContext.data.branchId,
+        branchScope: [loanContext.data.branchId],
+        description: `Collection reconciliation moved loan ${loanContext.data.loanCode} from ${transactionResult.reconciliation.previousStatus} to ${transactionResult.reconciliation.nextStatus}.`,
+        requestContext,
+        metadata: {
+          loanCode: loanContext.data.loanCode,
+          previousStatus: transactionResult.reconciliation.previousStatus,
+          nextStatus: transactionResult.reconciliation.nextStatus,
+          triggeredByCollectionId: transactionResult.persistedCollection.collectionId,
+          triggeredByCollectionCode: transactionResult.persistedCollection.collectionCode,
+          totalCollected: transactionResult.reconciliation.totalCollected,
+          remainingBalance: transactionResult.reconciliation.remainingBalance,
+        },
+      });
+    }
 
     const newRow = buildCollectionHistoryRow({
       collectionId: transactionResult.persistedCollection.collectionId,

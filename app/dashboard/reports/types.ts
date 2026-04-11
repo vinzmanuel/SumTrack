@@ -320,6 +320,8 @@ export type ReportsPageAccessState =
     | {
       view: "ready";
       userId: string;
+      companyId: string;
+      displayName: string;
       roleName: ReportsRoleName;
       canAccessAnalytics: boolean;
       canAccessOperationalDocuments: boolean;

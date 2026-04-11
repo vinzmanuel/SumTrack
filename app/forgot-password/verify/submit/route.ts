@@ -5,6 +5,8 @@ import {
   setPasswordRecoveryVerified,
   verifyPendingPasswordRecoveryEmailOtpCode,
 } from "@/lib/auth/password-recovery";
+import { getAuditRequestContextFromRequest } from "@/lib/audit/request-context";
+import { logAuditEvent } from "@/lib/audit/logger";
 
 function buildRedirect(request: Request, path: string) {
   return NextResponse.redirect(new URL(path, request.url));
@@ -12,6 +14,7 @@ function buildRedirect(request: Request, path: string) {
 
 export async function POST(request: Request) {
   try {
+    const requestContext = getAuditRequestContextFromRequest(request);
     const formData = await request.formData();
     const code = String(formData.get("code") ?? "").trim();
     const pendingChallenge = await getPasswordRecoveryPendingChallenge();
@@ -34,6 +37,24 @@ export async function POST(request: Request) {
     }
 
     if (!approved || !pendingChallenge.userId) {
+      await logAuditEvent({
+        action: "auth.otp_failed",
+        entityType: "auth",
+        entityId: pendingChallenge.userId ?? pendingChallenge.identifier,
+        description: "Password recovery verification failed.",
+        target: pendingChallenge.userId
+          ? {
+              userId: pendingChallenge.userId,
+              displayName: pendingChallenge.maskedDestination,
+            }
+          : null,
+        requestContext,
+        metadata: {
+          channel: pendingChallenge.channel,
+          failureReason: "invalid_or_expired_code",
+          maskedDestination: pendingChallenge.maskedDestination,
+        },
+      });
       return buildRedirect(
         request,
         "/forgot-password/verify?error=Invalid%20or%20expired%20verification%20code.",
@@ -41,6 +62,21 @@ export async function POST(request: Request) {
     }
 
     await setPasswordRecoveryVerified(pendingChallenge.userId);
+    await logAuditEvent({
+      action: "auth.otp_verified",
+      entityType: "auth",
+      entityId: pendingChallenge.userId,
+      description: "Password recovery verification succeeded.",
+      target: {
+        userId: pendingChallenge.userId,
+        displayName: pendingChallenge.maskedDestination,
+      },
+      requestContext,
+      metadata: {
+        channel: pendingChallenge.channel,
+        maskedDestination: pendingChallenge.maskedDestination,
+      },
+    });
     return buildRedirect(request, "/forgot-password/reset");
   } catch (error) {
     const message =

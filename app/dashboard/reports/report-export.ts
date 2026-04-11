@@ -11,6 +11,17 @@ type CsvDataset = {
   rows: Array<Record<string, number | string>>;
 };
 
+function notifyReportExport(reportId: number, format: "csv" | "pdf" | "print") {
+  return fetch(`/dashboard/reports/${reportId}/export`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ format }),
+    keepalive: true,
+  }).catch(() => undefined);
+}
+
 function slugify(value: string) {
   return value
     .toLowerCase()
@@ -205,6 +216,7 @@ export function exportReportCsv(report: ReportsViewerPageData) {
   anchor.click();
   document.body.removeChild(anchor);
   URL.revokeObjectURL(url);
+  void notifyReportExport(report.reportId, "csv");
 }
 
 function copyComputedStyles(source: Element, target: Element) {
@@ -480,11 +492,16 @@ export function printReportContent(params: {
     }
 
     if (params.mode === "pdf") {
+      void notifyReportExport(params.report.reportId, "pdf");
       toast.message(
         isThermalReceiptReport(params.report)
           ? "Use your browser's print dialog and choose Save as PDF. Thermal receipts are sized for 80mm paper."
           : "Use your browser's print dialog and choose Save as PDF.",
       );
+    }
+
+    if (params.mode === "print") {
+      void notifyReportExport(params.report.reportId, "print");
     }
 
     frameWindow.addEventListener("afterprint", cleanupPrintFrame, { once: true });

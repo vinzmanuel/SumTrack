@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getAppSessionAccessState } from "@/app/dashboard/auth";
 import type { AdminOtpChannel } from "@/lib/auth/admin-otp-channels";
 import { startAdminVerificationChallenge } from "@/app/login/verify/helpers";
+import { getAuditRequestContextFromRequest } from "@/lib/audit/request-context";
 
 function buildRedirect(request: Request, path: string) {
   return NextResponse.redirect(new URL(path, request.url));
@@ -36,7 +37,7 @@ export async function POST(request: Request) {
       return buildRedirect(request, "/login/verify?error=Choose%20a%20verification%20channel.");
     }
 
-    const result = await startAdminVerificationChallenge(channel);
+    const result = await startAdminVerificationChallenge(channel, getAuditRequestContextFromRequest(request));
     if (result.needsChoice) {
       return buildRedirect(request, "/login/verify?choose=1");
     }

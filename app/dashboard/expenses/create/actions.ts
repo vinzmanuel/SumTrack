@@ -7,6 +7,8 @@ import { db } from "@/db";
 import { branch, expenses } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import type { CreateExpenseState } from "@/app/dashboard/expenses/create/state";
+import { getAuditRequestContext } from "@/lib/audit/request-context";
+import { buildAuditActorFromAuth, logAuditEvent } from "@/lib/audit/logger";
 
 type FormFields = {
   branch_id: string;
@@ -46,6 +48,7 @@ export async function createExpenseAction(
   _prevState: CreateExpenseState,
   formData: FormData,
 ): Promise<CreateExpenseState> {
+  const requestContext = await getAuditRequestContext();
   const branchIdRaw = getTrimmed(formData, "branch_id");
   const expenseCategory = getTrimmed(formData, "expense_category");
   const description = getTrimmed(formData, "description");
@@ -193,6 +196,25 @@ export async function createExpenseAction(
       message: "Failed to save expense.",
     };
   }
+
+  await logAuditEvent({
+    action: "expense.created",
+    entityType: "expense",
+    entityId: insertedExpense.expense_id,
+    actor: buildAuditActorFromAuth(auth),
+    branchId,
+    branchScope: [branchId],
+    description: `Recorded ${expenseCategory} expense for ${branchName}.`,
+    requestContext,
+    metadata: {
+      expenseId: insertedExpense.expense_id,
+      branchName,
+      category: insertedExpense.expense_category,
+      amount: Number(insertedExpense.amount),
+      expenseDate: insertedExpense.expense_date,
+      description: insertedExpense.description,
+    },
+  });
 
   return {
     status: "success",

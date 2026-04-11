@@ -8,7 +8,7 @@ type ResendSendEmailResponse = {
 
 const EMAIL_OTP_LENGTH = 6;
 const DEFAULT_EMAIL_LOGO_URL =
-  "https://vqxvxohnwgervppjtvpw.supabase.co/storage/v1/object/sign/sumtrack%20logo/SUMTRACK%20LOGO%20AND%20TEXT.png?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV84ZTBiMWZjNC0wYWU4LTQ0YmEtYjFiMi0zZmRiY2IwYTczZWMiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJzdW10cmFjayBsb2dvL1NVTVRSQUNLIExPR08gQU5EIFRFWFQucG5nIiwiaWF0IjoxNzc1NzYxMTk1LCJleHAiOjQ5MjkzNjExOTV9.MizpR21HmriWK6I4ABedF7SUcHtzpRvL1umdJGbOLe8";
+  "https://vqxvxohnwgervppjtvpw.supabase.co/storage/v1/object/public/sumtrack%20logo/SUMTRACK%20LOGO%20AND%20TEXT.png";
 
 function getResendConfig() {
   const apiKey = process.env.RESEND_API_KEY;

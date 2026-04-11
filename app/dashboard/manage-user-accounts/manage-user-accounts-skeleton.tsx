@@ -39,15 +39,31 @@ export function ManageUserAccountsSkeleton({
               <Table className="min-w-[1280px] text-sm">
                 <TableHeader>
                   <TableRow className="border-border/70 bg-card">
-                    <TableHead className="h-auto py-3 pl-5">Full Name</TableHead>
-                    <TableHead className="h-auto py-3">Company ID</TableHead>
-                    <TableHead className="h-auto py-3">Role</TableHead>
-                    <TableHead className="h-auto py-3">Branch / Scope</TableHead>
-                    <TableHead className="h-auto py-3">Contact No.</TableHead>
-                    <TableHead className="h-auto py-3">Email</TableHead>
-                    <TableHead className="h-auto py-3">Date Created</TableHead>
+                    <TableHead className="h-auto py-3 pl-5">
+                      <Skeleton className="h-4 w-20 rounded-md" />
+                    </TableHead>
                     <TableHead className="h-auto py-3">
-                      <span className="sr-only">Actions</span>
+                      <Skeleton className="h-4 w-20 rounded-md" />
+                    </TableHead>
+                    <TableHead className="h-auto py-3">
+                      <Skeleton className="h-4 w-12 rounded-md" />
+                    </TableHead>
+                    <TableHead className="h-auto py-3">
+                      <Skeleton className="h-4 w-24 rounded-md" />
+                    </TableHead>
+                    <TableHead className="h-auto py-3">
+                      <Skeleton className="h-4 w-20 rounded-md" />
+                    </TableHead>
+                    <TableHead className="h-auto py-3">
+                      <Skeleton className="h-4 w-12 rounded-md" />
+                    </TableHead>
+                    <TableHead className="h-auto py-3">
+                      <Skeleton className="h-4 w-20 rounded-md" />
+                    </TableHead>
+                    <TableHead className="h-auto py-3">
+                      <div className="flex justify-end pr-2">
+                        <Skeleton className="h-4 w-4 rounded-sm" />
+                      </div>
                     </TableHead>
                   </TableRow>
                 </TableHeader>

@@ -10,6 +10,7 @@ import {
   generateAnalyticsReport,
   generateOperationalDocument,
 } from "@/app/dashboard/reports/queries";
+import { getAuditRequestContext } from "@/lib/audit/request-context";
 import {
   initialGenerateAnalyticsReportState,
   initialGenerateOperationalDocumentState,
@@ -49,6 +50,7 @@ export async function generateAnalyticsReportAction(
   formData: FormData,
 ): Promise<GenerateAnalyticsReportState> {
   void prevState;
+  const requestContext = await getAuditRequestContext();
 
   const title = getTrimmed(formData, "title");
   const templateKeyRaw = getTrimmed(formData, "template_key");
@@ -157,7 +159,7 @@ export async function generateAnalyticsReportAction(
           ? dateTo || null
           : resolvedPresetRange?.dateTo ?? null
         : null,
-  });
+  }, { requestContext });
 
   if (!result.ok) {
     return {
@@ -187,6 +189,7 @@ export async function generateOperationalDocumentAction(
   formData: FormData,
 ): Promise<GenerateOperationalDocumentState> {
   void prevState;
+  const requestContext = await getAuditRequestContext();
 
   const templateKeyRaw = getTrimmed(formData, "template_key");
   const sourceEntityIdRaw = getTrimmed(formData, "source_entity_id");
@@ -225,7 +228,7 @@ export async function generateOperationalDocumentAction(
   const result = await generateOperationalDocument(access, {
     templateKey: template.key,
     sourceEntityId,
-  });
+  }, { requestContext });
 
   if (!result.ok) {
     return {

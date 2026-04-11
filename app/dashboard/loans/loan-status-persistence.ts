@@ -3,6 +3,7 @@ import "server-only";
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { collections, loan_records } from "@/db/schema";
+import { buildSystemAuditActor, logAuditEvent } from "@/lib/audit/logger";
 import {
   calculateLoanRemainingBalance,
   calculateLoanTotalPayable,
@@ -16,6 +17,8 @@ type LoanStatusDbExecutor = Pick<typeof db, "select" | "update">;
 
 type LoanStatusSnapshotRow = {
   loanId: number;
+  loanCode: string;
+  branchId: number;
   dueDate: string;
   principal: number | string;
   interest: number | string;
@@ -25,6 +28,8 @@ type LoanStatusSnapshotRow = {
 
 export type LoanStatusPersistenceResult = {
   loanId: number;
+  loanCode: string;
+  branchId: number;
   previousStatus: StoredLoanStatus;
   nextStatus: StoredLoanStatus;
   totalPayable: number;
@@ -141,6 +146,8 @@ function buildLoanStatusSnapshotResult(row: LoanStatusSnapshotRow, currentDate: 
 
   return {
     loanId: row.loanId,
+    loanCode: row.loanCode,
+    branchId: row.branchId,
     previousStatus,
     nextStatus,
     totalPayable,
@@ -165,6 +172,8 @@ async function loadLoanStatusSnapshot(
   return executor
     .select({
       loanId: loan_records.loan_id,
+      loanCode: loan_records.loan_code,
+      branchId: loan_records.branch_id,
       dueDate: loan_records.due_date,
       principal: loan_records.principal,
       interest: loan_records.interest,
@@ -199,6 +208,28 @@ export async function reconcilePersistedLoanStatus(params: {
       .update(loan_records)
       .set({ status: reconciliation.nextStatus })
       .where(eq(loan_records.loan_id, reconciliation.loanId));
+
+    if (executor === db) {
+      await logAuditEvent({
+        action: "loan.status_changed_system",
+        entityType: "loan",
+        entityId: reconciliation.loanCode,
+        actor: buildSystemAuditActor(),
+        branchId: reconciliation.branchId,
+        branchScope: [reconciliation.branchId],
+        description: `System reconciled loan ${reconciliation.loanCode} from ${reconciliation.previousStatus} to ${reconciliation.nextStatus}.`,
+        metadata: {
+          loanCode: reconciliation.loanCode,
+          previousStatus: reconciliation.previousStatus,
+          nextStatus: reconciliation.nextStatus,
+          totalPayable: reconciliation.totalPayable,
+          totalCollected: reconciliation.totalCollected,
+          remainingBalance: reconciliation.remainingBalance,
+          source: "single_reconciliation",
+          debug: reconciliation.debug,
+        },
+      });
+    }
   }
 
   return reconciliation;
@@ -211,6 +242,8 @@ export async function reconcileAllPersistedLoanStatuses(params?: {
   const loanRows = await db
     .select({
       loanId: loan_records.loan_id,
+      loanCode: loan_records.loan_code,
+      branchId: loan_records.branch_id,
       dueDate: loan_records.due_date,
       principal: loan_records.principal,
       interest: loan_records.interest,
@@ -263,6 +296,32 @@ export async function reconcileAllPersistedLoanStatuses(params?: {
           );
       }
     });
+
+    await Promise.all(
+      results
+        .filter((row) => row.changed)
+        .map(async (row) => {
+          await logAuditEvent({
+            action: "loan.status_changed_system",
+            entityType: "loan",
+            entityId: row.loanCode,
+            actor: buildSystemAuditActor(),
+            branchId: row.branchId,
+            branchScope: [row.branchId],
+            description: `System reconciled loan ${row.loanCode} from ${row.previousStatus} to ${row.nextStatus}.`,
+            metadata: {
+              loanCode: row.loanCode,
+              previousStatus: row.previousStatus,
+              nextStatus: row.nextStatus,
+              totalPayable: row.totalPayable,
+              totalCollected: row.totalCollected,
+              remainingBalance: row.remainingBalance,
+              source: "scheduled_reconciliation",
+              debug: row.debug,
+            },
+          });
+        }),
+    );
   }
 
   return {

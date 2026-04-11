@@ -11,6 +11,8 @@ import {
   isAllowedDocMimeType,
 } from "@/app/dashboard/documents/config";
 import { checkBorrowerDocAccess } from "@/app/dashboard/documents/access";
+import { getAuditRequestContext } from "@/lib/audit/request-context";
+import { logAuditEvent } from "@/lib/audit/logger";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 type ActionResult = {
@@ -31,6 +33,7 @@ function isBorrowerDocType(value: string): value is (typeof BORROWER_DOCUMENT_TY
 }
 
 export async function uploadBorrowerDocAction(formData: FormData): Promise<ActionResult> {
+  const requestContext = await getAuditRequestContext();
   const borrowerId = String(formData.get("borrower_id") ?? "").trim();
   const documentType = String(formData.get("document_type") ?? "").trim();
   const fileValue = formData.get("file");
@@ -111,6 +114,25 @@ export async function uploadBorrowerDocAction(formData: FormData): Promise<Actio
 
     const removeOld = await bucket.remove([existingDoc.file_path]);
     if (removeOld.error) {
+      await logAuditEvent({
+        action: "document.replaced",
+        entityType: "document",
+        entityId: updatedDoc.borrower_doc_id,
+        actor: {
+          type: "user",
+          userId: access.userId,
+          roleName: access.roleName,
+        },
+        description: `Replaced ${documentType} borrower document for borrower ${borrowerId}.`,
+        requestContext,
+        metadata: {
+          subjectType: "borrower",
+          subjectId: borrowerId,
+          documentType,
+          replacementWarning: removeOld.error.message,
+          originalFilename: fileValue.name || "unnamed",
+        },
+      });
       return {
         status: "success",
         message: "Document replaced, but old file cleanup failed.",
@@ -118,6 +140,24 @@ export async function uploadBorrowerDocAction(formData: FormData): Promise<Actio
       };
     }
 
+    await logAuditEvent({
+      action: "document.replaced",
+      entityType: "document",
+      entityId: updatedDoc.borrower_doc_id,
+      actor: {
+        type: "user",
+        userId: access.userId,
+        roleName: access.roleName,
+      },
+      description: `Replaced ${documentType} borrower document for borrower ${borrowerId}.`,
+      requestContext,
+      metadata: {
+        subjectType: "borrower",
+        subjectId: borrowerId,
+        documentType,
+        originalFilename: fileValue.name || "unnamed",
+      },
+    });
     return { status: "success", message: "Borrower document replaced." };
   }
 
@@ -141,10 +181,30 @@ export async function uploadBorrowerDocAction(formData: FormData): Promise<Actio
     return { status: "error", message: "File uploaded but DB insert failed." };
   }
 
+  await logAuditEvent({
+    action: "document.uploaded",
+    entityType: "document",
+    entityId: insertedDoc.borrower_doc_id,
+    actor: {
+      type: "user",
+      userId: access.userId,
+      roleName: access.roleName,
+    },
+    description: `Uploaded ${documentType} borrower document for borrower ${borrowerId}.`,
+    requestContext,
+    metadata: {
+      subjectType: "borrower",
+      subjectId: borrowerId,
+      documentType,
+      originalFilename: fileValue.name || "unnamed",
+    },
+  });
+
   return { status: "success", message: "Borrower document uploaded." };
 }
 
 export async function deleteBorrowerDocAction(formData: FormData): Promise<ActionResult> {
+  const requestContext = await getAuditRequestContext();
   const borrowerId = String(formData.get("borrower_id") ?? "").trim();
   const borrowerDocId = parsePositiveInt(String(formData.get("borrower_doc_id") ?? "").trim());
 
@@ -195,6 +255,24 @@ export async function deleteBorrowerDocAction(formData: FormData): Promise<Actio
   if (!deleted) {
     return { status: "error", message: "Storage file removed but DB delete failed." };
   }
+
+  await logAuditEvent({
+    action: "document.deleted",
+    entityType: "document",
+    entityId: deleted.borrower_doc_id,
+    actor: {
+      type: "user",
+      userId: access.userId,
+      roleName: access.roleName,
+    },
+    description: `Deleted borrower document ${borrowerDocId} for borrower ${borrowerId}.`,
+    requestContext,
+    metadata: {
+      subjectType: "borrower",
+      subjectId: borrowerId,
+      documentId: borrowerDocId,
+    },
+  });
 
   return { status: "success", message: "Borrower document deleted." };
 }
