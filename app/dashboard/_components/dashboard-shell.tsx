@@ -8,6 +8,9 @@ import {
   BarChart3,
   BanknoteArrowDown,
   Building2,
+  ChartColumn,
+  FileChartColumn,
+  FileStack,
   CircleUserRound,
   EllipsisVertical,
   HandCoins,
@@ -326,6 +329,34 @@ function buildDefaultDashboardHeaderConfig(
       description: "Review, filter, and manage user accounts within your current scope.",
       icon: <UserCog className="size-9 text-sidebar-foreground/65" />,
       title: "Manage User Accounts",
+    };
+  }
+
+  if (pathname === "/dashboard/reports") {
+    return {
+      action: null,
+      description:
+        "Review saved analytics reports and operational documents available inside your current reporting scope.",
+      icon: <ChartColumn className="size-9 text-sidebar-foreground/65" />,
+      title: "Reports",
+    };
+  }
+
+  if (pathname === "/dashboard/reports/create") {
+    return {
+      action: null,
+      description: "Generate and save a new report or document inside your current reporting scope.",
+      icon: <FileStack className="size-9 text-sidebar-foreground/65" />,
+      title: "Generate Report",
+    };
+  }
+
+  if (/^\/dashboard\/reports\/\d+$/.test(pathname)) {
+    return {
+      action: null,
+      description: "Review and export the saved report snapshot using the viewer.",
+      icon: <FileChartColumn className="size-9 text-sidebar-foreground/65" />,
+      title: "Report Snapshot Viewer",
     };
   }
 
@@ -767,7 +798,11 @@ export function DashboardShell({
     }
 
     if (pathname === "/dashboard/reports/create") {
-      return "Create Report";
+      return "Generate Report";
+    }
+
+    if (/^\/dashboard\/reports\/\d+$/.test(pathname)) {
+      return "Report Snapshot Viewer";
     }
 
     return normalizedItems.find((item) => isActiveNav(pathname, item.href))?.label ?? "Overview";
@@ -777,7 +812,8 @@ export function DashboardShell({
     [pathname, roleName],
   );
   const resolvedHeaderConfig = headerConfig ?? defaultHeaderConfig;
-  const resolvedBreadcrumbCurrentLabel = resolvedHeaderConfig?.title ?? currentPageLabel;
+  const resolvedBreadcrumbCurrentLabel =
+    resolvedHeaderConfig?.breadcrumbTitle ?? resolvedHeaderConfig?.title ?? currentPageLabel;
   const breadcrumbItems = useMemo(
     () => {
       const activeSearchParams = new URLSearchParams(searchParams.toString());

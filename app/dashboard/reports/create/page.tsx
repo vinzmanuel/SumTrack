@@ -91,7 +91,6 @@ export default async function CreateReportPage({ searchParams }: ReportsPageProp
       access={access}
       activeTab={activeTab}
       backHref={backNavigation.href}
-      backLabel={backNavigation.label}
       pageData={pageData}
     />
   );

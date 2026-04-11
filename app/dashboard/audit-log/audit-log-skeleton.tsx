@@ -1,22 +1,27 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
+const CONTROL_SKELETON_CLASS_NAME =
+  "rounded-md border border-border/70 bg-white shadow-xs dark:bg-muted/70";
+
 export function AuditLogSkeleton({ canChooseBranch = true }: { canChooseBranch?: boolean }) {
   return (
     <div className="space-y-4">
       <div className="space-y-3">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="relative w-full xl:w-[360px] xl:shrink-0">
-            <Skeleton className="h-11 w-full rounded-md" />
+            <Skeleton className={`h-11 w-full ${CONTROL_SKELETON_CLASS_NAME}`} />
           </div>
 
           <div className="flex w-full flex-wrap items-center gap-2.5 xl:w-auto xl:justify-end">
-            <Skeleton className="h-11 w-full min-w-[180px] rounded-md sm:w-[190px]" />
-            {canChooseBranch ? <Skeleton className="h-11 w-full min-w-[180px] rounded-md sm:w-[190px]" /> : null}
-            <Skeleton className="h-11 w-full min-w-[180px] rounded-md sm:w-[190px]" />
-            <Skeleton className="h-11 w-full min-w-[180px] rounded-md sm:w-[190px]" />
-            <Skeleton className="h-11 w-full min-w-[180px] rounded-md sm:w-[190px]" />
-            <Skeleton className="h-11 w-[84px] rounded-md" />
+            <Skeleton className={`h-11 w-full min-w-[180px] sm:w-[190px] ${CONTROL_SKELETON_CLASS_NAME}`} />
+            {canChooseBranch ? (
+              <Skeleton className={`h-11 w-full min-w-[180px] sm:w-[190px] ${CONTROL_SKELETON_CLASS_NAME}`} />
+            ) : null}
+            <Skeleton className={`h-11 w-full min-w-[180px] sm:w-[190px] ${CONTROL_SKELETON_CLASS_NAME}`} />
+            <Skeleton className={`h-11 w-full min-w-[180px] sm:w-[190px] ${CONTROL_SKELETON_CLASS_NAME}`} />
+            <Skeleton className={`h-11 w-full min-w-[180px] sm:w-[190px] ${CONTROL_SKELETON_CLASS_NAME}`} />
+            <Skeleton className={`h-11 w-[84px] ${CONTROL_SKELETON_CLASS_NAME}`} />
           </div>
         </div>
 
@@ -89,7 +94,7 @@ export function AuditLogSkeleton({ canChooseBranch = true }: { canChooseBranch?:
           <div className="px-1 py-1">
             <div className="flex flex-col gap-3 text-sm md:flex-row md:items-center md:justify-between">
               <Skeleton className="h-4 w-32" />
-              <Skeleton className="h-11 w-28 rounded-md" />
+              <Skeleton className={`h-11 w-28 ${CONTROL_SKELETON_CLASS_NAME}`} />
             </div>
           </div>
         </div>

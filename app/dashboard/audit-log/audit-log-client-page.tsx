@@ -611,10 +611,7 @@ export function AuditLogClientPage({ initialData, canChooseBranch }: AuditLogCli
           ) : null}
         </div>
 
-        <div className="px-1 py-1">
-          <p className="text-sm text-muted-foreground">
-            Showing {data.totalCount} append-only event{data.totalCount === 1 ? "" : "s"} in the current visible scope.
-          </p>
+        <div className="px-1">
           {errorMessage ? <p className="mt-2 text-sm text-destructive">{errorMessage}</p> : null}
         </div>
 
@@ -622,7 +619,7 @@ export function AuditLogClientPage({ initialData, canChooseBranch }: AuditLogCli
           <AuditLogTable branchOptions={data.branchOptions} rows={data.rows} />
         </div>
 
-        <div className="px-1 py-1">
+        <div className="px-1">
           <div className="flex flex-col gap-3 text-sm md:flex-row md:items-center md:justify-between">
             <p className="text-muted-foreground">
               Showing {loadedCount} of {data.totalCount}

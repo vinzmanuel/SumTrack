@@ -1,6 +1,9 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
+const CONTROL_SKELETON_CLASS_NAME =
+  "rounded-md border border-border/70 bg-white shadow-xs dark:bg-muted/70";
+
 export function ManageUserAccountsSkeleton({
   canChooseBranch = true,
   showAction = true,
@@ -12,15 +15,17 @@ export function ManageUserAccountsSkeleton({
     <div className="space-y-4">
       <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
         <div className="relative w-full xl:w-[360px] xl:shrink-0">
-          <Skeleton className="h-11 w-full rounded-md" />
+          <Skeleton className={`h-11 w-full ${CONTROL_SKELETON_CLASS_NAME}`} />
         </div>
 
         <div className="flex w-full flex-wrap items-center gap-2.5 xl:w-auto xl:justify-end">
-          {canChooseBranch ? <Skeleton className="h-11 w-full min-w-[180px] rounded-md sm:w-[190px]" /> : null}
-          <Skeleton className="h-11 w-full min-w-[160px] rounded-md sm:w-[170px]" />
-          <Skeleton className="h-11 w-full min-w-[160px] rounded-md sm:w-[170px]" />
-          <Skeleton className="h-11 w-[84px] rounded-md" />
-          {showAction ? <Skeleton className="h-11 w-[120px] rounded-md" /> : null}
+          {canChooseBranch ? (
+            <Skeleton className={`h-11 w-full min-w-[180px] sm:w-[190px] ${CONTROL_SKELETON_CLASS_NAME}`} />
+          ) : null}
+          <Skeleton className={`h-11 w-full min-w-[160px] sm:w-[170px] ${CONTROL_SKELETON_CLASS_NAME}`} />
+          <Skeleton className={`h-11 w-full min-w-[160px] sm:w-[170px] ${CONTROL_SKELETON_CLASS_NAME}`} />
+          <Skeleton className={`h-11 w-[84px] ${CONTROL_SKELETON_CLASS_NAME}`} />
+          {showAction ? <Skeleton className={`h-11 w-[120px] ${CONTROL_SKELETON_CLASS_NAME}`} /> : null}
         </div>
       </div>
 
@@ -112,12 +117,12 @@ export function ManageUserAccountsSkeleton({
               <div className="flex flex-wrap items-center gap-2 xl:justify-center">
                 <div className="flex items-center gap-2">
                   <Skeleton className="h-4 w-10" />
-                  <Skeleton className="h-9 w-[84px] rounded-md" />
+                  <Skeleton className={`h-9 w-[84px] ${CONTROL_SKELETON_CLASS_NAME}`} />
                 </div>
                 <div className="ml-4 flex items-center gap-2">
                   <Skeleton className="h-4 w-20" />
-                  <Skeleton className="h-9 w-9 rounded-md" />
-                  <Skeleton className="h-9 w-9 rounded-md" />
+                  <Skeleton className={`h-9 w-9 ${CONTROL_SKELETON_CLASS_NAME}`} />
+                  <Skeleton className={`h-9 w-9 ${CONTROL_SKELETON_CLASS_NAME}`} />
                 </div>
               </div>
             </div>

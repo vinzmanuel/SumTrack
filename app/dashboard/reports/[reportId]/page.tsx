@@ -96,5 +96,5 @@ export default async function ReportsViewerPage({ params, searchParams }: PagePr
       actionLabel: backNavigation.label,
     });
   }
-  return <ReportsViewPage backHref={backNavigation.href} backLabel={backNavigation.label} report={result.data} />;
+  return <ReportsViewPage report={result.data} />;
 }

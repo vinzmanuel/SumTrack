@@ -61,13 +61,15 @@ type GeneratedByComboboxOption = {
   displayName: string;
 };
 
+const FILTER_CONTROL_CLASS_NAME = "!h-11 w-full rounded-md bg-white py-0 text-sm dark:bg-background";
+
 function FilterSection(props: {
   title: string;
   description: string;
   children: React.ReactNode;
 }) {
   return (
-    <section className="space-y-4 rounded-2xl border border-border/70 bg-muted/10 p-4">
+    <section className="space-y-4">
       <div className="space-y-1">
         <h3 className="text-sm font-semibold text-foreground">{props.title}</h3>
         <p className="text-sm text-muted-foreground">{props.description}</p>
@@ -113,7 +115,7 @@ function BranchMultiCombobox(props: {
       }
       value={selectedOptions}
     >
-      <ComboboxChips className="bg-background" ref={anchorRef}>
+      <ComboboxChips className="!min-h-11 w-full bg-white py-0 dark:bg-background" ref={anchorRef}>
         {selectedOptions.map((option) => (
           <ComboboxChip key={option.branchId}>
             <ComboboxValue>{option.branchName}</ComboboxValue>
@@ -165,7 +167,7 @@ function GeneratedByCombobox(props: {
       }
       value={selectedOption}
     >
-      <ComboboxInput placeholder="Search by name or company ID" showClear />
+      <ComboboxInput className="!h-11 w-full rounded-md bg-white dark:bg-background" placeholder="Search by name or company ID" showClear />
       <ComboboxContent
         className="z-[100] max-h-72"
       >
@@ -189,7 +191,7 @@ function DatePresetSelect(props: {
 }) {
   return (
     <Select onValueChange={(value) => props.onChange(value as ReportsDateRangePreset)} value={props.value}>
-      <SelectTrigger id={props.triggerId}>
+      <SelectTrigger className={FILTER_CONTROL_CLASS_NAME} id={props.triggerId}>
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
@@ -253,7 +255,7 @@ export function ReportsLibraryFilterSheet(props: {
           />
         ) : null}
         <SheetTrigger asChild>
-          <Button variant="outline">
+          <Button className="h-11 rounded-md px-4 text-sm" variant="outline">
             <Filter className="mr-2 h-4 w-4" />
             Advanced Filters
           </Button>
@@ -300,7 +302,7 @@ export function ReportsLibraryFilterSheet(props: {
                       }
                       value={draftFilters.templateCategory ?? "__all__"}
                     >
-                      <SelectTrigger id="reports-filter-template-category">
+                      <SelectTrigger className={FILTER_CONTROL_CLASS_NAME} id="reports-filter-template-category">
                         <SelectValue placeholder="All categories" />
                       </SelectTrigger>
                       <SelectContent>
@@ -325,7 +327,7 @@ export function ReportsLibraryFilterSheet(props: {
                       }
                       value={draftFilters.templateKey ?? "__all__"}
                     >
-                      <SelectTrigger id="reports-filter-template">
+                      <SelectTrigger className={FILTER_CONTROL_CLASS_NAME} id="reports-filter-template">
                         <SelectValue placeholder="All templates" />
                       </SelectTrigger>
                       <SelectContent>
@@ -354,7 +356,7 @@ export function ReportsLibraryFilterSheet(props: {
                       }
                       value={draftFilters.generatedType}
                     >
-                      <SelectTrigger id="reports-filter-generated-type">
+                      <SelectTrigger className={FILTER_CONTROL_CLASS_NAME} id="reports-filter-generated-type">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -367,72 +369,78 @@ export function ReportsLibraryFilterSheet(props: {
                 </div>
               </FilterSection>
 
-              {showOwnershipSection ? (
-                <FilterSection
-                  description={
-                    draftFilters.generatedType === "all"
-                      ? "Ownership filters apply to user-generated reports. Use Generated Type = User for the clearest narrowing."
-                      : "Refine user-generated reports by role and the specific person who created them."
-                  }
-                  title="Ownership"
-                >
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="reports-filter-generated-by-role">Role</Label>
-                      <Select
-                        onValueChange={(value) =>
-                          setDraftFilters((current) => ({
-                            ...current,
-                            generatedByRoleName: value === "__all__" ? null : value,
-                            generatedByUserId:
-                              value === "__all__"
-                                ? current.generatedByUserId
-                                : props.generatedByOptions.some(
-                                      (option) =>
-                                        option.userId === current.generatedByUserId &&
-                                        option.roleName === value,
-                                    )
-                                  ? current.generatedByUserId
-                                  : null,
-                          }))
-                        }
-                        value={draftFilters.generatedByRoleName ?? "__all__"}
-                      >
-                        <SelectTrigger id="reports-filter-generated-by-role">
-                          <SelectValue placeholder="All visible roles" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__all__">All visible roles</SelectItem>
-                          {props.generatedByRoleOptions.map((option) => (
-                            <SelectItem key={option.roleName} value={option.roleName}>
-                              {option.roleName}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+              <div className="border-t border-border/70" />
 
-                    <div className="space-y-2">
-                      <Label>Generated By</Label>
-                      <GeneratedByCombobox
-                        onChange={(value) =>
-                          setDraftFilters((current) => ({
-                            ...current,
-                            generatedByUserId: value,
-                          }))
-                        }
-                        options={
-                          draftFilters.generatedByRoleName
-                            ? props.generatedByOptions.filter(
-                                (option) => option.roleName === draftFilters.generatedByRoleName,
-                              )
-                            : props.generatedByOptions
-                        }
-                        value={draftFilters.generatedByUserId}
-                      />
+              {showOwnershipSection ? (
+                <>
+                  <FilterSection
+                    description={
+                      draftFilters.generatedType === "all"
+                        ? "Ownership filters apply to user-generated reports. Use Generated Type = User for the clearest narrowing."
+                        : "Refine user-generated reports by role and the specific person who created them."
+                    }
+                    title="Ownership"
+                  >
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="reports-filter-generated-by-role">Role</Label>
+                        <Select
+                          onValueChange={(value) =>
+                            setDraftFilters((current) => ({
+                              ...current,
+                              generatedByRoleName: value === "__all__" ? null : value,
+                              generatedByUserId:
+                                value === "__all__"
+                                  ? current.generatedByUserId
+                                  : props.generatedByOptions.some(
+                                        (option) =>
+                                          option.userId === current.generatedByUserId &&
+                                          option.roleName === value,
+                                      )
+                                    ? current.generatedByUserId
+                                    : null,
+                            }))
+                          }
+                          value={draftFilters.generatedByRoleName ?? "__all__"}
+                        >
+                          <SelectTrigger className={FILTER_CONTROL_CLASS_NAME} id="reports-filter-generated-by-role">
+                            <SelectValue placeholder="All visible roles" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__all__">All visible roles</SelectItem>
+                            {props.generatedByRoleOptions.map((option) => (
+                              <SelectItem key={option.roleName} value={option.roleName}>
+                                {option.roleName}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Generated By</Label>
+                        <GeneratedByCombobox
+                          onChange={(value) =>
+                            setDraftFilters((current) => ({
+                              ...current,
+                              generatedByUserId: value,
+                            }))
+                          }
+                          options={
+                            draftFilters.generatedByRoleName
+                              ? props.generatedByOptions.filter(
+                                  (option) => option.roleName === draftFilters.generatedByRoleName,
+                                )
+                              : props.generatedByOptions
+                          }
+                          value={draftFilters.generatedByUserId}
+                        />
+                      </div>
                     </div>
-                  </div>
-                </FilterSection>
+                  </FilterSection>
+
+                  <div className="border-t border-border/70" />
+                </>
               ) : null}
 
               <FilterSection
@@ -456,6 +464,8 @@ export function ReportsLibraryFilterSheet(props: {
                   </p>
                 </div>
               </FilterSection>
+
+              <div className="border-t border-border/70" />
 
               <FilterSection
                 description="Filter by the date a report was generated and the saved coverage period captured in the report row."
@@ -489,10 +499,11 @@ export function ReportsLibraryFilterSheet(props: {
                       />
                     </div>
                     {isReportsCustomDatePreset(draftFilters.generatedDatePreset) ? (
-                      <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-4">
                         <div className="space-y-2">
                           <Label htmlFor="reports-filter-generated-from">From</Label>
                           <Input
+                            className={FILTER_CONTROL_CLASS_NAME}
                             id="reports-filter-generated-from"
                             onChange={(event) =>
                               setDraftFilters((current) => ({
@@ -507,6 +518,7 @@ export function ReportsLibraryFilterSheet(props: {
                         <div className="space-y-2">
                           <Label htmlFor="reports-filter-generated-to">To</Label>
                           <Input
+                            className={FILTER_CONTROL_CLASS_NAME}
                             id="reports-filter-generated-to"
                             onChange={(event) =>
                               setDraftFilters((current) => ({
@@ -549,10 +561,11 @@ export function ReportsLibraryFilterSheet(props: {
                       />
                     </div>
                     {isReportsCustomDatePreset(draftFilters.coverageDatePreset) ? (
-                      <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-4">
                         <div className="space-y-2">
                           <Label htmlFor="reports-filter-coverage-from">From</Label>
                           <Input
+                            className={FILTER_CONTROL_CLASS_NAME}
                             id="reports-filter-coverage-from"
                             onChange={(event) =>
                               setDraftFilters((current) => ({
@@ -567,6 +580,7 @@ export function ReportsLibraryFilterSheet(props: {
                         <div className="space-y-2">
                           <Label htmlFor="reports-filter-coverage-to">To</Label>
                           <Input
+                            className={FILTER_CONTROL_CLASS_NAME}
                             id="reports-filter-coverage-to"
                             onChange={(event) =>
                               setDraftFilters((current) => ({
@@ -588,17 +602,17 @@ export function ReportsLibraryFilterSheet(props: {
 
           <div className="sticky bottom-0 shrink-0 border-t border-border/70 bg-background px-6 py-4">
             <div className="flex flex-col gap-2 sm:flex-row sm:justify-between">
-              <Button onClick={resetDraft} type="button" variant="outline">
+              <Button className="h-11 rounded-md px-4 text-sm" onClick={resetDraft} type="button" variant="outline">
                 Clear All
               </Button>
               <div className="flex flex-col gap-2 sm:flex-row">
                 <SheetClose asChild>
-                  <Button type="button" variant="outline">
+                  <Button className="h-11 rounded-md px-4 text-sm" type="button" variant="outline">
                     Close
                   </Button>
                 </SheetClose>
                 <Button
-                  className="bg-emerald-600 text-white hover:bg-emerald-700"
+                  className="h-11 rounded-md bg-emerald-600 px-4 text-sm text-white hover:bg-emerald-700"
                   onClick={() => {
                     props.onApply(draftFilters);
                     setOpen(false);

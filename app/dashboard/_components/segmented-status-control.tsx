@@ -39,7 +39,7 @@ export function SegmentedStatusControl<TValue extends string>({
                 ? option.tone === "active"
                   ? "bg-green-500/20 text-green-800 dark:bg-green-500/20 dark:text-green-500"
                   : "bg-amber-200/40 text-amber-700 dark:bg-amber-300/20 dark:text-amber-400"
-                : "bg-transparent text-foreground/72 hover:bg-zinc-200/70 hover:text-foreground dark:text-zinc-400 dark:hover:bg-white/[0.05] dark:hover:text-zinc-100",
+                : "bg-transparent text-muted-foreground hover:bg-zinc-200/70 hover:text-foreground dark:text-zinc-400 dark:hover:bg-white/[0.05] dark:hover:text-zinc-100",
             )}
             key={option.value}
             onClick={() => onChange(option.value)}

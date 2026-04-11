@@ -3,16 +3,19 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 function FormSectionSkeleton({
   titleWidth,
+  separator = false,
   children,
 }: {
   titleWidth: string;
+  separator?: boolean;
   children: ReactNode;
 }) {
   return (
-    <section className="space-y-4 rounded-md border border-border/70 bg-muted/20 px-4 py-4">
-      <div className="space-y-2">
+    <section className="space-y-5">
+      {separator ? <div className="border-t border-border/70" /> : null}
+      <div className="space-y-1">
         <Skeleton className={`h-4 ${titleWidth}`} />
-        <Skeleton className="h-3 w-full max-w-[32rem]" />
+        <Skeleton className="h-3 w-full max-w-[34rem]" />
       </div>
       {children}
     </section>
@@ -26,18 +29,7 @@ function ControlSkeleton() {
 export default function LoadingCreateAccountPage() {
   return (
     <div className="mx-auto w-full max-w-5xl space-y-4">
-      <div className="px-1 py-1">
-        <Skeleton className="h-8 w-40 rounded-md" />
-      </div>
-
       <div className="rounded-md border border-border/70 bg-card shadow-sm">
-        <div className="border-b border-border/70 px-4 py-4 md:px-5">
-          <div className="space-y-2">
-            <Skeleton className="h-4 w-36" />
-            <Skeleton className="h-3 w-full max-w-[34rem]" />
-          </div>
-        </div>
-
         <div className="space-y-4 px-4 py-4 md:px-5">
           <FormSectionSkeleton titleWidth="w-32">
             <div className="grid gap-4 md:grid-cols-2">
@@ -74,7 +66,7 @@ export default function LoadingCreateAccountPage() {
             </div>
           </FormSectionSkeleton>
 
-          <FormSectionSkeleton titleWidth="w-28">
+          <FormSectionSkeleton separator titleWidth="w-28">
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Skeleton className="h-4 w-28" />
@@ -92,7 +84,7 @@ export default function LoadingCreateAccountPage() {
             </div>
           </FormSectionSkeleton>
 
-          <FormSectionSkeleton titleWidth="w-24">
+          <FormSectionSkeleton separator titleWidth="w-24">
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Skeleton className="h-4 w-16" />

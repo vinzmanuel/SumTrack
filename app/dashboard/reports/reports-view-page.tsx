@@ -2,7 +2,8 @@
 
 import { useRef } from "react";
 import type { ReactNode } from "react";
-import { DashboardBackLink } from "@/app/dashboard/_components/dashboard-back-link";
+import { FileChartColumn, ReceiptText } from "lucide-react";
+import { DashboardHeaderConfigurator } from "@/app/dashboard/_components/dashboard-header-config";
 import { Button } from "@/components/ui/button";
 import { formatStoredDateTimeForManila } from "@/app/dashboard/datetime";
 import {
@@ -2022,21 +2023,32 @@ function renderReportBody(report: ReportsViewerPageData) {
   );
 }
 
-export function ReportsViewPage(props: { backHref?: string; backLabel?: string; report: ReportsViewerPageData }) {
+export function ReportsViewPage(props: { report: ReportsViewerPageData }) {
   const isDocument = props.report.reportCategory === "document";
   const isReceiptDocument = isReceiptTemplate(props.report);
   const reportContentRef = useRef<HTMLDivElement | null>(null);
   const receiptContentRef = useRef<HTMLDivElement | null>(null);
   const csvAvailable = canExportCsv(props.report);
+  const headerIcon = isDocument ? (
+    <ReceiptText className="size-9 text-sidebar-foreground/65" />
+  ) : (
+    <FileChartColumn className="size-9 text-sidebar-foreground/65" />
+  );
+  const headerDescription = isDocument
+    ? "Open, print, and export operational document snapshots saved from loan and collection records."
+    : "Open, review, and export analytics report snapshots saved from your reporting workflows.";
 
   return (
     <main className="mx-auto max-w-6xl p-6">
+      <DashboardHeaderConfigurator
+        config={{
+          icon: headerIcon,
+          title: "Report Snapshot Viewer",
+          breadcrumbTitle: props.report.title,
+          description: headerDescription,
+        }}
+      />
       <div className="space-y-5">
-        <DashboardBackLink
-          href={props.backHref ?? "/dashboard/reports"}
-          label={props.backLabel ?? "Back to Reports Library"}
-        />
-
         <article
           className={
             isReceiptDocument

@@ -61,7 +61,7 @@ type CreateAccountFormProps = {
 
 const EMPLOYEE_ROLE_NAMES = ["Admin", "Auditor", "Branch Manager", "Secretary", "Collector"];
 const BRANCH_ONLY_ROLE_NAMES = ["Branch Manager", "Secretary"];
-const CREATE_ACCOUNT_CONTROL_CLASS_NAME = "h-11 rounded-md bg-white py-0 text-sm dark:bg-background";
+const CREATE_ACCOUNT_CONTROL_CLASS_NAME = "!h-11 rounded-md bg-white py-0 text-sm dark:bg-background";
 const CREATE_ACCOUNT_SURFACE_CLASS_NAME = "rounded-md border border-border/70 bg-card shadow-sm";
 
 function SubmitButton() {

@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 
 export type DashboardHeaderConfig = {
   title: string;
+  breadcrumbTitle?: string;
   description?: string;
   icon?: ReactNode;
   action?: ReactNode;

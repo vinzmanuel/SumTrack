@@ -1,19 +1,21 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useActionState, useEffect, useMemo, useRef, useState } from "react";
+import { useActionState, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useFormStatus } from "react-dom";
+import { AlertTriangle, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { appendBackNavigationToHref, buildReturnTo } from "@/app/dashboard/back-navigation";
-import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -32,12 +34,55 @@ import type {
   ReportsTemplateCategoryDefinition,
   ReportsTemplateCategoryKey,
 } from "@/app/dashboard/reports/types";
+import { cn } from "@/lib/utils";
+
+const REPORTS_CONTROL_CLASS_NAME = "!h-11 rounded-md bg-white py-0 text-sm dark:bg-background";
+const REPORTS_SURFACE_CLASS_NAME = "rounded-md border border-border/70 bg-card shadow-sm";
+
+function FieldLabel(props: { children: string; htmlFor?: string; required?: boolean }) {
+  return (
+    <Label htmlFor={props.htmlFor}>
+      {props.children}
+      {props.required ? <span className="ml-1 text-destructive">*</span> : null}
+    </Label>
+  );
+}
+
+function Field(props: { children: ReactNode; className?: string; invalid?: boolean }) {
+  return (
+    <div
+      className={cn("space-y-2 data-[invalid=true]:[&_label]:text-destructive", props.className)}
+      data-invalid={props.invalid || undefined}
+    >
+      {props.children}
+    </div>
+  );
+}
+
+function FormSection(props: { title: string; description: string; children: ReactNode }) {
+  return (
+    <section className="space-y-5">
+      <div className="space-y-1">
+        <h2 className="text-base font-semibold tracking-tight text-foreground md:text-[1.05rem]">
+          {props.title}
+        </h2>
+        <p className="text-sm text-muted-foreground">{props.description}</p>
+      </div>
+      {props.children}
+    </section>
+  );
+}
 
 function SubmitButton(props: { disabled?: boolean }) {
   const { pending } = useFormStatus();
 
   return (
-    <Button disabled={pending || props.disabled} type="submit">
+    <Button
+      className="h-11 rounded-md bg-emerald-600 px-4 text-sm text-white hover:bg-emerald-700 hover:text-white dark:bg-green-500/60 dark:text-white dark:hover:bg-green-500/80 dark:hover:text-white"
+      disabled={pending || props.disabled}
+      type="submit"
+    >
+      {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
       {pending ? "Generating..." : "Generate and Save Report"}
     </Button>
   );
@@ -131,6 +176,7 @@ export function AnalyticsReportGenerationForm(props: {
   const [month, setMonth] = useState(currentMonthValue());
   const [dateFrom, setDateFrom] = useState(currentMonthStart());
   const [dateTo, setDateTo] = useState(currentDateValue());
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
 
   const effectiveTemplateKey = categoryTemplates.some((template) => template.key === templateKey)
     ? templateKey
@@ -174,6 +220,7 @@ export function AnalyticsReportGenerationForm(props: {
           ? "This template requires at least two selected branches."
           : "Select a valid branch for this template."
         : null;
+  const shouldShowBranchSelectionError = hasAttemptedSubmit && branchSelectionError !== null;
   const selectedCategoryDefinition =
     props.analyticsTemplateCategories.find(
       (category) => category.key === effectiveSelectedCategory,
@@ -200,110 +247,122 @@ export function AnalyticsReportGenerationForm(props: {
   }, [currentReturnTo, router, state.result, state.status]);
 
   return (
-    <Card className="mx-auto w-full max-w-3xl border-border/70 bg-background">
-        <CardHeader className="space-y-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <CardTitle className="text-xl">Generate Manual Analytics Report</CardTitle>
-            <Badge className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-emerald-800 hover:bg-emerald-50">
-              PASS 2
-            </Badge>
-          </div>
-          <CardDescription>
-            Generate and save analytics snapshots into the existing reports table. Saved reports can be opened immediately from the dedicated viewer page.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form action={formAction} className="space-y-6">
-            <div className="space-y-3">
-              <div className="space-y-1">
-                <Label htmlFor="template_category">Template Category</Label>
-                <p className="text-xs text-muted-foreground">
-                  Choose a reporting category first, then select a template inside it.
-                </p>
-              </div>
-              <Select
-                onValueChange={(value) => {
-                  const nextCategory = value as ReportsTemplateCategoryKey;
-                  setSelectedCategory(nextCategory);
-                  const nextTemplate =
-                    props.analyticsTemplates.find(
-                      (template) =>
-                        template.category === nextCategory && template.available,
-                    )?.key ?? "";
-                  setTemplateKey(nextTemplate);
-                }}
-                value={effectiveSelectedCategory}
-              >
-                <SelectTrigger className="w-full" id="template_category">
-                  <SelectValue placeholder="Select template category" />
-                </SelectTrigger>
-                <SelectContent>
-                  {props.analyticsTemplateCategories.map((category) => {
-                    const availableCount = props.analyticsTemplates.filter(
-                      (template) => template.category === category.key && template.available,
-                    ).length;
+    <div className="space-y-4">
+      <div className={REPORTS_SURFACE_CLASS_NAME}>
+        <form
+          action={formAction}
+          className="space-y-4 px-4 py-4 md:px-5"
+          onSubmit={(event) => {
+            setHasAttemptedSubmit(true);
 
-                    return (
-                      <SelectItem key={category.key} value={category.key}>
-                        {category.label} {availableCount > 0 ? `(${availableCount} available)` : "(planned / unavailable)"}
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
-              {selectedCategoryDefinition ? (
-                <div className="rounded-md border border-dashed border-border/80 bg-muted/15 px-3 py-3 text-sm text-muted-foreground">
-                  {selectedCategoryDefinition.description}
-                </div>
-              ) : null}
-            </div>
-
-            <div className="grid gap-4 lg:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="template_key">Template</Label>
-                <Select onValueChange={setTemplateKey} value={effectiveTemplateKey}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select analytics template" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableTemplates.map((template) => (
-                      <SelectItem key={template.key} value={template.key}>
-                        {template.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <input name="template_key" type="hidden" value={effectiveTemplateKey} />
-                {categoryTemplates.length > 0 ? (
-                  <p className="text-xs text-muted-foreground">
-                    {categoryTemplates.length} template{categoryTemplates.length === 1 ? "" : "s"} in {selectedCategoryDefinition?.label ?? "this category"}.
-                  </p>
-                ) : null}
-                {state.fieldErrors?.template_key ? (
-                  <p className="text-sm text-destructive">{state.fieldErrors.template_key}</p>
-                ) : null}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="title">Title</Label>
-                <Input
-                  id="title"
-                  name="title"
-                  placeholder="Leave blank to use the default generated title"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Saved reports always need a title. If you leave this blank, the system will generate one from the template, date, and branch scope.
-                </p>
-                {state.fieldErrors?.title ? (
-                  <p className="text-sm text-destructive">{state.fieldErrors.title}</p>
-                ) : null}
-              </div>
-            </div>
-
+            if (branchSelectionError !== null) {
+              event.preventDefault();
+            }
+          }}
+        >
+          <FormSection
+            description="Choose the report lane, select the saved template, and set the output title before generating a report snapshot."
+            title="Report Setup"
+          >
             <div className="space-y-2">
-              <Label>Branch Scope</Label>
+              <div className="grid gap-4 md:grid-cols-2">
+                <Field invalid={Boolean(state.fieldErrors?.template_key)}>
+                  <FieldLabel htmlFor="template_category" required>
+                    Template Category
+                  </FieldLabel>
+                  <Select
+                    onValueChange={(value) => {
+                      const nextCategory = value as ReportsTemplateCategoryKey;
+                      setSelectedCategory(nextCategory);
+                      const nextTemplate =
+                        props.analyticsTemplates.find(
+                          (template) => template.category === nextCategory && template.available,
+                        )?.key ?? "";
+                      setTemplateKey(nextTemplate);
+                    }}
+                    value={effectiveSelectedCategory}
+                  >
+                    <SelectTrigger className={`${REPORTS_CONTROL_CLASS_NAME} w-full`} id="template_category">
+                      <SelectValue placeholder="Select template category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectLabel>Template Category</SelectLabel>
+                        {props.analyticsTemplateCategories.map((category) => {
+                          const availableCount = props.analyticsTemplates.filter(
+                            (template) => template.category === category.key && template.available,
+                          ).length;
+
+                          return (
+                            <SelectItem key={category.key} value={category.key}>
+                              {category.label}{" "}
+                              {availableCount > 0 ? `(${availableCount} available)` : "(planned / unavailable)"}
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </Field>
+
+                <Field invalid={Boolean(state.fieldErrors?.template_key)}>
+                  <FieldLabel htmlFor="template_key" required>
+                    Template
+                  </FieldLabel>
+                  <Select onValueChange={setTemplateKey} value={effectiveTemplateKey}>
+                    <SelectTrigger
+                      aria-invalid={Boolean(state.fieldErrors?.template_key) || undefined}
+                      className={`${REPORTS_CONTROL_CLASS_NAME} w-full`}
+                      id="template_key"
+                    >
+                      <SelectValue placeholder="Select analytics template" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectLabel>Template</SelectLabel>
+                        {availableTemplates.map((template) => (
+                          <SelectItem key={template.key} value={template.key}>
+                            {template.label}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                  <input name="template_key" type="hidden" value={effectiveTemplateKey} />
+                  {state.fieldErrors?.template_key ? (
+                    <p className="text-sm text-destructive">{state.fieldErrors.template_key}</p>
+                  ) : null}
+                </Field>
+              </div>
+
+              <div>
+                <Field invalid={Boolean(state.fieldErrors?.title)}>
+                  <FieldLabel htmlFor="title">Report Title</FieldLabel>
+                  <Input
+                    aria-invalid={Boolean(state.fieldErrors?.title) || undefined}
+                    className={REPORTS_CONTROL_CLASS_NAME}
+                    id="title"
+                    name="title"
+                    placeholder="Leave blank to use the generated default title"
+                  />
+                  {state.fieldErrors?.title ? (
+                    <p className="text-sm text-destructive">{state.fieldErrors.title}</p>
+                  ) : null}
+                </Field>
+              </div>
+            </div>
+          </FormSection>
+
+          <div className="border-t border-border/70" />
+
+          <FormSection
+            description="Define the branch scope and any record-specific targets required by the selected template."
+            title="Scope and Targets"
+          >
+            <Field invalid={Boolean(state.fieldErrors?.branch_ids) || shouldShowBranchSelectionError}>
+              <FieldLabel required>Branch Scope</FieldLabel>
               {usingFixedBranch ? (
-                <div className="rounded-md border bg-muted/20 px-3 py-3 text-sm">
+                <div className="rounded-md border border-border/70 bg-background/70 px-3 py-3 text-sm">
                   <p className="font-medium text-foreground">
                     {props.access.fixedBranchName ?? "Assigned branch"}
                   </p>
@@ -313,7 +372,10 @@ export function AnalyticsReportGenerationForm(props: {
                   <input name="branch_ids" type="hidden" value={String(props.access.fixedBranchId)} />
                 </div>
               ) : (
-                <div className="space-y-2 rounded-md border p-3">
+                <div
+                  className="space-y-2 rounded-md border border-border/70 bg-background/70 p-3 data-[invalid=true]:border-destructive"
+                  data-invalid={Boolean(state.fieldErrors?.branch_ids) || shouldShowBranchSelectionError || undefined}
+                >
                   <p className="text-sm text-muted-foreground">
                     Select one or more branches within your current reporting scope.
                   </p>
@@ -324,6 +386,7 @@ export function AnalyticsReportGenerationForm(props: {
                       return (
                         <label className="flex items-center gap-2 text-sm" key={item.branchId}>
                           <input
+                            aria-invalid={Boolean(state.fieldErrors?.branch_ids) || shouldShowBranchSelectionError || undefined}
                             checked={checked}
                             className="h-4 w-4"
                             name="branch_ids"
@@ -347,92 +410,122 @@ export function AnalyticsReportGenerationForm(props: {
                   </div>
                 </div>
               )}
-                {state.fieldErrors?.branch_ids ? (
+              {state.fieldErrors?.branch_ids ? (
                 <p className="text-sm text-destructive">{state.fieldErrors.branch_ids}</p>
               ) : null}
+              {shouldShowBranchSelectionError ? (
+                <p className="text-sm text-destructive">{branchSelectionError}</p>
+              ) : null}
               {selectedTemplate?.key === "branch_performance_overview" ? (
-                <p className="text-xs text-muted-foreground">
+                <p className="text-sm text-muted-foreground">
                   This template is the single-branch branch snapshot. Select exactly one branch.
                 </p>
               ) : null}
               {selectedTemplate?.key === "branch_performance_comparison" ? (
-                <p className="text-xs text-muted-foreground">
-                  This template is the cross-branch comparison report. Select two or more branches.
+                <p className="text-sm text-muted-foreground">
+                  This template compares branches side by side. Select two or more branches.
                 </p>
               ) : null}
               {selectedTemplate?.category === "branches" &&
               selectedTemplate.key !== "branch_performance_overview" &&
               selectedTemplate.key !== "branch_performance_comparison" ? (
-                <p className="text-xs text-muted-foreground">
-                  These branch comparison templates use the exact branches you choose here. Single-branch output is allowed, but 2 or more selected branches make the comparison much more useful.
+                <p className="text-sm text-muted-foreground">
+                  Branch-focused templates use the exact branches you choose here. Single-branch output is still allowed unless the template requires otherwise.
                 </p>
               ) : null}
-              {branchSelectionError ? (
-                <p className="text-sm text-destructive">{branchSelectionError}</p>
-              ) : null}
-            </div>
+            </Field>
 
             {collectorSelectionRequired ? (
-              <div className="space-y-2">
-                <Label htmlFor="collector_id">Collector</Label>
+              <Field invalid={Boolean(state.fieldErrors?.collector_id)}>
+                <FieldLabel htmlFor="collector_id" required>
+                  Collector
+                </FieldLabel>
                 <Select onValueChange={setCollectorId} value={effectiveCollectorId}>
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger
+                    aria-invalid={Boolean(state.fieldErrors?.collector_id) || undefined}
+                    className={`${REPORTS_CONTROL_CLASS_NAME} w-full`}
+                    id="collector_id"
+                  >
                     <SelectValue placeholder="Select collector" />
                   </SelectTrigger>
                   <SelectContent>
-                    {filteredCollectorOptions.map((collector) => (
-                      <SelectItem key={collector.collectorId} value={collector.collectorId}>
-                        {collector.collectorName} ({collector.companyId})
-                      </SelectItem>
-                    ))}
+                    <SelectGroup>
+                      <SelectLabel>Collector</SelectLabel>
+                      {filteredCollectorOptions.map((collector) => (
+                        <SelectItem key={collector.collectorId} value={collector.collectorId}>
+                          {collector.collectorName} ({collector.companyId})
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
                   </SelectContent>
                 </Select>
                 <input name="collector_id" type="hidden" value={effectiveCollectorId} />
                 {filteredCollectorOptions.length > 0 ? (
-                  <p className="text-xs text-muted-foreground">
-                    This is a single-collector report. Choose the collector you want to analyze inside the selected branch scope.
+                  <p className="text-sm text-muted-foreground">
+                    This is a single-collector report. Choose the collector inside the currently selected branch scope.
                   </p>
                 ) : (
-                  <p className="text-xs text-muted-foreground">
-                    No collectors are available in the currently selected branch scope.
+                  <p className="text-sm text-muted-foreground">
+                    No collectors are available in the selected branch scope right now.
                   </p>
                 )}
                 {state.fieldErrors?.collector_id ? (
                   <p className="text-sm text-destructive">{state.fieldErrors.collector_id}</p>
                 ) : null}
-              </div>
+              </Field>
             ) : null}
 
+          </FormSection>
+
+          <div className="border-t border-border/70" />
+
+          <FormSection
+            description="Choose the coverage period required by the selected template. Some report types save monthly history, while others use flexible date ranges."
+            title="Coverage Period"
+          >
             {dateMode === "range" ? (
               <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="date_preset">Date Range</Label>
+                <Field invalid={Boolean(state.fieldErrors?.date_preset)}>
+                  <FieldLabel htmlFor="date_preset" required>
+                    Date Range
+                  </FieldLabel>
                   <Select
                     onValueChange={(value) => setDatePreset(value as ReportsDateRangePreset)}
                     value={datePreset}
                   >
-                    <SelectTrigger className="w-full" id="date_preset">
+                    <SelectTrigger
+                      aria-invalid={Boolean(state.fieldErrors?.date_preset) || undefined}
+                      className={`${REPORTS_CONTROL_CLASS_NAME} w-full md:w-1/2`}
+                      id="date_preset"
+                    >
                       <SelectValue placeholder="Select date range" />
                     </SelectTrigger>
                     <SelectContent>
-                      {REPORTS_DATE_RANGE_PRESET_OPTIONS.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
+                      <SelectGroup>
+                        <SelectLabel>Date Range</SelectLabel>
+                        {REPORTS_DATE_RANGE_PRESET_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
                     </SelectContent>
                   </Select>
                   <input name="date_preset" type="hidden" value={datePreset} />
                   {state.fieldErrors?.date_preset ? (
                     <p className="text-sm text-destructive">{state.fieldErrors.date_preset}</p>
                   ) : null}
-                </div>
+                </Field>
 
                 {isReportsCustomDatePreset(datePreset) ? (
                   <div className="grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="date_from">Start Date</Label>
+                    <Field invalid={Boolean(state.fieldErrors?.date_from)}>
+                      <FieldLabel htmlFor="date_from" required>
+                        Start Date
+                      </FieldLabel>
                       <Input
+                        aria-invalid={Boolean(state.fieldErrors?.date_from) || undefined}
+                        className={REPORTS_CONTROL_CLASS_NAME}
                         id="date_from"
                         name="date_from"
                         onChange={(event) => setDateFrom(event.target.value)}
@@ -442,11 +535,15 @@ export function AnalyticsReportGenerationForm(props: {
                       {state.fieldErrors?.date_from ? (
                         <p className="text-sm text-destructive">{state.fieldErrors.date_from}</p>
                       ) : null}
-                    </div>
+                    </Field>
 
-                    <div className="space-y-2">
-                      <Label htmlFor="date_to">End Date</Label>
+                    <Field invalid={Boolean(state.fieldErrors?.date_to)}>
+                      <FieldLabel htmlFor="date_to" required>
+                        End Date
+                      </FieldLabel>
                       <Input
+                        aria-invalid={Boolean(state.fieldErrors?.date_to) || undefined}
+                        className={REPORTS_CONTROL_CLASS_NAME}
                         id="date_to"
                         name="date_to"
                         onChange={(event) => setDateTo(event.target.value)}
@@ -456,65 +553,90 @@ export function AnalyticsReportGenerationForm(props: {
                       {state.fieldErrors?.date_to ? (
                         <p className="text-sm text-destructive">{state.fieldErrors.date_to}</p>
                       ) : null}
-                    </div>
+                    </Field>
                   </div>
                 ) : null}
               </div>
             ) : null}
 
             {dateMode === "month" ? (
-              <div className="space-y-2">
-                <Label htmlFor="month">Reporting Month</Label>
+              <Field invalid={Boolean(state.fieldErrors?.month)} className="md:max-w-[240px]">
+                <FieldLabel htmlFor="month" required>
+                  Reporting Month
+                </FieldLabel>
                 <Input
+                  aria-invalid={Boolean(state.fieldErrors?.month) || undefined}
+                  className={REPORTS_CONTROL_CLASS_NAME}
                   id="month"
                   name="month"
                   onChange={(event) => setMonth(event.target.value)}
                   type="month"
                   value={month}
                 />
-                <p className="text-xs text-muted-foreground">
-                  This template saves finalized historical data for a single month only.
+                <p className="text-sm text-muted-foreground">
+                  This template saves finalized historical data for one reporting month only.
                 </p>
                 {state.fieldErrors?.month ? (
                   <p className="text-sm text-destructive">{state.fieldErrors.month}</p>
                 ) : null}
-              </div>
+              </Field>
             ) : null}
 
             {dateMode === "none" ? (
-              <div className="rounded-md border border-dashed border-border/80 bg-muted/15 px-3 py-3 text-sm text-muted-foreground">
-                This template saves a live-loan snapshot without an additional date filter.
-              </div>
-            ) : null}
-
-            {unavailableTemplates.length > 0 ? (
-              <div className="rounded-md border border-dashed border-border/80 bg-muted/15 px-4 py-3">
-                <p className="text-sm font-medium text-foreground">
-                  Unavailable in {selectedCategoryDefinition?.label ?? "this category"}
-                </p>
-                <div className="mt-2 space-y-1">
-                  {unavailableTemplates.map((template) => (
-                    <p className="text-sm text-muted-foreground" key={template.key}>
-                      {template.label}: {template.availabilityNote}
-                    </p>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-
-            {!hasAvailableTemplates && allAvailableTemplates.length > 0 ? (
               <div className="rounded-md border border-dashed border-border/80 bg-muted/15 px-4 py-3 text-sm text-muted-foreground">
-                No templates in {selectedCategoryDefinition?.label ?? "this category"} are ready to generate yet. Choose another category to continue.
+                This template saves a live-loan or current-state snapshot without an additional coverage date filter.
               </div>
             ) : null}
+          </FormSection>
 
+          {unavailableTemplates.length > 0 || (!hasAvailableTemplates && allAvailableTemplates.length > 0) ? (
+            <>
+              <div className="border-t border-border/70" />
+
+              <FormSection
+                description="Template availability differs by implementation state and role support. These notes explain what is currently unavailable."
+                title="Availability Notes"
+              >
+                {unavailableTemplates.length > 0 ? (
+                  <div className="rounded-md border border-dashed border-border/80 bg-muted/15 px-4 py-3">
+                    <p className="text-sm font-medium text-foreground">
+                      Unavailable in {selectedCategoryDefinition?.label ?? "this category"}
+                    </p>
+                    <div className="mt-2 space-y-1">
+                      {unavailableTemplates.map((template) => (
+                        <p className="text-sm text-muted-foreground" key={template.key}>
+                          {template.label}: {template.availabilityNote}
+                        </p>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                {!hasAvailableTemplates && allAvailableTemplates.length > 0 ? (
+                  <Alert className="border-amber-200 bg-amber-50/80 text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription className="text-amber-800 dark:text-amber-200">
+                      No templates in {selectedCategoryDefinition?.label ?? "this category"} are ready to generate yet. Choose another category to continue.
+                    </AlertDescription>
+                  </Alert>
+                ) : null}
+              </FormSection>
+            </>
+          ) : null}
+
+          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
             {state.status === "error" && state.message ? (
-              <p className="text-sm text-destructive">{state.message}</p>
-            ) : null}
-
-            <SubmitButton disabled={!hasAvailableTemplates || branchSelectionError !== null} />
-          </form>
-      </CardContent>
-    </Card>
+              <Alert className="border-destructive/30 bg-destructive/5 text-destructive sm:max-w-2xl">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>{state.message}</AlertDescription>
+              </Alert>
+            ) : (
+              <div />
+            )}
+            <SubmitButton disabled={!hasAvailableTemplates} />
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }

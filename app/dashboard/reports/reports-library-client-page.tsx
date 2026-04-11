@@ -1,13 +1,31 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, FileStack, FolderOpenDot } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  BarChart3,
+  ChartColumn,
+  ChevronLeft,
+  ChevronRight,
+  Filter,
+  FolderOpenDot,
+  MoreHorizontal,
+  Plus,
+  ReceiptText,
+} from "lucide-react";
+import { DashboardHeaderConfigurator } from "@/app/dashboard/_components/dashboard-header-config";
 import { SegmentedStatusControl } from "@/app/dashboard/_components/segmented-status-control";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { appendBackNavigationToHref } from "@/app/dashboard/back-navigation";
 import { formatStoredDateTimeForManila } from "@/app/dashboard/datetime";
 import { getReportsDatePresetLabel } from "@/app/dashboard/reports/date-range-presets";
@@ -25,6 +43,7 @@ import type {
 } from "@/app/dashboard/reports/types";
 
 const REPORTS_LIBRARY_PAGE_SIZE_OPTIONS = [10, 20, 50] as const;
+const headerRowClassName = "border-border/70 bg-card";
 
 function formatGeneratedAt(value: string) {
   return formatStoredDateTimeForManila(value, {
@@ -34,6 +53,22 @@ function formatGeneratedAt(value: string) {
     hour: "numeric",
     minute: "2-digit",
   });
+}
+
+function splitReportTitleParts(title: string) {
+  const separatorIndex = title.indexOf(" - ");
+
+  if (separatorIndex === -1) {
+    return {
+      primary: title,
+      secondary: null,
+    };
+  }
+
+  return {
+    primary: title.slice(0, separatorIndex),
+    secondary: title.slice(separatorIndex + 3),
+  };
 }
 
 function buildReportsLibraryDataUrl(filters: ReportsLibraryFilterState) {
@@ -67,24 +102,30 @@ function templateKeyMatchesLibraryTab(
   return templateCategoryMatchesLibraryTab(libraryCategory, templateCategory);
 }
 
+const CONTROL_CLASS_NAME = "!h-11 rounded-md bg-white py-0 text-sm dark:bg-background";
+
 function CategoryTabButton(props: {
   active: boolean;
   category: ReportsLibraryCategoryTab;
   count: number;
   label: string;
+  icon?: ReactNode;
   onSelect: (category: ReportsLibraryCategoryTab) => void;
 }) {
   return (
     <button
-      className={`inline-flex rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+      className={`inline-flex h-11 items-center gap-2 border-b-2 px-1 text-sm font-medium transition-colors ${
         props.active
-          ? "bg-background text-foreground shadow-sm dark:bg-white/[0.08] dark:text-white"
-          : "text-muted-foreground hover:text-foreground dark:text-zinc-400 dark:hover:text-white"
+          ? "border-[#e73c31] text-foreground"
+          : "border-transparent text-muted-foreground hover:text-foreground dark:hover:text-white"
       }`}
       onClick={() => props.onSelect(props.category)}
       type="button"
     >
-      {props.label} ({props.count})
+      <span className={props.active ? "text-[#e73c31]" : undefined}>{props.icon}</span>
+      <span>
+        {props.label} ({props.count})
+      </span>
     </button>
   );
 }
@@ -168,12 +209,24 @@ function ActiveFilterChip(props: { label: string; onRemove: () => void }) {
 }
 
 function roleBadgeClass(roleName: string | null) {
-  if (roleName === "Admin") return "border-red-200 bg-red-50 text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300";
-  if (roleName === "Auditor") return "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300";
-  if (roleName === "Branch Manager") return "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300";
-  if (roleName === "Secretary") return "border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-500/30 dark:bg-violet-500/10 dark:text-violet-300";
-  if (roleName === "Collector") return "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300";
-  return "border-zinc-200 bg-zinc-50 text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100";
+  if (roleName === "Admin") return "whitespace-nowrap rounded-md border border-red-200 bg-red-50 py-1 text-red-700 hover:bg-red-50 hover:text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300 dark:hover:bg-red-500/10 dark:hover:text-red-300";
+  if (roleName === "Auditor") return "whitespace-nowrap rounded-md border border-blue-200 bg-blue-50 py-1 text-blue-700 hover:bg-blue-50 hover:text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300 dark:hover:bg-blue-500/10 dark:hover:text-blue-300";
+  if (roleName === "Branch Manager") return "whitespace-nowrap rounded-md border border-amber-200 bg-amber-50 py-1 text-amber-700 hover:bg-amber-50 hover:text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300 dark:hover:bg-amber-500/10 dark:hover:text-amber-300";
+  if (roleName === "Secretary") return "whitespace-nowrap rounded-md border border-violet-200 bg-violet-50 py-1 text-violet-700 hover:bg-violet-50 hover:text-violet-700 dark:border-violet-500/30 dark:bg-violet-500/10 dark:text-violet-300 dark:hover:bg-violet-500/10 dark:hover:text-violet-300";
+  if (roleName === "Collector") return "whitespace-nowrap rounded-md border border-emerald-200 bg-emerald-50 py-1 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-300";
+  return "whitespace-nowrap rounded-md border border-zinc-200 bg-zinc-50 py-1 text-zinc-700 hover:bg-zinc-50 hover:text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100 dark:hover:bg-white/[0.06] dark:hover:text-zinc-100";
+}
+
+function rowActionItemClassName(tone: "default" | "amber" | "green") {
+  if (tone === "amber") {
+    return "w-full cursor-pointer justify-start rounded-md px-3 py-2 text-left text-sm font-medium !text-amber-600 outline-hidden transition-colors hover:bg-amber-50 hover:!text-amber-600 focus:bg-amber-50 focus:!text-amber-600 data-[highlighted]:bg-amber-50 data-[highlighted]:!text-amber-600 dark:!text-amber-400 dark:hover:bg-amber-500/10 dark:hover:!text-amber-400 dark:focus:bg-amber-500/10 dark:focus:!text-amber-400 dark:data-[highlighted]:bg-amber-500/10 dark:data-[highlighted]:!text-amber-400";
+  }
+
+  if (tone === "green") {
+    return "w-full cursor-pointer justify-start rounded-md px-3 py-2 text-left text-sm font-medium !text-emerald-600 outline-hidden transition-colors hover:bg-emerald-50 hover:!text-emerald-600 focus:bg-emerald-50 focus:!text-emerald-600 data-[highlighted]:bg-emerald-50 data-[highlighted]:!text-emerald-600 dark:!text-emerald-400 dark:hover:bg-emerald-500/10 dark:hover:!text-emerald-400 dark:focus:bg-emerald-500/10 dark:focus:!text-emerald-400 dark:data-[highlighted]:bg-emerald-500/10 dark:data-[highlighted]:!text-emerald-400";
+  }
+
+  return "w-full cursor-pointer justify-start rounded-md px-3 py-2 text-left text-sm font-medium text-foreground outline-hidden transition-colors hover:bg-accent hover:text-foreground focus:bg-accent focus:text-foreground data-[highlighted]:bg-accent data-[highlighted]:text-foreground";
 }
 
 function GeneratedByCell(props: {
@@ -184,7 +237,7 @@ function GeneratedByCell(props: {
 }) {
   if (props.generatedType === "system") {
     return (
-      <Badge className="border-indigo-600 bg-indigo-600 px-3 py-1 text-white hover:bg-indigo-600 dark:border-indigo-500/40 dark:bg-indigo-500/20 dark:text-indigo-100 dark:hover:bg-indigo-500/20">
+      <Badge className="whitespace-nowrap rounded-md border border-indigo-600 bg-indigo-600 py-1 text-white hover:bg-indigo-600 hover:text-white dark:border-indigo-500/40 dark:bg-indigo-500/20 dark:text-indigo-100 dark:hover:bg-indigo-500/20 dark:hover:text-indigo-100">
         System-generated
       </Badge>
     );
@@ -370,10 +423,12 @@ export function ReportsLibraryClientPage({
   access: Extract<ReportsPageAccessState, { view: "ready" }>;
   pageData: ReportsLibraryPageData;
 }) {
+  const router = useRouter();
   const initialFilters = useMemo(() => pageData.filters, [pageData.filters]);
   const [results, setResults] = useState(pageData);
   const [filters, setFilters] = useState(initialFilters);
   const [isPending, setIsPending] = useState(false);
+  const [hasMounted, setHasMounted] = useState(false);
   const [statusActionReportId, setStatusActionReportId] = useState<number | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -385,6 +440,10 @@ export function ReportsLibraryClientPage({
     setFilters(initialFilters);
     setErrorMessage(null);
   }, [initialFilters, pageData]);
+
+  useEffect(() => {
+    setHasMounted(true);
+  }, []);
 
   useEffect(() => {
     filtersRef.current = filters;
@@ -519,72 +578,75 @@ export function ReportsLibraryClientPage({
   const showingTo =
     results.totalCount === 0 ? 0 : Math.min(safePage * results.pageSize, results.totalCount);
   return (
-    <div className="w-full max-w-none space-y-5 pb-6 pt-1 sm:pb-6 sm:pt-2">
-      <Card className="gap-0 overflow-hidden py-0">
-        <div className="bg-gradient-to-r from-slate-50 via-background to-emerald-50/60 p-6 dark:from-zinc-950 dark:via-background dark:to-emerald-950/45">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-            <div className="space-y-1">
-              <div className="space-y-1">
-                <h1 className="flex items-center gap-2 text-3xl leading-none font-semibold tracking-tight text-foreground">
-                  <FileStack className="relative -top-px size-7 shrink-0 text-muted-foreground" />
-                  Reports Library
-                </h1>
-                <p className="text-sm text-muted-foreground">
-                  Saved analytical reports and operational documents available inside your current reporting scope.
-                </p>
-              </div>
+    <>
+      <DashboardHeaderConfigurator
+        config={{
+          icon: <ChartColumn className="size-9 text-sidebar-foreground/65" />,
+          title: "Reports",
+          description:
+            "Review saved analytics reports and operational documents available inside your current reporting scope.",
+        }}
+      />
 
-              <div className="flex flex-wrap items-center gap-2 pt-2">
-                <Badge
-                  className="border-zinc-200 bg-background/80 text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100"
-                  variant="outline"
-                >
-                  {access.roleName}
-                </Badge>
-                <Badge
-                  className="border-zinc-200 bg-background/80 text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100"
-                  variant="outline"
-                >
-                  Scope: {access.scopeLabel}
-                </Badge>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-3">
-              {canGenerate ? (
-                <Link href={createHref}>
-                  <Button className="bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white" size="sm">
-                    + Generate a New Report
-                  </Button>
-                </Link>
-              ) : null}
-            </div>
+      <div className="space-y-4">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex flex-wrap items-center gap-2.5">
+            {hasMounted ? (
+              <ReportsLibraryFilterSheet
+                branchOptions={results.filterOptions.branches}
+                filters={filters}
+                generatedByRoleOptions={results.filterOptions.generatedByRoles}
+                generatedByOptions={results.filterOptions.generatedByUsers}
+                onApply={applyFilters}
+                templateCategoryOptions={results.filterOptions.templateCategories}
+                templateOptions={results.filterOptions.templates}
+              />
+            ) : (
+              <Button className="h-11 rounded-md px-4 text-sm" type="button" variant="outline">
+                <Filter className="mr-2 h-4 w-4" />
+                Advanced Filters
+              </Button>
+            )}
           </div>
+
+          {canGenerate ? (
+            <div className="flex flex-wrap items-center gap-2.5 xl:justify-end">
+              <Link href={createHref}>
+                <Button className="h-11 rounded-md bg-emerald-600 px-4 text-sm text-white hover:bg-emerald-700 hover:text-white dark:bg-green-500/60 dark:text-white dark:hover:bg-green-500/80 dark:hover:text-white">
+                  <Plus className="h-4 w-4" />
+                  Generate Report
+                </Button>
+              </Link>
+            </div>
+          ) : null}
         </div>
 
-        <div className="border-t border-border/70 px-6 pb-4 pt-4">
-          <div className="inline-flex flex-wrap gap-2 rounded-xl border border-border/70 bg-muted/30 p-1 dark:bg-background">
-            <CategoryTabButton
-              active={filters.category === "all"}
-              category="all"
-              count={results.counts.all}
-              label="All Reports"
-              onSelect={(category) =>
+        <div className="space-y-4">
+          <div className="border-b-2 border-border/80 p">
+            <div className="-mb-px flex flex-wrap items-center gap-6">
+              <CategoryTabButton
+                active={filters.category === "all"}
+                category="all"
+                count={results.counts.all}
+                label="All Reports"
+                icon={<ChartColumn className="size-4" />}
+                onSelect={(category) =>
                   applyFilters({
                     ...filtersRef.current,
                     category,
                     templateCategory: filtersRef.current.templateCategory,
                     templateKey: filtersRef.current.templateKey,
                   })
-              }
-            />
-            <CategoryTabButton
-              active={filters.category === "analytics"}
-              category="analytics"
-              count={results.counts.analytics}
-              label="Analytics"
-              onSelect={(category) =>
-                applyFilters({
+                }
+              />
+              <CategoryTabButton
+                active={filters.category === "analytics"}
+                category="analytics"
+                count={results.counts.analytics}
+                label="Analytical"
+                icon={<BarChart3 className="size-4" />}
+                onSelect={(category) =>
+                  applyFilters({
                     ...filtersRef.current,
                     category,
                     templateCategory: templateCategoryMatchesLibraryTab(
@@ -602,15 +664,16 @@ export function ReportsLibraryClientPage({
                       ? filtersRef.current.templateKey
                       : null,
                   })
-              }
-            />
-            <CategoryTabButton
-              active={filters.category === "documents"}
-              category="documents"
-              count={results.counts.documents}
-              label="Documents"
-              onSelect={(category) =>
-                applyFilters({
+                }
+              />
+              <CategoryTabButton
+                active={filters.category === "documents"}
+                category="documents"
+                count={results.counts.documents}
+                label="Operational"
+                icon={<ReceiptText className="size-4" />}
+                onSelect={(category) =>
+                  applyFilters({
                     ...filtersRef.current,
                     category,
                     templateCategory: templateCategoryMatchesLibraryTab(
@@ -628,40 +691,26 @@ export function ReportsLibraryClientPage({
                       ? filtersRef.current.templateKey
                       : null,
                   })
-              }
-            />
+                }
+              />
+            </div>
           </div>
+
+          <SegmentedStatusControl
+            className = "pt-3"
+            onChange={(status) =>
+              applyFilters({
+                ...filtersRef.current,
+                status,
+              })
+            }
+            options={[
+              { value: "active", label: `Active (${results.counts.active})`, tone: "active" },
+              { value: "archived", label: `Archived (${results.counts.archived})`, tone: "archived" },
+            ]}
+            selectedValue={filters.status}
+          />
         </div>
-      </Card>
-
-      <Card className="border-border/70 shadow-sm">
-        <CardContent className="space-y-4">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <SegmentedStatusControl
-              className="mb-2"
-              onChange={(status) =>
-                applyFilters({
-                  ...filtersRef.current,
-                  status,
-                })
-              }
-              options={[
-                { value: "active", label: `Active (${results.counts.active})`, tone: "active" },
-                { value: "archived", label: `Archived (${results.counts.archived})`, tone: "archived" },
-              ]}
-              selectedValue={filters.status}
-            />
-
-            <ReportsLibraryFilterSheet
-              branchOptions={results.filterOptions.branches}
-              filters={filters}
-              generatedByRoleOptions={results.filterOptions.generatedByRoles}
-              generatedByOptions={results.filterOptions.generatedByUsers}
-              onApply={applyFilters}
-              templateCategoryOptions={results.filterOptions.templateCategories}
-              templateOptions={results.filterOptions.templates}
-            />
-          </div>
 
           {hasNonDefaultFilters ? (
             <div className="flex flex-wrap items-center gap-2">
@@ -684,181 +733,152 @@ export function ReportsLibraryClientPage({
             </div>
           ) : null}
 
-          <div className="relative space-y-3">
+        <div className="space-y-4">
+          <div className="relative">
             {results.rows.length === 0 ? (
-              <EmptyState
-                canGenerate={canGenerate}
-                createHref={createHref}
-                description={emptyState.description}
-                title={emptyState.title}
-              />
+              <div className="rounded-md border border-border/70 bg-card p-4 shadow-sm">
+                <EmptyState
+                  canGenerate={canGenerate}
+                  createHref={createHref}
+                  description={emptyState.description}
+                  title={emptyState.title}
+                />
+              </div>
             ) : (
-              <div className="overflow-hidden rounded-2xl border border-border/70">
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-border/70">
-                    <thead className="bg-[#F6F6F6] dark:bg-[var(--app-table-header)]">
-                      <tr className="text-left text-sm text-black dark:text-white">
-                        <th className="px-4 py-3 font-medium">Title</th>
-                        <th className="px-4 py-3 font-medium">Generated By</th>
-                        <th className="px-4 py-3 font-medium">Generated At</th>
-                        <th className="px-4 py-3 font-medium">Status</th>
-                        <th className="px-4 py-3 font-medium">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border/60 bg-card">
+              <div className="overflow-x-auto rounded-md border border-border/70 bg-card shadow-sm">
+                <Table className="min-w-[1080px] text-sm">
+                  <TableHeader>
+                    <TableRow className={headerRowClassName}>
+                      <TableHead className="h-auto py-3 pl-5 font-medium">Title</TableHead>
+                      <TableHead className="h-auto py-3 font-medium">Generated By</TableHead>
+                      <TableHead className="h-auto py-3 font-medium">Generated At</TableHead>
+                      <TableHead className="h-auto py-3 font-medium">Status</TableHead>
+                      <TableHead className="h-auto py-3">
+                        <span className="sr-only">Actions</span>
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                       {results.rows.map((row) => {
                         const canChangeStatus =
                           row.generatedType === "user" &&
                           (access.roleName === "Admin" || row.generatedByUserId === access.userId);
+                        const actionTone = row.status === "active" ? "amber" : "green";
+                        const actionLabel = row.status === "active" ? "Archive" : "Restore";
+                        const viewHref = appendBackNavigationToHref(`/dashboard/reports/${row.reportId}`, {
+                          returnTo: currentLibraryHref,
+                          source: "reports",
+                        });
+                        const titleParts = splitReportTitleParts(row.title);
 
                         return (
-                          <tr className="align-middle text-sm" key={row.reportId}>
-                            <td className="px-4 py-4 align-middle">
-                              <div className="space-y-1">
-                                <p className="font-medium text-foreground">{row.title}</p>
-                                {row.sourceEntityType && row.sourceEntityId ? (
-                                  <p className="text-xs text-muted-foreground">
-                                    Linked to {row.sourceEntityType} #{row.sourceEntityId}
-                                  </p>
+                          <TableRow
+                            className="cursor-pointer transition-colors hover:bg-accent/35"
+                            key={row.reportId}
+                            onClick={() => router.push(viewHref)}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter" || event.key === " ") {
+                                event.preventDefault();
+                                router.push(viewHref);
+                              }
+                            }}
+                            tabIndex={0}
+                          >
+                            <TableCell className="py-3 pl-5 pr-4 align-middle">
+                              <p className="font-medium leading-6 text-foreground">
+                                <span>{titleParts.primary}</span>
+                                {titleParts.secondary ? (
+                                  <span className="text-muted-foreground">{" - "}{titleParts.secondary}</span>
                                 ) : null}
-                              </div>
-                            </td>
-                            <td className="px-4 py-4 align-middle">
+                              </p>
+                            </TableCell>
+                            <TableCell className="py-3 align-middle">
                               <GeneratedByCell
                                 generatedByCompanyId={row.generatedByCompanyId}
                                 generatedByName={row.generatedByName}
                                 generatedByRoleName={row.generatedByRoleName}
                                 generatedType={row.generatedType}
                               />
-                            </td>
-                            <td className="px-4 py-4 align-middle text-muted-foreground">
+                            </TableCell>
+                            <TableCell className="py-3 align-middle text-muted-foreground">
                               {formatGeneratedAt(row.generatedAt)}
-                            </td>
-                            <td className="px-4 py-4 align-middle">
+                            </TableCell>
+                            <TableCell className="py-3 align-middle">
                               <Badge
                                 className={
                                   row.status === "active"
-                                    ? "rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-emerald-800 hover:bg-emerald-50 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300 dark:hover:bg-emerald-500/10"
-                                    : "rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1 text-zinc-700 hover:bg-zinc-50 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100 dark:hover:bg-white/[0.06]"
+                                    ? "whitespace-nowrap rounded-md border border-emerald-200 bg-emerald-50 py-1 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-300"
+                                    : "whitespace-nowrap rounded-md border border-zinc-200 bg-zinc-50 py-1 text-zinc-700 hover:bg-zinc-50 hover:text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100 dark:hover:bg-white/[0.06] dark:hover:text-zinc-100"
                                 }
                               >
                                 {row.status === "active" ? "Active" : "Archived"}
                               </Badge>
-                            </td>
-                            <td className="px-4 py-4 align-middle">
-                              <div className="flex flex-wrap items-center gap-2">
-                                <Link
-                                  href={appendBackNavigationToHref(`/dashboard/reports/${row.reportId}`, {
-                                    returnTo: currentLibraryHref,
-                                    source: "reports",
-                                  })}
+                            </TableCell>
+                            <TableCell
+                              className="py-3"
+                              onClick={(event) => event.stopPropagation()}
+                              onKeyDown={(event) => event.stopPropagation()}
+                            >
+                              {hasMounted ? (
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button
+                                      className="h-9 w-9 rounded-md border-0 bg-transparent text-muted-foreground shadow-none hover:bg-accent hover:text-foreground dark:bg-transparent dark:hover:bg-white/[0.08]"
+                                      onClick={(event) => event.stopPropagation()}
+                                      size="icon"
+                                      type="button"
+                                      variant="ghost"
+                                    >
+                                      <MoreHorizontal className="h-4 w-4" />
+                                      <span className="sr-only">Open actions for {row.title}</span>
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end" className="w-44 rounded-xl p-1.5">
+                                    <DropdownMenuItem asChild className={rowActionItemClassName("default")}>
+                                      <Link href={viewHref}>
+                                        View
+                                      </Link>
+                                    </DropdownMenuItem>
+                                    {canChangeStatus ? (
+                                      <DropdownMenuItem
+                                        className={rowActionItemClassName(actionTone)}
+                                        disabled={isPending || statusActionReportId === row.reportId}
+                                        onClick={() =>
+                                          void updateReportStatus(
+                                            row.reportId,
+                                            row.status === "active" ? "archived" : "active",
+                                          )
+                                        }
+                                      >
+                                        {statusActionReportId === row.reportId
+                                          ? row.status === "active"
+                                            ? "Archiving..."
+                                            : "Restoring..."
+                                          : actionLabel}
+                                      </DropdownMenuItem>
+                                    ) : null}
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              ) : (
+                                <Button
+                                  className="h-9 w-9 rounded-md border-0 bg-transparent text-muted-foreground shadow-none hover:bg-accent hover:text-foreground dark:bg-transparent dark:hover:bg-white/[0.08]"
+                                  onClick={(event) => event.stopPropagation()}
+                                  size="icon"
+                                  type="button"
+                                  variant="ghost"
                                 >
-                                  <Button size="sm" type="button" variant="outline">
-                                    View
-                                  </Button>
-                                </Link>
-                                {canChangeStatus ? (
-                                  <Button
-                                    className={
-                                      row.status === "active"
-                                        ? "border-amber-500 bg-amber-500 text-white hover:bg-amber-600 hover:text-white dark:border-amber-500 dark:bg-amber-500 dark:text-white dark:hover:bg-amber-600"
-                                        : undefined
-                                    }
-                                    disabled={isPending || statusActionReportId === row.reportId}
-                                    onClick={() =>
-                                      void updateReportStatus(
-                                        row.reportId,
-                                        row.status === "active" ? "archived" : "active",
-                                      )
-                                    }
-                                    size="sm"
-                                    type="button"
-                                    variant={row.status === "active" ? "default" : "default"}
-                                  >
-                                    {statusActionReportId === row.reportId
-                                      ? row.status === "active"
-                                        ? "Archiving..."
-                                        : "Restoring..."
-                                      : row.status === "active"
-                                        ? "Archive"
-                                        : "Restore"}
-                                  </Button>
-                                ) : null}
-                              </div>
-                            </td>
-                          </tr>
+                                  <MoreHorizontal className="h-4 w-4" />
+                                  <span className="sr-only">Actions unavailable while loading</span>
+                                </Button>
+                              )}
+                            </TableCell>
+                          </TableRow>
                         );
                       })}
-                    </tbody>
-                  </table>
-                </div>
+                  </TableBody>
+                </Table>
               </div>
             )}
-
-            {results.totalCount > 0 ? (
-              <div className="flex flex-col gap-3 pt-3 text-sm md:flex-row md:items-center md:justify-between">
-                <div className="space-y-1">
-                  <p className="text-muted-foreground">
-                    Showing {showingFrom}-{showingTo} of {results.totalCount}
-                  </p>
-                  {errorMessage ? <p className="text-destructive text-sm">{errorMessage}</p> : null}
-                </div>
-                <div className="flex flex-wrap items-center gap-2 xl:justify-center">
-                  <div className="flex items-center gap-2">
-                    <span className="text-muted-foreground">Rows</span>
-                    <Select
-                      onValueChange={(value) =>
-                        applyFilters({
-                          ...filtersRef.current,
-                          pageSize: Number(value),
-                          page: 1,
-                        })
-                      }
-                      value={String(results.pageSize)}
-                    >
-                      <SelectTrigger className="w-[84px]">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {REPORTS_LIBRARY_PAGE_SIZE_OPTIONS.map((option) => (
-                          <SelectItem key={option} value={String(option)}>
-                            {option}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="ml-4 flex items-center gap-2">
-                    <span className="text-muted-foreground">
-                      Page {safePage} of {totalPages}
-                    </span>
-                    <Button
-                      disabled={isPending || safePage <= 1}
-                      onClick={() => handlePageChange(safePage - 1)}
-                      size="icon"
-                      type="button"
-                      variant="outline"
-                    >
-                      <ChevronLeft />
-                      <span className="sr-only">Previous page</span>
-                    </Button>
-                    <Button
-                      disabled={isPending || safePage >= totalPages}
-                      onClick={() => handlePageChange(safePage + 1)}
-                      size="icon"
-                      type="button"
-                      variant="outline"
-                    >
-                      <ChevronRight />
-                      <span className="sr-only">Next page</span>
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            ) : errorMessage ? (
-              <p className="text-destructive text-sm">{errorMessage}</p>
-            ) : null}
 
             {isPending ? (
               <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-background/65 backdrop-blur-[1px]">
@@ -868,8 +888,81 @@ export function ReportsLibraryClientPage({
               </div>
             ) : null}
           </div>
-        </CardContent>
-      </Card>
-    </div>
+
+          {results.totalCount > 0 || errorMessage ? (
+            <div className="px-1">
+              <div className="flex flex-col gap-3 text-sm xl:flex-row xl:items-center xl:justify-between">
+                <div className="space-y-1">
+                  <p className="text-muted-foreground">
+                    Showing {showingFrom}-{showingTo} of {results.totalCount}
+                  </p>
+                  {errorMessage ? <p className="text-destructive text-sm">{errorMessage}</p> : null}
+                </div>
+                {results.totalCount > 0 ? (
+                  <div className="flex flex-wrap items-center gap-2 xl:justify-center">
+                    <div className="flex items-center gap-2">
+                      <span className="text-muted-foreground">Rows</span>
+                      {hasMounted ? (
+                        <Select
+                          onValueChange={(value) =>
+                            applyFilters({
+                              ...filtersRef.current,
+                              pageSize: Number(value),
+                              page: 1,
+                            })
+                          }
+                          value={String(results.pageSize)}
+                        >
+                          <SelectTrigger className={`${CONTROL_CLASS_NAME} w-[84px]`}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {REPORTS_LIBRARY_PAGE_SIZE_OPTIONS.map((option) => (
+                              <SelectItem key={option} value={String(option)}>
+                                {option}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Button className={`${CONTROL_CLASS_NAME} w-[84px] justify-between px-3`} type="button" variant="outline">
+                          {results.pageSize}
+                        </Button>
+                      )}
+                    </div>
+
+                    <div className="ml-4 flex items-center gap-2">
+                      <span className="text-muted-foreground">
+                        Page {safePage} of {totalPages}
+                      </span>
+                      <Button
+                        disabled={isPending || safePage <= 1}
+                        onClick={() => handlePageChange(safePage - 1)}
+                        size="icon"
+                        type="button"
+                        variant="outline"
+                      >
+                        <ChevronLeft />
+                        <span className="sr-only">Previous page</span>
+                      </Button>
+                      <Button
+                        disabled={isPending || safePage >= totalPages}
+                        onClick={() => handlePageChange(safePage + 1)}
+                        size="icon"
+                        type="button"
+                        variant="outline"
+                      >
+                        <ChevronRight />
+                        <span className="sr-only">Next page</span>
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </>
   );
 }
