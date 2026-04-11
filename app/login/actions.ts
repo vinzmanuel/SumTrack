@@ -12,6 +12,7 @@ import { db } from "@/db";
 import { employee_info, roles, users } from "@/db/schema";
 import { getAuditRequestContext } from "@/lib/audit/request-context";
 import { logAuditEvent } from "@/lib/audit/logger";
+import { getDeactivatedAccountMessage } from "@/lib/auth/deactivated-account-message";
 import { createClient } from "@/lib/supabase/server";
 
 function getAuthFields(formData: FormData) {
@@ -31,6 +32,7 @@ export async function login(formData: FormData) {
       user_id: users.user_id,
       company_id: users.company_id,
       username: users.username,
+      status: users.status,
       role_name: roles.role_name,
       contact_no: users.contact_no,
       email: users.email,
@@ -69,21 +71,7 @@ export async function login(formData: FormData) {
       },
       requestContext,
     });
-    redirect("/login?error=Invalid%20username%20or%20password");
-  }
-
-  if (appUser.role_name === "Admin") {
-    const availability = resolveAdminOtpChannelAvailability({
-      contactNo: appUser.contact_no,
-      email: appUser.email,
-    });
-
-    if (availability.availableChannels.length === 0) {
-      const message =
-        availability.errorMessage ??
-        "No OTP destination is available for this Admin account.";
-      redirect(`/login?error=${encodeURIComponent(message)}`);
-    }
+    redirect("/login?error=Incorrect%20username%20or%20password.");
   }
 
   const email = `${appUser.user_id}@sumtrack.local`;
@@ -114,7 +102,58 @@ export async function login(formData: FormData) {
       },
       requestContext,
     });
-    redirect("/login?error=Invalid%20username%20or%20password");
+    redirect("/login?error=Incorrect%20username%20or%20password.");
+  }
+
+  if (appUser.status === "inactive") {
+    await supabase.auth.signOut();
+    await clearAdminTwoFactorCookies();
+    const deactivatedMessage = getDeactivatedAccountMessage(appUser.role_name);
+
+    await logAuditEvent({
+      action: "auth.login_failed",
+      entityType: "auth",
+      entityId: appUser.user_id,
+      description: `Blocked login attempt for inactive account ${displayName}.`,
+      actor: {
+        type: "user",
+        userId: appUser.user_id,
+        companyId: appUser.company_id,
+        displayName,
+        roleName: appUser.role_name,
+      },
+      target: {
+        userId: appUser.user_id,
+        companyId: appUser.company_id,
+        displayName,
+      },
+      metadata: {
+        identifierType: "username",
+        username,
+        failureReason: "inactive_account",
+      },
+      requestContext,
+    });
+
+    redirect(
+      `/login?error=${encodeURIComponent(deactivatedMessage)}&errorType=inactive_account`,
+    );
+  }
+
+  if (appUser.role_name === "Admin") {
+    const availability = resolveAdminOtpChannelAvailability({
+      contactNo: appUser.contact_no,
+      email: appUser.email,
+    });
+
+    if (availability.availableChannels.length === 0) {
+      await supabase.auth.signOut();
+      await clearAdminTwoFactorCookies();
+      const message =
+        availability.errorMessage ??
+        "No OTP destination is available for this Admin account.";
+      redirect(`/login?error=${encodeURIComponent(message)}`);
+    }
   }
 
   const hasPostResetBypass = await consumePasswordRecoveryLoginBypass(appUser.user_id);

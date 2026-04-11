@@ -1,4 +1,5 @@
 import type { DashboardAuthResult } from "@/app/dashboard/auth";
+import { isSuperAdmin } from "@/lib/auth/superadmin";
 import type {
   ManageUserAccountStatus,
   ManageUserAccountsAccessState,
@@ -97,6 +98,7 @@ export function resolveManageUserAccountsAccess(
       view: "staff",
       roleName: "Admin",
       viewerUserId: auth.userId,
+      isSuperAdmin: isSuperAdmin(auth.userId),
       viewerCompanyId: auth.companyId,
       viewerDisplayName: auth.displayName,
       selectedBranchId: filters.requestedBranchId,
@@ -126,6 +128,7 @@ export function resolveManageUserAccountsAccess(
       view: "staff",
       roleName: "Auditor",
       viewerUserId: auth.userId,
+      isSuperAdmin: false,
       viewerCompanyId: auth.companyId,
       viewerDisplayName: auth.displayName,
       selectedBranchId:
@@ -157,6 +160,7 @@ export function resolveManageUserAccountsAccess(
     view: "staff",
     roleName: "Branch Manager",
     viewerUserId: auth.userId,
+    isSuperAdmin: false,
     viewerCompanyId: auth.companyId,
     viewerDisplayName: auth.displayName,
     selectedBranchId: auth.activeBranchId,

@@ -14,7 +14,8 @@ import {
   roles,
   users,
 } from "@/db/schema";
-import { hasVerifiedAdminTwoFactor } from "@/lib/auth/admin-two-factor";
+import { clearAdminTwoFactorCookies, hasVerifiedAdminTwoFactor } from "@/lib/auth/admin-two-factor";
+import { getDeactivatedAccountMessage } from "@/lib/auth/deactivated-account-message";
 import { createClient } from "@/lib/supabase/server";
 
 export type RoleName =
@@ -28,6 +29,7 @@ export type RoleName =
 
 type AuthFailure =
   | { ok: false; reason: "unauthenticated"; message: string }
+  | { ok: false; reason: "inactive_account"; message: string }
   | { ok: false; reason: "missing_app_user"; message: string }
   | { ok: false; reason: "missing_role"; message: string }
   | { ok: false; reason: "admin_2fa_required"; message: string };
@@ -49,7 +51,7 @@ export type DashboardAuthContext = {
 export type DashboardAuthResult = AuthFailure | DashboardAuthContext;
 export type AppAuthResult = Exclude<DashboardAuthResult, { ok: false; reason: "admin_2fa_required"; message: string }>;
 export type AppSessionAccessState =
-  | { status: "unauthenticated" | "missing_app_user" | "missing_role"; auth: AppAuthResult }
+  | { status: "unauthenticated" | "inactive_account" | "missing_app_user" | "missing_role"; auth: AppAuthResult }
   | { status: "non_admin_authenticated"; auth: DashboardAuthContext }
   | { status: "admin_otp_pending"; auth: DashboardAuthContext }
   | { status: "admin_otp_verified"; auth: DashboardAuthContext };
@@ -84,6 +86,7 @@ export const getAuthenticatedAppContext = cache(async (): Promise<AppAuthResult>
       company_id: users.company_id,
       contact_no: users.contact_no,
       email: users.email,
+      status: users.status,
       role_name: roles.role_name,
       employee_first_name: employee_info.first_name,
       employee_middle_name: employee_info.middle_name,
@@ -103,6 +106,16 @@ export const getAuthenticatedAppContext = cache(async (): Promise<AppAuthResult>
 
   if (!appUser) {
     return { ok: false, reason: "missing_app_user", message: "No application user profile found." };
+  }
+
+  if (appUser.status === "inactive") {
+    await supabase.auth.signOut();
+    await clearAdminTwoFactorCookies();
+    return {
+      ok: false,
+      reason: "inactive_account",
+      message: getDeactivatedAccountMessage(appUser.role_name),
+    };
   }
 
   const displayName = buildDisplayName({
@@ -254,6 +267,11 @@ export async function requireDashboardAuth(allowedRoles?: RoleName[]) {
   if (!auth.ok) {
     if (auth.reason === "unauthenticated") {
       redirect("/login");
+    }
+    if (auth.reason === "inactive_account") {
+      redirect(
+        `/login?error=${encodeURIComponent(auth.message)}&errorType=inactive_account`,
+      );
     }
     if (auth.reason === "admin_2fa_required") {
       redirect("/login/verify");

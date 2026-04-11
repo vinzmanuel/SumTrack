@@ -1,3 +1,5 @@
+import { isProtectedSuperAdminAccount } from "@/lib/auth/superadmin";
+
 export type ManageUserAccountsPageProps = {
   searchParams?: Promise<{
     branchId?: string;
@@ -35,6 +37,7 @@ export type ManageUserAccountsScope = {
   view: "staff";
   roleName: "Admin" | "Auditor" | "Branch Manager";
   viewerUserId: string;
+  isSuperAdmin: boolean;
   viewerCompanyId: string;
   viewerDisplayName: string;
   selectedBranchId: number | null;
@@ -220,6 +223,10 @@ function canBranchManagerManageRole(roleName: string) {
 }
 
 export function canEditManagedUser(scope: ManageUserAccountsScope, row: { roleName: string }) {
+  if (row.roleName === "Admin") {
+    return scope.roleName === "Admin" && scope.isSuperAdmin;
+  }
+
   if (scope.roleName === "Admin") {
     return true;
   }
@@ -239,6 +246,14 @@ export function canDeleteManagedUser(
     return false;
   }
 
+  if (isProtectedSuperAdminAccount(row.userId)) {
+    return false;
+  }
+
+  if (row.roleName === "Admin" && !scope.isSuperAdmin) {
+    return false;
+  }
+
   return canEditManagedUser(scope, row);
 }
 
@@ -247,6 +262,14 @@ export function canManageManagedUserStatus(
   row: { roleName: string; userId: string },
 ) {
   if (row.userId === scope.viewerUserId) {
+    return false;
+  }
+
+  if (isProtectedSuperAdminAccount(row.userId)) {
+    return false;
+  }
+
+  if (row.roleName === "Admin" && !scope.isSuperAdmin) {
     return false;
   }
 

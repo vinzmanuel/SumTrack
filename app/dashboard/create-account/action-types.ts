@@ -40,6 +40,7 @@ export type CreatorAccess = {
   displayName: string;
   roleName: CreatorRoleName;
   isAdmin: boolean;
+  isSuperAdmin: boolean;
   isBranchManager: boolean;
   isSecretaryCreator: boolean;
   allowedSingleBranchId: number | null;

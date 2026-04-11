@@ -8,6 +8,7 @@ import {
   getSingleAssignedBranchId,
 } from "@/app/dashboard/auth";
 import { resolveBackNavigation } from "@/app/dashboard/back-navigation";
+import { canCreateAdminAccounts } from "@/lib/auth/superadmin";
 import { db } from "@/db";
 import {
   areas,
@@ -97,6 +98,7 @@ export default async function CreateAccountPage({
   }
 
   const isAdmin = auth.roleName === "Admin";
+  const canCreateAdminRole = canCreateAdminAccounts(auth.userId);
   const isBranchManager = auth.roleName === "Branch Manager";
   const isSecretary = auth.roleName === "Secretary";
 
@@ -175,6 +177,7 @@ export default async function CreateAccountPage({
 
   const mappedRoles: RoleRow[] = (isAdmin
     ? rolesData
+        .filter((item) => (item.role_name === "Admin" ? canCreateAdminRole : true))
     : isBranchManager
       ? rolesData.filter((item) =>
           ["Secretary", "Collector", "Borrower"].includes(item.role_name),

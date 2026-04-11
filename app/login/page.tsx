@@ -11,7 +11,7 @@ import { displayFont } from "@/components/marketing/display-font";
 import { SumtrackBrand } from "@/components/marketing/sumtrack-brand";
 
 type LoginPageProps = {
-  searchParams: Promise<{ error?: string; message?: string }>;
+  searchParams: Promise<{ error?: string; message?: string; errorType?: string }>;
 };
 
 export const metadata: Metadata = {
@@ -27,9 +27,17 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
     redirect("/login/verify");
   }
 
-  const { error, message } = await searchParams;
-  const resolvedError = error ? decodeURIComponent(error) : undefined;
+  const { error, message, errorType } = await searchParams;
+  const resolvedError =
+    error
+      ? decodeURIComponent(error)
+      : authState.status === "inactive_account" && !authState.auth.ok
+        ? authState.auth.message
+        : undefined;
   const resolvedMessage = message ? decodeURIComponent(message) : undefined;
+  const isDeactivatedError =
+    errorType === "inactive_account" ||
+    (authState.status === "inactive_account" && !authState.auth.ok && !error);
 
   return (
     <main className={`${styles.page} ${styles.grain} relative flex items-center justify-center bg-[#0a0e17] font-sans text-slate-300 antialiased`}>
@@ -55,7 +63,13 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
 
           <form action={login} className="space-y-5">
             {resolvedError ? (
-              <div className="mb-5 flex items-start gap-3 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
+              <div
+                className={
+                  isDeactivatedError
+                    ? "mb-5 flex items-start gap-3 rounded-xl border border-amber-500/25 bg-amber-500/10 px-4 py-3 text-sm text-amber-300"
+                    : "mb-5 flex items-start gap-3 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400"
+                }
+              >
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                 <span>{resolvedError}</span>
               </div>

@@ -16,6 +16,7 @@ import {
 } from "@/app/dashboard/create-account/action-types";
 import { createErrorState, toInt } from "@/app/dashboard/create-account/action-validation";
 import { db } from "@/db";
+import { canCreateAdminAccounts, isSuperAdmin } from "@/lib/auth/superadmin";
 import {
   areas,
   branch,
@@ -106,6 +107,7 @@ export async function resolveCreateAccountCreatorAccess(): Promise<CreateAccount
       displayName: auth.displayName,
       roleName: auth.roleName as CreatorAccess["roleName"],
       isAdmin,
+      isSuperAdmin: isSuperAdmin(auth.userId),
       isBranchManager,
       isSecretaryCreator,
       allowedSingleBranchId: isAdmin ? null : auth.activeBranchId,
@@ -169,6 +171,13 @@ export async function resolveSelectedRoleContext(
         state: createErrorState("Branch Manager can only create Secretary and Collector employee accounts."),
       };
     }
+  }
+
+  if (selectedRole.role_name === "Admin" && !canCreateAdminAccounts(creator.userId)) {
+    return {
+      ok: false,
+      state: createErrorState("Only the Superadmin can create Admin accounts."),
+    };
   }
 
   return {

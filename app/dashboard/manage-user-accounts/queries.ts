@@ -1539,7 +1539,11 @@ export async function loadManagedUserDetail(
   const editableRoleNames = resolveEditableRoleNames(scope, row);
   const normalizedStatus = row.status as "active" | "inactive";
   const isInactive = normalizedStatus === "inactive";
+  const canEditAccount = canEditManagedUser(scope, row);
+  const canManageStatus = canManageManagedUserStatus(scope, row);
+  const canDelete = canDeleteManagedUser(scope, row);
   const canEditRole =
+    canEditAccount &&
     !isInactive &&
     row.roleName !== "Borrower" &&
     ((scope.roleName === "Admin" && !isBorrower) ||
@@ -1572,10 +1576,12 @@ export async function loadManagedUserDetail(
   }));
   const lastHeldAreaId = historicalAssignmentState.lastHeldAreaId;
   const lastHeldAreaCode = historicalAssignmentState.lastHeldAreaCode;
-  const canEditBranchAssignment = !isInactive && scope.roleName === "Admin" && !isBorrower;
-  const canEditAuditorBranchAssignments = !isInactive && scope.roleName === "Admin" && !isBorrower;
+  const canEditBranchAssignment = canEditAccount && !isInactive && scope.roleName === "Admin" && !isBorrower;
+  const canEditAuditorBranchAssignments =
+    canEditAccount && !isInactive && scope.roleName === "Admin" && !isBorrower;
   const branchManagerBranchId = scope.allowedBranchIds[0] ?? null;
   const canEditAreaAssignment =
+    canEditAccount &&
     !isInactive &&
     !isBorrower &&
     (scope.roleName === "Admin" ||
@@ -1584,8 +1590,9 @@ export async function loadManagedUserDetail(
         branchManagerBranchId !== null &&
         currentBranchId === branchManagerBranchId));
   const canLoadBranchAssignmentOptions =
-    !isBorrower && (scope.roleName === "Admin" || scope.roleName === "Branch Manager");
+    canEditAccount && !isBorrower && (scope.roleName === "Admin" || scope.roleName === "Branch Manager");
   const canLoadAreaAssignmentOptions =
+    canEditAccount &&
     !isBorrower &&
     (scope.roleName === "Admin" ||
       (scope.roleName === "Branch Manager" &&
@@ -1730,9 +1737,9 @@ export async function loadManagedUserDetail(
     contactNo: row.contactNo,
     dateCreated: row.dateCreated,
     address: row.address,
-    canEdit: canEditManagedUser(scope, row),
-    canManageStatus: canManageManagedUserStatus(scope, row),
-    canDelete: canDeleteManagedUser(scope, row),
+    canEdit: canEditAccount,
+    canManageStatus,
+    canDelete,
     canEditRole,
     editableRoleOptions: editableRoleRows.map((item) => ({
       roleId: item.roleId,

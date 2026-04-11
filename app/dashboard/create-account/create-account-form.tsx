@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/select";
 import { createAccountAction } from "@/app/dashboard/create-account/actions";
 import { initialCreateAccountState, type CreateAccountState } from "@/app/dashboard/create-account/state";
+import { cn } from "@/lib/utils";
 
 type RoleOption = {
   role_id: string | number;
@@ -90,6 +91,28 @@ function FieldLabel({ children, htmlFor, required = false }: FieldLabelProps) {
       {children}
       {required ? <span className="ml-1 text-destructive">*</span> : null}
     </Label>
+  );
+}
+
+function Field({
+  children,
+  className,
+  invalid = false,
+}: {
+  children: ReactNode;
+  className?: string;
+  invalid?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "space-y-2 data-[invalid=true]:[&_label]:text-destructive",
+        className,
+      )}
+      data-invalid={invalid || undefined}
+    >
+      {children}
+    </div>
   );
 }
 
@@ -446,10 +469,13 @@ export function CreateAccountForm({
             >
               {!borrowerOnly ? (
                 <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
+                  <Field invalid={Boolean(state.fieldErrors?.account_category)}>
                     <FieldLabel required>Account Category</FieldLabel>
                     <Select onValueChange={handleCategoryChange} value={accountCategory}>
-                      <SelectTrigger className={`${CREATE_ACCOUNT_CONTROL_CLASS_NAME} w-full`}>
+                      <SelectTrigger
+                        aria-invalid={Boolean(state.fieldErrors?.account_category) || undefined}
+                        className={`${CREATE_ACCOUNT_CONTROL_CLASS_NAME} w-full`}
+                      >
                         <SelectValue placeholder="Select account category" />
                       </SelectTrigger>
                       <SelectContent>
@@ -461,15 +487,20 @@ export function CreateAccountForm({
                       </SelectContent>
                     </Select>
                     {state.fieldErrors?.account_category ? (
-                      <p className="text-sm text-destructive">{state.fieldErrors.account_category}</p>
+                      <p className="text-sm text-destructive" data-slot="field-error">
+                        {state.fieldErrors.account_category}
+                      </p>
                     ) : null}
-                  </div>
+                  </Field>
 
                   {showRoleSelector ? (
-                    <div className="space-y-2">
+                    <Field invalid={Boolean(state.fieldErrors?.role_id)}>
                     <FieldLabel required>Role</FieldLabel>
                     <Select onValueChange={handleRoleChange} value={effectiveRoleId}>
-                      <SelectTrigger className={`${CREATE_ACCOUNT_CONTROL_CLASS_NAME} w-full`}>
+                      <SelectTrigger
+                        aria-invalid={Boolean(state.fieldErrors?.role_id) || undefined}
+                        className={`${CREATE_ACCOUNT_CONTROL_CLASS_NAME} w-full`}
+                      >
                         <SelectValue placeholder="Select role" />
                       </SelectTrigger>
                         <SelectContent>
@@ -484,19 +515,22 @@ export function CreateAccountForm({
                         </SelectContent>
                       </Select>
                       {state.fieldErrors?.role_id ? (
-                        <p className="text-sm text-destructive">{state.fieldErrors.role_id}</p>
+                        <p className="text-sm text-destructive" data-slot="field-error">
+                          {state.fieldErrors.role_id}
+                        </p>
                       ) : null}
-                    </div>
+                    </Field>
                   ) : null}
                 </div>
               ) : null}
 
               <div className="grid gap-4 md:grid-cols-3">
-                <div className="space-y-2">
+                <Field invalid={Boolean(state.fieldErrors?.first_name)}>
                   <FieldLabel htmlFor="first_name" required>
                     First Name
                   </FieldLabel>
                   <Input
+                    aria-invalid={Boolean(state.fieldErrors?.first_name) || undefined}
                     className={CREATE_ACCOUNT_CONTROL_CLASS_NAME}
                     id="first_name"
                     name="first_name"
@@ -504,12 +538,15 @@ export function CreateAccountForm({
                     value={firstName}
                   />
                   {state.fieldErrors?.first_name ? (
-                    <p className="text-sm text-destructive">{state.fieldErrors.first_name}</p>
+                    <p className="text-sm text-destructive" data-slot="field-error">
+                      {state.fieldErrors.first_name}
+                    </p>
                   ) : null}
-                </div>
-                <div className="space-y-2">
+                </Field>
+                <Field invalid={Boolean(state.fieldErrors?.middle_name)}>
                   <FieldLabel htmlFor="middle_name">Middle Name</FieldLabel>
                   <Input
+                    aria-invalid={Boolean(state.fieldErrors?.middle_name) || undefined}
                     className={CREATE_ACCOUNT_CONTROL_CLASS_NAME}
                     id="middle_name"
                     name="middle_name"
@@ -517,14 +554,17 @@ export function CreateAccountForm({
                     value={middleName}
                   />
                   {state.fieldErrors?.middle_name ? (
-                    <p className="text-sm text-destructive">{state.fieldErrors.middle_name}</p>
+                    <p className="text-sm text-destructive" data-slot="field-error">
+                      {state.fieldErrors.middle_name}
+                    </p>
                   ) : null}
-                </div>
-                <div className="space-y-2">
+                </Field>
+                <Field invalid={Boolean(state.fieldErrors?.last_name)}>
                   <FieldLabel htmlFor="last_name" required>
                     Last Name
                   </FieldLabel>
                   <Input
+                    aria-invalid={Boolean(state.fieldErrors?.last_name) || undefined}
                     className={CREATE_ACCOUNT_CONTROL_CLASS_NAME}
                     id="last_name"
                     name="last_name"
@@ -532,9 +572,11 @@ export function CreateAccountForm({
                     value={lastName}
                   />
                   {state.fieldErrors?.last_name ? (
-                    <p className="text-sm text-destructive">{state.fieldErrors.last_name}</p>
+                    <p className="text-sm text-destructive" data-slot="field-error">
+                      {state.fieldErrors.last_name}
+                    </p>
                   ) : null}
-                </div>
+                </Field>
               </div>
 
               <div className="rounded-md border border-border/70 bg-background/70 px-4 py-3">
@@ -552,11 +594,12 @@ export function CreateAccountForm({
               title="Contact Details"
             >
               <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
+              <Field invalid={Boolean(state.fieldErrors?.contact_no)}>
                 <FieldLabel htmlFor="contact_no" required={requiresContactNo}>
                   Contact Number
                 </FieldLabel>
                 <Input
+                  aria-invalid={Boolean(state.fieldErrors?.contact_no) || undefined}
                   className={CREATE_ACCOUNT_CONTROL_CLASS_NAME}
                   id="contact_no"
                   inputMode="numeric"
@@ -570,12 +613,15 @@ export function CreateAccountForm({
                   value={contactNo}
                 />
                 {state.fieldErrors?.contact_no ? (
-                  <p className="text-sm text-destructive">{state.fieldErrors.contact_no}</p>
+                  <p className="text-sm text-destructive" data-slot="field-error">
+                    {state.fieldErrors.contact_no}
+                  </p>
                 ) : null}
-              </div>
-              <div className="space-y-2">
+              </Field>
+              <Field invalid={Boolean(state.fieldErrors?.email)}>
                 <FieldLabel htmlFor="email">Email</FieldLabel>
                 <Input
+                  aria-invalid={Boolean(state.fieldErrors?.email) || undefined}
                   className={CREATE_ACCOUNT_CONTROL_CLASS_NAME}
                   id="email"
                   name="email"
@@ -585,17 +631,20 @@ export function CreateAccountForm({
                   value={email}
                 />
                 {state.fieldErrors?.email ? (
-                  <p className="text-sm text-destructive">{state.fieldErrors.email}</p>
+                  <p className="text-sm text-destructive" data-slot="field-error">
+                    {state.fieldErrors.email}
+                  </p>
                 ) : null}
-              </div>
+              </Field>
               </div>
 
               {showBorrowerFields ? (
-                <div className="space-y-2">
+                <Field invalid={Boolean(state.fieldErrors?.address)}>
                     <FieldLabel htmlFor="address" required>
                       Address
                     </FieldLabel>
                     <Input
+                      aria-invalid={Boolean(state.fieldErrors?.address) || undefined}
                       className={CREATE_ACCOUNT_CONTROL_CLASS_NAME}
                       id="address"
                       name="address"
@@ -603,9 +652,11 @@ export function CreateAccountForm({
                       value={address}
                     />
                     {state.fieldErrors?.address ? (
-                      <p className="text-sm text-destructive">{state.fieldErrors.address}</p>
+                      <p className="text-sm text-destructive" data-slot="field-error">
+                        {state.fieldErrors.address}
+                      </p>
                     ) : null}
-                </div>
+                </Field>
               ) : null}
             </FormSection>
 
@@ -620,14 +671,17 @@ export function CreateAccountForm({
               >
                 {showAreaFlow ? (
                 <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
+                  <Field invalid={Boolean(state.fieldErrors?.branch_id)}>
                     <FieldLabel required>Branch</FieldLabel>
                     <Select
                       disabled={Boolean(fixedBranchId)}
                       onValueChange={handleBranchChange}
                       value={singleBranchId}
                     >
-                      <SelectTrigger className={`${CREATE_ACCOUNT_CONTROL_CLASS_NAME} w-full`}>
+                      <SelectTrigger
+                        aria-invalid={Boolean(state.fieldErrors?.branch_id) || undefined}
+                        className={`${CREATE_ACCOUNT_CONTROL_CLASS_NAME} w-full`}
+                      >
                         <SelectValue placeholder="Select branch" />
                       </SelectTrigger>
                       <SelectContent>
@@ -647,14 +701,19 @@ export function CreateAccountForm({
                       </p>
                     ) : null}
                     {state.fieldErrors?.branch_id ? (
-                      <p className="text-sm text-destructive">{state.fieldErrors.branch_id}</p>
+                      <p className="text-sm text-destructive" data-slot="field-error">
+                        {state.fieldErrors.branch_id}
+                      </p>
                     ) : null}
-                  </div>
+                  </Field>
 
-                  <div className="space-y-2">
+                  <Field invalid={Boolean(state.fieldErrors?.area_id)}>
                     <FieldLabel required>Area</FieldLabel>
                     <Select disabled={!singleBranchId} onValueChange={setAreaId} value={areaId}>
-                      <SelectTrigger className={`${CREATE_ACCOUNT_CONTROL_CLASS_NAME} w-full`}>
+                      <SelectTrigger
+                        aria-invalid={Boolean(state.fieldErrors?.area_id) || undefined}
+                        className={`${CREATE_ACCOUNT_CONTROL_CLASS_NAME} w-full`}
+                      >
                         <SelectValue
                           placeholder={
                             singleBranchId ? "Select area" : "Select branch first"
@@ -678,9 +737,11 @@ export function CreateAccountForm({
                       </p>
                     ) : null}
                     {state.fieldErrors?.area_id ? (
-                      <p className="text-sm text-destructive">{state.fieldErrors.area_id}</p>
+                      <p className="text-sm text-destructive" data-slot="field-error">
+                        {state.fieldErrors.area_id}
+                      </p>
                     ) : null}
-                  </div>
+                  </Field>
                 </div>
                 ) : null}
 
@@ -694,14 +755,17 @@ export function CreateAccountForm({
                 ) : null}
 
                 {showBranchOnlySelector ? (
-                  <div className="space-y-2">
+                  <Field invalid={Boolean(state.fieldErrors?.branch_id)}>
                 <FieldLabel required>Branch</FieldLabel>
                 <Select
                   disabled={Boolean(fixedBranchId)}
                   onValueChange={handleBranchChange}
                   value={singleBranchId}
                 >
-                  <SelectTrigger className={`${CREATE_ACCOUNT_CONTROL_CLASS_NAME} w-full`}>
+                  <SelectTrigger
+                    aria-invalid={Boolean(state.fieldErrors?.branch_id) || undefined}
+                    className={`${CREATE_ACCOUNT_CONTROL_CLASS_NAME} w-full`}
+                  >
                     <SelectValue placeholder="Select branch" />
                   </SelectTrigger>
                   <SelectContent>
@@ -721,18 +785,25 @@ export function CreateAccountForm({
                   </p>
                 ) : null}
                 {state.fieldErrors?.branch_id ? (
-                  <p className="text-sm text-destructive">{state.fieldErrors.branch_id}</p>
+                  <p className="text-sm text-destructive" data-slot="field-error">
+                    {state.fieldErrors.branch_id}
+                  </p>
                 ) : null}
-                  </div>
+                  </Field>
                 ) : null}
 
                 {showAuditorBranchSelector ? (
-                  <div className="space-y-2">
+                  <Field invalid={Boolean(state.fieldErrors?.branch_ids)}>
                 <FieldLabel required>Assigned Branches (Select one or more)</FieldLabel>
-                <div className="space-y-2 rounded-md border border-border/70 bg-background/70 p-3">
+                <div
+                  className="space-y-2 rounded-md border border-border/70 bg-background/70 p-3 data-[invalid=true]:border-destructive"
+                  data-invalid={Boolean(state.fieldErrors?.branch_ids) || undefined}
+                  data-slot="checkbox-panel"
+                >
                   {selectableAuditorBranchOptions.map((item) => (
                     <label className="flex items-center gap-2 text-sm" key={String(item.branch_id)}>
                       <input
+                        aria-invalid={Boolean(state.fieldErrors?.branch_ids) || undefined}
                         checked={auditorBranchIds.includes(String(item.branch_id))}
                         className="h-4 w-4"
                         name="branch_ids"
@@ -758,9 +829,11 @@ export function CreateAccountForm({
                   </p>
                 ) : null}
                 {state.fieldErrors?.branch_ids ? (
-                  <p className="text-sm text-destructive">{state.fieldErrors.branch_ids}</p>
+                  <p className="text-sm text-destructive" data-slot="field-error">
+                    {state.fieldErrors.branch_ids}
+                  </p>
                 ) : null}
-                  </div>
+                  </Field>
                 ) : null}
               </FormSection>
             ) : null}
