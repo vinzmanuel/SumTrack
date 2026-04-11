@@ -1,6 +1,7 @@
 import { BanknoteArrowDown } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DashboardBackLink } from "@/app/dashboard/_components/dashboard-back-link";
+import { DashboardHeaderConfigurator } from "@/app/dashboard/_components/dashboard-header-config";
 import {
   getDashboardAuthContext,
   getSingleAssignedBranchId,
@@ -10,32 +11,21 @@ import { resolveBackNavigation } from "@/app/dashboard/back-navigation";
 import { CreateExpenseForm } from "@/app/dashboard/expenses/create/create-expense-form";
 
 function renderCreateExpenseWorkspace(props: {
-  backHref: string;
-  backLabel: string;
   form: React.ReactNode;
 }) {
   return (
-    <main className="mx-auto min-h-screen w-full max-w-5xl px-6 pb-6 pt-0">
-      <div className="space-y-4">
-        <DashboardBackLink href={props.backHref} label={props.backLabel} />
-
-        <Card className="gap-0 overflow-hidden py-0">
-          <div className="bg-gradient-to-r from-slate-50 via-background to-emerald-50/60 p-6 dark:from-zinc-950 dark:via-background dark:to-emerald-950/45">
-            <div className="space-y-1">
-              <CardTitle className="flex items-center gap-2 text-3xl font-semibold tracking-tight">
-                <BanknoteArrowDown className="size-7 text-muted-foreground" />
-                Create Expense
-              </CardTitle>
-              <CardDescription>Record branch operating expenses.</CardDescription>
-            </div>
-          </div>
-        </Card>
-      </div>
-
-      <div className="mt-6">
+    <>
+      <DashboardHeaderConfigurator
+        config={{
+          icon: <BanknoteArrowDown className="size-9 text-sidebar-foreground/65" />,
+          title: "Create Expense",
+          description: "Record branch operating expenses.",
+        }}
+      />
+      <div className="mx-auto w-full max-w-5xl space-y-4">
         {props.form}
       </div>
-    </main>
+    </>
   );
 }
 
@@ -107,8 +97,6 @@ export default async function CreateExpensePage({
       .sort((left, right) => left.branch_name.localeCompare(right.branch_name));
 
     return renderCreateExpenseWorkspace({
-      backHref: backNavigation.href,
-      backLabel: backNavigation.label,
       form: <CreateExpenseForm branchOptions={branchOptions} canChooseBranch />,
     });
   }
@@ -172,8 +160,6 @@ export default async function CreateExpensePage({
   }
 
   return renderCreateExpenseWorkspace({
-    backHref: backNavigation.href,
-    backLabel: backNavigation.label,
     form: <CreateExpenseForm branchId={branchId} branchName={auth.activeBranchName} />,
   });
 }

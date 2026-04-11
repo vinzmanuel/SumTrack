@@ -1,10 +1,10 @@
 "use client";
 
 import { Check } from "lucide-react";
-import { useActionState, useEffect, useRef, useState, type FormEvent } from "react";
+import { useActionState, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useFormStatus } from "react-dom";
+import { UI_CONTROL_CLASS_NAME, UI_SURFACE_CLASS_NAME } from "@/app/dashboard/_components/ui-patterns";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -25,6 +25,7 @@ import {
 import { createExpenseAction } from "@/app/dashboard/expenses/create/actions";
 import { initialCreateExpenseState } from "@/app/dashboard/expenses/create/state";
 import type { ExpenseBranchOption } from "@/app/dashboard/expenses/types";
+import { cn } from "@/lib/utils";
 
 const EXPENSE_CATEGORIES = [
   "Rent",
@@ -47,9 +48,35 @@ function SubmitButton() {
   const { pending } = useFormStatus();
 
   return (
-    <Button disabled={pending} type="submit">
+    <Button
+      className="h-11 rounded-md bg-emerald-600 px-4 text-sm text-white hover:bg-emerald-700 hover:text-white dark:bg-green-500/60 dark:text-white dark:hover:bg-green-500/80 dark:hover:text-white"
+      disabled={pending}
+      type="submit"
+    >
       {pending ? "Saving..." : "Save Expense"}
     </Button>
+  );
+}
+
+function Field({
+  children,
+  className,
+  invalid = false,
+}: {
+  children: ReactNode;
+  className?: string;
+  invalid?: boolean;
+}) {
+  return (
+    <div
+      className={cn(
+        "space-y-2 data-[invalid=true]:[&_label]:text-destructive",
+        className,
+      )}
+      data-invalid={invalid || undefined}
+    >
+      {children}
+    </div>
   );
 }
 
@@ -155,20 +182,28 @@ export function CreateExpenseForm({
   }
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Expense Details</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form action={formAction} className="space-y-4" onSubmit={handleSubmit} ref={formRef}>
+    <div className="space-y-4">
+      <div className={UI_SURFACE_CLASS_NAME}>
+        <form action={formAction} className="space-y-4 px-4 py-4 md:px-5" onSubmit={handleSubmit} ref={formRef}>
+          <section className="space-y-5">
+            <div className="space-y-1">
+              <h2 className="text-base font-semibold tracking-tight text-foreground md:text-[1.05rem]">
+                Expense Details
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                Capture the branch, category, amount, and expense date before saving this record.
+              </p>
+            </div>
             <input name="amount" type="hidden" value={amountRaw} />
             <input name="branch_id" type="hidden" value={canChooseBranch ? selectedBranchId : String(branchId ?? "")} />
             {canChooseBranch ? (
-              <div className="space-y-2">
+              <Field invalid={Boolean(state.fieldErrors?.branch_id)}>
                 <Label>Branch</Label>
                 <Select onValueChange={setSelectedBranchId} value={selectedBranchId}>
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger
+                    aria-invalid={Boolean(state.fieldErrors?.branch_id) || undefined}
+                    className={`${UI_CONTROL_CLASS_NAME} w-full`}
+                  >
                     <SelectValue placeholder="Select branch" />
                   </SelectTrigger>
                   <SelectContent>
@@ -180,20 +215,23 @@ export function CreateExpenseForm({
                   </SelectContent>
                 </Select>
                 {state.fieldErrors?.branch_id ? (
-                  <p className="text-sm text-destructive">{state.fieldErrors.branch_id}</p>
+                  <p className="text-sm text-destructive" data-slot="field-error">{state.fieldErrors.branch_id}</p>
                 ) : null}
-              </div>
+              </Field>
             ) : (
-              <div className="space-y-2">
+              <Field>
                 <Label>Branch</Label>
-                <Input readOnly value={branchName ?? "N/A"} />
-              </div>
+                <Input className={UI_CONTROL_CLASS_NAME} readOnly value={branchName ?? "N/A"} />
+              </Field>
             )}
 
-            <div className="space-y-2">
+            <Field invalid={Boolean(state.fieldErrors?.expense_category)}>
               <Label>Expense Category</Label>
               <Select onValueChange={setExpenseCategory} value={expenseCategory}>
-                <SelectTrigger className="w-full">
+                <SelectTrigger
+                  aria-invalid={Boolean(state.fieldErrors?.expense_category) || undefined}
+                  className={`${UI_CONTROL_CLASS_NAME} w-full`}
+                >
                   <SelectValue placeholder="Select expense category" />
                 </SelectTrigger>
                 <SelectContent>
@@ -206,11 +244,11 @@ export function CreateExpenseForm({
               </Select>
               <input name="expense_category" type="hidden" value={expenseCategory} />
               {state.fieldErrors?.expense_category ? (
-                <p className="text-sm text-destructive">{state.fieldErrors.expense_category}</p>
+                <p className="text-sm text-destructive" data-slot="field-error">{state.fieldErrors.expense_category}</p>
               ) : null}
-            </div>
+            </Field>
 
-            <div className="space-y-2">
+            <Field invalid={Boolean(state.fieldErrors?.description)}>
               <Label htmlFor="description">
                 Description
                 {expenseCategory === "Miscellaneous" ? (
@@ -218,6 +256,7 @@ export function CreateExpenseForm({
                 ) : null}
               </Label>
               <textarea
+                aria-invalid={Boolean(state.fieldErrors?.description) || undefined}
                 className="border-input focus-visible:border-ring focus-visible:ring-ring/50 min-h-24 w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
                 id="description"
                 name="description"
@@ -235,19 +274,20 @@ export function CreateExpenseForm({
                 </p>
               ) : null}
               {state.fieldErrors?.description ? (
-                <p className="text-sm text-destructive">{state.fieldErrors.description}</p>
+                <p className="text-sm text-destructive" data-slot="field-error">{state.fieldErrors.description}</p>
               ) : null}
-            </div>
+            </Field>
 
             <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
+              <Field invalid={Boolean(state.fieldErrors?.amount)}>
                 <Label htmlFor="amount">Amount</Label>
                 <div className="relative">
                   <span className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-sm">
                     ₱
                   </span>
                   <Input
-                    className="pl-7"
+                    aria-invalid={Boolean(state.fieldErrors?.amount) || undefined}
+                    className={`${UI_CONTROL_CLASS_NAME} pl-7`}
                     id="amount"
                     inputMode="decimal"
                     onChange={(event) => setAmountRaw(sanitizeNumericInput(event.target.value))}
@@ -257,13 +297,15 @@ export function CreateExpenseForm({
                   />
                 </div>
                 {state.fieldErrors?.amount ? (
-                  <p className="text-sm text-destructive">{state.fieldErrors.amount}</p>
+                  <p className="text-sm text-destructive" data-slot="field-error">{state.fieldErrors.amount}</p>
                 ) : null}
-              </div>
+              </Field>
 
-              <div className="space-y-2">
+              <Field invalid={Boolean(state.fieldErrors?.expense_date)}>
                 <Label htmlFor="expense_date">Expense Date</Label>
                 <Input
+                  aria-invalid={Boolean(state.fieldErrors?.expense_date) || undefined}
+                  className={UI_CONTROL_CLASS_NAME}
                   id="expense_date"
                   name="expense_date"
                   onChange={(event) => setExpenseDate(event.target.value)}
@@ -271,17 +313,19 @@ export function CreateExpenseForm({
                   value={expenseDate}
                 />
                 {state.fieldErrors?.expense_date ? (
-                  <p className="text-sm text-destructive">{state.fieldErrors.expense_date}</p>
+                  <p className="text-sm text-destructive" data-slot="field-error">{state.fieldErrors.expense_date}</p>
                 ) : null}
-              </div>
+              </Field>
             </div>
 
-            {state.status === "error" && state.message ? (
+          </section>
+
+          {state.status === "error" && state.message ? (
               <p className="text-sm text-destructive">{state.message}</p>
             ) : null}
 
-            <SubmitButton />
-          </form>
+          <SubmitButton />
+        </form>
 
           <Dialog onOpenChange={setIsConfirmOpen} open={isConfirmOpen}>
             <DialogContent>
@@ -354,8 +398,7 @@ export function CreateExpenseForm({
               ) : null}
             </DialogContent>
           </Dialog>
-        </CardContent>
-      </Card>
+      </div>
     </div>
   );
 }

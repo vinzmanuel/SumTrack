@@ -67,7 +67,6 @@ export default async function ExpensesPage({ searchParams }: ExpensesPageProps) 
       canChooseBranch={access.canChooseBranch}
       canCreateExpense={access.canCreateExpense}
       description={description}
-      fixedBranchName={access.fixedBranchName}
       initialFilters={{
         branch: access.canChooseBranch && access.resolvedBranchId ? String(access.resolvedBranchId) : "all",
         range: access.selectedRange,

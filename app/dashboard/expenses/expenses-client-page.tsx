@@ -2,13 +2,19 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { BanknoteArrowDown, Plus } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { BarChart3, BanknoteArrowDown, Plus, ReceiptText } from "lucide-react";
 import { appendBackNavigationToHref } from "@/app/dashboard/back-navigation";
-import { resolveCollectionsPeriodTriggerLabel } from "@/app/dashboard/collections/filters";
-import { Badge } from "@/components/ui/badge";
+import { DashboardHeaderConfigurator } from "@/app/dashboard/_components/dashboard-header-config";
+import {
+  getUiTabTriggerClassName,
+  UI_FILTER_ROW_CLASS_NAME,
+  UI_PAGE_STACK_CLASS_NAME,
+  UI_TAB_ICON_ACTIVE_CLASS_NAME,
+  UI_TAB_LIST_CLASS_NAME,
+  UI_TAB_SEPARATOR_CLASS_NAME,
+} from "@/app/dashboard/_components/ui-patterns";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { EXPENSES_PAGE_SIZE_OPTIONS, EXPENSE_CATEGORIES } from "@/app/dashboard/expenses/filters";
 import { ExpensesAnalyticsSection } from "@/app/dashboard/expenses/expenses-analytics-section";
 import { ExpensesResultsSection } from "@/app/dashboard/expenses/expenses-results-section";
@@ -28,7 +34,6 @@ type ExpensesClientPageProps = {
   canChooseBranch: boolean;
   canCreateExpense: boolean;
   description: string;
-  fixedBranchName: string | null;
   initialFilters: ExpensesFilterInput;
   initialResults: ExpensesResultsData;
 };
@@ -123,7 +128,6 @@ export function ExpensesClientPage({
   canChooseBranch,
   canCreateExpense,
   description,
-  fixedBranchName,
   initialFilters,
   initialResults,
 }: ExpensesClientPageProps) {
@@ -260,115 +264,74 @@ export function ExpensesClientPage({
   }, [canChooseBranch, normalizedInitialFilters.branch, normalizedInitialFilters.pageSize]);
 
   const currentReturnTo = buildExpensesPageUrl(filters);
-  const scopeLabel = canChooseBranch
-    ? filters.branch === "all"
-      ? "All branches"
-      : branchOptions.find((option) => String(option.branch_id) === filters.branch)?.branch_name ?? "Selected branch"
-    : fixedBranchName ?? "Assigned branch";
-  const periodLabel = resolveCollectionsPeriodTriggerLabel({
-    range: filters.range,
-    from: filters.from,
-    to: filters.to,
-  });
-  const categoryLabel = filters.category === "all" ? "All categories" : filters.category;
 
   return (
-    <div className="w-full max-w-none space-y-5 pb-6 pt-1 sm:pb-6 sm:pt-2">
-      <Card className="gap-0 overflow-hidden py-0">
-        <div className="bg-gradient-to-r from-slate-50 via-background to-emerald-50/60 p-6 dark:from-zinc-950 dark:via-background dark:to-emerald-950/45">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-            <div className="space-y-1">
-              <div className="space-y-1">
-                <h1 className="flex items-center gap-2 text-3xl font-semibold tracking-tight text-foreground">
-                  <BanknoteArrowDown className="size-7 text-muted-foreground" />
-                  Expenses
-                </h1>
-                <p className="text-sm text-muted-foreground">{description}</p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2 pt-2">
-                <Badge
-                  className="border-zinc-200 bg-background/80 text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100"
-                  variant="outline"
-                >
-                  {results.totalExpenses} matches
-                </Badge>
-                <Badge
-                  className="border-zinc-200 bg-background/80 text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100"
-                  variant="outline"
-                >
-                  {scopeLabel}
-                </Badge>
-                <Badge
-                  className="border-zinc-200 bg-background/80 text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100"
-                  variant="outline"
-                >
-                  {periodLabel}
-                </Badge>
-                <Badge
-                  className="border-zinc-200 bg-background/80 text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100"
-                  variant="outline"
-                >
-                  {categoryLabel}
-                </Badge>
-              </div>
-            </div>
+    <div className={UI_PAGE_STACK_CLASS_NAME}>
+      <DashboardHeaderConfigurator
+        config={{
+          icon: <BanknoteArrowDown className="size-9 text-sidebar-foreground/65" />,
+          title: "Expenses",
+          description,
+        }}
+      />
 
-            {canCreateExpense && activeTab === "records" ? (
-              <Link href={appendBackNavigationToHref("/dashboard/expenses/create", {
-                source: "expenses",
-                returnTo: currentReturnTo,
-              })}>
-                <Button
-                  className="bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white"
-                  size="sm"
-                  type="button"
-                >
+      <div className={UI_PAGE_STACK_CLASS_NAME}>
+        <div className={UI_FILTER_ROW_CLASS_NAME}>
+          <ExpensesFilters
+            branches={branchOptions}
+            canChooseBranch={canChooseBranch}
+            categories={EXPENSE_CATEGORIES}
+            isPending={isPending}
+            onBranchChange={(value) => updateFilters({ branch: value })}
+            onCategoryChange={(value) => updateFilters({ category: value })}
+            onClear={handleClear}
+            onPeriodChange={(value) =>
+              updateFilters({
+                range: value.range,
+                from: value.from,
+                to: value.to,
+              })}
+            selectedBranchRaw={filters.branch}
+            selectedCategory={filters.category}
+            selectedRange={filters.range}
+            fromRaw={filters.from}
+            toRaw={filters.to}
+          />
+
+          {canCreateExpense && activeTab === "records" ? (
+            <div className="flex flex-wrap items-center gap-2.5 xl:justify-end">
+              <Link
+                href={appendBackNavigationToHref("/dashboard/expenses/create", {
+                  source: "expenses",
+                  returnTo: currentReturnTo,
+                })}
+              >
+                <Button className="h-11 rounded-md bg-emerald-600 px-4 text-sm text-white hover:bg-emerald-700 hover:text-white dark:bg-green-500/60 dark:text-white dark:hover:bg-green-500/80 dark:hover:text-white">
                   <Plus className="h-4 w-4" />
-                  Create expense
+                  Create Expense
                 </Button>
               </Link>
-            ) : null}
-          </div>
+            </div>
+          ) : null}
         </div>
 
-        <div className="border-t border-border/70 px-6 pb-4 pt-3">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-            <div className="inline-flex shrink-0 flex-nowrap gap-2 rounded-xl border border-border/70 bg-muted/30 p-1">
-              <WorkspaceTabButton
-                active={activeTab === "records"}
-                label="Records"
-                onClick={() => setActiveTab("records")}
-              />
-              <WorkspaceTabButton
-                active={activeTab === "analytics"}
-                label="Analytics"
-                onClick={() => setActiveTab("analytics")}
-              />
-            </div>
-
-            <ExpensesFilters
-              branches={branchOptions}
-              canChooseBranch={canChooseBranch}
-              categories={EXPENSE_CATEGORIES}
-              isPending={isPending}
-              onBranchChange={(value) => updateFilters({ branch: value })}
-              onCategoryChange={(value) => updateFilters({ category: value })}
-              onClear={handleClear}
-              onPeriodChange={(value) =>
-                updateFilters({
-                  range: value.range,
-                  from: value.from,
-                  to: value.to,
-                })}
-              selectedBranchRaw={filters.branch}
-              selectedCategory={filters.category}
-              selectedRange={filters.range}
-              fromRaw={filters.from}
-              toRaw={filters.to}
+        <div className={UI_TAB_SEPARATOR_CLASS_NAME}>
+          <div className={UI_TAB_LIST_CLASS_NAME}>
+            <WorkspaceTabButton
+              active={activeTab === "records"}
+              icon={<ReceiptText className="size-4" />}
+              label="Records"
+              onClick={() => setActiveTab("records")}
+            />
+            <WorkspaceTabButton
+              active={activeTab === "analytics"}
+              icon={<BarChart3 className="size-4" />}
+              label="Analytics"
+              onClick={() => setActiveTab("analytics")}
             />
           </div>
         </div>
-      </Card>
+      </div>
 
       {activeTab === "records" ? (
           <ExpensesResultsSection
@@ -393,21 +356,22 @@ export function ExpensesClientPage({
 
 function WorkspaceTabButton({
   active,
+  icon,
   label,
   onClick,
 }: {
   active: boolean;
+  icon: ReactNode;
   label: string;
   onClick: () => void;
 }) {
   return (
     <button
-      className={`inline-flex rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-        active ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-      }`}
+      className={getUiTabTriggerClassName(active)}
       onClick={onClick}
       type="button"
     >
+      <span className={active ? UI_TAB_ICON_ACTIVE_CLASS_NAME : undefined}>{icon}</span>
       {label}
     </button>
   );

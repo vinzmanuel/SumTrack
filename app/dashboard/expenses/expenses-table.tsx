@@ -2,6 +2,12 @@
 
 import { Fragment, useState } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
+import {
+  getUiRoleBadgeClassName,
+  UI_TABLE_HEADER_ROW_CLASS_NAME,
+  UI_TABLE_ROW_HOVER_CLASS_NAME,
+  UI_TABLE_WRAPPER_CLASS_NAME,
+} from "@/app/dashboard/_components/ui-patterns";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,8 +21,6 @@ import {
 import { formatMoney } from "@/app/dashboard/expenses/format";
 import type { ExpenseListRow } from "@/app/dashboard/expenses/types";
 import { formatStoredDateTimeForManila } from "@/app/dashboard/datetime";
-
-const headerRowClassName = "border-border/70 bg-[var(--app-table-header)]";
 
 function formatRecordedByName(row: ExpenseListRow) {
   const companyIdSuffix = row.recordedByCompanyId ? ` (${row.recordedByCompanyId})` : "";
@@ -34,15 +38,6 @@ function formatRecordedByName(row: ExpenseListRow) {
   }
 
   return row.recordedByCompanyId ?? "N/A";
-}
-
-function recordedByRoleBadgeClass(roleName: string | null) {
-  if (roleName === "Admin") return "whitespace-nowrap border-red-200 bg-red-50 text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300";
-  if (roleName === "Auditor") return "whitespace-nowrap border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300";
-  if (roleName === "Branch Manager") return "whitespace-nowrap border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300";
-  if (roleName === "Secretary") return "whitespace-nowrap border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-500/30 dark:bg-violet-500/10 dark:text-violet-300";
-  if (roleName === "Collector") return "whitespace-nowrap border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300";
-  return "whitespace-nowrap border-zinc-200 bg-zinc-50 text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100";
 }
 
 function ExpandedDetailRows(props: {
@@ -89,14 +84,14 @@ export function ExpensesTable({ expenses }: { expenses: ExpenseListRow[] }) {
   }
 
   return (
-    <div className="overflow-hidden rounded-2xl border">
+    <div className={UI_TABLE_WRAPPER_CLASS_NAME}>
       <Table className="[&_td:first-child]:pl-5 [&_td:last-child]:pr-5 [&_th:first-child]:pl-5 [&_th:last-child]:pr-5">
         <TableHeader>
-          <TableRow className={headerRowClassName}>
-            <TableHead>Category</TableHead>
-            <TableHead>Amount</TableHead>
-            <TableHead>Expense Date</TableHead>
-            <TableHead>Recorded By</TableHead>
+          <TableRow className={UI_TABLE_HEADER_ROW_CLASS_NAME}>
+            <TableHead className="h-auto py-3 font-medium">Category</TableHead>
+            <TableHead className="h-auto py-3 font-medium">Amount</TableHead>
+            <TableHead className="h-auto py-3 font-medium">Expense Date</TableHead>
+            <TableHead className="h-auto py-3 font-medium">Recorded By</TableHead>
             <TableHead aria-label="Details" className="w-[9rem] text-right" />
           </TableRow>
         </TableHeader>
@@ -106,14 +101,14 @@ export function ExpensesTable({ expenses }: { expenses: ExpenseListRow[] }) {
 
             return (
               <Fragment key={row.expenseId}>
-                <TableRow>
-                  <TableCell>{row.category}</TableCell>
-                  <TableCell className="font-medium">{formatMoney(row.amount)}</TableCell>
-                  <TableCell>{row.expenseDate}</TableCell>
+                <TableRow className={UI_TABLE_ROW_HOVER_CLASS_NAME}>
+                  <TableCell className="py-3">{row.category}</TableCell>
+                  <TableCell className="py-3 font-medium">{formatMoney(row.amount)}</TableCell>
+                  <TableCell className="py-3">{row.expenseDate}</TableCell>
                   <TableCell className="max-w-80 whitespace-normal">
                     <div className="flex min-w-0 flex-wrap items-start gap-2">
                       {row.recordedByRoleName ? (
-                        <Badge className={recordedByRoleBadgeClass(row.recordedByRoleName)} variant="outline">
+                        <Badge className={getUiRoleBadgeClassName(row.recordedByRoleName)} variant="outline">
                           {row.recordedByRoleName}
                         </Badge>
                       ) : null}
@@ -122,9 +117,9 @@ export function ExpensesTable({ expenses }: { expenses: ExpenseListRow[] }) {
                       </span>
                     </div>
                   </TableCell>
-                  <TableCell className="text-right">
+                  <TableCell className="py-3 text-right">
                     <Button
-                      className="text-muted-foreground"
+                      className="h-9 rounded-md text-muted-foreground"
                       onClick={() =>
                         setExpandedExpenseId((current) => (current === row.expenseId ? null : row.expenseId))
                       }

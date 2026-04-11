@@ -10,7 +10,6 @@ import {
   resolveCollectionsPeriodTriggerLabel,
 } from "@/app/dashboard/collections/filters";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Select,
@@ -24,6 +23,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { AnalyticsDateRangeKey } from "@/components/analytics/types";
 import type { ExpenseBranchOption } from "@/app/dashboard/expenses/types";
+import { UI_CONTROL_CLASS_NAME, UI_FILTER_CONTROLS_NO_SEARCH_CLASS_NAME } from "@/app/dashboard/_components/ui-patterns";
 
 const MONTH_OPTIONS = [
   { value: 1, label: "Jan" },
@@ -107,17 +107,10 @@ export function ExpensesFilters({
       : "";
 
   return (
-    <div className="flex w-full justify-end">
-      <div className="flex w-full flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end sm:justify-end">
+    <div className={UI_FILTER_CONTROLS_NO_SEARCH_CLASS_NAME}>
         {canChooseBranch ? (
-          <label className="w-full space-y-1 sm:w-[180px]">
-            <Label htmlFor="branch">Branch</Label>
-            <Select
-              disabled={isPending}
-              onValueChange={onBranchChange}
-              value={selectedBranchRaw}
-            >
-              <SelectTrigger id="branch" className="w-full">
+            <Select disabled={isPending} onValueChange={onBranchChange} value={selectedBranchRaw}>
+              <SelectTrigger aria-label="Branch" className={`${UI_CONTROL_CLASS_NAME} w-full min-w-[180px] sm:w-[190px]`} id="branch">
                 <SelectValue placeholder="All branches" />
               </SelectTrigger>
               <SelectContent>
@@ -132,12 +125,9 @@ export function ExpensesFilters({
                 </SelectGroup>
               </SelectContent>
             </Select>
-          </label>
         ) : null}
 
-        <div className="w-full sm:w-[180px]">
-          <div className="flex flex-col gap-1">
-            <Label htmlFor="expenses-period">Period</Label>
+        <div className="w-full min-w-[180px] sm:w-[190px]">
             <Popover
               onOpenChange={(nextOpen) => {
                 setIsPeriodOpen(nextOpen);
@@ -164,7 +154,8 @@ export function ExpensesFilters({
             >
               <PopoverTrigger asChild>
                 <Button
-                  className="w-full justify-between border-input bg-card font-normal text-foreground hover:bg-card"
+                  aria-label="Period"
+                  className={`${UI_CONTROL_CLASS_NAME} w-full justify-between border-input font-normal text-foreground hover:bg-card`}
                   id="expenses-period"
                   type="button"
                   variant="outline"
@@ -176,7 +167,7 @@ export function ExpensesFilters({
                   <ChevronDown className="size-4 text-muted-foreground" />
                 </Button>
               </PopoverTrigger>
-              <PopoverContent align="end" className="w-[360px] rounded-2xl p-4 sm:w-[420px]">
+              <PopoverContent align="end" className="w-[360px] rounded-md p-4 sm:w-[420px]">
                 <div className="flex flex-col gap-4">
                   <div className="flex flex-col gap-1">
                     <p className="text-sm font-semibold text-foreground">Choose period</p>
@@ -221,7 +212,7 @@ export function ExpensesFilters({
                       <div className="flex flex-col gap-1">
                         <p className="text-sm font-medium text-foreground">Select year</p>
                         <Select onValueChange={(value) => setSelectedMonthYear(Number(value))} value={String(resolvedMonthYear)}>
-                          <SelectTrigger className="w-full bg-card">
+                          <SelectTrigger className={`${UI_CONTROL_CLASS_NAME} w-full`}>
                             <SelectValue placeholder="Choose a year" />
                           </SelectTrigger>
                           <SelectContent>
@@ -282,7 +273,7 @@ export function ExpensesFilters({
                           }}
                           value={resolvedYearValue}
                         >
-                          <SelectTrigger className="w-full bg-card">
+                          <SelectTrigger className={`${UI_CONTROL_CLASS_NAME} w-full`}>
                             <SelectValue placeholder="Choose a year" />
                           </SelectTrigger>
                           <SelectContent>
@@ -299,17 +290,10 @@ export function ExpensesFilters({
                 </div>
               </PopoverContent>
             </Popover>
-          </div>
         </div>
 
-        <label className="w-full space-y-1 sm:w-[180px]">
-          <Label htmlFor="category">Category</Label>
-          <Select
-            disabled={isPending}
-            onValueChange={onCategoryChange}
-            value={selectedCategory}
-          >
-            <SelectTrigger id="category" className="w-full">
+          <Select disabled={isPending} onValueChange={onCategoryChange} value={selectedCategory}>
+            <SelectTrigger aria-label="Category" className={`${UI_CONTROL_CLASS_NAME} w-full min-w-[180px] sm:w-[190px]`} id="category">
               <SelectValue placeholder="All categories" />
             </SelectTrigger>
             <SelectContent>
@@ -324,14 +308,10 @@ export function ExpensesFilters({
               </SelectGroup>
             </SelectContent>
           </Select>
-        </label>
 
-        <div className="flex items-end">
-          <Button className="h-9 active:scale-[0.98]" onClick={onClear} type="button" variant="outline">
+          <Button className={`${UI_CONTROL_CLASS_NAME} px-4`} onClick={onClear} type="button" variant="outline">
             Clear
           </Button>
-        </div>
-      </div>
     </div>
   );
 }

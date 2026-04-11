@@ -63,7 +63,7 @@ function AnalyticsMetricCard({
   tone?: "default" | "accent";
 }) {
   return (
-    <Card className="h-full gap-0 overflow-hidden py-0">
+    <Card className="h-full gap-0 overflow-hidden rounded-md py-0">
       <CardContent className="flex h-full flex-col justify-between px-4 py-4">
         <div className="space-y-2">
           {eyebrow ? (
@@ -98,7 +98,7 @@ function SectionShell({
   action?: React.ReactNode;
 }) {
   return (
-    <Card className="gap-0 overflow-hidden py-0">
+    <Card className="gap-0 overflow-hidden rounded-md py-0">
       <CardHeader className="pb-2 pt-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="space-y-1">
@@ -132,7 +132,7 @@ function SpendShareBlock({
           : "bg-violet-500";
 
   return (
-    <div className="space-y-3 rounded-xl border border-border/70 bg-muted/[0.12] p-4">
+    <div className="space-y-3 rounded-md border border-border/70 bg-muted/[0.12] p-4">
       <div className="space-y-1">
         <p className="text-sm font-semibold text-foreground">{title}</p>
         <p className="text-xs leading-5 text-muted-foreground">{summary.categories.join(", ")}</p>
@@ -247,7 +247,7 @@ function HighestSpendDayRow({ item }: { item: ExpenseHighestSpendDayItem }) {
 
 function BranchMixRow({ item }: { item: ExpenseBranchMixItem }) {
   return (
-    <div className="space-y-3 rounded-xl border border-border/70 bg-muted/[0.12] p-4">
+    <div className="space-y-3 rounded-md border border-border/70 bg-muted/[0.12] p-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
@@ -313,7 +313,7 @@ function MultiSeriesBarChart({
 }) {
   if (chart.noData || chart.series.length === 0) {
     return (
-      <div className={`${height} flex items-center justify-center rounded-xl border border-dashed border-border/70 bg-muted/20 px-6 text-center text-sm text-muted-foreground`}>
+      <div className={`${height} flex items-center justify-center rounded-md border border-dashed border-border/70 bg-muted/20 px-6 text-center text-sm text-muted-foreground`}>
         No chart data is available for the selected scope.
       </div>
     );
@@ -453,7 +453,7 @@ export function ExpensesAnalyticsSection({
           title="Expense Pressure Snapshot"
         >
           <div className="grid gap-3 md:grid-cols-2">
-            <div className="rounded-xl border border-border/70 bg-muted/[0.12] p-4">
+            <div className="rounded-md border border-border/70 bg-muted/[0.12] p-4">
               <p className="text-sm font-semibold text-foreground">Top category</p>
               <p className="mt-2 text-xl font-semibold text-foreground">
                 {analytics.summary.topCategory ?? "No dominant category"}
@@ -464,12 +464,12 @@ export function ExpensesAnalyticsSection({
                   : "No category split available"}
               </p>
             </div>
-            <div className="rounded-xl border border-border/70 bg-muted/[0.12] p-4">
+            <div className="rounded-md border border-border/70 bg-muted/[0.12] p-4">
               <p className="text-sm font-semibold text-foreground">Highest-spend day</p>
               <p className="mt-2 text-xl font-semibold text-foreground">{formatMoney(analytics.summary.highestSpendDayAmount)}</p>
               <p className="mt-1 text-xs text-muted-foreground">{highestSpendDaySupport}</p>
             </div>
-            <div className="rounded-xl border border-border/70 bg-muted/[0.12] p-4 md:col-span-2">
+            <div className="rounded-md border border-border/70 bg-muted/[0.12] p-4 md:col-span-2">
               <p className="text-sm font-semibold text-foreground">Largest expense</p>
               <p className="mt-2 text-xl font-semibold text-foreground">{formatMoney(analytics.summary.largestExpenseAmount)}</p>
               <p className="mt-1 text-xs text-muted-foreground">{largestExpenseSupport}</p>
@@ -505,21 +505,21 @@ export function ExpensesAnalyticsSection({
           }
         >
           <div className="grid gap-3 md:grid-cols-3">
-            <div className="rounded-xl border border-border/70 bg-muted/[0.12] p-4">
+            <div className="rounded-md border border-border/70 bg-muted/[0.12] p-4">
               <p className="text-sm font-semibold text-foreground">Mid-month</p>
               <p className="mt-2 text-xl font-semibold text-foreground">{formatMoney(analytics.salaryRhythm.midMonthTotal)}</p>
               <p className="mt-1 text-xs text-muted-foreground">
                 {formatCollectionsInteger(analytics.salaryRhythm.midMonthCount)} entries
               </p>
             </div>
-            <div className="rounded-xl border border-border/70 bg-muted/[0.12] p-4">
+            <div className="rounded-md border border-border/70 bg-muted/[0.12] p-4">
               <p className="text-sm font-semibold text-foreground">Month-end</p>
               <p className="mt-2 text-xl font-semibold text-foreground">{formatMoney(analytics.salaryRhythm.monthEndTotal)}</p>
               <p className="mt-1 text-xs text-muted-foreground">
                 {formatCollectionsInteger(analytics.salaryRhythm.monthEndCount)} entries
               </p>
             </div>
-            <div className="rounded-xl border border-border/70 bg-muted/[0.12] p-4">
+            <div className="rounded-md border border-border/70 bg-muted/[0.12] p-4">
               <p className="text-sm font-semibold text-foreground">Month-end higher</p>
               <p className="mt-2 text-xl font-semibold text-foreground">
                 {formatCollectionsInteger(analytics.salaryRhythm.monthEndHigherMonths)}
@@ -544,12 +544,12 @@ export function ExpensesAnalyticsSection({
           }
         >
           <div className="grid gap-3 md:grid-cols-2">
-            <div className="rounded-xl border border-border/70 bg-muted/[0.12] p-4">
+            <div className="rounded-md border border-border/70 bg-muted/[0.12] p-4">
               <p className="text-sm font-semibold text-foreground">Electricity</p>
               <p className="mt-2 text-xl font-semibold text-foreground">{formatMoney(analytics.utilities.electricityAmount)}</p>
               <p className="mt-1 text-xs text-muted-foreground">{formatShare(analytics.utilities.electricityShare)} of utilities</p>
             </div>
-            <div className="rounded-xl border border-border/70 bg-muted/[0.12] p-4">
+            <div className="rounded-md border border-border/70 bg-muted/[0.12] p-4">
               <p className="text-sm font-semibold text-foreground">Water</p>
               <p className="mt-2 text-xl font-semibold text-foreground">{formatMoney(analytics.utilities.waterAmount)}</p>
               <p className="mt-1 text-xs text-muted-foreground">{formatShare(analytics.utilities.waterShare)} of utilities</p>
@@ -578,17 +578,17 @@ export function ExpensesAnalyticsSection({
           }
         >
           <div className="grid gap-3 md:grid-cols-3">
-            <div className="rounded-xl border border-border/70 bg-muted/[0.12] p-4">
+            <div className="rounded-md border border-border/70 bg-muted/[0.12] p-4">
               <p className="text-sm font-semibold text-foreground">Total miscellaneous</p>
               <p className="mt-2 text-xl font-semibold text-foreground">{formatMoney(analytics.miscellaneous.totalAmount)}</p>
               <p className="mt-1 text-xs text-muted-foreground">{formatShare(analytics.miscellaneous.share)} of spend</p>
             </div>
-            <div className="rounded-xl border border-border/70 bg-muted/[0.12] p-4">
+            <div className="rounded-md border border-border/70 bg-muted/[0.12] p-4">
               <p className="text-sm font-semibold text-foreground">Frequency</p>
               <p className="mt-2 text-xl font-semibold text-foreground">{formatCollectionsInteger(analytics.miscellaneous.count)}</p>
               <p className="mt-1 text-xs text-muted-foreground">miscellaneous entries in scope</p>
             </div>
-            <div className="rounded-xl border border-border/70 bg-muted/[0.12] p-4">
+            <div className="rounded-md border border-border/70 bg-muted/[0.12] p-4">
               <p className="text-sm font-semibold text-foreground">Interpretation</p>
               <p className="mt-2 text-base font-semibold text-foreground">
                 {analytics.miscellaneous.overuseFlag ? "Potential overuse" : "Controlled usage"}
@@ -598,7 +598,7 @@ export function ExpensesAnalyticsSection({
               </p>
             </div>
           </div>
-          <div className="mt-4 rounded-xl border border-border/70 bg-muted/[0.12] p-4">
+          <div className="mt-4 rounded-md border border-border/70 bg-muted/[0.12] p-4">
             <div className="mb-3 space-y-1">
               <p className="text-sm font-semibold text-foreground">Top miscellaneous descriptions</p>
               <p className="text-xs text-muted-foreground">
@@ -610,7 +610,7 @@ export function ExpensesAnalyticsSection({
                 <MiscDescriptionRow item={item} key={item.label} />
               ))
             ) : (
-              <div className="rounded-xl border border-dashed border-border/70 bg-background px-5 py-10 text-center text-sm text-muted-foreground">
+              <div className="rounded-md border border-dashed border-border/70 bg-background px-5 py-10 text-center text-sm text-muted-foreground">
                 No miscellaneous descriptions are available for this scope.
               </div>
             )}
@@ -626,7 +626,7 @@ export function ExpensesAnalyticsSection({
               <TopDriverRow item={item} key={item.expenseId} showBranchName={isMultiBranchScope} />
             ))
           ) : (
-            <div className="rounded-xl border border-dashed border-border/70 bg-muted/20 px-5 py-10 text-center">
+            <div className="rounded-md border border-dashed border-border/70 bg-muted/20 px-5 py-10 text-center">
               <p className="text-sm font-medium text-foreground">No expense drivers are available for this scope.</p>
               <p className="mt-2 text-sm text-muted-foreground">
                 Adjust the filters to widen the expense activity being analyzed.
@@ -649,7 +649,7 @@ export function ExpensesAnalyticsSection({
                 ))}
               </div>
             ) : (
-              <div className="rounded-xl border border-dashed border-border/70 bg-muted/20 px-5 py-10 text-center text-sm text-muted-foreground">
+              <div className="rounded-md border border-dashed border-border/70 bg-muted/20 px-5 py-10 text-center text-sm text-muted-foreground">
                 No branch mix comparison is available for the current scope.
               </div>
             )}
@@ -664,7 +664,7 @@ export function ExpensesAnalyticsSection({
                 <HighestSpendDayRow item={item} key={item.key} />
               ))
             ) : (
-              <div className="rounded-xl border border-dashed border-border/70 bg-muted/20 px-5 py-10 text-center text-sm text-muted-foreground">
+              <div className="rounded-md border border-dashed border-border/70 bg-muted/20 px-5 py-10 text-center text-sm text-muted-foreground">
                 {analytics.highestSpendDays.emptyMessage}
               </div>
             )}
@@ -681,7 +681,7 @@ export function ExpensesAnalyticsSection({
                 <BranchComparisonRow item={item} key={item.key} />
               ))
             ) : (
-              <div className="rounded-xl border border-dashed border-border/70 bg-muted/20 px-5 py-10 text-center text-sm text-muted-foreground">
+              <div className="rounded-md border border-dashed border-border/70 bg-muted/20 px-5 py-10 text-center text-sm text-muted-foreground">
                 {analytics.branchComparison.emptyMessage}
               </div>
             )}
@@ -692,14 +692,14 @@ export function ExpensesAnalyticsSection({
             title="Expense Scope Pressure"
           >
             <div className="grid gap-3">
-              <div className="rounded-xl border border-border/70 bg-muted/[0.12] p-4">
+              <div className="rounded-md border border-border/70 bg-muted/[0.12] p-4">
                 <p className="text-sm font-semibold text-foreground">Average expense per active day</p>
                 <p className="mt-2 text-xl font-semibold text-foreground">{formatMoney(analytics.summary.averageExpensePerActiveDay)}</p>
                 <p className="mt-1 text-xs text-muted-foreground">
                   Across {formatCollectionsInteger(analytics.summary.daysWithExpenses)} active spend day{analytics.summary.daysWithExpenses === 1 ? "" : "s"}.
                 </p>
               </div>
-              <div className="rounded-xl border border-border/70 bg-muted/[0.12] p-4">
+              <div className="rounded-md border border-border/70 bg-muted/[0.12] p-4">
                 <p className="text-sm font-semibold text-foreground">Top 3 expense share</p>
                 <p className="mt-2 text-xl font-semibold text-foreground">{formatShare(analytics.summary.topThreeExpenseShare)}</p>
                 <p className="mt-1 text-xs text-muted-foreground">
@@ -712,7 +712,7 @@ export function ExpensesAnalyticsSection({
       </div>
 
       {isPending ? (
-        <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-background/65 backdrop-blur-[1px]">
+        <div className="absolute inset-0 flex items-center justify-center rounded-md bg-background/65 backdrop-blur-[1px]">
           <div className="rounded-md border bg-background px-3 py-2 text-sm text-muted-foreground shadow-sm">
             Updating expense analytics...
           </div>

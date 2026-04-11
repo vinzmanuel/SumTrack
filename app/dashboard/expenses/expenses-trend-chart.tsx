@@ -35,7 +35,7 @@ export function ExpensesTrendChart({
   if (chart.noData || chart.series.length === 0) {
     return (
       <div
-        className={`${className ?? "h-[280px]"} flex items-center justify-center rounded-xl border border-dashed border-border/70 bg-muted/20 px-6 text-center text-sm text-muted-foreground`}
+        className={`${className ?? "h-[280px]"} flex items-center justify-center rounded-md border border-dashed border-border/70 bg-muted/20 px-6 text-center text-sm text-muted-foreground`}
       >
         {emptyMessage ?? "No expense trend is available for the selected period."}
       </div>

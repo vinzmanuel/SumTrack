@@ -342,6 +342,24 @@ function buildDefaultDashboardHeaderConfig(
     };
   }
 
+  if (pathname === "/dashboard/expenses") {
+    return {
+      action: null,
+      description: "Track branch expense records and analytics inside your current expense scope.",
+      icon: <BanknoteArrowDown className="size-9 text-sidebar-foreground/65" />,
+      title: "Expenses",
+    };
+  }
+
+  if (pathname === "/dashboard/expenses/create") {
+    return {
+      action: null,
+      description: "Record a branch operating expense inside your allowed assignment scope.",
+      icon: <BanknoteArrowDown className="size-9 text-sidebar-foreground/65" />,
+      title: "Create Expense",
+    };
+  }
+
   if (pathname === "/dashboard/reports/create") {
     return {
       action: null,

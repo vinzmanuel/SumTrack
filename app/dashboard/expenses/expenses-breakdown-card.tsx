@@ -27,7 +27,7 @@ function BreakdownTooltip({
   }
 
   return (
-    <div className="min-w-52 rounded-xl border bg-background/95 p-3 shadow-lg backdrop-blur">
+    <div className="min-w-52 rounded-md border bg-background/95 p-3 shadow-lg backdrop-blur">
       <div className="mb-2 flex items-center gap-2">
         <span className="size-2.5 rounded-full" style={{ backgroundColor: row.fill }} />
         <p className="text-sm font-medium text-foreground">{row.label}</p>
@@ -83,7 +83,7 @@ export function ExpensesBreakdownCard({
   );
   return (
     <div className="relative">
-      <Card className="gap-0 overflow-hidden py-0">
+      <Card className="gap-0 overflow-hidden rounded-md py-0">
         <CardHeader className="pb-2 pt-4">
           <div className="space-y-1">
             <CardTitle className="text-base font-semibold">{title}</CardTitle>
@@ -92,14 +92,14 @@ export function ExpensesBreakdownCard({
         </CardHeader>
         <CardContent className="px-5 pb-5 pt-3">
           {data.breakdownRows.length === 0 ? (
-            <div className="rounded-xl border border-dashed bg-muted/20 px-5 py-12 text-center">
+            <div className="rounded-md border border-dashed bg-muted/20 px-5 py-12 text-center">
               <p className="text-base font-medium text-foreground">No expense distribution available for this scope.</p>
               <p className="mt-2 text-sm text-muted-foreground">
                 Adjust the branch, period, or category filters to populate the breakdown.
               </p>
             </div>
           ) : (
-            <div className="rounded-2xl border border-border/70 bg-muted/10 p-2">
+            <div className="rounded-md border border-border/70 bg-muted/10 p-2">
               <div className="mx-auto w-full max-w-[520px]">
                 <div className="h-[280px]">
                   <ChartContainer className="h-[280px] w-full" config={chartConfig}>
@@ -136,7 +136,7 @@ export function ExpensesBreakdownCard({
       </Card>
 
       {isPending ? (
-        <div className="bg-background/65 absolute inset-0 flex items-center justify-center rounded-xl backdrop-blur-[1px]">
+        <div className="bg-background/65 absolute inset-0 flex items-center justify-center rounded-md backdrop-blur-[1px]">
           <div className="rounded-md border bg-background px-3 py-2 text-sm text-muted-foreground shadow-sm">
             Updating expense analytics...
           </div>
