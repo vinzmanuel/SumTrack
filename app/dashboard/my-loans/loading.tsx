@@ -1,16 +1,9 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { LoanRecordsModuleSkeleton } from "@/app/dashboard/loans/loan-records-module-skeleton";
 
 export default function LoadingMyLoansPage() {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>My Loans</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-2">
-        <div className="h-8 animate-pulse rounded bg-muted" />
-        <div className="h-8 animate-pulse rounded bg-muted" />
-        <div className="h-8 animate-pulse rounded bg-muted" />
-      </CardContent>
-    </Card>
+    <div className="w-full max-w-none space-y-4">
+      <LoanRecordsModuleSkeleton canChooseBranchFilter={false} showAction={false} />
+    </div>
   );
 }

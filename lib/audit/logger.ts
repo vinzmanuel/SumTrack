@@ -101,9 +101,12 @@ function formatResolvedActorDisplayName(params: {
   username: string | null;
   userId: string;
 }) {
+  const employeeMiddleInitial = params.employeeMiddleName?.trim()
+    ? `${params.employeeMiddleName.trim().charAt(0)}.`
+    : null;
   const employeeName = [
     params.employeeFirstName,
-    params.employeeMiddleName,
+    employeeMiddleInitial,
     params.employeeLastName,
   ]
     .filter(Boolean)
@@ -113,9 +116,12 @@ function formatResolvedActorDisplayName(params: {
     return employeeName;
   }
 
+  const borrowerMiddleInitial = params.borrowerMiddleName?.trim()
+    ? `${params.borrowerMiddleName.trim().charAt(0)}.`
+    : null;
   const borrowerName = [
     params.borrowerFirstName,
-    params.borrowerMiddleName,
+    borrowerMiddleInitial,
     params.borrowerLastName,
   ]
     .filter(Boolean)

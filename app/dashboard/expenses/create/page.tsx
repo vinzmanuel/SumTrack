@@ -18,7 +18,7 @@ function renderCreateExpenseWorkspace(props: {
       <DashboardHeaderConfigurator
         config={{
           icon: <BanknoteArrowDown className="size-9 text-sidebar-foreground/65" />,
-          title: "Create Expense",
+          title: "Record Expense",
           description: "Record branch operating expenses.",
         }}
       />
@@ -58,7 +58,7 @@ export default async function CreateExpensePage({
       <main className="mx-auto flex min-h-screen w-full max-w-4xl items-center justify-center p-6">
         <Card className="w-full max-w-md">
           <CardHeader>
-            <CardTitle>Create Expense</CardTitle>
+            <CardTitle>Record Expense</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground">Not logged in</p>
@@ -74,7 +74,7 @@ export default async function CreateExpensePage({
       <main className="mx-auto flex min-h-screen w-full max-w-4xl items-center justify-center p-6">
         <Card className="w-full max-w-md">
           <CardHeader>
-            <CardTitle>Create Expense</CardTitle>
+            <CardTitle>Record Expense</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm text-muted-foreground">
@@ -106,7 +106,7 @@ export default async function CreateExpensePage({
       <main className="mx-auto min-h-screen w-full max-w-4xl p-6">
         <Card>
           <CardHeader>
-            <CardTitle>Create Expense</CardTitle>
+            <CardTitle>Record Expense</CardTitle>
             <CardDescription>Branch Manager Expense Entry</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -126,7 +126,7 @@ export default async function CreateExpensePage({
       <main className="mx-auto min-h-screen w-full max-w-4xl p-6">
         <Card>
           <CardHeader>
-            <CardTitle>Create Expense</CardTitle>
+            <CardTitle>Record Expense</CardTitle>
             <CardDescription>Branch Manager Expense Entry</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -145,7 +145,7 @@ export default async function CreateExpensePage({
       <main className="mx-auto min-h-screen w-full max-w-4xl p-6">
         <Card>
           <CardHeader>
-            <CardTitle>Create Expense</CardTitle>
+            <CardTitle>Record Expense</CardTitle>
             <CardDescription>Branch Manager Expense Entry</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">

@@ -360,7 +360,7 @@ function buildDefaultDashboardHeaderConfig(
       action: null,
       description: "Record a branch operating expense inside your allowed assignment scope.",
       icon: <BanknoteArrowDown className="size-9 text-sidebar-foreground/65" />,
-      title: "Create Expense",
+      title: "Record Expense",
     };
   }
 
@@ -379,6 +379,15 @@ function buildDefaultDashboardHeaderConfig(
       description: "Track, filter, and manage loan records across your current visible scope.",
       icon: <ReceiptText className="size-9 text-sidebar-foreground/65" />,
       title: "Loans",
+    };
+  }
+
+  if (pathname === "/dashboard/my-loans") {
+    return {
+      action: null,
+      description: "Review and track your own loan records and repayment progress.",
+      icon: <ReceiptText className="size-9 text-sidebar-foreground/65" />,
+      title: "My Loans",
     };
   }
 

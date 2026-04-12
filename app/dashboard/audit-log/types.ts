@@ -10,7 +10,7 @@ export type AuditLogFilterEntity = AuditEntityType;
 export type AuditLogPageAccess =
   | {
       view: "ready";
-      roleName: "Admin" | "Auditor";
+      roleName: "Admin" | "Auditor" | "Branch Manager";
       userId: string;
       allowedBranchIds: number[];
       canChooseBranch: boolean;

@@ -64,6 +64,7 @@ function navItemsForRole(roleName: string, options?: { branchManagerBranchHref?:
     return buildSharedOperationalNavItems({
       branchHref: options?.branchManagerBranchHref ?? "/dashboard/branches",
       branchLabel: "Manage Branch",
+      includeAuditLog: true,
     });
   }
 
@@ -87,7 +88,6 @@ function navItemsForRole(roleName: string, options?: { branchManagerBranchHref?:
       { href: "/dashboard", label: "Overview", section: "main", icon: "layout-dashboard" },
       { href: "/dashboard/my-performance", label: "My Performance", section: "main", icon: "bar-chart-3" },
       { href: "/dashboard/assigned-loans", label: "Assigned Loans", section: "main", icon: "receipt-text" },
-      { href: "/dashboard/my-collections", label: "My Collections", section: "main", icon: "hand-coins" },
       { href: "/dashboard/my-profile", label: "My Profile", section: "system", icon: "user-round" },
     ];
   }

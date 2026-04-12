@@ -23,10 +23,20 @@ const actorRoles = alias(roles, "audit_log_actor_roles");
 const actorEmployeeInfo = alias(employee_info, "audit_log_actor_employee_info");
 const actorBorrowerInfo = alias(borrower_info, "audit_log_actor_borrower_info");
 
+const actorEmployeeMiddleInitialSql = sql<string>`case
+  when nullif(trim(${actorEmployeeInfo.middle_name}), '') is not null then concat(left(trim(${actorEmployeeInfo.middle_name}), 1), '.')
+  else null
+end`;
+
+const actorBorrowerMiddleInitialSql = sql<string>`case
+  when nullif(trim(${actorBorrowerInfo.middle_name}), '') is not null then concat(left(trim(${actorBorrowerInfo.middle_name}), 1), '.')
+  else null
+end`;
+
 const actorResolvedDisplayNameSql = sql<string>`coalesce(
-  ${audit_logs.actor_display_name},
-  nullif(trim(concat_ws(' ', ${actorEmployeeInfo.first_name}, ${actorEmployeeInfo.middle_name}, ${actorEmployeeInfo.last_name})), ''),
-  nullif(trim(concat_ws(' ', ${actorBorrowerInfo.first_name}, ${actorBorrowerInfo.middle_name}, ${actorBorrowerInfo.last_name})), ''),
+  nullif(trim(concat_ws(' ', ${actorEmployeeInfo.first_name}, ${actorEmployeeMiddleInitialSql}, ${actorEmployeeInfo.last_name})), ''),
+  nullif(trim(concat_ws(' ', ${actorBorrowerInfo.first_name}, ${actorBorrowerMiddleInitialSql}, ${actorBorrowerInfo.last_name})), ''),
+  nullif(${audit_logs.actor_display_name}, ''),
   ${actorUsers.company_id},
   ${actorUsers.username}
 )`;
@@ -41,6 +51,24 @@ const actorResolvedRoleNameSql = sql<string>`coalesce(
   ${audit_logs.actor_role_name},
   ${actorRoles.role_name}
 )`;
+
+const actorResolvedRoleNameForFiltersSql = sql<string>`coalesce(
+  ${audit_logs.actor_role_name},
+  (
+    select ${roles.role_name}
+    from ${users}
+    inner join ${roles} on ${roles.role_id} = ${users.role_id}
+    where ${users.user_id} = ${audit_logs.actor_user_id}
+    limit 1
+  )
+)`;
+
+function buildRoleInSql(roleExpression: SQL, roleNames: string[]) {
+  return sql`${roleExpression} in (${sql.join(
+    roleNames.map((roleName) => sql`${roleName}`),
+    sql.raw(", "),
+  )})`;
+}
 
 function firstSearchValue(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
@@ -74,17 +102,24 @@ export function resolveAuditLogAccess(auth: Awaited<ReturnType<typeof getDashboa
     };
   }
 
-  if (auth.roleName !== "Admin" && auth.roleName !== "Auditor") {
+  if (
+    auth.roleName !== "Admin" &&
+    auth.roleName !== "Auditor" &&
+    auth.roleName !== "Branch Manager"
+  ) {
     return {
       view: "forbidden",
-      message: "Audit Log is only available to Admin and Auditor users.",
+      message: "Audit Log is only available to Admin, Auditor, and Branch Manager users.",
     };
   }
 
-  if (auth.roleName === "Auditor" && auth.assignedBranchIds.length === 0) {
+  if (
+    (auth.roleName === "Auditor" || auth.roleName === "Branch Manager") &&
+    auth.assignedBranchIds.length === 0
+  ) {
     return {
       view: "scope_error",
-      message: "No assigned audit branches were found for your account.",
+      message: "No assigned branches were found for your account.",
     };
   }
 
@@ -93,7 +128,7 @@ export function resolveAuditLogAccess(auth: Awaited<ReturnType<typeof getDashboa
     roleName: auth.roleName,
     userId: auth.userId,
     allowedBranchIds: auth.assignedBranchIds,
-    canChooseBranch: auth.roleName === "Admin",
+    canChooseBranch: auth.roleName === "Admin" || auth.roleName === "Auditor",
   };
 }
 
@@ -174,8 +209,52 @@ function buildAuditLogWhere(
 ) {
   const conditions: Array<SQL | undefined> = [];
 
-  if (access.roleName === "Auditor") {
-    conditions.push(sql`${audit_logs.branch_scope} && ${buildIntegerArraySql(access.allowedBranchIds)}`);
+  if (access.roleName === "Auditor" || access.roleName === "Branch Manager") {
+    const allowedBranchIdsSql = buildIntegerArraySql(access.allowedBranchIds);
+    const isScopedToAllowedBranchesSql = sql`(
+      ${audit_logs.branch_scope} && ${allowedBranchIdsSql}
+      or (
+        ${audit_logs.branch_id} is not null
+        and ${audit_logs.branch_id} = any(${allowedBranchIdsSql})
+      )
+    )`;
+    const isSelfActionSql = sql`(
+      ${audit_logs.actor_type} = 'user'
+      and ${audit_logs.actor_user_id} = ${access.userId}
+    )`;
+    const allowedScopedRoleSql =
+      access.roleName === "Auditor"
+        ? buildRoleInSql(actorResolvedRoleNameForFiltersSql, [
+            "Admin",
+            "Branch Manager",
+            "Secretary",
+            "Collector",
+            "Borrower",
+          ])
+        : buildRoleInSql(actorResolvedRoleNameForFiltersSql, [
+            "Admin",
+            "Secretary",
+            "Collector",
+            "Borrower",
+          ]);
+
+    conditions.push(sql`(
+      ${isSelfActionSql}
+      or (
+        ${isScopedToAllowedBranchesSql}
+        and (
+          ${audit_logs.actor_type} = 'system'
+          or ${allowedScopedRoleSql}
+        )
+      )
+    )`);
+
+    conditions.push(
+      sql`not (
+        ${audit_logs.action} like 'auth.%'
+        and ${actorResolvedRoleNameForFiltersSql} = 'Admin'
+      )`,
+    );
   }
 
   if (filters.branchId) {
@@ -200,16 +279,7 @@ function buildAuditLogWhere(
 
   if (!options?.omitActorRole && filters.actorRole !== "all") {
     conditions.push(
-      sql`coalesce(
-        ${audit_logs.actor_role_name},
-        (
-          select ${roles.role_name}
-          from ${users}
-          inner join ${roles} on ${roles.role_id} = ${users.role_id}
-          where ${users.user_id} = ${audit_logs.actor_user_id}
-          limit 1
-        )
-      ) = ${filters.actorRole}`,
+      sql`${actorResolvedRoleNameForFiltersSql} = ${filters.actorRole}`,
     );
   }
 
@@ -297,7 +367,7 @@ async function loadActorOptions(
     }
 
     const identity = [row.actorDisplayName, row.actorCompanyId].filter(Boolean).join(" ");
-    const roleSuffix = row.actorRoleName ? ` • ${row.actorRoleName}` : "";
+    const roleSuffix = row.actorRoleName ? ` - ${row.actorRoleName}` : "";
     return {
       actorKey: row.actorUserId ?? "",
       label: `${identity || "Unknown user"}${roleSuffix}`,
