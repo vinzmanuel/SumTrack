@@ -43,6 +43,26 @@ function buildBorrowerLabel(
   return userId;
 }
 
+function buildBorrowerBreadcrumbLabel(
+  firstName: string | null,
+  middleName: string | null,
+  lastName: string | null,
+  companyId: string | null,
+  userId: string,
+) {
+  const first = firstName?.trim() ?? "";
+  const middle = middleName?.trim() ?? "";
+  const last = lastName?.trim() ?? "";
+  const middleInitial = middle ? `${middle.charAt(0)}.` : "";
+  const displayName = [first, middleInitial, last].filter(Boolean).join(" ").trim();
+
+  if (displayName) {
+    return `${displayName} (${companyId || userId})`;
+  }
+
+  return companyId ? `${companyId} (${userId})` : userId;
+}
+
 function buildCollectorLabel(
   firstName: string | null,
   lastName: string | null,
@@ -80,6 +100,13 @@ function resolvePrefilledBorrower(
     branchId: String(borrowerArea.branch_id),
     areaId: String(borrowerArea.area_id),
     label: borrower.label,
+    breadcrumbLabel: buildBorrowerBreadcrumbLabel(
+      borrower.first_name,
+      borrower.middle_name,
+      borrower.last_name,
+      borrower.company_id,
+      borrower.user_id,
+    ),
   };
 }
 
@@ -148,6 +175,7 @@ export async function loadCreateLoanPageData(
         user_id: borrower_info.user_id,
         area_id: borrower_info.area_id,
         first_name: borrower_info.first_name,
+        middle_name: borrower_info.middle_name,
         last_name: borrower_info.last_name,
         company_id: users.company_id,
         username: users.username,
@@ -223,6 +251,7 @@ export async function loadCreateLoanPageData(
     company_id: item.company_id,
     username: item.username,
     first_name: item.first_name,
+    middle_name: item.middle_name,
     last_name: item.last_name,
     full_name: [item.first_name, item.last_name].filter(Boolean).join(" ").trim() || item.user_id,
     label: buildBorrowerLabel(

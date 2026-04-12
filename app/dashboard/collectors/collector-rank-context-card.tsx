@@ -37,7 +37,10 @@ export function CollectorRankContextCard({
             </CardTitle>
             <CardDescription className="text-sm leading-6">{basisLabel}</CardDescription>
           </div>
-          <Badge className="border-zinc-200 bg-zinc-50 text-zinc-700" variant="outline">
+          <Badge
+            className="rounded-md border-zinc-200 bg-zinc-50 py-1 text-zinc-700 dark:border-zinc-500/30 dark:bg-zinc-500/10 dark:text-zinc-300"
+            variant="outline"
+          >
             {visibleCollectorCount} visible
           </Badge>
         </div>

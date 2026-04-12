@@ -884,6 +884,10 @@ export function DashboardShell({
     resolvedHeaderConfig?.breadcrumbTitle ?? resolvedHeaderConfig?.title ?? currentPageLabel;
   const breadcrumbItems = useMemo(
     () => {
+      if (resolvedHeaderConfig?.breadcrumbs) {
+        return resolvedHeaderConfig.breadcrumbs;
+      }
+
       const activeSearchParams = new URLSearchParams(searchParams.toString());
 
       return buildRouteAwareBreadcrumbs({
@@ -893,7 +897,7 @@ export function DashboardShell({
         navItems: normalizedItems,
       });
     },
-    [normalizedItems, pathname, resolvedBreadcrumbCurrentLabel, searchParams],
+    [normalizedItems, pathname, resolvedBreadcrumbCurrentLabel, searchParams, resolvedHeaderConfig?.breadcrumbs],
   );
   const shouldShowBreadcrumb = useMemo(
     () =>

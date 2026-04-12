@@ -102,7 +102,10 @@ export const getAuthenticatedAppContext = cache(async (): Promise<AppAuthResult>
     .where(eq(users.user_id, user.id))
     .limit(1)
     .then((rows) => rows[0] ?? null)
-    .catch(() => null);
+    .catch((error) => {
+      console.error("[sumtrack][auth-debug] Error fetching app user:", error);
+      return null;
+    });
 
   if (!appUser) {
     return { ok: false, reason: "missing_app_user", message: "No application user profile found." };

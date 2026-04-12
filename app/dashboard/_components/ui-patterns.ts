@@ -62,10 +62,10 @@ export function getUiRoleBadgeClassName(roleName: string | null | undefined) {
   }
 
   if (roleName === "Borrower") {
-    return "whitespace-nowrap rounded-md bg-zinc-50 py-1 text-zinc-700 hover:bg-zinc-50 hover:text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100 dark:hover:bg-white/[0.06] dark:hover:text-zinc-100";
+    return "whitespace-nowrap rounded-md border border-zinc-200 bg-zinc-50 py-1 text-zinc-700 hover:bg-zinc-50 hover:text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100 dark:hover:bg-white/[0.06] dark:hover:text-zinc-100";
   }
 
-  return "whitespace-nowrap rounded-md bg-zinc-50 py-1 text-zinc-700 hover:bg-zinc-50 hover:text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100 dark:hover:bg-white/[0.06] dark:hover:text-zinc-100";
+  return "whitespace-nowrap rounded-md border border-zinc-200 bg-zinc-50 py-1 text-zinc-700 hover:bg-zinc-50 hover:text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100 dark:hover:bg-white/[0.06] dark:hover:text-zinc-100";
 }
 
 export function getUiTabTriggerClassName(active: boolean) {

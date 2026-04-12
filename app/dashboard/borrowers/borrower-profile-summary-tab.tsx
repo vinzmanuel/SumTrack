@@ -7,6 +7,7 @@ export function BorrowerProfileSummaryTab({
 }: {
   borrower: {
     fullName: string;
+    fullNameWithMiddle: string;
     companyId: string;
     status: "active" | "inactive";
     contactNumber: string | null;
@@ -19,11 +20,11 @@ export function BorrowerProfileSummaryTab({
   borrowerId: string;
 }) {
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-6xl space-y-6">
       <ManagedUserSummaryCard
         companyId={borrower.companyId}
         details={[
-          { label: "Full Name", value: borrower.fullName },
+          { label: "Full Name", value: borrower.fullNameWithMiddle },
           { label: "Contact No.", value: borrower.contactNumber || "N/A" },
           { label: "Email", value: borrower.email || "N/A" },
           { label: "Branch / Scope", value: borrower.branchLabel },
@@ -35,7 +36,9 @@ export function BorrowerProfileSummaryTab({
         roleName="Borrower"
         status={borrower.status}
         subtitle="Read-only borrower account details within your allowed scope."
+        headingName={borrower.fullName}
         title={borrower.fullName}
+        hideHeader
       />
 
       <BorrowerRiskAssessmentCard borrowerId={borrowerId} />

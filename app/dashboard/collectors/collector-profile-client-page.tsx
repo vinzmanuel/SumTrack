@@ -1,8 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Loader2 } from "lucide-react";
-import { DashboardBackLink } from "@/app/dashboard/_components/dashboard-back-link";
+import { FileChartColumn, Loader2, ReceiptText, User } from "lucide-react";
 import { DashboardHeaderConfigurator } from "@/app/dashboard/_components/dashboard-header-config";
 import { CollectorAccountOverviewTab } from "@/app/dashboard/collectors/collector-account-overview-tab";
 import { CollectorAssignedLoansTab } from "@/app/dashboard/collectors/collector-assigned-loans-tab";
@@ -19,6 +18,13 @@ import {
 import { Card, CardDescription } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  UI_TAB_ICON_ACTIVE_CLASS_NAME,
+  UI_TAB_LIST_CLASS_NAME,
+  UI_TAB_SEPARATOR_CLASS_NAME,
+  getUiRoleBadgeClassName,
+  getUiTabTriggerClassName,
+} from "@/app/dashboard/_components/ui-patterns";
 import type {
   CollectorAssignedLoansData,
   CollectorAssignedLoansFilters,
@@ -188,7 +194,7 @@ export function CollectorProfileClientPage({
   };
 
   const headerBadgeBaseClassName =
-    "inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium leading-none shadow-xs";
+    "inline-flex items-center rounded-md border px-3 py-1 text-xs font-medium leading-none shadow-xs";
   const periodFilters = buildCollectorsFiltersForProfilePeriod(period);
   const canUseAverageMonthly = supportsAverageMonthlyCollectionsSelection({
     range: periodFilters.selectedRange,
@@ -202,67 +208,72 @@ export function CollectorProfileClientPage({
   });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <DashboardHeaderConfigurator
         config={{
-          title: `${data.fullName} (${data.companyId})`,
+          breadcrumbTitle: `${data.fullName} (${data.companyId})`,
+          description: "Review collector account details, performance analytics, and assigned loans within your allowed scope.",
+          icon: <User className="size-9 text-sidebar-foreground/65" />,
+          title: "Collector Details",
         }}
       />
-      <DashboardBackLink href={backHref} label={backLabel} />
 
-      <Card className="gap-0 overflow-hidden py-0">
-        <div className="bg-linear-to-r from-slate-50 via-white to-emerald-50/60 p-6">
+      <Card className="gap-0 overflow-hidden rounded-md py-0">
+        <div className="p-5 md:p-6">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
             <div className="space-y-3">
-              <div className="space-y-1">
-                <h1 className="text-3xl font-semibold tracking-tight text-foreground">{data.fullName}</h1>
-                <CardDescription>{`${data.branchName} / ${data.areaLabel}`}</CardDescription>
-              </div>
-
-              <div className="flex flex-wrap gap-2 text-xs font-medium">
-                <span className={`${headerBadgeBaseClassName} border-border/70 bg-card text-foreground`}>
-                  Company ID: {data.companyId}
-                </span>
-                <span className={`${headerBadgeBaseClassName} border-blue-200 bg-blue-50 text-blue-700`}>
-                  Role: {data.roleName}
-                </span>
-                <span
-                  className={
-                    data.status === "active"
-                      ? `${headerBadgeBaseClassName} border-emerald-200 bg-emerald-50 text-emerald-700`
-                      : `${headerBadgeBaseClassName} border-zinc-200 bg-card text-zinc-700`
-                  }
-                >
-                  Status: {data.status === "active" ? "Active" : "Inactive"}
-                </span>
-                <span className={`${headerBadgeBaseClassName} border-border/70 bg-card text-foreground`}>
-                  Area Code: {data.areaCode}
-                </span>
+              <div className="space-y-2">
+                <div className="flex items-center gap-3">
+                  <h1 className="text-3xl font-semibold tracking-tight text-foreground">{data.fullName}</h1>
+                  <span
+                    className={
+                      data.status === "active"
+                        ? `${headerBadgeBaseClassName} border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300`
+                        : `${headerBadgeBaseClassName} border-zinc-200 bg-zinc-100 text-zinc-700 dark:border-zinc-500/30 dark:bg-zinc-500/10 dark:text-zinc-300`
+                    }
+                  >
+                    {data.status === "active" ? "Active" : "Inactive"}
+                  </span>
+                </div>
+                <div className="flex flex-col gap-0.5 text-sm text-muted-foreground">
+                  <p>{data.companyId}</p>
+                  <p>{data.roleName}</p>
+                  <p>{`${data.branchName} / ${data.areaLabel}`}</p>
+                </div>
               </div>
             </div>
           </div>
         </div>
-
-        <div className="border-t border-border/70 p-6">
-          <div className="inline-flex flex-wrap gap-2 rounded-xl border border-border/70 bg-muted/30 p-1">
-              <TabButton
-                active={activeTab === "profile"}
-                label="Profile"
-                onClick={() => handleTabChange("profile")}
-              />
-              <TabButton
-                active={activeTab === "performance"}
-                label="Collector Performance"
-                onClick={() => handleTabChange("performance")}
-              />
-              <TabButton
-                active={activeTab === "assigned-loans"}
-                label="Assigned Loans"
-                onClick={() => handleTabChange("assigned-loans")}
-              />
-          </div>
-        </div>
       </Card>
+
+      <div className={UI_TAB_SEPARATOR_CLASS_NAME}>
+        <div className={UI_TAB_LIST_CLASS_NAME}>
+          <button
+            className={getUiTabTriggerClassName(activeTab === "profile")}
+            onClick={() => handleTabChange("profile")}
+            type="button"
+          >
+            <User className={activeTab === "profile" ? UI_TAB_ICON_ACTIVE_CLASS_NAME : undefined} />
+            Profile
+          </button>
+          <button
+            className={getUiTabTriggerClassName(activeTab === "performance")}
+            onClick={() => handleTabChange("performance")}
+            type="button"
+          >
+            <FileChartColumn className={activeTab === "performance" ? UI_TAB_ICON_ACTIVE_CLASS_NAME : undefined} />
+            Collector Performance
+          </button>
+          <button
+            className={getUiTabTriggerClassName(activeTab === "assigned-loans")}
+            onClick={() => handleTabChange("assigned-loans")}
+            type="button"
+          >
+            <ReceiptText className={activeTab === "assigned-loans" ? UI_TAB_ICON_ACTIVE_CLASS_NAME : undefined} />
+            Assigned Loans
+          </button>
+        </div>
+      </div>
 
       {activeTab === "profile" ? (
         <CollectorAccountOverviewTab data={data} />
@@ -355,27 +366,5 @@ export function CollectorProfileClientPage({
         />
       )}
     </div>
-  );
-}
-
-function TabButton({
-  active,
-  label,
-  onClick,
-}: {
-  active: boolean;
-  label: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      className={`inline-flex rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-        active ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-      }`}
-      onClick={onClick}
-      type="button"
-    >
-      {label}
-    </button>
   );
 }

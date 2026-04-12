@@ -1,5 +1,9 @@
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import {
+  UI_SURFACE_CLASS_NAME,
+  getUiRoleBadgeClassName,
+} from "@/app/dashboard/_components/ui-patterns";
 import { formatStoredDateForManila } from "@/app/dashboard/datetime";
 
 function formatDate(value: string | null) {
@@ -20,7 +24,7 @@ function DetailItem({
   const displayValue = label === "Date Created" ? formatDate(value) : value;
 
   return (
-    <div className="space-y-1 rounded-lg border border-zinc-200/80 bg-zinc-50/70 px-3 py-3">
+    <div className="space-y-1 rounded-md border border-border/70 bg-muted/20 px-3 py-3">
       <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
         {label}
       </p>
@@ -32,50 +36,53 @@ function DetailItem({
 export function ManagedUserSummaryCard({
   eyebrow,
   title,
+  headingName,
   subtitle,
   companyId,
   roleName,
   status,
   details,
+  hideHeader,
 }: {
   eyebrow: string;
   title: string;
+  headingName?: string;
   subtitle: string;
   companyId: string;
   roleName: string;
   status: "active" | "inactive";
   details: Array<{ label: string; value: string | null | undefined }>;
+  hideHeader?: boolean;
 }) {
   return (
-    <Card className="border-zinc-200/80 shadow-sm">
-      <CardHeader className="space-y-4 border-b bg-zinc-50/70 pb-5">
+    <Card className={`${UI_SURFACE_CLASS_NAME} p-0 gap-0 overflow-hidden`}>
+      {!hideHeader ? (
+        <CardHeader className="space-y-4 border-b border-border/70 bg-muted/20 px-6 pb-5 pt-6">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
             {eyebrow}
           </p>
-          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">{title}</h1>
-          <p className="text-sm text-muted-foreground">{subtitle}</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Badge className="border-zinc-200 bg-zinc-100 text-zinc-700" variant="outline">
-            {companyId}
-          </Badge>
-          <Badge className="border-blue-200 bg-blue-50 text-blue-700" variant="outline">
-            {roleName}
-          </Badge>
-          <Badge
-            className={
-              status === "active"
-                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                : "border-amber-200 bg-amber-50 text-amber-700"
-            }
-            variant="outline"
-          >
-            {status === "active" ? "Active" : "Inactive"}
-          </Badge>
+          <div className="mt-2 flex items-center gap-3">
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">{headingName ?? title}</h1>
+            <span
+              className={
+                status === "active"
+                  ? "inline-flex items-center rounded-md border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium leading-none text-emerald-700 shadow-xs dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300"
+                  : "inline-flex items-center rounded-md border border-zinc-200 bg-zinc-100 px-3 py-1 text-xs font-medium leading-none text-zinc-700 shadow-xs dark:border-zinc-500/30 dark:bg-zinc-500/10 dark:text-zinc-300"
+              }
+            >
+              {status === "active" ? "Active" : "Inactive"}
+            </span>
+          </div>
+          <div className="mt-2 flex flex-col gap-0.5 text-sm text-muted-foreground">
+            <p>{companyId}</p>
+            <p>{roleName}</p>
+            <p>{subtitle}</p>
+          </div>
         </div>
       </CardHeader>
-      <CardContent className="grid gap-3 pb-6 pt-6 md:grid-cols-2 xl:grid-cols-3">
+      ) : null}
+      <CardContent className="grid gap-3 p-6 md:grid-cols-2 xl:grid-cols-3">
         {details.map((detail) => (
           <DetailItem key={detail.label} label={detail.label} value={detail.value || "N/A"} />
         ))}

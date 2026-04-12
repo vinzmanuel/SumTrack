@@ -87,7 +87,7 @@ function MetricItem({
   value: string;
 }) {
   return (
-    <div className="rounded-lg border border-border/60 bg-muted/15 px-3 py-3">
+    <div className="rounded-md border border-border/60 bg-muted/15 px-3 py-3">
       <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
         {label}
       </p>
@@ -147,7 +147,7 @@ function RiskResultContent({ result }: { result: BorrowerRiskAssessmentResult })
         </div>
       </section>
 
-      <Accordion className="rounded-xl border border-border/70 bg-background px-4" type="multiple">
+      <Accordion className="rounded-md border border-border/70 bg-background px-4" type="multiple">
         <AccordionItem value="supporting-metrics">
           <AccordionTrigger>Supporting Metrics</AccordionTrigger>
           <AccordionContent>
@@ -278,7 +278,7 @@ function RiskResultContent({ result }: { result: BorrowerRiskAssessmentResult })
         </AccordionItem>
       </Accordion>
 
-      <div className="rounded-lg border border-blue-200/80 bg-blue-50/70 px-4 py-3 text-sm text-blue-900">
+      <div className="rounded-md border border-border/70 bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
         {result.disclaimer}
       </div>
     </div>
@@ -356,8 +356,8 @@ export function BorrowerRiskAssessmentCard({ borrowerId }: BorrowerRiskAssessmen
 
   return (
     <>
-      <Card className="border-zinc-200/80 shadow-sm">
-        <CardHeader className="space-y-3 border-b bg-zinc-50/70 pb-5">
+      <Card className="rounded-md border-border/70 shadow-sm p-0 gap-0">
+        <CardHeader className="space-y-3 border-b border-border/70 bg-muted/20 px-6 pt-6 pb-5">
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-1">
               <CardTitle>AI-Assisted Missed-Payment Risk Assessment</CardTitle>
@@ -368,11 +368,11 @@ export function BorrowerRiskAssessmentCard({ borrowerId }: BorrowerRiskAssessmen
             <Sparkles className="mt-0.5 h-5 w-5 text-emerald-600" />
           </div>
         </CardHeader>
-        <CardContent className="flex flex-col gap-4 pt-6 sm:flex-row sm:items-center sm:justify-between">
+        <CardContent className="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-sm leading-6 text-muted-foreground">
             Review borrower missed-payment history and note context before making a reapproval decision.
           </p>
-          <Button className="shrink-0" disabled={isLoading} onClick={handleAssessClick} type="button">
+          <Button className="h-11 shrink-0 rounded-md" disabled={isLoading} onClick={handleAssessClick} type="button">
             {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
             {isLoading ? "Assessing..." : "Assess Reapproval Risk"}
           </Button>
@@ -380,11 +380,11 @@ export function BorrowerRiskAssessmentCard({ borrowerId }: BorrowerRiskAssessmen
       </Card>
 
       <Dialog onOpenChange={setOpen} open={open}>
-        <DialogContent className="max-h-[calc(100vh-2rem)] overflow-hidden p-0 sm:max-w-3xl">
+        <DialogContent className="max-h-[calc(100vh-2rem)] overflow-hidden rounded-md p-0 sm:max-w-3xl">
           <div className="flex max-h-[calc(100vh-2rem)] flex-col">
             <DialogHeader className="border-b px-6 py-5">
               <div className="flex items-start gap-4">
-                <div className="flex h-14 w-14 items-center justify-center rounded-full border border-emerald-200 bg-emerald-50 text-emerald-600 shadow-sm">
+                <div className="flex h-14 w-14 items-center justify-center rounded-md border border-emerald-200 bg-emerald-50 text-emerald-600 shadow-sm dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">
                   <Sparkles className="h-7 w-7" />
                 </div>
                 <div className="space-y-1">
@@ -410,16 +410,16 @@ export function BorrowerRiskAssessmentCard({ borrowerId }: BorrowerRiskAssessmen
               ) : null}
 
               {state.status === "error" ? (
-                <div className="space-y-4 rounded-xl border border-red-200 bg-red-50 p-4">
+                <div className="space-y-4 rounded-md border border-destructive/30 bg-destructive/10 p-4">
                   <div className="flex items-start gap-3">
-                    <AlertCircle className="mt-0.5 h-5 w-5 text-red-600" />
+                    <AlertCircle className="mt-0.5 h-5 w-5 text-destructive" />
                     <div className="space-y-1">
-                      <p className="font-medium text-red-900">Assessment failed</p>
-                      <p className="text-sm text-red-800">{state.message}</p>
+                      <p className="font-medium text-foreground">Assessment failed</p>
+                      <p className="text-sm text-muted-foreground">{state.message}</p>
                     </div>
                   </div>
 
-                  <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+                  <div className="rounded-md border border-border/70 bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
                     AI-assisted risk analysis only. This is not the final approval decision and should be reviewed alongside borrower payment history and staff judgment.
                   </div>
                 </div>
@@ -436,16 +436,17 @@ export function BorrowerRiskAssessmentCard({ borrowerId }: BorrowerRiskAssessmen
 
             <DialogFooter className="border-t px-6 py-4">
               {state.status === "error" ? (
-                <Button disabled={isLoading} onClick={() => void runAssessment()} type="button" variant="outline">
+                <Button className="h-11 rounded-md" disabled={isLoading} onClick={() => void runAssessment()} type="button" variant="outline">
                   Try Again
                 </Button>
               ) : null}
               {state.status === "success" && state.result ? (
-                <Button disabled={isLoading} onClick={() => void runAssessment()} type="button" variant="outline">
+                <Button className="h-11 rounded-md" disabled={isLoading} onClick={() => void runAssessment()} type="button" variant="outline">
                   Re-run Assessment
                 </Button>
               ) : null}
               <Button
+                className="h-11 rounded-md"
                 onClick={() => setOpen(false)}
                 type="button"
                 variant={state.status === "success" ? "outline" : "default"}

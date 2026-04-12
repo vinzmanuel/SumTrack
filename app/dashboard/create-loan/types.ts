@@ -31,6 +31,7 @@ export type BorrowerOption = {
   label: string;
   full_name: string;
   first_name: string | null;
+  middle_name: string | null;
   last_name: string | null;
   username: string | null;
 };
@@ -40,6 +41,7 @@ export type PrefilledBorrower = {
   branchId: string;
   areaId: string;
   label: string;
+  breadcrumbLabel: string;
 };
 
 export type CreateLoanReadyState = {

@@ -7,7 +7,8 @@ export function CollectorAccountOverviewTab({
   data: CollectorProfileData;
 }) {
   return (
-    <ManagedUserSummaryCard
+    <div className="mx-auto max-w-6xl">
+      <ManagedUserSummaryCard
       companyId={data.companyId}
       details={[
         { label: "Full Name", value: data.fullName },
@@ -22,6 +23,8 @@ export function CollectorAccountOverviewTab({
       status={data.status}
       subtitle="Read-only account details for this collector within your allowed scope."
       title={data.fullName}
+      hideHeader
     />
+    </div>
   );
 }

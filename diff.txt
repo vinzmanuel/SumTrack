@@ -1,0 +1,1160 @@
+﻿diff --git a/app/dashboard/_components/ui-patterns.ts b/app/dashboard/_components/ui-patterns.ts
+index 77f1207..3362cea 100644
+--- a/app/dashboard/_components/ui-patterns.ts
++++ b/app/dashboard/_components/ui-patterns.ts
+@@ -62,10 +62,10 @@ export function getUiRoleBadgeClassName(roleName: string | null | undefined) {
+   }
+ 
+   if (roleName === "Borrower") {
+-    return "whitespace-nowrap rounded-md bg-zinc-50 py-1 text-zinc-700 hover:bg-zinc-50 hover:text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100 dark:hover:bg-white/[0.06] dark:hover:text-zinc-100";
++    return "whitespace-nowrap rounded-md border border-zinc-200 bg-zinc-50 py-1 text-zinc-700 hover:bg-zinc-50 hover:text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100 dark:hover:bg-white/[0.06] dark:hover:text-zinc-100";
+   }
+ 
+-  return "whitespace-nowrap rounded-md bg-zinc-50 py-1 text-zinc-700 hover:bg-zinc-50 hover:text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100 dark:hover:bg-white/[0.06] dark:hover:text-zinc-100";
++  return "whitespace-nowrap rounded-md border border-zinc-200 bg-zinc-50 py-1 text-zinc-700 hover:bg-zinc-50 hover:text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100 dark:hover:bg-white/[0.06] dark:hover:text-zinc-100";
+ }
+ 
+ export function getUiTabTriggerClassName(active: boolean) {
+diff --git a/app/dashboard/borrowers/[borrowerId]/borrower-risk-assessment-dialog-card.tsx b/app/dashboard/borrowers/[borrowerId]/borrower-risk-assessment-dialog-card.tsx
+index fa51989..8cc3a14 100644
+--- a/app/dashboard/borrowers/[borrowerId]/borrower-risk-assessment-dialog-card.tsx
++++ b/app/dashboard/borrowers/[borrowerId]/borrower-risk-assessment-dialog-card.tsx
+@@ -87,7 +87,7 @@ function MetricItem({
+   value: string;
+ }) {
+   return (
+-    <div className="rounded-lg border border-border/60 bg-muted/15 px-3 py-3">
++    <div className="rounded-md border border-border/60 bg-muted/15 px-3 py-3">
+       <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+         {label}
+       </p>
+@@ -147,7 +147,7 @@ function RiskResultContent({ result }: { result: BorrowerRiskAssessmentResult })
+         </div>
+       </section>
+ 
+-      <Accordion className="rounded-xl border border-border/70 bg-background px-4" type="multiple">
++      <Accordion className="rounded-md border border-border/70 bg-background px-4" type="multiple">
+         <AccordionItem value="supporting-metrics">
+           <AccordionTrigger>Supporting Metrics</AccordionTrigger>
+           <AccordionContent>
+@@ -278,7 +278,7 @@ function RiskResultContent({ result }: { result: BorrowerRiskAssessmentResult })
+         </AccordionItem>
+       </Accordion>
+ 
+-      <div className="rounded-lg border border-blue-200/80 bg-blue-50/70 px-4 py-3 text-sm text-blue-900">
++      <div className="rounded-md border border-border/70 bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
+         {result.disclaimer}
+       </div>
+     </div>
+@@ -356,8 +356,8 @@ export function BorrowerRiskAssessmentCard({ borrowerId }: BorrowerRiskAssessmen
+ 
+   return (
+     <>
+-      <Card className="border-zinc-200/80 shadow-sm">
+-        <CardHeader className="space-y-3 border-b bg-zinc-50/70 pb-5">
++      <Card className="rounded-md border-border/70 shadow-sm">
++        <CardHeader className="space-y-3 border-b border-border/70 bg-muted/20 pb-5">
+           <div className="flex items-start justify-between gap-4">
+             <div className="space-y-1">
+               <CardTitle>AI-Assisted Missed-Payment Risk Assessment</CardTitle>
+@@ -372,7 +372,7 @@ export function BorrowerRiskAssessmentCard({ borrowerId }: BorrowerRiskAssessmen
+           <p className="text-sm leading-6 text-muted-foreground">
+             Review borrower missed-payment history and note context before making a reapproval decision.
+           </p>
+-          <Button className="shrink-0" disabled={isLoading} onClick={handleAssessClick} type="button">
++          <Button className="h-11 shrink-0 rounded-md" disabled={isLoading} onClick={handleAssessClick} type="button">
+             {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+             {isLoading ? "Assessing..." : "Assess Reapproval Risk"}
+           </Button>
+@@ -380,11 +380,11 @@ export function BorrowerRiskAssessmentCard({ borrowerId }: BorrowerRiskAssessmen
+       </Card>
+ 
+       <Dialog onOpenChange={setOpen} open={open}>
+-        <DialogContent className="max-h-[calc(100vh-2rem)] overflow-hidden p-0 sm:max-w-3xl">
++        <DialogContent className="max-h-[calc(100vh-2rem)] overflow-hidden rounded-md p-0 sm:max-w-3xl">
+           <div className="flex max-h-[calc(100vh-2rem)] flex-col">
+             <DialogHeader className="border-b px-6 py-5">
+               <div className="flex items-start gap-4">
+-                <div className="flex h-14 w-14 items-center justify-center rounded-full border border-emerald-200 bg-emerald-50 text-emerald-600 shadow-sm">
++                <div className="flex h-14 w-14 items-center justify-center rounded-md border border-emerald-200 bg-emerald-50 text-emerald-600 shadow-sm dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">
+                   <Sparkles className="h-7 w-7" />
+                 </div>
+                 <div className="space-y-1">
+@@ -410,16 +410,16 @@ export function BorrowerRiskAssessmentCard({ borrowerId }: BorrowerRiskAssessmen
+               ) : null}
+ 
+               {state.status === "error" ? (
+-                <div className="space-y-4 rounded-xl border border-red-200 bg-red-50 p-4">
++                <div className="space-y-4 rounded-md border border-destructive/30 bg-destructive/10 p-4">
+                   <div className="flex items-start gap-3">
+-                    <AlertCircle className="mt-0.5 h-5 w-5 text-red-600" />
++                    <AlertCircle className="mt-0.5 h-5 w-5 text-destructive" />
+                     <div className="space-y-1">
+-                      <p className="font-medium text-red-900">Assessment failed</p>
+-                      <p className="text-sm text-red-800">{state.message}</p>
++                      <p className="font-medium text-foreground">Assessment failed</p>
++                      <p className="text-sm text-muted-foreground">{state.message}</p>
+                     </div>
+                   </div>
+ 
+-                  <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
++                  <div className="rounded-md border border-border/70 bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
+                     AI-assisted risk analysis only. This is not the final approval decision and should be reviewed alongside borrower payment history and staff judgment.
+                   </div>
+                 </div>
+@@ -436,16 +436,17 @@ export function BorrowerRiskAssessmentCard({ borrowerId }: BorrowerRiskAssessmen
+ 
+             <DialogFooter className="border-t px-6 py-4">
+               {state.status === "error" ? (
+-                <Button disabled={isLoading} onClick={() => void runAssessment()} type="button" variant="outline">
++                <Button className="h-11 rounded-md" disabled={isLoading} onClick={() => void runAssessment()} type="button" variant="outline">
+                   Try Again
+                 </Button>
+               ) : null}
+               {state.status === "success" && state.result ? (
+-                <Button disabled={isLoading} onClick={() => void runAssessment()} type="button" variant="outline">
++                <Button className="h-11 rounded-md" disabled={isLoading} onClick={() => void runAssessment()} type="button" variant="outline">
+                   Re-run Assessment
+                 </Button>
+               ) : null}
+               <Button
++                className="h-11 rounded-md"
+                 onClick={() => setOpen(false)}
+                 type="button"
+                 variant={state.status === "success" ? "outline" : "default"}
+diff --git a/app/dashboard/borrowers/[borrowerId]/page.tsx b/app/dashboard/borrowers/[borrowerId]/page.tsx
+index 01f18c1..c0b820a 100644
+--- a/app/dashboard/borrowers/[borrowerId]/page.tsx
++++ b/app/dashboard/borrowers/[borrowerId]/page.tsx
+@@ -1,10 +1,17 @@
+ import Link from "next/link";
+ import { desc, eq } from "drizzle-orm";
++import { FileChartColumn, Plus, ReceiptText, User } from "lucide-react";
+ import { Button } from "@/components/ui/button";
+ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+-import { TremorCard, TremorDescription } from "@/components/tremor/raw/metric-card";
+ import { DashboardBackLink } from "@/app/dashboard/_components/dashboard-back-link";
+ import { DashboardHeaderConfigurator } from "@/app/dashboard/_components/dashboard-header-config";
++import {
++  UI_TAB_ICON_ACTIVE_CLASS_NAME,
++  UI_TAB_LIST_CLASS_NAME,
++  UI_TAB_SEPARATOR_CLASS_NAME,
++  getUiRoleBadgeClassName,
++  getUiTabTriggerClassName,
++} from "@/app/dashboard/_components/ui-patterns";
+ import {
+   getDashboardAuthContext,
+   getSingleAssignedBranchId,
+@@ -42,7 +49,7 @@ type PageProps = {
+ 
+ const DOCS_PAGE_SIZE = 10;
+ 
+-function formatSummaryName(firstName: string | null, middleName: string | null, lastName: string | null) {
++function formatDisplayName(firstName: string | null, middleName: string | null, lastName: string | null) {
+   const first = (firstName ?? "").trim();
+   const last = (lastName ?? "").trim();
+   const middle = (middleName ?? "").trim();
+@@ -50,6 +57,13 @@ function formatSummaryName(firstName: string | null, middleName: string | null,
+   return [first, middleInitial, last].filter(Boolean).join(" ") || "N/A";
+ }
+ 
++function formatFullName(firstName: string | null, middleName: string | null, lastName: string | null) {
++  const first = (firstName ?? "").trim();
++  const middle = (middleName ?? "").trim();
++  const last = (lastName ?? "").trim();
++  return [first, middle, last].filter(Boolean).join(" ") || "N/A";
++}
++
+ function renderMessageCard(props: {
+   href: string;
+   label: string;
+@@ -267,7 +281,12 @@ export default async function BorrowerProfilePage({ params, searchParams }: Page
+     };
+   });
+ 
+-  const fullName = formatSummaryName(
++  const fullName = formatDisplayName(
++    borrower.first_name,
++    borrower.middle_name,
++    borrower.last_name,
++  );
++  const fullNameWithMiddle = formatFullName(
+     borrower.first_name,
+     borrower.middle_name,
+     borrower.last_name,
+@@ -300,31 +319,33 @@ export default async function BorrowerProfilePage({ params, searchParams }: Page
+   }));
+ 
+   return (
+-    <div className="space-y-6">
++    <div className="space-y-4">
+       <DashboardHeaderConfigurator
+         config={{
+-          title: `${fullName} (${borrower.company_id})`,
++          breadcrumbTitle: `${fullName} (${borrower.company_id})`,
++          description: "Review borrower account details, loan history, and operational documents within your allowed scope.",
++          icon: <User className="size-9 text-sidebar-foreground/65" />,
++          title: "Borrower Details",
+         }}
+       />
+-      <DashboardBackLink href={backNavigation.href} label={backNavigation.label} />
+ 
+-      <TremorCard className="overflow-hidden p-0">
+-        <div className="bg-gradient-to-r from-slate-50 via-white to-emerald-50/60 p-6">
++      <div className="overflow-hidden rounded-md border border-border/70 bg-card text-card-foreground shadow-sm">
++        <div className="p-5 md:p-6">
+           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+             <div className="space-y-3">
+               <div className="space-y-1">
+                 <h1 className="text-3xl font-semibold tracking-tight text-foreground">{fullName}</h1>
+-                <TremorDescription>{`${branchLabel} / ${borrower.area_code}`}</TremorDescription>
++                <p className="text-sm text-muted-foreground">{`${branchLabel} / ${borrower.area_code}`}</p>
+               </div>
+ 
+               <div className="flex flex-wrap gap-2 text-xs font-medium">
+-                <span className="rounded-full border border-border/70 bg-background px-3 py-1 text-foreground">
++                <span className="rounded-md border border-border/70 bg-card px-3 py-1 text-foreground dark:border-white/12 dark:bg-white/[0.04] dark:text-zinc-200">
+                   Company ID: {borrower.company_id}
+                 </span>
+-                <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-blue-700">
++                <span className={getUiRoleBadgeClassName("Borrower")}>
+                   Role: Borrower
+                 </span>
+-                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-emerald-800">
++                <span className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-1 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">
+                   Status: {borrower.status === "active" ? "Active" : "Inactive"}
+                 </span>
+               </div>
+@@ -336,32 +357,51 @@ export default async function BorrowerProfilePage({ params, searchParams }: Page
+                   source: "borrowers",
+                   returnTo: currentBorrowerHref,
+                 })}>
+-                  <Button type="button">Create Loan</Button>
++                  <Button
++                    className="h-11 rounded-md bg-emerald-600 px-4 text-sm text-white hover:bg-emerald-700 hover:text-white"
++                    type="button"
++                  >
++                    <Plus className="h-4 w-4" />
++                    Create Loan
++                  </Button>
+                 </Link>
+               ) : null}
+             </div>
+           </div>
+         </div>
++      </div>
+ 
+-        <div className="border-t border-border/70 p-6">
+-          <div className="inline-flex flex-wrap gap-2 rounded-xl border border-border/70 bg-muted/30 p-1">
+-            <Link href={buildTabHref({ borrowerId, tab: "profile", docsPage, source, returnTo: backNavigation.href })}>
+-              <TabButton active={activeTab === "profile"} label="Profile" />
+-            </Link>
+-            <Link href={buildTabHref({ borrowerId, tab: "loan-history", docsPage, source, returnTo: backNavigation.href })}>
+-              <TabButton active={activeTab === "loan-history"} label="Loan History" />
+-            </Link>
+-            <Link href={buildTabHref({ borrowerId, tab: "documents", docsPage, source, returnTo: backNavigation.href })}>
+-              <TabButton active={activeTab === "documents"} label="Documents" />
+-            </Link>
+-          </div>
++      <div className={UI_TAB_SEPARATOR_CLASS_NAME}>
++        <div className={UI_TAB_LIST_CLASS_NAME}>
++          <Link
++            className={getUiTabTriggerClassName(activeTab === "profile")}
++            href={buildTabHref({ borrowerId, tab: "profile", docsPage, source, returnTo: backNavigation.href })}
++          >
++            <User className={activeTab === "profile" ? UI_TAB_ICON_ACTIVE_CLASS_NAME : undefined} />
++            Profile
++          </Link>
++          <Link
++            className={getUiTabTriggerClassName(activeTab === "loan-history")}
++            href={buildTabHref({ borrowerId, tab: "loan-history", docsPage, source, returnTo: backNavigation.href })}
++          >
++            <FileChartColumn className={activeTab === "loan-history" ? UI_TAB_ICON_ACTIVE_CLASS_NAME : undefined} />
++            Loan History
++          </Link>
++          <Link
++            className={getUiTabTriggerClassName(activeTab === "documents")}
++            href={buildTabHref({ borrowerId, tab: "documents", docsPage, source, returnTo: backNavigation.href })}
++          >
++            <ReceiptText className={activeTab === "documents" ? UI_TAB_ICON_ACTIVE_CLASS_NAME : undefined} />
++            Documents
++          </Link>
+         </div>
+-      </TremorCard>
++      </div>
+ 
+       {activeTab === "profile" ? (
+         <BorrowerProfileSummaryTab
+           borrower={{
+             fullName,
++            fullNameWithMiddle,
+             companyId: borrower.company_id,
+             status: borrower.status,
+             contactNumber: borrower.contact_number,
+@@ -399,21 +439,3 @@ export default async function BorrowerProfilePage({ params, searchParams }: Page
+     </div>
+   );
+ }
+-
+-function TabButton({
+-  active,
+-  label,
+-}: {
+-  active: boolean;
+-  label: string;
+-}) {
+-  return (
+-    <span
+-      className={`inline-flex rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+-        active ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+-      }`}
+-    >
+-      {label}
+-    </span>
+-  );
+-}
+diff --git a/app/dashboard/borrowers/borrower-loan-history-tab.tsx b/app/dashboard/borrowers/borrower-loan-history-tab.tsx
+index dde5e83..0ea8302 100644
+--- a/app/dashboard/borrowers/borrower-loan-history-tab.tsx
++++ b/app/dashboard/borrowers/borrower-loan-history-tab.tsx
+@@ -1,7 +1,20 @@
+ import Link from "next/link";
+ import { Button } from "@/components/ui/button";
+ import { appendBackNavigationToHref } from "@/app/dashboard/back-navigation";
++import { MoreHorizontal } from "lucide-react";
+ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
++import {
++  DropdownMenu,
++  DropdownMenuContent,
++  DropdownMenuItem,
++  DropdownMenuTrigger,
++} from "@/components/ui/dropdown-menu";
++import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
++import {
++  UI_TABLE_HEADER_ROW_CLASS_NAME,
++  UI_TABLE_ROW_HOVER_CLASS_NAME,
++  UI_TABLE_WRAPPER_CLASS_NAME,
++} from "@/app/dashboard/_components/ui-patterns";
+ import { LoanVisibleStatusBadge } from "@/app/dashboard/loans/loan-visible-status-badge";
+ import type { VisibleLoanStatus } from "@/app/dashboard/loans/loan-state";
+ 
+@@ -27,8 +40,11 @@ export function BorrowerLoanHistoryTab({
+   }>;
+   returnTo: string;
+ }) {
++  const rowActionItemClassName =
++    "w-full cursor-pointer justify-start rounded-md px-3 py-2 text-left text-sm font-medium text-foreground outline-hidden transition-colors hover:bg-accent focus:bg-accent";
++
+   return (
+-    <Card className="overflow-hidden border-border/70 shadow-sm">
++    <Card className="overflow-hidden rounded-md border-border/70 shadow-sm">
+       <CardHeader>
+         <CardTitle>Loan History</CardTitle>
+       </CardHeader>
+@@ -36,44 +52,65 @@ export function BorrowerLoanHistoryTab({
+         {loans.length === 0 ? (
+           <p className="text-sm text-muted-foreground">No loan records for this borrower.</p>
+         ) : (
+-          <div className="overflow-auto">
+-            <table className="w-full min-w-[950px] text-sm">
+-              <thead>
+-                <tr className="border-b text-left">
+-                  <th className="px-2 py-2.5 font-medium">Loan Code</th>
+-                  <th className="px-2 py-2.5 font-medium">Principal</th>
+-                  <th className="px-2 py-2.5 font-medium">Interest</th>
+-                  <th className="px-2 py-2.5 font-medium">Start Date</th>
+-                  <th className="px-2 py-2.5 font-medium">Due Date</th>
+-                  <th className="px-2 py-2.5 font-medium">Status</th>
+-                  <th className="px-2 py-2.5 font-medium">Action</th>
+-                </tr>
+-              </thead>
+-              <tbody>
+-                {loans.map((loan) => (
+-                  <tr className="border-b" key={loan.loanId}>
+-                    <td className="px-2 py-3">{loan.loanCode}</td>
+-                    <td className="px-2 py-3">{formatMoney(loan.principal)}</td>
+-                    <td className="px-2 py-3">{loan.interest}%</td>
+-                    <td className="px-2 py-3">{loan.startDate}</td>
+-                    <td className="px-2 py-3">{loan.dueDate}</td>
+-                    <td className="px-2 py-3">
+-                      <LoanVisibleStatusBadge status={loan.visibleStatus} />
+-                    </td>
+-                    <td className="px-2 py-3">
+-                      <Link href={appendBackNavigationToHref(`/dashboard/loans/${loan.loanId}`, {
+-                        source: "borrowers",
+-                        returnTo,
+-                      })}>
+-                        <Button size="sm" type="button" variant="outline">
+-                          View
+-                        </Button>
+-                      </Link>
+-                    </td>
+-                  </tr>
+-                ))}
+-              </tbody>
+-            </table>
++          <div className={UI_TABLE_WRAPPER_CLASS_NAME}>
++            <Table className="min-w-[980px] text-sm">
++              <TableHeader>
++                <TableRow className={UI_TABLE_HEADER_ROW_CLASS_NAME}>
++                  <TableHead className="h-auto py-3 pl-5">Loan Code</TableHead>
++                  <TableHead className="h-auto py-3">Principal</TableHead>
++                  <TableHead className="h-auto py-3">Interest</TableHead>
++                  <TableHead className="h-auto py-3">Total Payable</TableHead>
++                  <TableHead className="h-auto py-3">Due Date</TableHead>
++                  <TableHead className="h-auto py-3">Status</TableHead>
++                  <TableHead className="h-auto py-3">
++                    <span className="sr-only">Actions</span>
++                  </TableHead>
++                </TableRow>
++              </TableHeader>
++              <TableBody>
++                {loans.map((loan) => {
++                  const totalPayable = loan.principal + (loan.principal * loan.interest) / 100;
++
++                  return (
++                    <TableRow className={UI_TABLE_ROW_HOVER_CLASS_NAME} key={loan.loanId}>
++                      <TableCell className="py-3 pl-5 font-medium">{loan.loanCode}</TableCell>
++                      <TableCell className="py-3">{formatMoney(loan.principal)}</TableCell>
++                      <TableCell className="py-3">{loan.interest}%</TableCell>
++                      <TableCell className="py-3">{formatMoney(totalPayable)}</TableCell>
++                      <TableCell className="py-3">{loan.dueDate}</TableCell>
++                      <TableCell className="py-3">
++                        <LoanVisibleStatusBadge status={loan.visibleStatus} />
++                      </TableCell>
++                      <TableCell className="py-3">
++                        <DropdownMenu>
++                          <DropdownMenuTrigger asChild>
++                            <Button
++                              className="h-9 w-9 rounded-md border-0 bg-transparent text-muted-foreground shadow-none hover:bg-accent hover:text-foreground dark:bg-transparent dark:hover:bg-white/[0.08]"
++                              size="icon"
++                              type="button"
++                              variant="ghost"
++                            >
++                              <MoreHorizontal className="h-4 w-4" />
++                              <span className="sr-only">Open actions for {loan.loanCode}</span>
++                            </Button>
++                          </DropdownMenuTrigger>
++                          <DropdownMenuContent align="end" className="w-40 rounded-md p-1.5">
++                            <DropdownMenuItem asChild className={rowActionItemClassName}>
++                              <Link href={appendBackNavigationToHref(`/dashboard/loans/${loan.loanId}`, {
++                                source: "borrowers",
++                                returnTo,
++                              })}>
++                                View
++                              </Link>
++                            </DropdownMenuItem>
++                          </DropdownMenuContent>
++                        </DropdownMenu>
++                      </TableCell>
++                    </TableRow>
++                  );
++                })}
++              </TableBody>
++            </Table>
+           </div>
+         )}
+       </CardContent>
+diff --git a/app/dashboard/borrowers/borrower-profile-summary-tab.tsx b/app/dashboard/borrowers/borrower-profile-summary-tab.tsx
+index 3d26b11..0cb9425 100644
+--- a/app/dashboard/borrowers/borrower-profile-summary-tab.tsx
++++ b/app/dashboard/borrowers/borrower-profile-summary-tab.tsx
+@@ -7,6 +7,7 @@ export function BorrowerProfileSummaryTab({
+ }: {
+   borrower: {
+     fullName: string;
++    fullNameWithMiddle: string;
+     companyId: string;
+     status: "active" | "inactive";
+     contactNumber: string | null;
+@@ -23,7 +24,7 @@ export function BorrowerProfileSummaryTab({
+       <ManagedUserSummaryCard
+         companyId={borrower.companyId}
+         details={[
+-          { label: "Full Name", value: borrower.fullName },
++          { label: "Full Name", value: borrower.fullNameWithMiddle },
+           { label: "Contact No.", value: borrower.contactNumber || "N/A" },
+           { label: "Email", value: borrower.email || "N/A" },
+           { label: "Branch / Scope", value: borrower.branchLabel },
+@@ -35,6 +36,7 @@ export function BorrowerProfileSummaryTab({
+         roleName="Borrower"
+         status={borrower.status}
+         subtitle="Read-only borrower account details within your allowed scope."
++        headingName={borrower.fullName}
+         title={borrower.fullName}
+       />
+ 
+diff --git a/app/dashboard/collectors/collector-profile-client-page.tsx b/app/dashboard/collectors/collector-profile-client-page.tsx
+index 9de01d3..8a49355 100644
+--- a/app/dashboard/collectors/collector-profile-client-page.tsx
++++ b/app/dashboard/collectors/collector-profile-client-page.tsx
+@@ -1,8 +1,7 @@
+ "use client";
+ 
+ import { useCallback, useEffect, useRef, useState } from "react";
+-import { Loader2 } from "lucide-react";
+-import { DashboardBackLink } from "@/app/dashboard/_components/dashboard-back-link";
++import { FileChartColumn, Loader2, ReceiptText, User } from "lucide-react";
+ import { DashboardHeaderConfigurator } from "@/app/dashboard/_components/dashboard-header-config";
+ import { CollectorAccountOverviewTab } from "@/app/dashboard/collectors/collector-account-overview-tab";
+ import { CollectorAssignedLoansTab } from "@/app/dashboard/collectors/collector-assigned-loans-tab";
+@@ -19,6 +18,13 @@ import {
+ import { Card, CardDescription } from "@/components/ui/card";
+ import { Label } from "@/components/ui/label";
+ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
++import {
++  UI_TAB_ICON_ACTIVE_CLASS_NAME,
++  UI_TAB_LIST_CLASS_NAME,
++  UI_TAB_SEPARATOR_CLASS_NAME,
++  getUiRoleBadgeClassName,
++  getUiTabTriggerClassName,
++} from "@/app/dashboard/_components/ui-patterns";
+ import type {
+   CollectorAssignedLoansData,
+   CollectorAssignedLoansFilters,
+@@ -188,7 +194,7 @@ export function CollectorProfileClientPage({
+   };
+ 
+   const headerBadgeBaseClassName =
+-    "inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium leading-none shadow-xs";
++    "inline-flex items-center rounded-md border px-3 py-1 text-xs font-medium leading-none shadow-xs";
+   const periodFilters = buildCollectorsFiltersForProfilePeriod(period);
+   const canUseAverageMonthly = supportsAverageMonthlyCollectionsSelection({
+     range: periodFilters.selectedRange,
+@@ -202,16 +208,18 @@ export function CollectorProfileClientPage({
+   });
+ 
+   return (
+-    <div className="space-y-6">
++    <div className="space-y-4">
+       <DashboardHeaderConfigurator
+         config={{
+-          title: `${data.fullName} (${data.companyId})`,
++          breadcrumbTitle: `${data.fullName} (${data.companyId})`,
++          description: "Review collector account details, performance analytics, and assigned loans within your allowed scope.",
++          icon: <User className="size-9 text-sidebar-foreground/65" />,
++          title: "Collector Details",
+         }}
+       />
+-      <DashboardBackLink href={backHref} label={backLabel} />
+ 
+-      <Card className="gap-0 overflow-hidden py-0">
+-        <div className="bg-linear-to-r from-slate-50 via-white to-emerald-50/60 p-6">
++      <Card className="gap-0 overflow-hidden rounded-md py-0">
++        <div className="p-5 md:p-6">
+           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+             <div className="space-y-3">
+               <div className="space-y-1">
+@@ -220,49 +228,58 @@ export function CollectorProfileClientPage({
+               </div>
+ 
+               <div className="flex flex-wrap gap-2 text-xs font-medium">
+-                <span className={`${headerBadgeBaseClassName} border-border/70 bg-card text-foreground`}>
++                <span className={`${headerBadgeBaseClassName} border-border/70 bg-card text-foreground dark:border-white/12 dark:bg-white/[0.04] dark:text-zinc-200`}>
+                   Company ID: {data.companyId}
+                 </span>
+-                <span className={`${headerBadgeBaseClassName} border-blue-200 bg-blue-50 text-blue-700`}>
++                <span className={getUiRoleBadgeClassName(data.roleName)}>
+                   Role: {data.roleName}
+                 </span>
+                 <span
+                   className={
+                     data.status === "active"
+-                      ? `${headerBadgeBaseClassName} border-emerald-200 bg-emerald-50 text-emerald-700`
+-                      : `${headerBadgeBaseClassName} border-zinc-200 bg-card text-zinc-700`
++                      ? `${headerBadgeBaseClassName} border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300`
++                      : `${headerBadgeBaseClassName} border-zinc-200 bg-zinc-100 text-zinc-700 dark:border-zinc-500/30 dark:bg-zinc-500/10 dark:text-zinc-300`
+                   }
+                 >
+                   Status: {data.status === "active" ? "Active" : "Inactive"}
+                 </span>
+-                <span className={`${headerBadgeBaseClassName} border-border/70 bg-card text-foreground`}>
++                <span className={`${headerBadgeBaseClassName} border-border/70 bg-card text-foreground dark:border-white/12 dark:bg-white/[0.04] dark:text-zinc-200`}>
+                   Area Code: {data.areaCode}
+                 </span>
+               </div>
+             </div>
+           </div>
+         </div>
++      </Card>
+ 
+-        <div className="border-t border-border/70 p-6">
+-          <div className="inline-flex flex-wrap gap-2 rounded-xl border border-border/70 bg-muted/30 p-1">
+-              <TabButton
+-                active={activeTab === "profile"}
+-                label="Profile"
+-                onClick={() => handleTabChange("profile")}
+-              />
+-              <TabButton
+-                active={activeTab === "performance"}
+-                label="Collector Performance"
+-                onClick={() => handleTabChange("performance")}
+-              />
+-              <TabButton
+-                active={activeTab === "assigned-loans"}
+-                label="Assigned Loans"
+-                onClick={() => handleTabChange("assigned-loans")}
+-              />
+-          </div>
++      <div className={UI_TAB_SEPARATOR_CLASS_NAME}>
++        <div className={UI_TAB_LIST_CLASS_NAME}>
++          <button
++            className={getUiTabTriggerClassName(activeTab === "profile")}
++            onClick={() => handleTabChange("profile")}
++            type="button"
++          >
++            <User className={activeTab === "profile" ? UI_TAB_ICON_ACTIVE_CLASS_NAME : undefined} />
++            Profile
++          </button>
++          <button
++            className={getUiTabTriggerClassName(activeTab === "performance")}
++            onClick={() => handleTabChange("performance")}
++            type="button"
++          >
++            <FileChartColumn className={activeTab === "performance" ? UI_TAB_ICON_ACTIVE_CLASS_NAME : undefined} />
++            Collector Performance
++          </button>
++          <button
++            className={getUiTabTriggerClassName(activeTab === "assigned-loans")}
++            onClick={() => handleTabChange("assigned-loans")}
++            type="button"
++          >
++            <ReceiptText className={activeTab === "assigned-loans" ? UI_TAB_ICON_ACTIVE_CLASS_NAME : undefined} />
++            Assigned Loans
++          </button>
+         </div>
+-      </Card>
++      </div>
+ 
+       {activeTab === "profile" ? (
+         <CollectorAccountOverviewTab data={data} />
+@@ -357,25 +374,3 @@ export function CollectorProfileClientPage({
+     </div>
+   );
+ }
+-
+-function TabButton({
+-  active,
+-  label,
+-  onClick,
+-}: {
+-  active: boolean;
+-  label: string;
+-  onClick: () => void;
+-}) {
+-  return (
+-    <button
+-      className={`inline-flex rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+-        active ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+-      }`}
+-      onClick={onClick}
+-      type="button"
+-    >
+-      {label}
+-    </button>
+-  );
+-}
+diff --git a/app/dashboard/collectors/collector-profile-panel.tsx b/app/dashboard/collectors/collector-profile-panel.tsx
+index 25145b2..1f96a3b 100644
+--- a/app/dashboard/collectors/collector-profile-panel.tsx
++++ b/app/dashboard/collectors/collector-profile-panel.tsx
+@@ -204,13 +204,22 @@ export function CollectorProfilePanel({
+             <SectionIntro
+               badges={
+                 <>
+-                  <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700" variant="outline">
++                  <Badge
++                    className="rounded-md border-emerald-200 bg-emerald-50 py-1 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300"
++                    variant="outline"
++                  >
+                     Status: {data.status === "active" ? "Active" : "Inactive"}
+                   </Badge>
+-                  <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700" variant="outline">
++                  <Badge
++                    className="rounded-md border-emerald-200 bg-emerald-50 py-1 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300"
++                    variant="outline"
++                  >
+                     Period: {data.periodLabel}
+                   </Badge>
+-                  <Badge className="border-border/70 bg-card text-zinc-700 shadow-xs" variant="outline">
++                  <Badge
++                    className="rounded-md border-border/70 bg-card py-1 text-zinc-700 shadow-xs dark:border-white/12 dark:bg-white/[0.04] dark:text-zinc-300"
++                    variant="outline"
++                  >
+                     {trendLabel}
+                   </Badge>
+                 </>
+@@ -238,13 +247,17 @@ export function CollectorProfilePanel({
+               </CardHeader>
+               <CardContent className="flex min-h-0 flex-1 pb-6 pt-0">
+                 <div className="flex min-h-0 w-full flex-1 rounded-md border border-border/70 bg-muted/10 p-3">
+-                  <CollectorProfileTrendChart
+-                    axisFormatter={formatCollectorsAxisCurrency}
+-                    chart={data.periodTrendChart}
+-                    condensed
+-                    fillHeight
+-                    valueFormatter={formatCollectorsCurrency}
+-                  />
++                  <div className="w-full overflow-x-auto">
++                    <div className="h-full min-h-0 min-w-[540px] w-full">
++                      <CollectorProfileTrendChart
++                        axisFormatter={formatCollectorsAxisCurrency}
++                        chart={data.periodTrendChart}
++                        condensed
++                        fillHeight
++                        valueFormatter={formatCollectorsCurrency}
++                      />
++                    </div>
++                  </div>
+                 </div>
+               </CardContent>
+             </Card>
+@@ -370,10 +383,16 @@ export function CollectorProfilePanel({
+         <SectionIntro
+           badges={
+             <>
+-              <Badge className="border-border/70 bg-card text-zinc-700 shadow-xs" variant="outline">
++              <Badge
++                className="rounded-md border-border/70 bg-card py-1 text-zinc-700 shadow-xs dark:border-white/12 dark:bg-white/[0.04] dark:text-zinc-300"
++                variant="outline"
++              >
+                 {formatCollectorsInteger(data.loanPortfolio.total)} loans in view
+               </Badge>
+-              <Badge className="border-border/70 bg-card text-zinc-700 shadow-xs" variant="outline">
++              <Badge
++                className="rounded-md border-border/70 bg-card py-1 text-zinc-700 shadow-xs dark:border-white/12 dark:bg-white/[0.04] dark:text-zinc-300"
++                variant="outline"
++              >
+                 Live operational context
+               </Badge>
+             </>
+@@ -543,12 +562,16 @@ export function CollectorProfilePanel({
+             </CardHeader>
+             <CardContent className="flex min-h-0 flex-1 pb-6 pt-0">
+               <div className="flex min-h-0 w-full flex-1 rounded-md border border-border/70 bg-muted/10 p-3">
+-                <CollectorProfileBarChart
+-                  axisFormatter={formatCollectorsAxisCurrency}
+-                  chart={data.lifetimeTrendChart}
+-                  className="h-full min-h-0"
+-                  valueFormatter={formatCollectorsCurrency}
+-                />
++                <div className="w-full overflow-x-auto">
++                  <div className="h-full min-h-0 min-w-[540px] w-full">
++                    <CollectorProfileBarChart
++                      axisFormatter={formatCollectorsAxisCurrency}
++                      chart={data.lifetimeTrendChart}
++                      className="h-full min-h-0"
++                      valueFormatter={formatCollectorsCurrency}
++                    />
++                  </div>
++                </div>
+               </div>
+             </CardContent>
+           </Card>
+diff --git a/app/dashboard/collectors/collector-rank-context-card.tsx b/app/dashboard/collectors/collector-rank-context-card.tsx
+index 9ebdba0..754ec4f 100644
+--- a/app/dashboard/collectors/collector-rank-context-card.tsx
++++ b/app/dashboard/collectors/collector-rank-context-card.tsx
+@@ -37,7 +37,10 @@ export function CollectorRankContextCard({
+             </CardTitle>
+             <CardDescription className="text-sm leading-6">{basisLabel}</CardDescription>
+           </div>
+-          <Badge className="border-zinc-200 bg-zinc-50 text-zinc-700" variant="outline">
++          <Badge
++            className="rounded-md border-zinc-200 bg-zinc-50 py-1 text-zinc-700 dark:border-zinc-500/30 dark:bg-zinc-500/10 dark:text-zinc-300"
++            variant="outline"
++          >
+             {visibleCollectorCount} visible
+           </Badge>
+         </div>
+diff --git a/app/dashboard/create-loan/page.tsx b/app/dashboard/create-loan/page.tsx
+index b8b565a..07ce658 100644
+--- a/app/dashboard/create-loan/page.tsx
++++ b/app/dashboard/create-loan/page.tsx
+@@ -122,6 +122,7 @@ export default async function CreateLoanPage({ searchParams }: CreateLoanPagePro
+       <DashboardHeaderConfigurator
+         config={{
+           action: null,
++          breadcrumbTitle: pageState.prefilledBorrower?.breadcrumbLabel,
+           description: "Create a new loan record with borrower, collector, and term details.",
+           icon: <ReceiptText className="size-9 text-sidebar-foreground/65" />,
+           title: "Create Loan",
+diff --git a/app/dashboard/create-loan/queries.ts b/app/dashboard/create-loan/queries.ts
+index fb08366..8668359 100644
+--- a/app/dashboard/create-loan/queries.ts
++++ b/app/dashboard/create-loan/queries.ts
+@@ -43,6 +43,26 @@ function buildBorrowerLabel(
+   return userId;
+ }
+ 
++function buildBorrowerBreadcrumbLabel(
++  firstName: string | null,
++  middleName: string | null,
++  lastName: string | null,
++  companyId: string | null,
++  userId: string,
++) {
++  const first = firstName?.trim() ?? "";
++  const middle = middleName?.trim() ?? "";
++  const last = lastName?.trim() ?? "";
++  const middleInitial = middle ? `${middle.charAt(0)}.` : "";
++  const displayName = [first, middleInitial, last].filter(Boolean).join(" ").trim();
++
++  if (displayName) {
++    return `${displayName} (${companyId || userId})`;
++  }
++
++  return companyId ? `${companyId} (${userId})` : userId;
++}
++
+ function buildCollectorLabel(
+   firstName: string | null,
+   lastName: string | null,
+@@ -80,6 +100,13 @@ function resolvePrefilledBorrower(
+     branchId: String(borrowerArea.branch_id),
+     areaId: String(borrowerArea.area_id),
+     label: borrower.label,
++    breadcrumbLabel: buildBorrowerBreadcrumbLabel(
++      borrower.first_name,
++      borrower.middle_name,
++      borrower.last_name,
++      borrower.company_id,
++      borrower.user_id,
++    ),
+   };
+ }
+ 
+@@ -148,6 +175,7 @@ export async function loadCreateLoanPageData(
+         user_id: borrower_info.user_id,
+         area_id: borrower_info.area_id,
+         first_name: borrower_info.first_name,
++        middle_name: borrower_info.middle_name,
+         last_name: borrower_info.last_name,
+         company_id: users.company_id,
+         username: users.username,
+@@ -223,6 +251,7 @@ export async function loadCreateLoanPageData(
+     company_id: item.company_id,
+     username: item.username,
+     first_name: item.first_name,
++    middle_name: item.middle_name,
+     last_name: item.last_name,
+     full_name: [item.first_name, item.last_name].filter(Boolean).join(" ").trim() || item.user_id,
+     label: buildBorrowerLabel(
+diff --git a/app/dashboard/create-loan/types.ts b/app/dashboard/create-loan/types.ts
+index 6eda5c1..31f53d0 100644
+--- a/app/dashboard/create-loan/types.ts
++++ b/app/dashboard/create-loan/types.ts
+@@ -31,6 +31,7 @@ export type BorrowerOption = {
+   label: string;
+   full_name: string;
+   first_name: string | null;
++  middle_name: string | null;
+   last_name: string | null;
+   username: string | null;
+ };
+@@ -40,6 +41,7 @@ export type PrefilledBorrower = {
+   branchId: string;
+   areaId: string;
+   label: string;
++  breadcrumbLabel: string;
+ };
+ 
+ export type CreateLoanReadyState = {
+diff --git a/app/dashboard/documents/documents-section.tsx b/app/dashboard/documents/documents-section.tsx
+index e3bd570..b717396 100644
+--- a/app/dashboard/documents/documents-section.tsx
++++ b/app/dashboard/documents/documents-section.tsx
+@@ -442,7 +442,7 @@ export function DocumentsSection({
+ 
+   if (!canView) {
+     return (
+-      <Card className="mb-6">
++      <Card className="mb-6 rounded-md border-border/70 shadow-sm">
+         <CardHeader>
+           <CardTitle>Documents</CardTitle>
+         </CardHeader>
+@@ -454,7 +454,7 @@ export function DocumentsSection({
+   }
+ 
+   return (
+-    <Card className="mb-6">
++    <Card className="mb-6 rounded-md border-border/70 shadow-sm">
+       <CardHeader className="flex flex-row items-center justify-between gap-3">
+         <CardTitle>Documents</CardTitle>
+         <Button disabled={!canManage || uploading} onClick={() => openUploadDialog()} size="sm" type="button">
+diff --git a/app/dashboard/manage-user-accounts/[userId]/page.tsx b/app/dashboard/manage-user-accounts/[userId]/page.tsx
+index 5aed76d..8de5ddd 100644
+--- a/app/dashboard/manage-user-accounts/[userId]/page.tsx
++++ b/app/dashboard/manage-user-accounts/[userId]/page.tsx
+@@ -1,19 +1,27 @@
+ import { notFound } from "next/navigation";
+-import { Badge } from "@/components/ui/badge";
+-import { DashboardBackLink } from "@/app/dashboard/_components/dashboard-back-link";
++import { User } from "lucide-react";
+ import { DashboardHeaderConfigurator } from "@/app/dashboard/_components/dashboard-header-config";
+-import { firstSearchValue, resolveBackNavigation } from "@/app/dashboard/back-navigation";
+-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+ import { getDashboardAuthContext } from "@/app/dashboard/auth";
++import { Badge } from "@/components/ui/badge";
++import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+ import {
+   parseManageUserAccountsFilters,
+   resolveManageUserAccountsAccess,
+ } from "@/app/dashboard/manage-user-accounts/filters";
++import { ManagedUserSummaryCard } from "@/app/dashboard/manage-user-accounts/managed-user-summary-card";
+ import { loadManagedUserDetail } from "@/app/dashboard/manage-user-accounts/queries";
+ 
++function formatDisplayName(firstName: string, middleName: string, lastName: string) {
++  const first = firstName.trim();
++  const middle = middleName.trim();
++  const last = lastName.trim();
++  const middleInitial = middle ? `${middle.charAt(0)}.` : "";
++
++  return [first, middleInitial, last].filter(Boolean).join(" ").trim() || "N/A";
++}
++
+ export default async function ManagedUserDetailPage({
+   params,
+-  searchParams,
+ }: {
+   params: Promise<{ userId: string }>;
+   searchParams?: Promise<{ source?: string; returnTo?: string | string[] }>;
+@@ -32,37 +40,58 @@ export default async function ManagedUserDetailPage({
+     return notFound();
+   }
+ 
+-  const resolvedSearchParams = (await searchParams) ?? {};
+-  const backNavigation = resolveBackNavigation({
+-    source: firstSearchValue(resolvedSearchParams.source),
+-    returnTo: firstSearchValue(resolvedSearchParams.returnTo),
+-    fallbackHref: "/dashboard/manage-user-accounts",
+-    fallbackLabel: "Back to User Accounts",
+-    allowedPrefixes: ["/dashboard/manage-user-accounts", "/dashboard/branches"],
+-    sourceMap: {
+-      "manage-users": {
+-        href: "/dashboard/manage-user-accounts",
+-        label: "Back to User Accounts",
+-        allowedPrefixes: ["/dashboard/manage-user-accounts"],
+-      },
+-      branches: {
+-        href: "/dashboard/branches",
+-        label: "Back to Branches",
+-        allowedPrefixes: ["/dashboard/branches"],
+-      },
+-    },
+-  });
+-
+   return (
+-    <div className="space-y-6">
++    <div className="mx-auto max-w-6xl space-y-5">
+       <DashboardHeaderConfigurator
+         config={{
+-          title: `${detail.fullName} (${detail.companyId})`,
++          breadcrumbTitle: `${detail.fullName} (${detail.companyId})`,
++          description: "Review read-only employee account details, role context, and branch or area scope assignment.",
++          icon: <User className="size-9 text-sidebar-foreground/65" />,
++          title: "Employee Details",
+         }}
+       />
+-      <DashboardBackLink href={backNavigation.href} label={backNavigation.label} />
+ 
+-      <Card>
++      <ManagedUserSummaryCard
++        companyId={detail.companyId}
++        details={[
++          { label: "Full Name", value: detail.fullName },
++          { label: "Status", value: detail.status === "active" ? "Active" : "Inactive" },
++          {
++            label: detail.status === "active" ? "Current Branch / Scope" : "Last Held Branch / Scope",
++            value: detail.scopeLabel,
++          },
++          detail.status === "active" && detail.scopeLabel === "Unassigned" && detail.lastHeldBranchAssignments.length > 0
++            ? {
++                label: "Last Held Branch / Scope",
++                value: detail.lastHeldBranchAssignments.map((item) => item.branchCode || item.branchName).join(", "),
++              }
++            : null,
++          detail.status === "inactive" && detail.lastHeldAreaCode
++            ? { label: "Last Held Area", value: detail.lastHeldAreaCode }
++            : detail.status === "active" && detail.currentAreaCode
++              ? { label: "Current Area", value: detail.currentAreaCode }
++              : detail.status === "active" && detail.lastHeldAreaCode
++                ? { label: "Last Held Area", value: detail.lastHeldAreaCode }
++              : null,
++          { label: "Contact No.", value: detail.contactNo || "N/A" },
++          { label: "Email", value: detail.email || "N/A" },
++          { label: "Account Category", value: detail.accountCategory },
++          { label: "Date Created", value: detail.dateCreated || "N/A" },
++          detail.accountCategory === "Borrower" ? { label: "Address", value: detail.address || "N/A" } : null,
++        ].filter(Boolean) as Array<{ label: string; value: string | null | undefined }>}
++        eyebrow="Account Overview"
++        roleName={detail.roleName}
++        status={detail.status}
++        subtitle={
++          detail.status === "inactive"
++            ? "Read-only inactive account details, including the last held assignment context."
++            : "Read-only account details for this user within your allowed scope."
++        }
++        headingName={formatDisplayName(detail.firstName, detail.middleName, detail.lastName)}
++        title={detail.fullName}
++      />
++
++      <Card className="hidden">
+         <CardHeader className="flex flex-row items-start justify-between gap-4">
+           <div className="space-y-2">
+             <Badge className="border-zinc-200 bg-zinc-50 text-zinc-700" variant="outline">
+diff --git a/app/dashboard/manage-user-accounts/managed-user-summary-card.tsx b/app/dashboard/manage-user-accounts/managed-user-summary-card.tsx
+index 020b7fc..99543e8 100644
+--- a/app/dashboard/manage-user-accounts/managed-user-summary-card.tsx
++++ b/app/dashboard/manage-user-accounts/managed-user-summary-card.tsx
+@@ -1,5 +1,9 @@
+ import { Badge } from "@/components/ui/badge";
+ import { Card, CardContent, CardHeader } from "@/components/ui/card";
++import {
++  UI_SURFACE_CLASS_NAME,
++  getUiRoleBadgeClassName,
++} from "@/app/dashboard/_components/ui-patterns";
+ import { formatStoredDateForManila } from "@/app/dashboard/datetime";
+ 
+ function formatDate(value: string | null) {
+@@ -20,7 +24,7 @@ function DetailItem({
+   const displayValue = label === "Date Created" ? formatDate(value) : value;
+ 
+   return (
+-    <div className="space-y-1 rounded-lg border border-zinc-200/80 bg-zinc-50/70 px-3 py-3">
++    <div className="space-y-1 rounded-md border border-border/70 bg-muted/20 px-3 py-3">
+       <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+         {label}
+       </p>
+@@ -32,6 +36,7 @@ function DetailItem({
+ export function ManagedUserSummaryCard({
+   eyebrow,
+   title,
++  headingName,
+   subtitle,
+   companyId,
+   roleName,
+@@ -40,6 +45,7 @@ export function ManagedUserSummaryCard({
+ }: {
+   eyebrow: string;
+   title: string;
++  headingName?: string;
+   subtitle: string;
+   companyId: string;
+   roleName: string;
+@@ -47,27 +53,30 @@ export function ManagedUserSummaryCard({
+   details: Array<{ label: string; value: string | null | undefined }>;
+ }) {
+   return (
+-    <Card className="border-zinc-200/80 shadow-sm">
+-      <CardHeader className="space-y-4 border-b bg-zinc-50/70 pb-5">
++    <Card className={`${UI_SURFACE_CLASS_NAME} overflow-hidden`}>
++      <CardHeader className="space-y-4 border-b border-border/70 bg-muted/20 pb-5">
+         <div>
+-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">
++          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+             {eyebrow}
+           </p>
+-          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">{title}</h1>
++          <h1 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">{headingName ?? title}</h1>
+           <p className="text-sm text-muted-foreground">{subtitle}</p>
+         </div>
+         <div className="flex flex-wrap gap-2">
+-          <Badge className="border-zinc-200 bg-zinc-100 text-zinc-700" variant="outline">
++          <Badge
++            className="rounded-md border-zinc-200 bg-zinc-100 py-1 text-zinc-700 dark:border-zinc-500/30 dark:bg-zinc-500/10 dark:text-zinc-300"
++            variant="outline"
++          >
+             {companyId}
+           </Badge>
+-          <Badge className="border-blue-200 bg-blue-50 text-blue-700" variant="outline">
++          <Badge className={getUiRoleBadgeClassName(roleName)} variant="outline">
+             {roleName}
+           </Badge>
+           <Badge
+             className={
+               status === "active"
+-                ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+-                : "border-amber-200 bg-amber-50 text-amber-700"
++                ? "rounded-md border-emerald-200 bg-emerald-50 py-1 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300"
++                : "rounded-md border-amber-200 bg-amber-50 py-1 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300"
+             }
+             variant="outline"
+           >
+diff --git a/app/dashboard/manage-user-accounts/role-account-profile-page.tsx b/app/dashboard/manage-user-accounts/role-account-profile-page.tsx
+index 4e6207a..554c7f0 100644
+--- a/app/dashboard/manage-user-accounts/role-account-profile-page.tsx
++++ b/app/dashboard/manage-user-accounts/role-account-profile-page.tsx
+@@ -1,7 +1,6 @@
+ import { notFound } from "next/navigation";
+-import { DashboardBackLink } from "@/app/dashboard/_components/dashboard-back-link";
++import { User } from "lucide-react";
+ import { DashboardHeaderConfigurator } from "@/app/dashboard/_components/dashboard-header-config";
+-import { firstSearchValue, resolveBackNavigation } from "@/app/dashboard/back-navigation";
+ import { getDashboardAuthContext } from "@/app/dashboard/auth";
+ import {
+   parseManageUserAccountsFilters,
+@@ -10,6 +9,15 @@ import {
+ import { loadManagedUserDetailByCompanyId } from "@/app/dashboard/manage-user-accounts/queries";
+ import { ManagedUserSummaryCard } from "@/app/dashboard/manage-user-accounts/managed-user-summary-card";
+ 
++function formatDisplayName(firstName: string, middleName: string, lastName: string) {
++  const first = firstName.trim();
++  const middle = middleName.trim();
++  const last = lastName.trim();
++  const middleInitial = middle ? `${middle.charAt(0)}.` : "";
++
++  return [first, middleInitial, last].filter(Boolean).join(" ").trim() || "N/A";
++}
++
+ export async function renderRoleAccountProfilePage(params: {
+   expectedRoleName: string;
+   companyId: string;
+@@ -36,35 +44,16 @@ export async function renderRoleAccountProfilePage(params: {
+     return notFound();
+   }
+ 
+-  const resolvedSearchParams = (await params.searchParams) ?? {};
+-  const backNavigation = resolveBackNavigation({
+-    source: firstSearchValue(resolvedSearchParams.source),
+-    returnTo: firstSearchValue(resolvedSearchParams.returnTo),
+-    fallbackHref: "/dashboard/manage-user-accounts",
+-    fallbackLabel: "Back to User Accounts",
+-    allowedPrefixes: ["/dashboard/manage-user-accounts", "/dashboard/branches"],
+-    sourceMap: {
+-      "manage-users": {
+-        href: "/dashboard/manage-user-accounts",
+-        label: "Back to User Accounts",
+-        allowedPrefixes: ["/dashboard/manage-user-accounts"],
+-      },
+-      branches: {
+-        href: "/dashboard/branches",
+-        label: "Back to Branches",
+-        allowedPrefixes: ["/dashboard/branches"],
+-      },
+-    },
+-  });
+-
+   return (
+     <div className="mx-auto max-w-6xl space-y-5">
+       <DashboardHeaderConfigurator
+         config={{
+-          title: `${detail.fullName} (${detail.companyId})`,
++          breadcrumbTitle: `${detail.fullName} (${detail.companyId})`,
++          description: "Review read-only employee account details, role context, and branch or area scope assignment.",
++          icon: <User className="size-9 text-sidebar-foreground/65" />,
++          title: "Employee Details",
+         }}
+       />
+-      <DashboardBackLink href={backNavigation.href} label={backNavigation.label} />
+ 
+       <ManagedUserSummaryCard
+         companyId={detail.companyId}
+@@ -101,6 +90,7 @@ export async function renderRoleAccountProfilePage(params: {
+             ? "Read-only inactive account details, including the last held assignment context."
+             : "Read-only account details for this user within your allowed scope."
+         }
++        headingName={formatDisplayName(detail.firstName, detail.middleName, detail.lastName)}
+         title={detail.fullName}
+       />
+     </div>

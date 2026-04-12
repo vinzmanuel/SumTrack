@@ -1,19 +1,27 @@
 import { notFound } from "next/navigation";
-import { Badge } from "@/components/ui/badge";
-import { DashboardBackLink } from "@/app/dashboard/_components/dashboard-back-link";
+import { User } from "lucide-react";
 import { DashboardHeaderConfigurator } from "@/app/dashboard/_components/dashboard-header-config";
-import { firstSearchValue, resolveBackNavigation } from "@/app/dashboard/back-navigation";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getDashboardAuthContext } from "@/app/dashboard/auth";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   parseManageUserAccountsFilters,
   resolveManageUserAccountsAccess,
 } from "@/app/dashboard/manage-user-accounts/filters";
+import { ManagedUserSummaryCard } from "@/app/dashboard/manage-user-accounts/managed-user-summary-card";
 import { loadManagedUserDetail } from "@/app/dashboard/manage-user-accounts/queries";
+
+function formatDisplayName(firstName: string, middleName: string, lastName: string) {
+  const first = firstName.trim();
+  const middle = middleName.trim();
+  const last = lastName.trim();
+  const middleInitial = middle ? `${middle.charAt(0)}.` : "";
+
+  return [first, middleInitial, last].filter(Boolean).join(" ").trim() || "N/A";
+}
 
 export default async function ManagedUserDetailPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ userId: string }>;
   searchParams?: Promise<{ source?: string; returnTo?: string | string[] }>;
@@ -32,37 +40,58 @@ export default async function ManagedUserDetailPage({
     return notFound();
   }
 
-  const resolvedSearchParams = (await searchParams) ?? {};
-  const backNavigation = resolveBackNavigation({
-    source: firstSearchValue(resolvedSearchParams.source),
-    returnTo: firstSearchValue(resolvedSearchParams.returnTo),
-    fallbackHref: "/dashboard/manage-user-accounts",
-    fallbackLabel: "Back to User Accounts",
-    allowedPrefixes: ["/dashboard/manage-user-accounts", "/dashboard/branches"],
-    sourceMap: {
-      "manage-users": {
-        href: "/dashboard/manage-user-accounts",
-        label: "Back to User Accounts",
-        allowedPrefixes: ["/dashboard/manage-user-accounts"],
-      },
-      branches: {
-        href: "/dashboard/branches",
-        label: "Back to Branches",
-        allowedPrefixes: ["/dashboard/branches"],
-      },
-    },
-  });
-
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-6xl space-y-5">
       <DashboardHeaderConfigurator
         config={{
-          title: `${detail.fullName} (${detail.companyId})`,
+          breadcrumbTitle: `${detail.fullName} (${detail.companyId})`,
+          description: "Review read-only employee account details, role context, and branch or area scope assignment.",
+          icon: <User className="size-9 text-sidebar-foreground/65" />,
+          title: "Employee Details",
         }}
       />
-      <DashboardBackLink href={backNavigation.href} label={backNavigation.label} />
 
-      <Card>
+      <ManagedUserSummaryCard
+        companyId={detail.companyId}
+        details={[
+          { label: "Full Name", value: detail.fullName },
+          { label: "Status", value: detail.status === "active" ? "Active" : "Inactive" },
+          {
+            label: detail.status === "active" ? "Current Branch / Scope" : "Last Held Branch / Scope",
+            value: detail.scopeLabel,
+          },
+          detail.status === "active" && detail.scopeLabel === "Unassigned" && detail.lastHeldBranchAssignments.length > 0
+            ? {
+                label: "Last Held Branch / Scope",
+                value: detail.lastHeldBranchAssignments.map((item) => item.branchCode || item.branchName).join(", "),
+              }
+            : null,
+          detail.status === "inactive" && detail.lastHeldAreaCode
+            ? { label: "Last Held Area", value: detail.lastHeldAreaCode }
+            : detail.status === "active" && detail.currentAreaCode
+              ? { label: "Current Area", value: detail.currentAreaCode }
+              : detail.status === "active" && detail.lastHeldAreaCode
+                ? { label: "Last Held Area", value: detail.lastHeldAreaCode }
+              : null,
+          { label: "Contact No.", value: detail.contactNo || "N/A" },
+          { label: "Email", value: detail.email || "N/A" },
+          { label: "Account Category", value: detail.accountCategory },
+          { label: "Date Created", value: detail.dateCreated || "N/A" },
+          detail.accountCategory === "Borrower" ? { label: "Address", value: detail.address || "N/A" } : null,
+        ].filter(Boolean) as Array<{ label: string; value: string | null | undefined }>}
+        eyebrow="Account Overview"
+        roleName={detail.roleName}
+        status={detail.status}
+        subtitle={
+          detail.status === "inactive"
+            ? "Read-only inactive account details, including the last held assignment context."
+            : "Read-only account details for this user within your allowed scope."
+        }
+        headingName={formatDisplayName(detail.firstName, detail.middleName, detail.lastName)}
+        title={detail.fullName}
+      />
+
+      <Card className="hidden">
         <CardHeader className="flex flex-row items-start justify-between gap-4">
           <div className="space-y-2">
             <Badge className="border-zinc-200 bg-zinc-50 text-zinc-700" variant="outline">

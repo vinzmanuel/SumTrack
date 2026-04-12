@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation";
-import { DashboardBackLink } from "@/app/dashboard/_components/dashboard-back-link";
+import { User } from "lucide-react";
 import { DashboardHeaderConfigurator } from "@/app/dashboard/_components/dashboard-header-config";
-import { firstSearchValue, resolveBackNavigation } from "@/app/dashboard/back-navigation";
 import { getDashboardAuthContext } from "@/app/dashboard/auth";
 import {
   parseManageUserAccountsFilters,
@@ -9,6 +8,15 @@ import {
 } from "@/app/dashboard/manage-user-accounts/filters";
 import { loadManagedUserDetailByCompanyId } from "@/app/dashboard/manage-user-accounts/queries";
 import { ManagedUserSummaryCard } from "@/app/dashboard/manage-user-accounts/managed-user-summary-card";
+
+function formatDisplayName(firstName: string, middleName: string, lastName: string) {
+  const first = firstName.trim();
+  const middle = middleName.trim();
+  const last = lastName.trim();
+  const middleInitial = middle ? `${middle.charAt(0)}.` : "";
+
+  return [first, middleInitial, last].filter(Boolean).join(" ").trim() || "N/A";
+}
 
 export async function renderRoleAccountProfilePage(params: {
   expectedRoleName: string;
@@ -36,35 +44,16 @@ export async function renderRoleAccountProfilePage(params: {
     return notFound();
   }
 
-  const resolvedSearchParams = (await params.searchParams) ?? {};
-  const backNavigation = resolveBackNavigation({
-    source: firstSearchValue(resolvedSearchParams.source),
-    returnTo: firstSearchValue(resolvedSearchParams.returnTo),
-    fallbackHref: "/dashboard/manage-user-accounts",
-    fallbackLabel: "Back to User Accounts",
-    allowedPrefixes: ["/dashboard/manage-user-accounts", "/dashboard/branches"],
-    sourceMap: {
-      "manage-users": {
-        href: "/dashboard/manage-user-accounts",
-        label: "Back to User Accounts",
-        allowedPrefixes: ["/dashboard/manage-user-accounts"],
-      },
-      branches: {
-        href: "/dashboard/branches",
-        label: "Back to Branches",
-        allowedPrefixes: ["/dashboard/branches"],
-      },
-    },
-  });
-
   return (
     <div className="mx-auto max-w-6xl space-y-5">
       <DashboardHeaderConfigurator
         config={{
-          title: `${detail.fullName} (${detail.companyId})`,
+          breadcrumbTitle: `${detail.fullName} (${detail.companyId})`,
+          description: "Review read-only employee account details, role context, and branch or area scope assignment.",
+          icon: <User className="size-9 text-sidebar-foreground/65" />,
+          title: "Employee Details",
         }}
       />
-      <DashboardBackLink href={backNavigation.href} label={backNavigation.label} />
 
       <ManagedUserSummaryCard
         companyId={detail.companyId}
@@ -101,6 +90,7 @@ export async function renderRoleAccountProfilePage(params: {
             ? "Read-only inactive account details, including the last held assignment context."
             : "Read-only account details for this user within your allowed scope."
         }
+        headingName={formatDisplayName(detail.firstName, detail.middleName, detail.lastName)}
         title={detail.fullName}
       />
     </div>

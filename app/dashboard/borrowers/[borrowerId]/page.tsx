@@ -1,10 +1,17 @@
 import Link from "next/link";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
+import { FileChartColumn, Plus, ReceiptText, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { TremorCard, TremorDescription } from "@/components/tremor/raw/metric-card";
 import { DashboardBackLink } from "@/app/dashboard/_components/dashboard-back-link";
 import { DashboardHeaderConfigurator } from "@/app/dashboard/_components/dashboard-header-config";
+import {
+  UI_TAB_ICON_ACTIVE_CLASS_NAME,
+  UI_TAB_LIST_CLASS_NAME,
+  UI_TAB_SEPARATOR_CLASS_NAME,
+  getUiRoleBadgeClassName,
+  getUiTabTriggerClassName,
+} from "@/app/dashboard/_components/ui-patterns";
 import {
   getDashboardAuthContext,
   getSingleAssignedBranchId,
@@ -42,12 +49,19 @@ type PageProps = {
 
 const DOCS_PAGE_SIZE = 10;
 
-function formatSummaryName(firstName: string | null, middleName: string | null, lastName: string | null) {
+function formatDisplayName(firstName: string | null, middleName: string | null, lastName: string | null) {
   const first = (firstName ?? "").trim();
   const last = (lastName ?? "").trim();
   const middle = (middleName ?? "").trim();
   const middleInitial = middle ? `${middle[0].toUpperCase()}.` : "";
   return [first, middleInitial, last].filter(Boolean).join(" ") || "N/A";
+}
+
+function formatFullName(firstName: string | null, middleName: string | null, lastName: string | null) {
+  const first = (firstName ?? "").trim();
+  const middle = (middleName ?? "").trim();
+  const last = (lastName ?? "").trim();
+  return [first, middle, last].filter(Boolean).join(" ") || "N/A";
 }
 
 function renderMessageCard(props: {
@@ -183,6 +197,7 @@ export default async function BorrowerProfilePage({ params, searchParams }: Page
       company_id: users.company_id,
       area_id: areas.area_id,
       area_code: areas.area_code,
+      area_no: areas.area_no,
       branch_id: branch.branch_id,
       branch_name: branch.branch_name,
       branch_code: branch.branch_code,
@@ -221,8 +236,12 @@ export default async function BorrowerProfilePage({ params, searchParams }: Page
       start_date: loan_records.start_date,
       due_date: loan_records.due_date,
       status: loan_records.status,
+      collector_first_name: employee_info.first_name,
+      collector_last_name: employee_info.last_name,
+      paid_amount: sql<number>`COALESCE((SELECT SUM(amount) FROM collections WHERE collections.loan_id = loan_records.loan_id), 0)`,
     })
     .from(loan_records)
+    .leftJoin(employee_info, eq(employee_info.user_id, loan_records.collector_id))
     .where(eq(loan_records.borrower_id, borrower.user_id))
     .orderBy(desc(loan_records.loan_id))
     .catch(() => []);
@@ -267,12 +286,19 @@ export default async function BorrowerProfilePage({ params, searchParams }: Page
     };
   });
 
-  const fullName = formatSummaryName(
+  const fullName = formatDisplayName(
     borrower.first_name,
     borrower.middle_name,
     borrower.last_name,
   );
-  const branchLabel = borrower.branch_code || borrower.branch_name;
+  const fullNameWithMiddle = formatFullName(
+    borrower.first_name,
+    borrower.middle_name,
+    borrower.last_name,
+  );
+  const branchLabel = borrower.branch_name || borrower.branch_code;
+  const areaLabel = borrower.area_no ? `Area ${borrower.area_no} (${borrower.area_code})` : borrower.area_code;
+  const headerBadgeBaseClassName = "inline-flex items-center rounded-md border px-3 py-1 text-xs font-medium leading-none shadow-xs";
   const backNavigation = resolveBackNavigation({
     source,
     returnTo: returnToParam,
@@ -300,33 +326,38 @@ export default async function BorrowerProfilePage({ params, searchParams }: Page
   }));
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <DashboardHeaderConfigurator
         config={{
-          title: `${fullName} (${borrower.company_id})`,
+          breadcrumbTitle: `${fullName} (${borrower.company_id})`,
+          description: "Review borrower account details, loan history, and operational documents within your allowed scope.",
+          icon: <User className="size-9 text-sidebar-foreground/65" />,
+          title: "Borrower Details",
         }}
       />
-      <DashboardBackLink href={backNavigation.href} label={backNavigation.label} />
 
-      <TremorCard className="overflow-hidden p-0">
-        <div className="bg-gradient-to-r from-slate-50 via-white to-emerald-50/60 p-6">
+      <div className="overflow-hidden rounded-md border border-border/70 bg-card text-card-foreground shadow-sm">
+        <div className="p-5 md:p-6">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
             <div className="space-y-3">
-              <div className="space-y-1">
-                <h1 className="text-3xl font-semibold tracking-tight text-foreground">{fullName}</h1>
-                <TremorDescription>{`${branchLabel} / ${borrower.area_code}`}</TremorDescription>
-              </div>
-
-              <div className="flex flex-wrap gap-2 text-xs font-medium">
-                <span className="rounded-full border border-border/70 bg-background px-3 py-1 text-foreground">
-                  Company ID: {borrower.company_id}
-                </span>
-                <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-blue-700">
-                  Role: Borrower
-                </span>
-                <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-emerald-800">
-                  Status: {borrower.status === "active" ? "Active" : "Inactive"}
-                </span>
+              <div className="space-y-2">
+                <div className="flex items-center gap-3">
+                  <h1 className="text-3xl font-semibold tracking-tight text-foreground">{fullName}</h1>
+                  <span
+                    className={
+                      borrower.status === "active"
+                        ? `${headerBadgeBaseClassName} border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300`
+                        : `${headerBadgeBaseClassName} border-zinc-200 bg-zinc-100 text-zinc-700 dark:border-zinc-500/30 dark:bg-zinc-500/10 dark:text-zinc-300`
+                    }
+                  >
+                    {borrower.status === "active" ? "Active" : "Inactive"}
+                  </span>
+                </div>
+                <div className="flex flex-col gap-0.5 text-sm text-muted-foreground">
+                  <p>{borrower.company_id}</p>
+                  <p>Borrower</p>
+                  <p>{`${branchLabel} / ${areaLabel}`}</p>
+                </div>
               </div>
             </div>
 
@@ -336,32 +367,51 @@ export default async function BorrowerProfilePage({ params, searchParams }: Page
                   source: "borrowers",
                   returnTo: currentBorrowerHref,
                 })}>
-                  <Button type="button">Create Loan</Button>
+                  <Button
+                    className="h-11 rounded-md bg-emerald-600 px-4 text-sm text-white hover:bg-emerald-700 hover:text-white"
+                    type="button"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Create Loan
+                  </Button>
                 </Link>
               ) : null}
             </div>
           </div>
         </div>
+      </div>
 
-        <div className="border-t border-border/70 p-6">
-          <div className="inline-flex flex-wrap gap-2 rounded-xl border border-border/70 bg-muted/30 p-1">
-            <Link href={buildTabHref({ borrowerId, tab: "profile", docsPage, source, returnTo: backNavigation.href })}>
-              <TabButton active={activeTab === "profile"} label="Profile" />
-            </Link>
-            <Link href={buildTabHref({ borrowerId, tab: "loan-history", docsPage, source, returnTo: backNavigation.href })}>
-              <TabButton active={activeTab === "loan-history"} label="Loan History" />
-            </Link>
-            <Link href={buildTabHref({ borrowerId, tab: "documents", docsPage, source, returnTo: backNavigation.href })}>
-              <TabButton active={activeTab === "documents"} label="Documents" />
-            </Link>
-          </div>
+      <div className={UI_TAB_SEPARATOR_CLASS_NAME}>
+        <div className={UI_TAB_LIST_CLASS_NAME}>
+          <Link
+            className={getUiTabTriggerClassName(activeTab === "profile")}
+            href={buildTabHref({ borrowerId, tab: "profile", docsPage, source, returnTo: backNavigation.href })}
+          >
+            <User className={activeTab === "profile" ? UI_TAB_ICON_ACTIVE_CLASS_NAME : undefined} />
+            Profile
+          </Link>
+          <Link
+            className={getUiTabTriggerClassName(activeTab === "loan-history")}
+            href={buildTabHref({ borrowerId, tab: "loan-history", docsPage, source, returnTo: backNavigation.href })}
+          >
+            <FileChartColumn className={activeTab === "loan-history" ? UI_TAB_ICON_ACTIVE_CLASS_NAME : undefined} />
+            Loan History
+          </Link>
+          <Link
+            className={getUiTabTriggerClassName(activeTab === "documents")}
+            href={buildTabHref({ borrowerId, tab: "documents", docsPage, source, returnTo: backNavigation.href })}
+          >
+            <ReceiptText className={activeTab === "documents" ? UI_TAB_ICON_ACTIVE_CLASS_NAME : undefined} />
+            Documents
+          </Link>
         </div>
-      </TremorCard>
+      </div>
 
       {activeTab === "profile" ? (
         <BorrowerProfileSummaryTab
           borrower={{
             fullName,
+            fullNameWithMiddle,
             companyId: borrower.company_id,
             status: borrower.status,
             contactNumber: borrower.contact_number,
@@ -375,15 +425,25 @@ export default async function BorrowerProfilePage({ params, searchParams }: Page
         />
       ) : activeTab === "loan-history" ? (
         <BorrowerLoanHistoryTab
-          loans={loans.map((loan) => ({
-            loanId: loan.loan_id,
-            loanCode: loan.loan_code,
-            principal: Number(loan.principal) || 0,
-            interest: Number(loan.interest) || 0,
-            startDate: loan.start_date,
-            dueDate: loan.due_date,
-            visibleStatus: getVisibleLoanStatusFromStoredStatus(loan.status),
-          }))}
+          loans={loans.map((loan) => {
+            const principal = Number(loan.principal) || 0;
+            const interest = Number(loan.interest) || 0;
+            const totalPayable = principal + (principal * interest) / 100;
+            const paid = Number(loan.paid_amount) || 0;
+            const remainingBalance = Math.max(0, totalPayable - paid);
+
+            return {
+              loanId: loan.loan_id,
+              loanCode: loan.loan_code,
+              principal,
+              interest,
+              startDate: loan.start_date,
+              dueDate: loan.due_date,
+              visibleStatus: getVisibleLoanStatusFromStoredStatus(loan.status),
+              collectorName: [loan.collector_first_name, loan.collector_last_name].filter(Boolean).join(" ").trim() || null,
+              remainingBalance,
+            };
+          })}
           returnTo={currentBorrowerHref}
         />
       ) : (
@@ -397,23 +457,5 @@ export default async function BorrowerProfilePage({ params, searchParams }: Page
         />
       )}
     </div>
-  );
-}
-
-function TabButton({
-  active,
-  label,
-}: {
-  active: boolean;
-  label: string;
-}) {
-  return (
-    <span
-      className={`inline-flex rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-        active ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-      }`}
-    >
-      {label}
-    </span>
   );
 }

@@ -125,6 +125,19 @@ export default async function CreateLoanPage({ searchParams }: CreateLoanPagePro
           description: "Create a new loan record with borrower, collector, and term details.",
           icon: <ReceiptText className="size-9 text-sidebar-foreground/65" />,
           title: "Create Loan",
+          breadcrumbs: pageState.prefilledBorrower
+            ? [
+                { label: "Dashboard", href: "/dashboard" },
+                firstSearchValue(params.source) === "manage-users"
+                  ? { label: "Manage User Accounts", href: "/dashboard/manage-user-accounts" }
+                  : { label: "Borrowers", href: "/dashboard/borrowers" },
+                {
+                  label: pageState.prefilledBorrower.breadcrumbLabel,
+                  href: firstSearchValue(params.returnTo) || `/dashboard/borrowers/${pageState.prefilledBorrower.userId}`,
+                },
+                { label: "Create Loan", current: true },
+              ]
+            : undefined,
         }}
       />
       <main className="mx-auto w-full max-w-5xl space-y-4">

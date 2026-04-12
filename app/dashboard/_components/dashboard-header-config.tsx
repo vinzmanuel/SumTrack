@@ -9,6 +9,7 @@ export type DashboardHeaderConfig = {
   description?: string;
   icon?: ReactNode;
   action?: ReactNode;
+  breadcrumbs?: Array<{ label: string; href?: string; current?: true }>;
 };
 
 const DashboardHeaderConfigContext = createContext<

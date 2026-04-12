@@ -442,7 +442,7 @@ export function DocumentsSection({
 
   if (!canView) {
     return (
-      <Card className="mb-6">
+      <Card className="mb-6 rounded-md border-border/70 shadow-sm">
         <CardHeader>
           <CardTitle>Documents</CardTitle>
         </CardHeader>
@@ -454,7 +454,7 @@ export function DocumentsSection({
   }
 
   return (
-    <Card className="mb-6">
+    <Card className="mb-6 rounded-md border-border/70 shadow-sm">
       <CardHeader className="flex flex-row items-center justify-between gap-3">
         <CardTitle>Documents</CardTitle>
         <Button disabled={!canManage || uploading} onClick={() => openUploadDialog()} size="sm" type="button">
