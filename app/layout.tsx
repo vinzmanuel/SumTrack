@@ -18,12 +18,36 @@ const jetBrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SumTrack",
-  description: "SumTrack starter app",
+  metadataBase: new URL("https://sumtrack.org"),
+  title: {
+    default: "SumTrack",
+    template: "%s | SumTrack",
+  },
+  description:
+    "SumTrack is a secure microfinance operations platform for Sum Finance Services Corp., covering loans, collections, expenses, reporting, and branch-wide analytics.",
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    title: "SumTrack",
+    description:
+      "SumTrack is a secure microfinance operations platform for Sum Finance Services Corp., covering loans, collections, expenses, reporting, and branch-wide analytics.",
+    siteName: "SumTrack",
+    type: "website",
+    url: "https://sumtrack.org",
+    images: [
+      {
+        url: "/icon.png",
+        width: 512,
+        height: 512,
+        alt: "SumTrack",
+      },
+    ],
+  },
   icons: {
-    icon: "/Logo/SUMTRACK%20ICON.png",
-    shortcut: "/Logo/SUMTRACK%20ICON.png",
-    apple: "/Logo/SUMTRACK%20ICON.png",
+    icon: "/icon.png",
+    shortcut: "/icon.png",
+    apple: "/apple-icon.png",
   },
 };
 
@@ -35,9 +59,6 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <link href="/Logo/SUMTRACK%20ICON.png" rel="icon" type="image/png" />
-        <link href="/Logo/SUMTRACK%20ICON.png" rel="shortcut icon" type="image/png" />
-        <link href="/Logo/SUMTRACK%20ICON.png" rel="apple-touch-icon" />
         <Script id="sumtrack-theme-init" strategy="beforeInteractive">
           {`
             try {

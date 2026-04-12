@@ -12,9 +12,15 @@ import styles from "@/components/marketing/marketing-page.module.css";
 import { SumtrackBrand } from "@/components/marketing/sumtrack-brand";
 
 export const metadata: Metadata = {
-  title: "SumTrack",
-  description: "Empowering microfinance through digital transformation.",
+  title: {
+    absolute: "SumTrack",
+  },
+  description:
+    "SumTrack is a secure microfinance operations platform for Sum Finance Services Corp., with real-time branch monitoring, collections, expense tracking, and reporting.",
 };
+
+const SITE_URL = "https://sumtrack.org/";
+const LOGO_URL = "https://sumtrack.org/icon.png";
 
 const marqueeItems = ["Loan Management", "Employee Performance", "Risk Assessment", "Cloud-Based", "32 Branches", "250+ Employees", "Real-Time Sync", "Automated Incentive Calculation"];
 const challengeCards = [
@@ -49,8 +55,34 @@ export default async function Home() {
     redirect("/login/verify");
   }
 
+  const websiteJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: "SumTrack",
+    alternateName: "SumTrack",
+    url: SITE_URL,
+  };
+
+  const organizationJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: "SumTrack",
+    alternateName: "SumTrack",
+    url: SITE_URL,
+    logo: LOGO_URL,
+  };
+
   return (
-    <main className={cn(styles.page, "bg-[#0a0e17] font-sans text-slate-300 antialiased")}>
+    <>
+      <script
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteJsonLd) }}
+        type="application/ld+json"
+      />
+      <script
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}
+        type="application/ld+json"
+      />
+      <main className={cn(styles.page, "bg-[#0a0e17] font-sans text-slate-300 antialiased")}>
       <MarketingNav />
       <section className={cn(styles.sectionAnchor, "relative flex min-h-screen items-end overflow-hidden pt-14 sm:items-center sm:pt-16")} id="hero">
         <div className="absolute inset-0"><Image alt="" className="object-cover object-[70%_center] sm:object-[60%_30%]" fill priority sizes="100vw" src="/landing/hero-store.png" /><div className="absolute inset-0 sm:hidden" style={{ background: "linear-gradient(to top, rgba(10,14,23,0.97) 0%, rgba(10,14,23,0.75) 35%, rgba(10,14,23,0.35) 65%, rgba(10,14,23,0.1) 100%)" }} /><div className="absolute inset-0 hidden sm:block" style={{ background: "linear-gradient(to right, rgba(35,8,8,0.6) 0%, rgba(60,10,10,0.4) 35%, rgba(90,15,15,0.1) 60%, transparent 80%)" }} /><div className="absolute inset-0 hidden sm:block" style={{ background: "linear-gradient(135deg, rgba(240,24,24,0.05) 0%, rgba(240,50,50,0.025) 50%, transparent 100%)" }} /><div className="absolute inset-0 hidden sm:block" style={{ background: "linear-gradient(to top, rgba(10,14,23,0.9) 0%, rgba(10,14,23,0.3) 16%, transparent 38%)" }} /></div>
@@ -64,6 +96,7 @@ export default async function Home() {
       <section className={cn(styles.sectionAnchor, "relative py-12 sm:py-20 lg:py-28")} id="partner"><div className="pointer-events-none absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(10,14,23,1) 0%, rgba(12,22,28,1) 50%, rgba(10,14,23,1) 100%)" }} /><div className="relative z-10 mx-auto grid max-w-[1600px] items-center gap-8 px-5 sm:px-6 lg:grid-cols-2 lg:gap-20 lg:px-10 sm:gap-12"><div><span className="mb-3 inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-[#e53935] sm:mb-4"><MapPin className="h-4 w-4" />Deployment Partner</span><SectionTitle className="mb-4 text-2xl font-extrabold text-white sm:mb-6 sm:text-3xl md:text-4xl lg:text-5xl" style={{ letterSpacing: "-0.03em" }}>Sum Finance Services Corp.</SectionTitle><p className="mb-4 text-sm text-white/55 sm:mb-6 sm:text-[15px]">Established in 1996 and headquartered in Tagbilaran City, Bohol, Sum Finance is a microfinance institution that provides capital to micro-entrepreneurs like sari-sari store owners, carinderia vendors, and small traders who don&apos;t have access to traditional banks.</p><p className="mb-6 text-sm text-white/55 sm:mb-10 sm:text-[15px]">Over nearly three decades, the institution has grown to <span className="font-semibold text-white">32 satellite branches</span> and <span className="font-semibold text-white">over 250 personnel</span> nationwide. But the systems behind it all are still paper-based: physical passbooks, handwritten index cards, and typewritten ledgers. SumTrack is built to change that.</p><div className="flex gap-6 sm:gap-10">{[["32", "Branches", "text-[#f0a818]"], ["250+", "Personnel", "text-[#f0a818]"], ["1996", "Established", "text-[#e53935]"]].map(([value, label, accent]) => <div key={label}><div className={cn(displayFont.className, "text-2xl font-extrabold sm:text-3xl lg:text-4xl", accent)}>{value}</div><div className="mt-1 text-[10px] font-medium text-white/30 sm:text-xs">{label}</div></div>)}</div></div><div><div className={styles.mapWrap}><iframe allowFullScreen className="block h-56 w-full border-0 sm:h-72 lg:h-[420px]" loading="lazy" referrerPolicy="no-referrer-when-downgrade" src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d5946.323517670362!2d123.85500831206431!3d9.63950677909116!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x33aa4d0032dc6089%3A0x3cdc14f74f9fb477!2sSum%20Building%20Dos!5e1!3m2!1sen!2sph!4v1775584507379!5m2!1sen!2sph" title="Sum Finance Services Corp., Tagbilaran City" /></div></div></div></section>
       <section className={cn(styles.sectionAnchor, styles.grain, "relative overflow-hidden py-12 sm:py-20 lg:py-28")} id="contact"><div className="pointer-events-none absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(10,14,23,1) 0%, rgba(22,14,6,0.6) 50%, rgba(10,14,23,1) 100%)" }} /><div className={cn(styles.floatOrb, "pointer-events-none absolute left-[20%] top-1/2 hidden h-[300px] w-[300px] -translate-y-1/2 rounded-full sm:block lg:h-[500px] lg:w-[500px]")} style={{ background: "radial-gradient(circle, rgba(240,168,24,0.06) 0%, transparent 60%)" }} /><div className={cn(styles.floatOrbSlow, "pointer-events-none absolute right-[15%] top-1/2 hidden h-[250px] w-[250px] -translate-y-1/2 rounded-full sm:block lg:h-[400px] lg:w-[400px]")} style={{ background: "radial-gradient(circle, rgba(229,57,53,0.05) 0%, transparent 60%)" }} /><div className="relative z-10 mx-auto max-w-[1600px] px-5 sm:px-6 lg:px-10"><div className="mb-8 text-center sm:mb-12 lg:mb-16"><SectionTitle className="mb-4 text-2xl font-extrabold text-white sm:mb-5 sm:text-3xl md:text-4xl lg:text-5xl" style={{ letterSpacing: "-0.03em" }}>Ready to get started?</SectionTitle><p className="mx-auto max-w-2xl text-sm text-white/45 sm:text-base lg:text-lg" style={{ lineHeight: 1.7 }}>If you&apos;re a Sum Finance employee or borrower, log in to access your account. For inquiries about the service, reach out to Sum Finance directly. For questions about the system, reach out to the development team.</p></div><div className="mx-auto grid max-w-5xl grid-cols-1 items-stretch gap-4 md:grid-cols-3 sm:gap-5 lg:gap-6">{contactCards.map((card) => <article className={cn(styles.cardLift, "relative flex h-full flex-col overflow-hidden rounded-2xl p-5 sm:p-7 lg:p-10")} key={card.title} style={card.style}><div className="absolute inset-x-0 top-0 h-[2px] rounded-t-2xl" style={{ background: card.topBorder }} /><div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl sm:mb-6 sm:h-12 sm:w-12" style={card.iconStyle}><card.Icon className={cn("h-5 w-5 sm:h-6 sm:w-6", card.accentClassName)} /></div><p className={cn("mb-2 text-[10px] font-semibold uppercase tracking-widest sm:mb-3 sm:text-xs", card.accentClassName)}>{card.eyebrow}</p><h3 className={cn(displayFont.className, "mb-6 text-lg font-bold text-white sm:text-xl lg:text-2xl")}>{card.title}</h3><div className="mt-auto">{Array.isArray(card.hrefs) ? <div className="flex gap-2 sm:gap-3">{card.hrefs.map((item) => <a className={cn(styles.baseButton, "inline-flex flex-1 items-center justify-center rounded-xl border border-[#f0a818]/30 bg-[#f0a818]/[0.04] px-3 py-2.5 text-xs font-semibold text-[#f0a818] hover:border-[#f0a818]/60 hover:bg-[#f0a818]/[0.08] hover:text-amber-300 sm:px-4 sm:py-3 sm:text-sm")} href={item.href} key={item.label}>{item.label}</a>)}</div> : card.href === "/login" ? <Link className={cn(styles.glowButton, "inline-flex w-full items-center justify-center gap-3 rounded-xl px-5 py-3 text-sm font-bold text-white transition-all sm:px-6 sm:py-3.5", card.linkClassName)} href={card.href}>{card.label}<ArrowRight className={cn(styles.arrow, "h-4 w-4")} /></Link> : <a className={cn(styles.baseButton, "inline-flex w-full items-center justify-center gap-2 rounded-xl px-5 py-3 text-xs font-semibold transition-all sm:px-6 sm:py-3.5 sm:text-sm", card.linkClassName)} href={card.href ?? "#"}>{card.label}<ArrowRight className="h-4 w-4" /></a>}</div></article>)}</div></div></section>
       <footer className="relative border-t border-white/[0.06] py-12" style={{ background: "rgba(8,10,18,0.95)" }}><div className="mx-auto px-4 text-center sm:px-6 lg:max-w-[1600px] lg:px-10"><div className="mb-4 flex items-center justify-center sm:mb-5"><SumtrackBrand className="h-6 w-auto opacity-35 sm:h-7" /></div><p className="mx-auto max-w-xl text-xs leading-relaxed text-white/25">&copy; 2026 SumTrack for Sum Finance Services Corp. All Rights Reserved.<br />Holy Name University, College of Engineering and Computer Studies.</p></div></footer>
-    </main>
+      </main>
+    </>
   );
 }
