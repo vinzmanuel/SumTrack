@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useRef } from "react";
 import { useFormStatus } from "react-dom";
 import { toast } from "sonner";
+import { UI_CONTROL_CLASS_NAME } from "@/app/dashboard/_components/ui-patterns";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,7 +15,7 @@ function SaveDetailsButton() {
   const { pending } = useFormStatus();
 
   return (
-    <Button className="bg-blue-600 text-white hover:bg-blue-700" disabled={pending} type="submit">
+    <Button className="h-11 rounded-md bg-blue-600 px-4 text-sm text-white hover:bg-blue-700" disabled={pending} type="submit">
       {pending ? "Saving..." : "Save Account Details"}
     </Button>
   );
@@ -59,6 +60,7 @@ export function AccountInformationForm({
                 First Name
               </label>
               <Input
+                className={UI_CONTROL_CLASS_NAME}
                 defaultValue={profile.firstName}
                 id="profile-first-name"
                 name="first_name"
@@ -70,6 +72,7 @@ export function AccountInformationForm({
                 Middle Name
               </label>
               <Input
+                className={UI_CONTROL_CLASS_NAME}
                 defaultValue={profile.middleName}
                 id="profile-middle-name"
                 name="middle_name"
@@ -80,6 +83,7 @@ export function AccountInformationForm({
                 Last Name
               </label>
               <Input
+                className={UI_CONTROL_CLASS_NAME}
                 defaultValue={profile.lastName}
                 id="profile-last-name"
                 name="last_name"
@@ -94,6 +98,7 @@ export function AccountInformationForm({
                 Contact No.
               </label>
               <Input
+                className={UI_CONTROL_CLASS_NAME}
                 defaultValue={profile.contactNo ?? ""}
                 id="profile-contact-no"
                 inputMode="numeric"
@@ -111,6 +116,7 @@ export function AccountInformationForm({
                 Email
               </label>
               <Input
+                className={UI_CONTROL_CLASS_NAME}
                 defaultValue={profile.email ?? ""}
                 id="profile-email"
                 name="email"
@@ -120,10 +126,7 @@ export function AccountInformationForm({
             </div>
           </div>
 
-          <div className="flex items-center justify-between gap-3 border-t pt-4">
-            <p className="text-sm text-muted-foreground">
-              Company ID, role, status, and assignment details remain managed by authorized staff.
-            </p>
+          <div className="flex items-center justify-end gap-3">
             <SaveDetailsButton />
           </div>
 

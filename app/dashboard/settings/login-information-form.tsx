@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useRef } from "react";
 import { useFormStatus } from "react-dom";
 import { toast } from "sonner";
+import { UI_CONTROL_CLASS_NAME } from "@/app/dashboard/_components/ui-patterns";
 import { PasswordInput } from "@/components/password-input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -16,7 +17,7 @@ function UpdateUsernameButton() {
   const { pending } = useFormStatus();
 
   return (
-    <Button className="bg-blue-600 text-white hover:bg-blue-700" disabled={pending} type="submit">
+    <Button className="h-11 rounded-md bg-blue-600 px-4 text-sm text-white hover:bg-blue-700" disabled={pending} type="submit">
       {pending ? "Updating..." : "Update Username"}
     </Button>
   );
@@ -26,7 +27,7 @@ function ChangePasswordButton() {
   const { pending } = useFormStatus();
 
   return (
-    <Button className="bg-blue-600 text-white hover:bg-blue-700" disabled={pending} type="submit">
+    <Button className="h-11 rounded-md bg-blue-600 px-4 text-sm text-white hover:bg-blue-700" disabled={pending} type="submit">
       {pending ? "Updating..." : "Change Password"}
     </Button>
   );
@@ -84,7 +85,7 @@ export function LoginInformationForm({ username }: { username: string }) {
             <label className="text-sm font-medium" htmlFor="login-username">
               Username
             </label>
-            <Input defaultValue={username} id="login-username" name="username" />
+            <Input className={UI_CONTROL_CLASS_NAME} defaultValue={username} id="login-username" name="username" />
             <p className="text-xs text-muted-foreground">
               This is the username you use on the login screen.
             </p>
@@ -109,19 +110,19 @@ export function LoginInformationForm({ username }: { username: string }) {
               <label className="text-sm font-medium" htmlFor="current-password">
                 Current Password
               </label>
-              <PasswordInput id="current-password" name="current_password" />
+              <PasswordInput className={UI_CONTROL_CLASS_NAME} id="current-password" name="current_password" />
             </div>
             <div className="space-y-1.5">
               <label className="text-sm font-medium" htmlFor="new-password">
                 New Password
               </label>
-              <PasswordInput id="new-password" name="new_password" />
+              <PasswordInput className={UI_CONTROL_CLASS_NAME} id="new-password" name="new_password" />
             </div>
             <div className="space-y-1.5">
               <label className="text-sm font-medium" htmlFor="confirm-password">
                 Confirm New Password
               </label>
-              <PasswordInput id="confirm-password" name="confirm_password" />
+              <PasswordInput className={UI_CONTROL_CLASS_NAME} id="confirm-password" name="confirm_password" />
             </div>
           </div>
 
