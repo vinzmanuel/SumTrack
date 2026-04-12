@@ -24,7 +24,7 @@ export function CollectionsResultsSection({
       <CollectionsBentoGrid data={data} />
       {errorMessage ? <p className="text-sm text-destructive">{errorMessage}</p> : null}
       {isPending ? (
-        <div className="absolute inset-0 flex items-start justify-end rounded-2xl bg-background/45 p-3 backdrop-blur-[1px]">
+        <div className="absolute inset-0 flex items-start justify-end rounded-md bg-background/45 p-3 backdrop-blur-[1px]">
           <div className="rounded-full border border-border/70 bg-background px-3 py-1.5 text-sm text-muted-foreground shadow-sm">
             Updating collections analytics...
           </div>

@@ -47,7 +47,6 @@ export default async function CollectionsPage({ searchParams }: CollectionsPageP
       branchFilterLabel={access.branchFilterLabel}
       branchOptions={branchOptions}
       canChooseBranch={access.canChooseBranch}
-      fixedBranchName={access.fixedBranchName}
       initialData={initialData}
       initialFilters={{
         selectedBranchRaw: access.selectedBranchId ? String(access.selectedBranchId) : "all",

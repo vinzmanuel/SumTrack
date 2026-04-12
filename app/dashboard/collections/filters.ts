@@ -30,7 +30,7 @@ function normalizeRange(
 
   return COLLECTIONS_DATE_RANGE_OPTIONS.some((option) => option.value === value)
     ? (value as AnalyticsDateRangeKey)
-    : "this-month";
+    : "last-30-days";
 }
 
 function toManilaDate() {
@@ -49,10 +49,6 @@ function addMonths(dateString: string, amount: number) {
   const date = new Date(Date.UTC(year, month - 1, day));
   date.setUTCMonth(date.getUTCMonth() + amount);
   return date.toISOString().slice(0, 10);
-}
-
-function firstDayOfMonth(dateString: string) {
-  return `${dateString.slice(0, 7)}-01`;
 }
 
 function firstDayOfYear(dateString: string) {
@@ -175,7 +171,7 @@ export function resolveCollectionsPeriodTriggerLabel(params: {
     return "Custom Range";
   }
 
-  return COLLECTIONS_DATE_RANGE_OPTIONS.find((option) => option.value === params.range)?.label ?? "This Month";
+  return COLLECTIONS_DATE_RANGE_OPTIONS.find((option) => option.value === params.range)?.label ?? "Last 30 Days";
 }
 
 export function parseCollectionsFilters(
@@ -268,9 +264,9 @@ export function resolveCollectionsDateRange(filters: CollectionsFilterState): Co
   }
 
   return {
-    start: firstDayOfMonth(today),
+    start: addDays(today, -29),
     end: today,
-    label: "this month",
+    label: "last 30 days",
     granularity: "day",
   };
 }

@@ -53,7 +53,7 @@ function CollectionsChartTooltipContent({
   const total = payload.reduce((sum, item) => sum + Number(item.value ?? 0), 0);
 
   return (
-    <div className={cn("min-w-48 rounded-xl border bg-background/95 p-3 shadow-lg backdrop-blur")}>
+    <div className={cn("min-w-48 rounded-md border bg-background/95 p-3 shadow-lg backdrop-blur")}>
       {label ? <p className="mb-2 text-sm font-medium text-foreground">{String(label)}</p> : null}
       <div className="space-y-1.5">
         {includeTotal ? (
@@ -108,7 +108,7 @@ export function CollectionsChart({
 
   if (chart.noData || chart.series.length === 0) {
     return (
-      <div className={`${className ?? "h-[280px]"} flex items-center justify-center rounded-xl border border-dashed border-border/70 bg-muted/20 px-6 text-center text-sm text-muted-foreground`}>
+      <div className={`${className ?? "h-[280px]"} flex items-center justify-center rounded-md border border-dashed border-border/70 bg-muted/20 px-6 text-center text-sm text-muted-foreground`}>
         {emptyMessage ?? "No chart data is available for the selected period."}
       </div>
     );
@@ -127,18 +127,22 @@ export function CollectionsChart({
   return (
     <ChartContainer className={className ?? "h-[280px] md:h-[320px]"} config={chartConfig}>
       <RechartsBarChart accessibilityLayer data={data} margin={{ top: 12, right: 8, left: 8, bottom: 0 }}>
-        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+        <CartesianGrid
+          strokeDasharray="3 3"
+          strokeOpacity={1}
+          vertical={false}
+        />
         <XAxis
           axisLine={false}
           dataKey="bucket"
           minTickGap={20}
-          tick={{ fill: "#6b7280", fontSize: 12 }}
+          tick={{ fontSize: 12 }}
           tickLine={false}
           tickMargin={8}
         />
         <YAxis
           axisLine={false}
-          tick={{ fill: "#6b7280", fontSize: 12 }}
+          tick={{fontSize: 12 }}
           tickFormatter={(value) => axisFormatter(Number(value ?? 0))}
           tickLine={false}
           width={72}
@@ -155,7 +159,7 @@ export function CollectionsChart({
               <ChartTooltipContent formatter={(value) => valueFormatter(Number(value ?? 0))} />
             )
           }
-          cursor={{ fill: "rgba(148, 163, 184, 0.08)" }}
+          cursor={{ fill: "hsl(var(--muted-foreground) / 0.14)" }}
         />
         {showLegend ? (
           <ChartLegend content={<ChartLegendContent className="justify-center pt-2" />} />

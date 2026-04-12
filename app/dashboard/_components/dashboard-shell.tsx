@@ -13,6 +13,7 @@ import {
   FileStack,
   CircleUserRound,
   EllipsisVertical,
+  Gift,
   HandCoins,
   LayoutDashboard,
   LogOut,
@@ -24,6 +25,7 @@ import {
   Settings,
   UserCog,
   UserPlus,
+  UserStar,
   Users,
   Wallet,
 } from "lucide-react";
@@ -66,7 +68,9 @@ type NavItem = {
   icon:
     | "layout-dashboard"
     | "hand-coins"
+    | "gift"
     | "bar-chart-3"
+    | "user-star"
     | "building-2"
     | "users"
     | "user-cog"
@@ -406,7 +410,9 @@ function SidebarIcon({
 }) {
   if (icon === "layout-dashboard") return <LayoutDashboard className={cn("size-4 shrink-0", className)} />;
   if (icon === "hand-coins") return <HandCoins className={cn("size-4 shrink-0", className)} />;
+  if (icon === "gift") return <Gift className={cn("size-4 shrink-0", className)} />;
   if (icon === "bar-chart-3") return <BarChart3 className={cn("size-4 shrink-0", className)} />;
+  if (icon === "user-star") return <UserStar className={cn("size-4 shrink-0", className)} />;
   if (icon === "building-2") return <Building2 className={cn("size-4 shrink-0", className)} />;
   if (icon === "users") return <Users className={cn("size-4 shrink-0", className)} />;
   if (icon === "user-cog") return <UserCog className={cn("size-4 shrink-0", className)} />;

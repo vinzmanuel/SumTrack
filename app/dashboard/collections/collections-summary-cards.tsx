@@ -13,7 +13,7 @@ export function CollectionsSummaryCards({ summary }: { summary: CollectionsSumma
 
   return (
     <div className="grid gap-3 xl:grid-cols-5">
-      <Card className="h-full gap-0 overflow-hidden py-0 shadow-sm">
+      <Card className="h-full gap-0 overflow-hidden rounded-md py-0 shadow-sm">
         <CardHeader className="gap-0 pb-1.5 pt-3.5">
           <CardTitle className="text-sm font-medium text-muted-foreground">Total Collections</CardTitle>
           <CardDescription className="pt-1 text-[13px] leading-5">
@@ -37,7 +37,7 @@ export function CollectionsSummaryCards({ summary }: { summary: CollectionsSumma
         value={formatCollectionsCurrency(summary.principalRecovered)}
       />
       <MetricCard
-        accentClassName="border-sky-200/70 bg-sky-50/50"
+        accentClassName="border-sky-200/70 bg-sky-50/50 dark:border-sky-500/30 dark:bg-sky-500/10"
         description="Portion of collections that crossed into interest gain."
         title="Realized Interest"
         supportLabel={`${formatCollectionsPercent(interestShare)} of collections`}
@@ -73,7 +73,7 @@ function MetricCard({
   accentClassName?: string;
 }) {
   return (
-    <Card className={cn("h-full gap-0 overflow-hidden py-0 shadow-sm", accentClassName)}>
+    <Card className={cn("h-full gap-0 overflow-hidden rounded-md py-0 shadow-sm", accentClassName)}>
       <CardHeader className="gap-0 pb-1.5 pt-3.5">
         <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
         <CardDescription className="pt-1 text-[13px] leading-5">{description}</CardDescription>

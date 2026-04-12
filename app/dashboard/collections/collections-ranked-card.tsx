@@ -17,7 +17,7 @@ export function CollectionsRankedCard({
   const maxValue = Math.max(...data.items.map((item) => item.totalAmount), 0);
 
   return (
-    <Card className={cn("gap-0 overflow-hidden py-0 shadow-sm", className)}>
+    <Card className={cn("gap-0 overflow-hidden rounded-md py-0 shadow-sm", className)}>
       <CardHeader className="gap-0 pb-1.5 pt-3.5">
         <CardTitle className="text-base font-semibold tracking-tight">{data.title}</CardTitle>
         <CardDescription className="text-sm leading-5">{data.description}</CardDescription>
@@ -26,7 +26,7 @@ export function CollectionsRankedCard({
         {data.items.length === 0 ? (
           <p className="text-sm text-muted-foreground">{data.emptyMessage}</p>
         ) : (
-          <div className="overflow-hidden rounded-2xl border border-border/70 bg-muted/10">
+          <div className="overflow-hidden rounded-md border border-border/70 bg-muted/10">
             {data.items.map((item) => {
               const width = maxValue > 0 ? Math.max((item.totalAmount / maxValue) * 100, 10) : 10;
 

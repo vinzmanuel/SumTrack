@@ -8,9 +8,9 @@ export function CollectionsResultsSkeleton({
 }) {
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 xl:items-start xl:grid-cols-[minmax(0,1.35fr)_repeat(4,minmax(0,1fr))]">
+      <div className="grid gap-3 xl:grid-cols-5">
         {Array.from({ length: 5 }).map((_, index) => (
-          <Card className="gap-0 overflow-hidden py-0 shadow-sm" key={index}>
+          <Card className="gap-0 overflow-hidden rounded-md py-0 shadow-sm" key={index}>
             <CardHeader className="gap-0 pb-1.5 pt-3.5">
               <Skeleton className="h-4 w-32" />
               <Skeleton className="mt-2 h-4 w-full" />
@@ -28,31 +28,31 @@ export function CollectionsResultsSkeleton({
         ))}
       </div>
 
-      <Card className="gap-0 overflow-hidden py-0 shadow-sm">
+      <Card className="gap-0 overflow-hidden rounded-md py-0 shadow-sm">
         <CardHeader className="gap-0 pb-1.5 pt-3.5">
           <Skeleton className="h-5 w-52" />
           <Skeleton className="mt-2 h-4 w-80 max-w-full" />
         </CardHeader>
         <CardContent className="pb-4.5 pt-0">
-          <div className="rounded-2xl border border-border/70 p-2.5">
-            <Skeleton className="h-[260px] rounded-xl md:h-[300px]" />
+          <div className="rounded-md border border-border/70 p-2.5">
+            <Skeleton className="h-[260px] rounded-md md:h-[300px]" />
           </div>
         </CardContent>
       </Card>
 
-      <Card className="gap-0 overflow-hidden py-0 shadow-sm">
+      <Card className="gap-0 overflow-hidden rounded-md py-0 shadow-sm">
         <CardHeader className="gap-0 pb-1.5 pt-3.5">
           <Skeleton className="h-5 w-44" />
           <Skeleton className="mt-2 h-4 w-80 max-w-full" />
         </CardHeader>
         <CardContent className="pb-4.5 pt-0">
-          <div className="rounded-2xl border border-border/70 p-2.5">
-            <Skeleton className="h-[260px] rounded-xl md:h-[300px]" />
+          <div className="rounded-md border border-border/70 p-2.5">
+            <Skeleton className="h-[260px] rounded-md md:h-[300px]" />
           </div>
         </CardContent>
       </Card>
 
-      <Card className="gap-0 overflow-hidden py-0 shadow-sm">
+      <Card className="gap-0 overflow-hidden rounded-md py-0 shadow-sm">
         <CardHeader className="gap-0 pb-1.5 pt-3.5">
           <Skeleton className="h-5 w-40" />
           <Skeleton className="mt-2 h-4 w-72 max-w-full" />

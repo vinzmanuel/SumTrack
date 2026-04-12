@@ -11,7 +11,7 @@ import type { CollectionsAnalyticsData } from "@/app/dashboard/collections/types
 export function CollectionsBentoGrid({ data }: { data: CollectionsAnalyticsData }) {
   return (
     <div className="space-y-4">
-      <Card className="gap-0 overflow-hidden py-0 shadow-sm">
+      <Card className="gap-0 overflow-hidden rounded-md py-0 shadow-sm">
         <CardHeader className="gap-0 pb-1.5 pt-3.5">
           <CardTitle className="text-base font-semibold tracking-tight">Collections Composition Trend</CardTitle>
           <CardDescription className="text-sm leading-5">
@@ -19,7 +19,7 @@ export function CollectionsBentoGrid({ data }: { data: CollectionsAnalyticsData 
           </CardDescription>
         </CardHeader>
         <CardContent className="pb-4.5 pt-0">
-          <div className="rounded-2xl border border-border/70 bg-muted/10 p-2.5">
+          <div className="rounded-md border border-border/70 bg-muted/10 p-2.5">
             <CollectionsChart
               axisFormatter={formatCollectionsAxisCurrency}
               chart={data.compositionTrend}
@@ -34,7 +34,7 @@ export function CollectionsBentoGrid({ data }: { data: CollectionsAnalyticsData 
         </CardContent>
       </Card>
 
-      <Card className="gap-0 overflow-hidden py-0 shadow-sm">
+      <Card className="gap-0 overflow-hidden rounded-md py-0 shadow-sm">
         <CardHeader className="gap-0 pb-1.5 pt-3.5">
           <CardTitle className="text-base font-semibold tracking-tight">Missed Payments Trend</CardTitle>
           <CardDescription className="text-sm leading-5">
@@ -42,7 +42,7 @@ export function CollectionsBentoGrid({ data }: { data: CollectionsAnalyticsData 
           </CardDescription>
         </CardHeader>
         <CardContent className="pb-4.5 pt-0">
-          <div className="rounded-2xl border border-border/70 bg-muted/10 p-2.5">
+          <div className="rounded-md border border-border/70 bg-muted/10 p-2.5">
             <CollectionsChart
               chart={data.missedPaymentsTrend}
               className="h-[260px] md:h-[300px]"

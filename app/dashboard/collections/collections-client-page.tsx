@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardTitle } from "@/components/ui/card";
+import { HandCoins } from "lucide-react";
+import { DashboardHeaderConfigurator } from "@/app/dashboard/_components/dashboard-header-config";
+import { UI_PAGE_STACK_CLASS_NAME } from "@/app/dashboard/_components/ui-patterns";
 import { CollectionsFilters } from "@/app/dashboard/collections/collections-filters";
 import { CollectionsResultsSection } from "@/app/dashboard/collections/collections-results-section";
 import type {
@@ -19,7 +20,7 @@ function buildCollectionsPageUrl(filters: CollectionsFilterInput) {
     params.set("branch", filters.branch);
   }
 
-  if (filters.range !== "this-month") {
+  if (filters.range !== "last-30-days") {
     params.set("range", filters.range);
   }
 
@@ -57,22 +58,16 @@ function buildCollectionsDataUrl(filters: CollectionsFilterInput) {
   return `/dashboard/collections/data?${params.toString()}`;
 }
 
-function startCaseLabel(value: string) {
-  return value.replace(/\b\w/g, (character) => character.toUpperCase());
-}
-
 export function CollectionsClientPage({
   branchFilterLabel,
   branchOptions,
   canChooseBranch,
-  fixedBranchName,
   initialData,
   initialFilters,
 }: {
   branchFilterLabel: string;
   branchOptions: CollectionsBranchOption[];
   canChooseBranch: boolean;
-  fixedBranchName: string | null;
   initialData: CollectionsAnalyticsData;
   initialFilters: CollectionsFilterState;
 }) {
@@ -122,53 +117,25 @@ export function CollectionsClientPage({
     return () => abortRef.current?.abort();
   }, [initialData]);
 
-  const scopeLabel = canChooseBranch
-    ? results?.filters.selectedBranchRaw && results.filters.selectedBranchRaw !== "all"
-      ? branchOptions.find((option) => option.value === results.filters.selectedBranchRaw)?.label ?? "Selected branch"
-      : "All visible branches"
-    : fixedBranchName ?? "Assigned branch";
-
   return (
-    <div className="w-full space-y-6">
-      <Card className="gap-0 overflow-hidden py-0">
-        <div className="bg-gradient-to-r from-slate-50 via-background to-emerald-50/60 px-5 py-5 sm:px-6">
-          <div className="flex flex-col gap-3">
-            <div className="space-y-1">
-              <div className="space-y-1">
-                <CardTitle className="text-[1.75rem] font-semibold tracking-tight sm:text-3xl">Collections</CardTitle>
-                <CardDescription className="text-sm leading-5">
-                  Analyze collection composition, reliability, and pattern behavior across the selected branch scope.
-                </CardDescription>
-              </div>
-              <div className="flex flex-wrap items-center gap-2 pt-1.5">
-                <Badge className="border-zinc-200 bg-background/80 px-2.5 py-1 text-zinc-700" variant="outline">
-                  {scopeLabel}
-                </Badge>
-                <Badge className="border-zinc-200 bg-background/80 px-2.5 py-1 text-zinc-700" variant="outline">
-                  {results ? startCaseLabel(results.dateRangeLabel) : "Selected period"}
-                </Badge>
-                <Badge className="border-zinc-200 bg-background/80 px-2.5 py-1 text-zinc-700" variant="outline">
-                  {results
-                    ? `${results.summary.activeCollectionDays.toLocaleString("en-PH")} active days`
-                    : "Collections analytics"}
-                </Badge>
-              </div>
-            </div>
-          </div>
-        </div>
-        <CardContent className="border-t border-border/70 px-5 pb-3.5 pt-2.5 sm:px-6">
-          <div className="flex w-full justify-end">
-            <CollectionsFilters
-              branchFilterLabel={branchFilterLabel}
-              branchOptions={branchOptions}
-              canChooseBranch={canChooseBranch}
-              initialFilters={initialFilters}
-              isPending={isPending}
-              onApply={loadResults}
-            />
-          </div>
-        </CardContent>
-      </Card>
+    <div className={UI_PAGE_STACK_CLASS_NAME}>
+      <DashboardHeaderConfigurator
+        config={{
+          icon: <HandCoins className="size-9 text-sidebar-foreground/65" />,
+          title: "Collections",
+          description:
+            "Analyze collection composition, reliability, and payment behavior across your selected branch scope.",
+        }}
+      />
+
+      <CollectionsFilters
+        branchFilterLabel={branchFilterLabel}
+        branchOptions={branchOptions}
+        canChooseBranch={canChooseBranch}
+        initialFilters={initialFilters}
+        isPending={isPending}
+        onApply={loadResults}
+      />
 
       <CollectionsResultsSection
         data={results}
