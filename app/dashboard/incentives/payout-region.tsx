@@ -43,14 +43,14 @@ function formatEmployeeName(row: IncentiveRow) {
 
 function roleBadgeClass(roleName: IncentiveRow["roleName"]) {
   if (roleName === "Collector") {
-    return "border-blue-200 bg-blue-50 text-blue-700";
+    return "rounded-md border border-emerald-200 bg-emerald-50 py-1 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300";
   }
 
   if (roleName === "Secretary") {
-    return "border-emerald-200 bg-emerald-50 text-emerald-700";
+    return "rounded-md border border-violet-200 bg-violet-50 py-1 text-violet-700 dark:border-violet-500/30 dark:bg-violet-500/10 dark:text-violet-300";
   }
 
-  return "border-amber-200 bg-amber-50 text-amber-700";
+  return "rounded-md border border-amber-200 bg-amber-50 py-1 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300";
 }
 
 function RuleSetupCell(props: {
@@ -82,7 +82,7 @@ function RuleSetupCell(props: {
 export function IncentivesSummaryStrip(props: IncentivesSummaryStripProps) {
   return (
     <div className="grid gap-3 lg:grid-cols-3">
-      <div className="rounded-2xl border bg-rose-50/70 px-4 py-4">
+      <div className="rounded-md border bg-rose-50/70 px-4 py-4 dark:border-rose-500/30 dark:bg-rose-500/10">
         <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
           <Gift className="size-5 text-rose-600" />
           Total Incentives
@@ -92,7 +92,7 @@ export function IncentivesSummaryStrip(props: IncentivesSummaryStripProps) {
         </p>
       </div>
 
-      <div className="rounded-2xl border bg-muted/20 px-4 py-4">
+      <div className="rounded-md border bg-muted/20 px-4 py-4">
         <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
           <TrendingUp className="size-4" />
           Branch Collector Average
@@ -103,7 +103,7 @@ export function IncentivesSummaryStrip(props: IncentivesSummaryStripProps) {
         <p className="mt-1 text-xs text-muted-foreground">{props.collectorAverageLabel}</p>
       </div>
 
-      <div className="rounded-2xl border bg-muted/20 px-4 py-4">
+      <div className="rounded-md border bg-muted/20 px-4 py-4">
         <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
           <Users className="size-4" />
           Eligible Employees
@@ -157,14 +157,14 @@ export function IncentivesPayoutTable(props: IncentivesPayoutTableProps) {
       ) : null}
 
       {sortedRows.length === 0 ? (
-        <div className="rounded-2xl border border-dashed bg-muted/20 px-5 py-12 text-center">
+        <div className="rounded-md border border-dashed bg-muted/20 px-5 py-12 text-center">
           <p className="text-sm font-medium text-foreground">No eligible employees found.</p>
           <p className="mt-2 text-sm text-muted-foreground">
             Choose a branch and month with incentive activity to populate the payout table.
           </p>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-2xl border">
+        <div className="overflow-hidden rounded-md border">
           <Table className="[&_td:first-child]:pl-5 [&_td:last-child]:pr-5 [&_th:first-child]:pl-5 [&_th:last-child]:pr-5">
             <TableHeader>
               <TableRow>

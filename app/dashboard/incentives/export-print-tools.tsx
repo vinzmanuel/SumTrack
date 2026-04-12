@@ -72,11 +72,11 @@ export function ExportPrintTools({ rows, fileName, modeLabel }: ExportPrintTools
 
   return (
     <div className="flex flex-wrap gap-2">
-      <Button onClick={() => window.print()} size="sm" type="button" variant="outline">
+      <Button className="h-11 rounded-md px-4 text-sm" onClick={() => window.print()} type="button" variant="outline">
         <Printer data-icon="inline-start" />
         Print
       </Button>
-      <Button disabled={rows.length === 0} onClick={handleExport} size="sm" type="button" variant="secondary">
+      <Button className="h-11 rounded-md px-4 text-sm" disabled={rows.length === 0} onClick={handleExport} type="button" variant="secondary">
         <Download data-icon="inline-start" />
         Export CSV
       </Button>

@@ -1,8 +1,8 @@
 import { asc, inArray } from "drizzle-orm";
 import { Settings2 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DashboardBackLink } from "@/app/dashboard/_components/dashboard-back-link";
+import { DashboardHeaderConfigurator } from "@/app/dashboard/_components/dashboard-header-config";
 import {
   getDashboardAuthContext,
   getSingleAssignedBranchId,
@@ -19,6 +19,7 @@ import {
 
 const ADMIN_MANAGEABLE_ROLES = ["Branch Manager", "Secretary", "Collector"] as const;
 const BRANCH_MANAGER_MANAGEABLE_ROLES = ["Secretary", "Collector"] as const;
+const AUDITOR_VIEWABLE_ROLES = ["Branch Manager", "Secretary", "Collector"] as const;
 
 export default async function IncentiveRulesPage({
   searchParams,
@@ -62,8 +63,9 @@ export default async function IncentiveRulesPage({
 
   const isAdmin = auth.roleName === "Admin";
   const isBranchManager = auth.roleName === "Branch Manager";
+  const isAuditor = auth.roleName === "Auditor";
 
-  if (!isAdmin && !isBranchManager) {
+  if (!isAdmin && !isBranchManager && !isAuditor) {
     return (
       <main className="mx-auto flex min-h-screen w-full max-w-5xl items-center justify-center p-6">
         <Card className="w-full max-w-md">
@@ -157,7 +159,11 @@ export default async function IncentiveRulesPage({
     };
   }
 
-  const manageableRoleNames = isAdmin ? ADMIN_MANAGEABLE_ROLES : BRANCH_MANAGER_MANAGEABLE_ROLES;
+  const roleNamesForPage = isAdmin
+    ? ADMIN_MANAGEABLE_ROLES
+    : isBranchManager
+      ? BRANCH_MANAGER_MANAGEABLE_ROLES
+      : AUDITOR_VIEWABLE_ROLES;
 
   const manageableRoles = await db
     .select({
@@ -165,11 +171,15 @@ export default async function IncentiveRulesPage({
       role_name: roles.role_name,
     })
     .from(roles)
-    .where(inArray(roles.role_name, [...manageableRoleNames]))
+    .where(inArray(roles.role_name, [...roleNamesForPage]))
     .orderBy(asc(roles.role_name))
     .catch(() => []);
 
-  const scopeBranches = isBranchManager && fixedBranch ? [fixedBranch] : branches;
+  const scopeBranches = isBranchManager && fixedBranch
+    ? [fixedBranch]
+    : isAuditor && auth.assignedBranchIds.length > 0
+      ? branches.filter((item) => auth.assignedBranchIds.includes(item.branch_id))
+      : branches;
   const branchIdScope = scopeBranches.map((item) => item.branch_id);
   const roleIdScope = manageableRoles.map((item) => item.role_id);
 
@@ -185,6 +195,11 @@ export default async function IncentiveRulesPage({
     effective_start: string;
     effective_end: string | null;
     status_label: "Active Now" | "Scheduled Next";
+    set_by_role_name: string | null;
+    set_by_company_id: string | null;
+    set_by_first_name: string | null;
+    set_by_middle_name: string | null;
+    set_by_last_name: string | null;
   }>;
 
   if (currentPayPeriod && nextPayPeriod && branchIdScope.length > 0 && roleIdScope.length > 0) {
@@ -217,6 +232,11 @@ export default async function IncentiveRulesPage({
             effective_start: activeRule.effectiveStart,
             effective_end: activeRule.effectiveEnd,
             status_label: "Active Now",
+            set_by_role_name: activeRule.createdByRoleName,
+            set_by_company_id: activeRule.createdByCompanyId,
+            set_by_first_name: activeRule.createdByFirstName,
+            set_by_middle_name: activeRule.createdByMiddleName,
+            set_by_last_name: activeRule.createdByLastName,
           });
         }
 
@@ -230,6 +250,11 @@ export default async function IncentiveRulesPage({
             effective_start: scheduledRule.effectiveStart,
             effective_end: scheduledRule.effectiveEnd,
             status_label: "Scheduled Next",
+            set_by_role_name: scheduledRule.createdByRoleName,
+            set_by_company_id: scheduledRule.createdByCompanyId,
+            set_by_first_name: scheduledRule.createdByFirstName,
+            set_by_middle_name: scheduledRule.createdByMiddleName,
+            set_by_last_name: scheduledRule.createdByLastName,
           });
         }
       });
@@ -254,34 +279,22 @@ export default async function IncentiveRulesPage({
   });
 
   return (
-    <main className="mx-auto w-full max-w-7xl space-y-5 px-4 pb-6 pt-0 sm:px-6">
-      <DashboardBackLink href={backNavigation.href} label={backNavigation.label} />
-
-      <Card className="gap-0 overflow-hidden py-0">
-        <div className="bg-linear-to-r from-slate-50 via-background to-amber-50/60 p-6">
-          <CardHeader className="px-0 py-0">
-            <div className="flex flex-col gap-1">
-              <CardTitle className="flex items-center gap-2 text-3xl font-semibold tracking-tight">
-                <Settings2 className="size-7 text-muted-foreground" />
-                Incentive Rules
-              </CardTitle>
-              <CardDescription>
-                Configure branch-role payout formulas that will apply to the next payout period.
-              </CardDescription>
-              <div className="flex flex-wrap gap-2 pt-2">
-                <Badge variant="outline">{isAdmin ? "Admin scope" : fixedBranch?.branch_name ?? "Assigned branch"}</Badge>
-                <Badge variant="outline">Next-period effective</Badge>
-              </div>
-            </div>
-          </CardHeader>
-        </div>
-      </Card>
+    <main className="w-full space-y-4">
+      <DashboardHeaderConfigurator
+        config={{
+          action: null,
+          description: "Configure branch-role incentive formulas used by monthly payout computation.",
+          icon: <Settings2 className="size-9 text-sidebar-foreground/65" />,
+          title: "Incentive Rules",
+        }}
+      />
 
       <IncentiveRulesForm
         branches={branches}
         existingRules={existingRules}
         fixedBranch={fixedBranch}
         isAdmin={isAdmin}
+        isAuditor={isAuditor}
         manageableRoles={manageableRoles}
       />
     </main>

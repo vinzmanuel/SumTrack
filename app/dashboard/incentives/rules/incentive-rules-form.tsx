@@ -1,8 +1,9 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState, type FormEvent } from "react";
-import { Check, CircleAlert } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, CircleAlert } from "lucide-react";
 import { useFormStatus } from "react-dom";
+import { getUiRoleBadgeClassName, UI_CONTROL_CLASS_NAME } from "@/app/dashboard/_components/ui-patterns";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -56,10 +57,16 @@ type ExistingRule = {
   effective_start: string;
   effective_end: string | null;
   status_label: "Active Now" | "Scheduled Next";
+  set_by_role_name: string | null;
+  set_by_company_id: string | null;
+  set_by_first_name: string | null;
+  set_by_middle_name: string | null;
+  set_by_last_name: string | null;
 };
 
 type IncentiveRulesFormProps = {
   isAdmin: boolean;
+  isAuditor: boolean;
   fixedBranch: BranchOption | null;
   branches: BranchOption[];
   manageableRoles: RoleOption[];
@@ -70,7 +77,7 @@ function SubmitButton() {
   const { pending } = useFormStatus();
 
   return (
-    <Button disabled={pending} type="submit">
+    <Button className="h-11 rounded-md px-4 text-sm" disabled={pending} type="submit">
       {pending ? "Saving..." : "Save Rule"}
     </Button>
   );
@@ -111,8 +118,33 @@ function formatMoneyDisplay(rawValue: string) {
   return `${formattedInt}.${decimalPartRaw}`;
 }
 
+function formatRuleSetterName(rule: ExistingRule) {
+  const middleInitial = rule.set_by_middle_name?.trim()
+    ? `${rule.set_by_middle_name.trim().charAt(0)}.`
+    : null;
+  const fullName = [rule.set_by_first_name, middleInitial, rule.set_by_last_name]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+
+  if (fullName && rule.set_by_company_id) {
+    return `${fullName} (${rule.set_by_company_id})`;
+  }
+
+  if (fullName) {
+    return fullName;
+  }
+
+  if (rule.set_by_company_id) {
+    return `Unknown user (${rule.set_by_company_id})`;
+  }
+
+  return "Unknown user";
+}
+
 export function IncentiveRulesForm({
   isAdmin,
+  isAuditor,
   fixedBranch,
   branches,
   manageableRoles,
@@ -129,6 +161,7 @@ export function IncentiveRulesForm({
   const [rulesBranchFilter, setRulesBranchFilter] = useState("all");
   const [rulesRoleFilter, setRulesRoleFilter] = useState("all");
   const [rulesPage, setRulesPage] = useState(1);
+  const [rulesPageSize, setRulesPageSize] = useState(10);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isSuccessOpen, setIsSuccessOpen] = useState(false);
 
@@ -145,12 +178,17 @@ export function IncentiveRulesForm({
     const roleMatches = rulesRoleFilter === "all" || rule.role_name === rulesRoleFilter;
     return branchMatches && roleMatches;
   });
-  const RULES_PAGE_SIZE = 10;
-  const totalRulePages = Math.max(Math.ceil(filteredExistingRules.length / RULES_PAGE_SIZE), 1);
+  const RULES_PAGE_SIZE_OPTIONS = [10, 20, 50] as const;
+  const totalRulePages = Math.max(Math.ceil(filteredExistingRules.length / rulesPageSize), 1);
   const safeRulesPage = Math.min(rulesPage, totalRulePages);
+  const showingFrom = filteredExistingRules.length === 0 ? 0 : (safeRulesPage - 1) * rulesPageSize + 1;
+  const showingTo =
+    filteredExistingRules.length === 0
+      ? 0
+      : Math.min(safeRulesPage * rulesPageSize, filteredExistingRules.length);
   const paginatedExistingRules = filteredExistingRules.slice(
-    (safeRulesPage - 1) * RULES_PAGE_SIZE,
-    safeRulesPage * RULES_PAGE_SIZE,
+    (safeRulesPage - 1) * rulesPageSize,
+    safeRulesPage * rulesPageSize,
   );
 
   useEffect(() => {
@@ -190,8 +228,15 @@ export function IncentiveRulesForm({
   }
 
   return (
-    <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,320px)_minmax(0,1fr)] 2xl:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
-      <Card className="h-fit">
+    <div
+      className={
+        isAuditor
+          ? "grid items-start gap-5"
+          : "grid items-start gap-5 xl:grid-cols-[minmax(0,300px)_minmax(0,1fr)] 2xl:grid-cols-[minmax(0,320px)_minmax(0,1fr)]"
+      }
+    >
+      {!isAuditor ? (
+      <Card className="h-fit rounded-md">
         <CardHeader>
           <CardTitle>Rule Editor</CardTitle>
         </CardHeader>
@@ -206,7 +251,7 @@ export function IncentiveRulesForm({
               <div className="flex flex-col gap-2">
                 <Label>Branch</Label>
                 <Select onValueChange={setBranchId} value={branchId}>
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger className={`${UI_CONTROL_CLASS_NAME} w-full`}>
                     <SelectValue placeholder="Select branch" />
                   </SelectTrigger>
                   <SelectContent>
@@ -224,17 +269,12 @@ export function IncentiveRulesForm({
                   <p className="text-sm text-destructive">{state.fieldErrors.branch_id}</p>
                 ) : null}
               </div>
-            ) : (
-              <div className="flex flex-col gap-2">
-                <Label>Branch</Label>
-                <Input readOnly value={fixedBranch?.branch_name ?? "N/A"} />
-              </div>
-            )}
+            ) : null}
 
             <div className="flex flex-col gap-2">
               <Label>Role</Label>
               <Select onValueChange={setRoleId} value={roleId}>
-                <SelectTrigger className="w-full">
+                <SelectTrigger className={`${UI_CONTROL_CLASS_NAME} w-full`}>
                   <SelectValue placeholder="Select role" />
                 </SelectTrigger>
                 <SelectContent>
@@ -258,6 +298,7 @@ export function IncentiveRulesForm({
                 <Label htmlFor="percent_value">Percent Value</Label>
                 <div className="relative">
                   <Input
+                    className={UI_CONTROL_CLASS_NAME}
                     id="percent_value"
                     inputMode="decimal"
                     onChange={(event) => setPercentValue(sanitizeNumericInput(event.target.value))}
@@ -286,7 +327,7 @@ export function IncentiveRulesForm({
                     {"\u20B1"}
                   </span>
                   <Input
-                    className="pl-7"
+                    className={`${UI_CONTROL_CLASS_NAME} pl-7`}
                     id="flat_amount"
                     inputMode="decimal"
                     onChange={(event) => setFlatAmountRaw(sanitizeNumericInput(event.target.value))}
@@ -338,10 +379,10 @@ export function IncentiveRulesForm({
               </div>
 
               <DialogFooter>
-                <Button onClick={() => setIsConfirmOpen(false)} type="button" variant="outline">
+                <Button className="h-11 rounded-md px-4 text-sm" onClick={() => setIsConfirmOpen(false)} type="button" variant="outline">
                   Cancel
                 </Button>
-                <Button onClick={handleConfirmSave} type="button">
+                <Button className="h-11 rounded-md px-4 text-sm" onClick={handleConfirmSave} type="button">
                   Confirm Save Rule
                 </Button>
               </DialogFooter>
@@ -363,7 +404,7 @@ export function IncentiveRulesForm({
               </DialogHeader>
 
               {state.result ? (
-                <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4 text-sm text-emerald-950">
+                <div className="rounded-md border border-emerald-100 bg-emerald-50 p-4 text-sm text-emerald-950">
                   <p>
                     <span className="font-medium">Branch:</span> {state.result.branchName}
                   </p>
@@ -385,10 +426,11 @@ export function IncentiveRulesForm({
           </Dialog>
         </CardContent>
       </Card>
+      ) : null}
 
       <div className="min-w-0 flex flex-col gap-5">
-        <Card className="min-w-0 gap-0 overflow-hidden py-0">
-          <CardHeader className="gap-4 border-b py-5">
+        <Card className="min-w-0 gap-0 overflow-hidden rounded-md py-0">
+          <CardHeader className="gap-4 py-5">
             <div className="flex flex-col gap-1">
               <CardTitle>Existing Rules</CardTitle>
               <p className="text-sm text-muted-foreground">
@@ -396,10 +438,9 @@ export function IncentiveRulesForm({
               </p>
             </div>
 
-            {isAdmin ? (
+            {isAdmin || isAuditor ? (
               <div className="grid gap-3 lg:grid-cols-[minmax(0,220px)_minmax(0,220px)]">
                 <div className="flex flex-col gap-2">
-                  <Label htmlFor="rules_branch_filter">Branch Filter</Label>
                   <Select
                     onValueChange={(value) => {
                       setRulesBranchFilter(value);
@@ -407,12 +448,12 @@ export function IncentiveRulesForm({
                     }}
                     value={rulesBranchFilter}
                   >
-                    <SelectTrigger id="rules_branch_filter" className="w-full">
+                    <SelectTrigger id="rules_branch_filter" className={`${UI_CONTROL_CLASS_NAME} w-full`}>
                       <SelectValue placeholder="Filter by branch" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectGroup>
-                        <SelectLabel>Branch filter</SelectLabel>
+                        <SelectLabel>Branch</SelectLabel>
                         <SelectItem value="all">All branches</SelectItem>
                         {branches.map((item) => (
                           <SelectItem key={item.branch_id} value={item.branch_name}>
@@ -425,7 +466,6 @@ export function IncentiveRulesForm({
                 </div>
 
                 <div className="flex flex-col gap-2">
-                  <Label htmlFor="rules_role_filter">Role Filter</Label>
                   <Select
                     onValueChange={(value) => {
                       setRulesRoleFilter(value);
@@ -433,12 +473,12 @@ export function IncentiveRulesForm({
                     }}
                     value={rulesRoleFilter}
                   >
-                    <SelectTrigger id="rules_role_filter" className="w-full">
+                    <SelectTrigger id="rules_role_filter" className={`${UI_CONTROL_CLASS_NAME} w-full`}>
                       <SelectValue placeholder="Filter by role" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectGroup>
-                        <SelectLabel>Role filter</SelectLabel>
+                        <SelectLabel>Role</SelectLabel>
                         <SelectItem value="all">All roles</SelectItem>
                         {manageableRoles.map((item) => (
                           <SelectItem key={item.role_id} value={item.role_name}>
@@ -452,9 +492,9 @@ export function IncentiveRulesForm({
               </div>
             ) : null}
           </CardHeader>
-          <CardContent className="p-5">
+          <CardContent className="p-0">
             {filteredExistingRules.length === 0 ? (
-              <div className="rounded-xl border border-dashed bg-muted/20 px-5 py-10 text-center">
+              <div className="m-5 rounded-md border border-dashed bg-muted/20 px-5 py-10 text-center">
                 <p className="text-sm font-medium text-foreground">No incentive rules found.</p>
                 <p className="mt-2 text-sm text-muted-foreground">
                   Create a rule for the selected branch and role to prepare next period&apos;s payouts.
@@ -462,10 +502,10 @@ export function IncentiveRulesForm({
               </div>
             ) : (
               <div className="space-y-4">
-                <div className="overflow-hidden rounded-xl border">
-                  <Table className="[&_td:first-child]:pl-5 [&_td:last-child]:pr-5 [&_th:first-child]:pl-5 [&_th:last-child]:pr-5">
+                <div className="overflow-x-auto border-b border-border/70">
+                  <Table className="w-full text-sm [&_td:first-child]:pl-6 [&_th:first-child]:pl-6 [&_td:last-child]:pr-6 [&_th:last-child]:pr-6">
                   <TableHeader>
-                    <TableRow>
+                    <TableRow className="border-border/70 bg-card">
                       <TableHead>Branch</TableHead>
                       <TableHead>Role</TableHead>
                       <TableHead>Status</TableHead>
@@ -473,6 +513,7 @@ export function IncentiveRulesForm({
                       <TableHead>Flat Amount</TableHead>
                       <TableHead>Effective Start</TableHead>
                       <TableHead>Effective End</TableHead>
+                      <TableHead>Set By</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -484,8 +525,8 @@ export function IncentiveRulesForm({
                           <Badge
                             className={
                               rule.status_label === "Active Now"
-                                ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                                : "border-amber-200 bg-amber-50 text-amber-800"
+                                ? "rounded-md border border-emerald-200 bg-emerald-50 py-1 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300"
+                                : "rounded-md border border-amber-200 bg-amber-50 py-1 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300"
                             }
                             variant="outline"
                           >
@@ -496,6 +537,14 @@ export function IncentiveRulesForm({
                         <TableCell>{formatMoney(Number(rule.flat_amount) || 0)}</TableCell>
                         <TableCell>{rule.effective_start}</TableCell>
                         <TableCell>{rule.effective_end ?? "Open-ended"}</TableCell>
+                        <TableCell className="whitespace-normal">
+                          <div className="flex items-center gap-2">
+                            <Badge className={getUiRoleBadgeClassName(rule.set_by_role_name ?? undefined)} variant="outline">
+                              {rule.set_by_role_name ?? "Unknown"}
+                            </Badge>
+                            <span>{formatRuleSetterName(rule)}</span>
+                          </div>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -503,34 +552,63 @@ export function IncentiveRulesForm({
                 </div>
 
                 {filteredExistingRules.length > 0 ? (
-                  <div className="flex flex-col gap-3 border-t border-border/70 pt-4 text-sm md:flex-row md:items-center md:justify-between">
-                    <p className="text-muted-foreground">
-                      Showing {(safeRulesPage - 1) * RULES_PAGE_SIZE + 1}-
-                      {Math.min(safeRulesPage * RULES_PAGE_SIZE, filteredExistingRules.length)} of{" "}
-                      {filteredExistingRules.length} rules
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <span className="text-muted-foreground">
-                        Page {safeRulesPage} of {totalRulePages}
-                      </span>
-                      <Button
-                        disabled={safeRulesPage <= 1}
-                        onClick={() => setRulesPage((current) => Math.max(current - 1, 1))}
-                        size="sm"
-                        type="button"
-                        variant="outline"
-                      >
-                        Previous
-                      </Button>
-                      <Button
-                        disabled={safeRulesPage >= totalRulePages}
-                        onClick={() => setRulesPage((current) => Math.min(current + 1, totalRulePages))}
-                        size="sm"
-                        type="button"
-                        variant="outline"
-                      >
-                        Next
-                      </Button>
+                  <div className="px-5 pb-5">
+                    <div className="flex flex-col gap-3 text-sm xl:flex-row xl:items-center xl:justify-between">
+                      <p className="text-muted-foreground">
+                        Showing {showingFrom}-{showingTo} of {filteredExistingRules.length}
+                      </p>
+                      <div className="flex flex-wrap items-center gap-2 xl:justify-center">
+                        <div className="flex items-center gap-2">
+                          <span className="text-muted-foreground">Rows</span>
+                          <Select
+                            onValueChange={(value) => {
+                              setRulesPageSize(Number(value));
+                              setRulesPage(1);
+                            }}
+                            value={String(rulesPageSize)}
+                          >
+                            <SelectTrigger className={`${UI_CONTROL_CLASS_NAME} w-[84px]`}>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectGroup>
+                                <SelectLabel>Rows</SelectLabel>
+                                {RULES_PAGE_SIZE_OPTIONS.map((option) => (
+                                  <SelectItem key={option} value={String(option)}>
+                                    {option}
+                                  </SelectItem>
+                                ))}
+                              </SelectGroup>
+                            </SelectContent>
+                          </Select>
+                        </div>
+
+                        <div className="ml-4 flex items-center gap-2">
+                          <span className="text-muted-foreground">
+                            Page {safeRulesPage} of {totalRulePages}
+                          </span>
+                          <Button
+                            disabled={safeRulesPage <= 1}
+                            onClick={() => setRulesPage((current) => Math.max(current - 1, 1))}
+                            size="icon"
+                            type="button"
+                            variant="outline"
+                          >
+                            <ChevronLeft />
+                            <span className="sr-only">Previous page</span>
+                          </Button>
+                          <Button
+                            disabled={safeRulesPage >= totalRulePages}
+                            onClick={() => setRulesPage((current) => Math.min(current + 1, totalRulePages))}
+                            size="icon"
+                            type="button"
+                            variant="outline"
+                          >
+                            <ChevronRight />
+                            <span className="sr-only">Next page</span>
+                          </Button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 ) : null}
@@ -542,4 +620,3 @@ export function IncentiveRulesForm({
     </div>
   );
 }
-

@@ -1,10 +1,13 @@
 import { and, asc, desc, eq, gte, inArray, isNull, lte, or } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import {
   branch,
   employee_branch_assignment,
+  employee_info,
   incentive_rules,
   roles,
+  users,
 } from "@/db/schema";
 
 export type IncentiveRoleName = "Collector" | "Secretary" | "Branch Manager";
@@ -66,6 +69,11 @@ export type ApplicableRuleVersion = {
   effectiveStart: string;
   effectiveEnd: string | null;
   createdAt: string;
+  createdByRoleName: string | null;
+  createdByCompanyId: string | null;
+  createdByFirstName: string | null;
+  createdByMiddleName: string | null;
+  createdByLastName: string | null;
 };
 
 const INCENTIVE_ROLE_NAMES: IncentiveRoleName[] = ["Collector", "Secretary", "Branch Manager"];
@@ -174,6 +182,8 @@ export async function loadApplicableRuleVersionsForPeriod(
   periodStart: string,
   periodEnd: string,
 ) {
+  const creatorRoles = alias(roles, "incentive_rule_creator_roles");
+
   if (branchIds.length === 0 || roleIds.length === 0) {
     return new Map<string, ApplicableRuleVersion>();
   }
@@ -188,8 +198,16 @@ export async function loadApplicableRuleVersionsForPeriod(
       effective_start: incentive_rules.effective_start,
       effective_end: incentive_rules.effective_end,
       created_at: incentive_rules.created_at,
+      created_by_role_name: creatorRoles.role_name,
+      created_by_company_id: users.company_id,
+      created_by_first_name: employee_info.first_name,
+      created_by_middle_name: employee_info.middle_name,
+      created_by_last_name: employee_info.last_name,
     })
     .from(incentive_rules)
+    .leftJoin(users, eq(users.user_id, incentive_rules.created_by))
+    .leftJoin(creatorRoles, eq(creatorRoles.role_id, users.role_id))
+    .leftJoin(employee_info, eq(employee_info.user_id, users.user_id))
     .where(
       and(
         inArray(incentive_rules.branch_id, branchIds),
@@ -226,6 +244,11 @@ export async function loadApplicableRuleVersionsForPeriod(
       effectiveStart: row.effective_start,
       effectiveEnd: row.effective_end,
       createdAt: row.created_at,
+      createdByRoleName: row.created_by_role_name,
+      createdByCompanyId: row.created_by_company_id,
+      createdByFirstName: row.created_by_first_name,
+      createdByMiddleName: row.created_by_middle_name,
+      createdByLastName: row.created_by_last_name,
     });
   });
 

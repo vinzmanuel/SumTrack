@@ -1,10 +1,10 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { Calculator, CircleAlert, Clock3, History, Settings2 } from "lucide-react";
+import { Calculator, CircleAlert, Clock3, Gift, History, Settings2 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { DashboardHeaderConfigurator } from "@/app/dashboard/_components/dashboard-header-config";
 import { DashboardBackLink } from "@/app/dashboard/_components/dashboard-back-link";
 import { appendBackNavigationToHref, buildReturnTo } from "@/app/dashboard/back-navigation";
 import { ExportPrintTools } from "@/app/dashboard/incentives/export-print-tools";
@@ -87,10 +87,6 @@ export default async function IncentivesPage({ searchParams }: IncentivesPagePro
     }),
   );
 
-  const activeScopeLabel = access.allAssignedBranchesMode
-    ? "All assigned branches"
-    : access.resolvedBranchName ?? access.fixedBranchName ?? "No branch selected";
-  const periodLabel = viewState.kind === "ready" ? viewState.periodLabel : access.payPeriod?.label ?? "Invalid period";
   const collectorAverageLabel = access.allAssignedBranchesMode
     ? "Average collector basis across the branches included in this payout view."
     : "Average collector basis for the selected branch and month.";
@@ -174,60 +170,43 @@ export default async function IncentivesPage({ searchParams }: IncentivesPagePro
 
   return (
     <IncentivesWorkspaceTransitionProvider>
-      <div className="w-full max-w-none space-y-5 pb-6 pt-1 sm:pb-6 sm:pt-2">
-        <Card className="gap-0 overflow-hidden py-0">
-          <div className="bg-linear-to-r from-slate-50 via-background to-emerald-50/50 p-6">
-            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-              <div className="max-w-2xl space-y-1">
-                <div className="space-y-1">
-                  <CardTitle className="text-3xl font-semibold tracking-tight">Incentive Payouts</CardTitle>
-                  <CardDescription>
-                    Review branch incentives for the selected payout month with one clean payout table and finalized
-                    totals.
-                  </CardDescription>
-                </div>
-                <div className="flex flex-wrap items-center gap-2 pt-2">
-                  <Badge className="rounded-full border border-border/70 bg-background px-3 py-1 text-foreground hover:bg-background" variant="outline">
-                    {activeScopeLabel}
-                  </Badge>
-                  <Badge className="rounded-full border border-border/70 bg-background px-3 py-1 text-foreground hover:bg-background" variant="outline">
-                    {periodLabel}
-                  </Badge>
-                </div>
-              </div>
+      <DashboardHeaderConfigurator
+        config={{
+          action: null,
+          description: "Review monthly incentive payouts, export results, and finalize eligible batches.",
+          icon: <Gift className="size-9 text-sidebar-foreground/65" />,
+          title: "Incentive Payouts",
+        }}
+      />
 
-              {!access.isAuditor ? (
-                <Button asChild className="bg-blue-600 text-white hover:bg-blue-700 hover:text-white">
-                  <Link
-                    href={appendBackNavigationToHref("/dashboard/incentives/rules", {
-                      source: "incentives",
-                      returnTo: currentReturnTo,
-                    })}
-                  >
-                    <Settings2 data-icon="inline-start" />
-                    Manage Rules
-                  </Link>
-                </Button>
-              ) : null}
-            </div>
-          </div>
-          <CardContent className="border-t border-border/70 px-6 pb-4 pt-3">
-            <IncentivesFilters
-              allBranchLabel={access.isAuditor ? "All assigned branches" : "All branches"}
-              branches={access.filterBranches}
-              canChooseBranch={access.isAdmin || access.isAuditor}
-              clearHref="/dashboard/incentives"
-              compact
-              fixedBranchName={access.fixedBranchName}
-              key={`${access.selectedBranchRaw}-${access.selectedMonthRaw}`}
-              selectedBranchRaw={access.selectedBranchRaw}
-              selectedMonthRaw={access.selectedMonthRaw}
-            />
-          </CardContent>
-        </Card>
+      <div className="w-full max-w-none space-y-4">
+        <IncentivesFilters
+          action={
+            <Button asChild className="h-11 rounded-md bg-emerald-600 px-4 text-sm text-white hover:bg-emerald-700 hover:text-white dark:bg-green-500/60 dark:text-white dark:hover:bg-green-500/80 dark:hover:text-white">
+              <Link
+                href={appendBackNavigationToHref("/dashboard/incentives/rules", {
+                  source: "incentives",
+                  returnTo: currentReturnTo,
+                })}
+              >
+                <Settings2 data-icon="inline-start" />
+                Manage Rules
+              </Link>
+            </Button>
+          }
+          allBranchLabel={access.isAuditor ? "All assigned branches" : "All branches"}
+          branches={access.filterBranches}
+          canChooseBranch={access.isAdmin || access.isAuditor}
+          clearHref="/dashboard/incentives"
+          compact
+          fixedBranchName={access.fixedBranchName}
+          key={`${access.selectedBranchRaw}-${access.selectedMonthRaw}`}
+          selectedBranchRaw={access.selectedBranchRaw}
+          selectedMonthRaw={access.selectedMonthRaw}
+        />
 
         <IncentivesWorkspaceTransitionSurface>
-          <Card className="overflow-hidden py-0">
+          <Card className="overflow-hidden rounded-md py-0">
             <CardContent className="flex flex-col gap-6 py-6">
               <div className="flex items-center gap-3">
                 <div className="text-rose-500">
@@ -258,7 +237,7 @@ export default async function IncentivesPage({ searchParams }: IncentivesPagePro
                   />
                 </>
               ) : (
-                <div className="rounded-2xl border border-dashed bg-muted/20 px-6 py-14 text-center">
+                <div className="rounded-md border border-dashed bg-muted/20 px-6 py-14 text-center">
                   <p className="text-base font-semibold text-foreground">
                     {requiresScopedBranchSelection ? "Please select a branch and month first." : "Incentives workspace unavailable."}
                   </p>
@@ -273,7 +252,7 @@ export default async function IncentivesPage({ searchParams }: IncentivesPagePro
           </Card>
         </IncentivesWorkspaceTransitionSurface>
 
-        <Card className="overflow-hidden py-0">
+        <Card className="overflow-hidden rounded-md py-0">
           <CardContent className="py-5">
             <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
               <div className="max-w-2xl">{summaryAlert}</div>

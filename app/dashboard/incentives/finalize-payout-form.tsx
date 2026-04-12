@@ -47,7 +47,7 @@ export function FinalizePayoutForm({
   function SubmitButton() {
     const { pending } = useFormStatus();
     return (
-      <Button className="w-full sm:w-auto" disabled={!canFinalize || pending} size="sm" type="submit">
+      <Button className="h-11 w-full rounded-md px-4 text-sm sm:w-auto" disabled={!canFinalize || pending} type="submit">
         {pending ? <Loader2 className="animate-spin" data-icon="inline-start" /> : null}
         {pending ? "Finalizing..." : "Finalize & Export"}
       </Button>
