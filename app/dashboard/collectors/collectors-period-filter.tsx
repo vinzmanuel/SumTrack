@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 import type {
   CollectorProfilePeriodAvailability,
   CollectorsFilterInput,
@@ -45,6 +46,7 @@ export function CollectorsPeriodFilter({
   showLabel = true,
   periodAvailability,
   minimumYear,
+  controlClassName,
 }: {
   label: string;
   range: CollectorsFilterInput["range"];
@@ -54,6 +56,7 @@ export function CollectorsPeriodFilter({
   showLabel?: boolean;
   periodAvailability?: CollectorProfilePeriodAvailability;
   minimumYear?: number;
+  controlClassName?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [panelMode, setPanelMode] = useState<CollectorsPeriodPanelMode>("presets");
@@ -121,7 +124,12 @@ export function CollectorsPeriodFilter({
         open={open}
       >
         <PopoverTrigger asChild>
-          <Button aria-label={label} className="w-full justify-between bg-card font-normal shadow-none" type="button" variant="outline">
+          <Button
+            aria-label={label}
+            className={cn("w-full justify-between bg-card font-normal shadow-none", controlClassName)}
+            type="button"
+            variant="outline"
+          >
             <span className="inline-flex items-center gap-2 truncate">
               <Calendar className="size-4 text-muted-foreground" />
               <span className="truncate">{triggerLabel}</span>
@@ -176,7 +184,7 @@ export function CollectorsPeriodFilter({
                     Select year
                   </p>
                   <Select disabled={noAvailableYears} onValueChange={(value) => setSelectedMonthYear(Number(value))} value={noAvailableYears ? "" : String(resolvedMonthYear)}>
-                    <SelectTrigger className="w-full bg-card">
+                    <SelectTrigger className={cn("w-full bg-card", controlClassName)}>
                       <SelectValue placeholder={noAvailableYears ? "No years with data" : "Choose a year"} />
                     </SelectTrigger>
                     <SelectContent>
@@ -234,7 +242,7 @@ export function CollectorsPeriodFilter({
                     }}
                     value={noAvailableYears ? "" : resolvedYearValue}
                   >
-                    <SelectTrigger className="w-full bg-card">
+                    <SelectTrigger className={cn("w-full bg-card", controlClassName)}>
                       <SelectValue placeholder={noAvailableYears ? "No years with data" : "Choose a year"} />
                     </SelectTrigger>
                     <SelectContent>

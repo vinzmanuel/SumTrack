@@ -1,15 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardTitle } from "@/components/ui/card";
+import { UserStar } from "lucide-react";
+import { DashboardHeaderConfigurator } from "@/app/dashboard/_components/dashboard-header-config";
 import { CollectorsFilters } from "@/app/dashboard/collectors/collectors-filters";
 import {
-  resolveCollectorsPeriodTriggerLabel,
   supportsAverageMonthlyCollectionsSelection,
   supportsIncentivesSelection,
 } from "@/app/dashboard/collectors/filters";
 import { CollectorsResultsSection } from "@/app/dashboard/collectors/collectors-results-section";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import type {
   CollectorsAnalyticsData,
   CollectorsBranchOption,
@@ -216,55 +216,24 @@ export function CollectorsClientPage({
     return () => window.clearTimeout(timeoutId);
   }, [appliedFilters.query, filters.query, loadResults]);
 
-  const scopeLabel = canChooseBranch
-    ? filters.branch === "all"
-      ? "All visible branches"
-      : branchOptions.find((option) => option.value === filters.branch)?.label ?? "Selected branch"
-    : fixedBranchName ?? "Assigned branch";
+  const headerConfig = useMemo(
+    () => ({
+      action: null,
+      description: canChooseBranch
+        ? "Compare collector performance across your visible branches with period-based ranking and focused summaries."
+        : `Compare collector performance in ${fixedBranchName ?? "your assigned branch"} with period-based ranking and focused summaries.`,
+      icon: <UserStar className="size-9 text-sidebar-foreground/65" />,
+      title: "Collectors",
+    }),
+    [canChooseBranch, fixedBranchName],
+  );
 
   return (
-    <div className="w-full space-y-6">
-      <Card className="gap-0 overflow-hidden py-0">
-        <div className="bg-gradient-to-r from-slate-50 via-background to-emerald-50/60 p-6 dark:from-zinc-950 dark:via-background dark:to-emerald-950/45">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-            <div className="space-y-1">
-              <div className="space-y-1">
-                <CardTitle className="text-3xl font-semibold tracking-tight">Collectors</CardTitle>
-                <CardDescription>
-                  {canChooseBranch
-                    ? "Rank collectors, compare output, and review workload context across the visible branches."
-                    : `Rank collectors, compare output, and review workload context in ${fixedBranchName ?? "your branch"}.`}
-                </CardDescription>
-              </div>
-              <div className="flex flex-wrap items-center gap-2 pt-2">
-                <Badge
-                  className="border-zinc-200 bg-background/80 text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100"
-                  variant="outline"
-                >
-                  {results?.totalCount ?? 0} collectors
-                </Badge>
-                <Badge
-                  className="border-zinc-200 bg-background/80 text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100"
-                  variant="outline"
-                >
-                  {resolveCollectorsPeriodTriggerLabel({
-                    range: filters.range,
-                    from: filters.from,
-                    to: filters.to,
-                  })}
-                </Badge>
-                <Badge
-                  className="border-zinc-200 bg-background/80 text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100"
-                  variant="outline"
-                >
-                  {scopeLabel}
-                </Badge>
-              </div>
-            </div>
-          </div>
-        </div>
+    <TooltipProvider delayDuration={80}>
+      <>
+        <DashboardHeaderConfigurator config={headerConfig} />
 
-        <CardContent className="border-t border-border/70 px-6 pb-4 pt-3">
+        <div className="w-full space-y-4">
           <CollectorsFilters
             branchFilterLabel={branchFilterLabel}
             branchOptions={branchOptions}
@@ -306,60 +275,60 @@ export function CollectorsClientPage({
               pageSize: filters.pageSize,
             }}
           />
-        </CardContent>
-      </Card>
 
-      <CollectorsResultsSection
-        data={results}
-        errorMessage={errorMessage}
-        filters={filters}
-        isPending={isPending}
-        onBasisChange={(basis) =>
-          setFilters((previous) => ({
-            ...previous,
-            basis,
-            page: 1,
-          }))
-        }
-        onRangeChange={(value) =>
-          setFilters((previous) => ({
-            ...previous,
-            range: value.range,
-            from: value.from,
-            to: value.to,
-            basis:
-              previous.basis === "average-monthly-collections" &&
-              !supportsAverageMonthlyCollectionsSelection({
+          <CollectorsResultsSection
+            data={results}
+            errorMessage={errorMessage}
+            filters={filters}
+            isPending={isPending}
+            onBasisChange={(basis) =>
+              setFilters((previous) => ({
+                ...previous,
+                basis,
+                page: 1,
+              }))
+            }
+            onRangeChange={(value) =>
+              setFilters((previous) => ({
+                ...previous,
                 range: value.range,
                 from: value.from,
                 to: value.to,
-              })
-                ? "total-collected"
-                : previous.basis === "incentives" &&
-                    !supportsIncentivesSelection({
-                      range: value.range,
-                      from: value.from,
-                      to: value.to,
-                    })
-                  ? "total-collected"
-                  : previous.basis,
-            page: 1,
-          }))
-        }
-        onPageChange={(page) =>
-          setFilters((previous) => ({
-            ...previous,
-            page,
-          }))
-        }
-        onPageSizeChange={(pageSize) =>
-          setFilters((previous) => ({
-            ...previous,
-            page: 1,
-            pageSize,
-          }))
-        }
-      />
-    </div>
+                basis:
+                  previous.basis === "average-monthly-collections" &&
+                  !supportsAverageMonthlyCollectionsSelection({
+                    range: value.range,
+                    from: value.from,
+                    to: value.to,
+                  })
+                    ? "total-collected"
+                    : previous.basis === "incentives" &&
+                        !supportsIncentivesSelection({
+                          range: value.range,
+                          from: value.from,
+                          to: value.to,
+                        })
+                      ? "total-collected"
+                      : previous.basis,
+                page: 1,
+              }))
+            }
+            onPageChange={(page) =>
+              setFilters((previous) => ({
+                ...previous,
+                page,
+              }))
+            }
+            onPageSizeChange={(pageSize) =>
+              setFilters((previous) => ({
+                ...previous,
+                page: 1,
+                pageSize,
+              }))
+            }
+          />
+        </div>
+      </>
+    </TooltipProvider>
   );
 }

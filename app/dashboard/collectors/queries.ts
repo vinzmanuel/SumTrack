@@ -189,13 +189,9 @@ type CollectorIncentiveCollectionMonthRow = {
 type CollectorHistoricalIncentiveMonthRow = {
   collectorId: string;
   branchId: number;
-  monthKey: string;
+  periodStart: string;
+  periodEnd: string;
   totalIncentive: number;
-};
-
-type FinalizedIncentiveMonthRow = {
-  branchId: number;
-  monthKey: string;
 };
 
 type CollectorIncentiveRuleVersionRow = {
@@ -864,14 +860,6 @@ function lastDayOfMonthForKey(monthKey: string) {
   return date.toISOString().slice(0, 10);
 }
 
-function collectorMonthKey(collectorId: string, monthKey: string) {
-  return `${collectorId}:${monthKey}`;
-}
-
-function branchMonthKey(branchId: number, monthKey: string) {
-  return `${branchId}:${monthKey}`;
-}
-
 function resolveApplicableCollectorIncentiveRule(
   rulesByBranch: Map<number, CollectorIncentiveRuleVersionRow[]>,
   branchId: number,
@@ -895,6 +883,7 @@ function resolveApplicableCollectorIncentiveRule(
 async function loadCollectorIncentiveTotals(
   access: AnalyticsAccess,
   collectorIds: string[],
+  collectorBranchMap: Map<string, number>,
   range: CollectorsDateRange,
 ): Promise<Map<string, number>> {
   if (collectorIds.length === 0) {
@@ -945,20 +934,13 @@ async function loadCollectorIncentiveTotals(
     payoutBatchScopeFilters.push(eq(incentive_payout_batches.batch_id, -1));
   }
 
-  const [finalizedMonthRows, historicalRows, collectorRoleRow] = await Promise.all([
-    db
-      .select({
-        branchId: incentive_payout_batches.branch_id,
-        monthKey: sql<string>`to_char(${incentive_payout_batches.period_start}, 'YYYY-MM')`,
-      })
-      .from(incentive_payout_batches)
-      .where(whereFrom(payoutBatchScopeFilters))
-      .catch(() => [] as FinalizedIncentiveMonthRow[]),
+  const [historicalRows, collectorRoleRow] = await Promise.all([
     db
       .select({
         collectorId: incentive_payout_history.employee_user_id,
         branchId: incentive_payout_batches.branch_id,
-        monthKey: sql<string>`to_char(${incentive_payout_batches.period_start}, 'YYYY-MM')`,
+        periodStart: incentive_payout_batches.period_start,
+        periodEnd: incentive_payout_batches.period_end,
         totalIncentive: sql<number>`coalesce(sum(${incentive_payout_history.computed_incentive}), 0)::double precision`,
       })
       .from(incentive_payout_history)
@@ -968,14 +950,14 @@ async function loadCollectorIncentiveTotals(
       )
       .where(
         whereFrom([
-          inArray(incentive_payout_history.employee_user_id, collectorIds),
           ...payoutBatchScopeFilters,
         ]),
       )
       .groupBy(
         incentive_payout_history.employee_user_id,
         incentive_payout_batches.branch_id,
-        sql`date_trunc('month', ${incentive_payout_batches.period_start})`,
+        incentive_payout_batches.period_start,
+        incentive_payout_batches.period_end,
       )
       .catch(() => [] as CollectorHistoricalIncentiveMonthRow[]),
     db
@@ -989,13 +971,27 @@ async function loadCollectorIncentiveTotals(
       .catch(() => null),
   ]);
 
-  const finalizedMonths = new Set(finalizedMonthRows.map((row) => branchMonthKey(row.branchId, row.monthKey)));
-  const historicalAmountByCollectorMonth = new Map(
-    historicalRows.map((row) => [collectorMonthKey(row.collectorId, row.monthKey), toNumber(row.totalIncentive)]),
+  const currentMonthKey = getManilaTodayDateString().slice(0, 7);
+  const currentMonthStart = `${currentMonthKey}-01`;
+  const currentMonthEnd = lastDayOfMonthForKey(currentMonthKey);
+  const isCurrentMonthInsideRange =
+    range.start <= currentMonthEnd && range.end >= currentMonthStart;
+  const filteredHistoricalRows = historicalRows.filter(
+    (row) =>
+      !(isCurrentMonthInsideRange && row.periodStart <= currentMonthEnd && row.periodEnd >= currentMonthStart),
   );
-  const branchIds = Array.from(new Set(monthlyCollectionRows.map((row) => row.branchId)));
-  const liveMonths = Array.from(new Set(monthlyCollectionRows.map((row) => row.monthKey))).sort();
-  const ruleRows = !collectorRoleRow || branchIds.length === 0 || liveMonths.length === 0
+  const currentMonthCollectionRows = monthlyCollectionRows.filter(
+    (row) => row.monthKey === currentMonthKey,
+  );
+  const branchIds = isCurrentMonthInsideRange
+    ? Array.from(
+        new Set([
+          ...Array.from(collectorBranchMap.values()),
+          ...currentMonthCollectionRows.map((row) => row.branchId),
+        ]),
+      )
+    : [];
+  const ruleRows = !collectorRoleRow || branchIds.length === 0 || !isCurrentMonthInsideRange
     ? []
     : await db
         .select({
@@ -1012,8 +1008,8 @@ async function loadCollectorIncentiveTotals(
           whereFrom([
             inArray(incentive_rules.branch_id, branchIds),
             eq(incentive_rules.role_id, collectorRoleRow.roleId),
-            lte(incentive_rules.effective_start, `${liveMonths[liveMonths.length - 1]}-01`),
-            sql`${incentive_rules.effective_end} is null or ${incentive_rules.effective_end} >= ${`${liveMonths[0]}-01`}`,
+            lte(incentive_rules.effective_start, `${currentMonthKey}-01`),
+            sql`${incentive_rules.effective_end} is null or ${incentive_rules.effective_end} >= ${`${currentMonthKey}-01`}`,
           ]),
         )
         .orderBy(
@@ -1041,33 +1037,49 @@ async function loadCollectorIncentiveTotals(
 
   const totalsByCollector = new Map<string, number>();
 
-  for (const row of historicalRows) {
+  for (const row of filteredHistoricalRows) {
     totalsByCollector.set(
       row.collectorId,
       (totalsByCollector.get(row.collectorId) ?? 0) + toNumber(row.totalIncentive),
     );
   }
 
-  for (const row of monthlyCollectionRows) {
+  if (!isCurrentMonthInsideRange) {
+    return totalsByCollector;
+  }
+
+  const currentMonthTotalsByCollector = new Map<string, number>();
+  for (const row of currentMonthCollectionRows) {
     if (!row.collectorId) {
       continue;
     }
 
-    const monthCollectorKey = collectorMonthKey(row.collectorId, row.monthKey);
-    const monthBranchKey = branchMonthKey(row.branchId, row.monthKey);
-    if (historicalAmountByCollectorMonth.has(monthCollectorKey) || finalizedMonths.has(monthBranchKey)) {
+    currentMonthTotalsByCollector.set(
+      row.collectorId,
+      (currentMonthTotalsByCollector.get(row.collectorId) ?? 0) + toNumber(row.totalCollected),
+    );
+  }
+
+  for (const collectorId of collectorIds) {
+    const branchId = collectorBranchMap.get(collectorId);
+    if (!branchId) {
       continue;
     }
 
-    const applicableRule = resolveApplicableCollectorIncentiveRule(rulesByBranch, row.branchId, row.monthKey);
-    const liveIncentive = applicableRule
-      ? (toNumber(row.totalCollected) * applicableRule.percentValue) / 100 + applicableRule.flatAmount
-      : 0;
-
-    totalsByCollector.set(
-      row.collectorId,
-      (totalsByCollector.get(row.collectorId) ?? 0) + liveIncentive,
+    const applicableRule = resolveApplicableCollectorIncentiveRule(
+      rulesByBranch,
+      branchId,
+      currentMonthKey,
     );
+    if (!applicableRule) {
+      continue;
+    }
+
+    const totalCollected = currentMonthTotalsByCollector.get(collectorId) ?? 0;
+    const liveIncentive =
+      (totalCollected * applicableRule.percentValue) / 100 + applicableRule.flatAmount;
+
+    totalsByCollector.set(collectorId, (totalsByCollector.get(collectorId) ?? 0) + liveIncentive);
   }
 
   return totalsByCollector;
@@ -2571,6 +2583,7 @@ async function loadAllCollectorRows(
   const previousRange = includePrevious ? previousEquivalentRange(range) : range;
   const baseRows = await loadCollectorBaseRows(access, filters, collectorId);
   const collectorIds = baseRows.map((row) => row.collectorId);
+  const collectorBranchMap = new Map(baseRows.map((row) => [row.collectorId, row.branchId] as const));
   const [loanStatsMap, collectionStatsMap, previousCollectionStatsMap, incentiveTotalsMap] = await Promise.all([
     loadLoanStats(access, collectorIds, range),
     loadCollectionStats(access, collectorIds, range),
@@ -2580,7 +2593,7 @@ async function loadAllCollectorRows(
       from: filters.fromRaw,
       to: filters.toRaw,
     })
-      ? loadCollectorIncentiveTotals(access, collectorIds, incentiveRange)
+      ? loadCollectorIncentiveTotals(access, collectorIds, collectorBranchMap, incentiveRange)
       : Promise.resolve(new Map<string, number>()),
   ]);
 
@@ -2748,7 +2761,7 @@ async function loadCollectorsAnalyticsDataForIncentives(
           description: `${topCollector.fullName} is currently #1 by hybrid incentives, posting \u20B1${topCollector.periodIncentiveTotal.toLocaleString("en-PH", {
             minimumFractionDigits: 2,
             maximumFractionDigits: 2,
-          })} across ${range.label}. Finalized payout months use saved history, while open months use live incentive computation. ${highestPortfolio ? `${highestPortfolio.fullName} is carrying the heaviest live portfolio at \u20B1${highestPortfolio.activePrincipalLoad.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}.` : ""}${bestRecovery ? ` ${bestRecovery.fullName} is posting the strongest portfolio recovery rate at ${bestRecovery.portfolioRecoveryRate.toLocaleString("en-PH", { maximumFractionDigits: 1 })}%.` : ""}`,
+          })} across ${range.label}. Finalized payout months use saved history, while the current in-range month uses live incentive computation. ${highestPortfolio ? `${highestPortfolio.fullName} is carrying the heaviest live portfolio at \u20B1${highestPortfolio.activePrincipalLoad.toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}.` : ""}${bestRecovery ? ` ${bestRecovery.fullName} is posting the strongest portfolio recovery rate at ${bestRecovery.portfolioRecoveryRate.toLocaleString("en-PH", { maximumFractionDigits: 1 })}%.` : ""}`,
         }
       : {
           eyebrow: "No collector activity",

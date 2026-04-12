@@ -281,8 +281,9 @@ export default async function LoanDetailPage({ params, searchParams }: PageProps
   const canViewDocs = canManageDocs || isAuditor;
   const canManageLoan = isAdmin || isBranchManager || isSecretary;
   const canGenerateOperationalDocuments = canManageDocs;
-  const showTabNavigation = !isBorrower;
-  const resolvedActiveTab = isBorrower
+  const isDetailsOnlyViewer = isBorrower || isCollector;
+  const showTabNavigation = !isDetailsOnlyViewer;
+  const resolvedActiveTab = isDetailsOnlyViewer
     ? "details"
     : activeTab === "documents" && !canViewDocs
       ? "details"

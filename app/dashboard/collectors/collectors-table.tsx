@@ -55,7 +55,7 @@ function TableLabelWithTooltip({
 
 const cellGroupDividerClassName = "border-r border-border/70";
 const headerGroupDividerClassName = "border-r border-border/70";
-const headerRowClassName = "border-border/70 bg-[var(--app-table-header)]";
+const headerRowClassName = "border-border/70 bg-card";
 
 export function CollectorsTable({
   basis,
@@ -69,7 +69,7 @@ export function CollectorsTable({
   onViewCollector: (collector: CollectorPerformanceRow) => void;
 }) {
   return (
-    <div className="overflow-hidden rounded-2xl border">
+    <div className="overflow-hidden rounded-md border">
       <Table className="table-fixed [&_td:first-child]:pl-5 [&_td:last-child]:pr-5 [&_th:first-child]:pl-5 [&_th:last-child]:pr-5">
         <colgroup>
           <col style={{ width: "5rem" }} />
@@ -233,7 +233,7 @@ export function CollectorsTable({
                 <TableCell className="px-4 py-2 text-center align-middle whitespace-normal">
                   <div className="flex min-h-10 items-center justify-center">
                     <Button
-                      className="bg-card hover:bg-accent"
+                      className="!h-11 rounded-md bg-card px-4 hover:bg-accent"
                       onClick={(event) => {
                         event.stopPropagation();
                         onViewCollector(row);

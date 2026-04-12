@@ -25,7 +25,7 @@ export function CollectorRankContextCard({
   basisLabel?: string;
 }) {
   return (
-    <Card className={cn("gap-0 overflow-hidden py-0", className)}>
+    <Card className={cn("gap-0 overflow-hidden rounded-md py-0", className)}>
       <CardHeader className="gap-0 pb-3 pt-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="space-y-1">
@@ -60,7 +60,7 @@ function RankTile({
   countLabel: string;
 }) {
   return (
-    <div className={cn("rounded-2xl border p-4", collectorRankCardClassName(rank))}>
+    <div className={cn("rounded-md border p-4", collectorRankCardClassName(rank))}>
       <p className="text-sm font-medium text-muted-foreground">{title}</p>
       <Badge className={cn("mt-3 px-4 py-1.5 text-sm", collectorRankBadgeClassName(rank))} variant="outline">
           #{rank}

@@ -229,7 +229,7 @@ export function CollectorProfilePanel({
 
         <div className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,1.65fr)_minmax(320px,0.95fr)]">
           <div className="grid h-full items-stretch gap-4 xl:grid-rows-[minmax(0,1.12fr)_minmax(0,0.88fr)]">
-            <Card className="flex h-full flex-col gap-0 py-0 shadow-sm">
+            <Card className="flex h-full flex-col gap-0 rounded-md py-0 shadow-sm">
               <CardHeader className="gap-0 pb-2 pt-4">
                 <CardTitle className="text-base font-semibold tracking-tight">Collections Trend</CardTitle>
                 <CardDescription className="text-sm leading-6">
@@ -237,7 +237,7 @@ export function CollectorProfilePanel({
                 </CardDescription>
               </CardHeader>
               <CardContent className="flex min-h-0 flex-1 pb-6 pt-0">
-                <div className="flex min-h-0 w-full flex-1 rounded-2xl border border-border/70 bg-muted/10 p-3">
+                <div className="flex min-h-0 w-full flex-1 rounded-md border border-border/70 bg-muted/10 p-3">
                   <CollectorProfileTrendChart
                     axisFormatter={formatCollectorsAxisCurrency}
                     chart={data.periodTrendChart}
@@ -323,13 +323,13 @@ export function CollectorProfilePanel({
                 branchCollectorCount={data.branchCollectorCount}
                 branchName={data.branchName}
                 branchRank={data.branchRank}
-                className="shadow-sm"
+                className="rounded-md shadow-sm"
                 nationwideRank={data.nationwideRank}
                 visibleCollectorCount={data.visibleCollectorCount}
               />
             ) : null}
 
-            <Card className="h-full gap-0 py-0 shadow-sm">
+            <Card className="h-full gap-0 rounded-md py-0 shadow-sm">
               <CardHeader className="gap-0 pb-2 pt-4">
                 <CardTitle className="text-base font-semibold tracking-tight">Period Signals</CardTitle>
                 <CardDescription className="text-sm leading-6">
@@ -337,7 +337,7 @@ export function CollectorProfilePanel({
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3 pb-6 pt-0">
-                <div className="rounded-2xl border border-border/70 bg-muted/10 p-4">
+                <div className="rounded-md border border-border/70 bg-muted/10 p-4">
                   <p className="text-sm font-medium text-muted-foreground">Productivity</p>
                   <p className="mt-1 text-3xl font-semibold tracking-tight text-foreground">
                     {formatCollectorsInteger(data.productivityCount)} transactions
@@ -385,7 +385,7 @@ export function CollectorProfilePanel({
         />
 
         <div className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(340px,0.95fr)]">
-          <Card className="flex h-full flex-col gap-0 py-0 shadow-sm">
+          <Card className="flex h-full flex-col gap-0 rounded-md py-0 shadow-sm">
             <CardHeader className="gap-0 pb-2 pt-4">
               <CardTitle className="text-base font-semibold tracking-tight">Portfolio Composition</CardTitle>
               <CardDescription className="text-sm leading-6">
@@ -398,7 +398,7 @@ export function CollectorProfilePanel({
           </Card>
 
           <div className="grid content-start gap-4">
-            <Card className="gap-0 py-0 shadow-sm">
+            <Card className="gap-0 rounded-md py-0 shadow-sm">
               <CardHeader className="gap-0 pb-2 pt-4">
                 <CardTitle className="text-base font-semibold tracking-tight">Operational Snapshot</CardTitle>
                 <CardDescription className="text-sm leading-6">
@@ -474,7 +474,7 @@ export function CollectorProfilePanel({
               </CardContent>
             </Card>
 
-            <Card className="gap-0 py-0 shadow-sm">
+            <Card className="gap-0 rounded-md py-0 shadow-sm">
               <CardHeader className="gap-0 pb-7 pt-4">
                 <CardTitle className="text-base font-semibold tracking-tight">
                   <CollectorInfoHint
@@ -534,7 +534,7 @@ export function CollectorProfilePanel({
         />
 
         <div className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,1.28fr)_minmax(320px,0.88fr)]">
-          <Card className="flex h-full flex-col gap-0 py-0 shadow-sm">
+          <Card className="flex h-full flex-col gap-0 rounded-md py-0 shadow-sm">
             <CardHeader className="gap-0 pb-2 pt-4">
               <CardTitle className="text-base font-semibold tracking-tight">Monthly Collection History</CardTitle>
               <CardDescription className="text-sm leading-6">
@@ -542,7 +542,7 @@ export function CollectorProfilePanel({
               </CardDescription>
             </CardHeader>
             <CardContent className="flex min-h-0 flex-1 pb-6 pt-0">
-              <div className="flex min-h-0 w-full flex-1 rounded-2xl border border-border/70 bg-muted/10 p-3">
+              <div className="flex min-h-0 w-full flex-1 rounded-md border border-border/70 bg-muted/10 p-3">
                 <CollectorProfileBarChart
                   axisFormatter={formatCollectorsAxisCurrency}
                   chart={data.lifetimeTrendChart}
@@ -553,7 +553,7 @@ export function CollectorProfilePanel({
             </CardContent>
           </Card>
 
-          <Card className="flex h-full flex-col gap-0 py-0 shadow-sm">
+          <Card className="flex h-full flex-col gap-0 rounded-md py-0 shadow-sm">
             <CardHeader className="gap-0 pb-2 pt-4">
               <CardTitle className="text-base font-semibold tracking-tight">Lifetime Summary</CardTitle>
               <CardDescription className="text-sm leading-6">
@@ -601,7 +601,7 @@ function PortfolioMetricTile({
   description: string;
 }) {
   return (
-    <div className="rounded-2xl border border-border/70 bg-background p-4 shadow-sm">
+    <div className="rounded-md border border-border/70 bg-background p-4 shadow-sm">
       <p className="text-sm font-medium text-muted-foreground">{title}</p>
       <p className="mt-1 text-2xl font-semibold tracking-tight text-foreground">{value}</p>
       <p className="mt-1 text-sm leading-6 text-muted-foreground">{description}</p>
@@ -625,7 +625,7 @@ function SectionIntro({
   toneClassName: string;
 }) {
   return (
-    <div className="rounded-2xl border border-border/70 bg-background px-5 py-4 shadow-sm">
+    <div className="rounded-md border border-border/70 bg-background px-5 py-4 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-4 sm:flex-nowrap sm:items-end">
         <div className="min-w-0 flex-1 space-y-1">
           <p className={`text-xs font-semibold uppercase tracking-[0.18em] ${toneClassName}`}>{eyebrow}</p>
@@ -685,7 +685,7 @@ function ComparisonModule({
   barHeightClassName?: string;
 }) {
   return (
-    <Card className={`flex h-full flex-col gap-0 py-0 shadow-sm ${className ?? ""}`}>
+    <Card className={`flex h-full flex-col gap-0 rounded-md py-0 shadow-sm ${className ?? ""}`}>
       <CardHeader className="gap-0 pb-2 pt-4">
         <CardTitle className="text-base font-semibold tracking-tight">{title}</CardTitle>
         <CardDescription className="text-sm leading-6">{description}</CardDescription>
@@ -822,7 +822,7 @@ function SignalMetricCard({
   helper?: string;
 }) {
   return (
-    <div className="rounded-2xl border border-border/70 bg-background p-3.5 shadow-sm">
+    <div className="rounded-md border border-border/70 bg-background p-3.5 shadow-sm">
       <p className="text-sm font-medium text-muted-foreground">{label}</p>
       <p className="mt-1 text-2xl font-semibold tracking-tight text-foreground">{value}</p>
       {helper ? <p className="mt-1 text-sm leading-5 text-muted-foreground">{helper}</p> : null}
@@ -838,7 +838,7 @@ function InlineStat({
   value: string;
 }) {
   return (
-    <div className="rounded-xl border border-border/70 bg-muted/20 px-3 py-1.5">
+    <div className="rounded-md border border-border/70 bg-muted/20 px-3 py-1.5">
       <p className="text-xs font-medium text-muted-foreground">{label}</p>
       <p className="mt-1 text-sm font-semibold text-foreground">{value}</p>
     </div>
@@ -856,7 +856,7 @@ function LifetimeMetricCard({
 }) {
   return (
     <div
-      className={`rounded-2xl border border-border/70 shadow-sm ${
+      className={`rounded-md border border-border/70 shadow-sm ${
         featured ? "bg-muted/10 p-4 sm:col-span-2" : "bg-background p-3.5"
       }`}
     >

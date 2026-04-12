@@ -1,10 +1,25 @@
 "use client";
 
 import { Search } from "lucide-react";
+import {
+  UI_CONTROL_CLASS_NAME,
+  UI_FILTER_CONTROLS_CLASS_NAME,
+  UI_FILTER_ROW_CLASS_NAME,
+  UI_SEARCH_CONTAINER_CLASS_NAME,
+  UI_SEARCH_ICON_CLASS_NAME,
+  UI_SEARCH_INPUT_CLASS_NAME,
+} from "@/app/dashboard/_components/ui-patterns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import type { CollectorsBranchOption, CollectorsFilterState } from "@/app/dashboard/collectors/types";
 
 export function CollectorsFilters({
@@ -25,40 +40,38 @@ export function CollectorsFilters({
   selectedFilters: CollectorsFilterState;
 }) {
   return (
-    <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
-      <label className="flex min-w-0 flex-col gap-1 xl:w-1/2">
-        <Label>Search</Label>
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            className="pl-9"
-            onChange={(event) => onSearchChange(event.target.value)}
-            placeholder="Search collector name or company ID"
-            value={selectedFilters.searchQuery}
-          />
-        </div>
-      </label>
+    <div className={UI_FILTER_ROW_CLASS_NAME}>
+      <div className={UI_SEARCH_CONTAINER_CLASS_NAME}>
+        <Search className={UI_SEARCH_ICON_CLASS_NAME} />
+        <Input
+          aria-label="Search collectors"
+          className={UI_SEARCH_INPUT_CLASS_NAME}
+          onChange={(event) => onSearchChange(event.target.value)}
+          placeholder="Search collector name or company ID"
+          value={selectedFilters.searchQuery}
+        />
+      </div>
 
-      <div className="flex flex-wrap items-end gap-3 xl:flex-1 xl:justify-end">
+      <div className={UI_FILTER_CONTROLS_CLASS_NAME}>
         {canChooseBranch ? (
-          <label className="flex w-full flex-col gap-1 sm:w-55 xl:min-w-60 xl:flex-1">
-            <Label>{branchFilterLabel}</Label>
-            <Select onValueChange={onBranchChange} value={selectedFilters.selectedBranchRaw || "all"}>
-              <SelectTrigger className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
+          <Select onValueChange={onBranchChange} value={selectedFilters.selectedBranchRaw || "all"}>
+            <SelectTrigger aria-label={branchFilterLabel} className={`${UI_CONTROL_CLASS_NAME} w-full min-w-[190px] sm:w-[210px]`}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectLabel>{branchFilterLabel}</SelectLabel>
                 {branchOptions.map((option) => (
                   <SelectItem key={option.value} value={option.value}>
                     {option.label}
                   </SelectItem>
                 ))}
-              </SelectContent>
-            </Select>
-          </label>
+              </SelectGroup>
+            </SelectContent>
+          </Select>
         ) : null}
 
-        <Button className="h-9 bg-card px-4 hover:bg-accent" onClick={onClear} type="button" variant="outline">
+        <Button className={`${UI_CONTROL_CLASS_NAME} px-4`} onClick={onClear} type="button" variant="outline">
           Clear
         </Button>
       </div>

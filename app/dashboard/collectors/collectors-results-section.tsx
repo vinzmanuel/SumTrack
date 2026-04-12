@@ -74,7 +74,7 @@ export function CollectorsResultsSection({
   }
 
   return (
-    <div className="relative space-y-6">
+    <div className="relative space-y-4">
       {isIndividualMode ? (
         <CollectorsIndividualMode
           collector={data.rows[0]}
@@ -104,7 +104,7 @@ export function CollectorsResultsSection({
       )}
 
       {isPending ? (
-        <div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-background/55 backdrop-blur-[1px]">
+        <div className="absolute inset-0 flex items-center justify-center rounded-md bg-background/55 backdrop-blur-[1px]">
           <div className="rounded-md border bg-background px-3 py-2 text-sm text-muted-foreground shadow-sm">
             Updating collector analytics...
           </div>

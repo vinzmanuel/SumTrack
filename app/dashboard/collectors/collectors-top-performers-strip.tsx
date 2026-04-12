@@ -19,7 +19,7 @@ export function CollectorsTopPerformersStrip({
   return (
     <div className="grid gap-3 lg:grid-cols-3">
       {items.map((item) => (
-        <div className={`relative overflow-hidden rounded-2xl border p-4 ${collectorRankCardClassName(item.rank)}`} key={item.collectorId}>
+        <div className={`relative overflow-hidden rounded-md border p-4 ${collectorRankCardClassName(item.rank)}`} key={item.collectorId}>
           <div
             aria-hidden="true"
             className="pointer-events-none absolute inset-x-6 top-0 h-10 rounded-b-full bg-white/35 blur-xl dark:bg-white/8"
@@ -67,7 +67,7 @@ function Metric({
   value: string;
 }) {
   return (
-    <div className={`rounded-xl px-3 py-2 backdrop-blur-[1px] ${className ?? "border border-border/70 bg-muted/55"}`}>
+    <div className={`rounded-md px-3 py-2 backdrop-blur-[1px] ${className ?? "border border-border/70 bg-muted/55"}`}>
       <p className="text-sm font-medium text-muted-foreground">{label}</p>
       <p className="mt-1 text-sm font-semibold text-foreground">{value}</p>
     </div>

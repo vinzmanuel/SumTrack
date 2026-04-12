@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronLeft, ChevronRight, CircleHelp } from "lucide-react";
+import { UI_CONTROL_CLASS_NAME } from "@/app/dashboard/_components/ui-patterns";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -58,6 +59,13 @@ export function CollectorsRankedMode({
     from: data.filters.fromRaw,
     to: data.filters.toRaw,
   });
+  const visibleBasisOptions = BASIS_OPTIONS.filter((option) => {
+    if (option.value === "incentives") {
+      return canUseIncentives;
+    }
+
+    return true;
+  });
   const basisLabel =
     data.filters.selectedBasis === "total-collected"
       ? "Ranked by total collections"
@@ -73,7 +81,7 @@ export function CollectorsRankedMode({
     : "No collectors matched the selected filters.";
 
   return (
-    <Card className="gap-0 overflow-hidden py-0">
+    <Card className="gap-0 overflow-hidden rounded-md py-0">
         <CardHeader className="flex flex-col gap-3 pb-3 pt-5 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-1">
             <CardTitle className="text-base font-semibold">Ranked Collector Leaderboard</CardTitle>
@@ -108,6 +116,7 @@ export function CollectorsRankedMode({
                   </TooltipContent>
                 </Tooltip>
                 <CollectorsPeriodFilter
+                  controlClassName={UI_CONTROL_CLASS_NAME}
                   from={data.filters.fromRaw}
                   label="Period"
                   onRangeChange={onRangeChange}
@@ -121,11 +130,11 @@ export function CollectorsRankedMode({
             <label className="flex w-full flex-col gap-1 sm:w-[240px]">
               <Label>Ranking Basis</Label>
               <Select onValueChange={(value) => onBasisChange(value as CollectorLeaderboardBasis)} value={data.filters.selectedBasis}>
-                <SelectTrigger className="w-full">
+                <SelectTrigger className={`${UI_CONTROL_CLASS_NAME} w-full`}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {BASIS_OPTIONS.map((option) => (
+                  {visibleBasisOptions.map((option) => (
                     <SelectItem
                       disabled={
                         (option.value === "average-monthly-collections" && !canUseAverageMonthly) ||
@@ -170,7 +179,7 @@ export function CollectorsRankedMode({
                   onValueChange={(value) => onPageSizeChange(Number(value))}
                   value={String(data.pageSize)}
                 >
-                  <SelectTrigger className="w-[84px]">
+                  <SelectTrigger className={`${UI_CONTROL_CLASS_NAME} w-[84px]`}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -186,6 +195,7 @@ export function CollectorsRankedMode({
                   Page {safePage} of {totalPages}
                 </span>
                 <Button
+                  className="!h-11 !w-11 rounded-md"
                   disabled={isPending || safePage <= 1}
                   onClick={() => onPageChange(safePage - 1)}
                   size="icon"
@@ -196,6 +206,7 @@ export function CollectorsRankedMode({
                   <span className="sr-only">Previous page</span>
                 </Button>
                 <Button
+                  className="!h-11 !w-11 rounded-md"
                   disabled={isPending || safePage >= totalPages}
                   onClick={() => onPageChange(safePage + 1)}
                   size="icon"

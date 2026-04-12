@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { CircleHelp } from "lucide-react";
+import { UI_CONTROL_CLASS_NAME } from "@/app/dashboard/_components/ui-patterns";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { CollectorsPeriodFilter } from "@/app/dashboard/collectors/collectors-period-filter";
@@ -63,10 +64,17 @@ export function CollectorsIndividualMode({
     from: selectedFrom,
     to: selectedTo,
   });
+  const visibleBasisOptions = BASIS_OPTIONS.filter((option) => {
+    if (option.value === "incentives") {
+      return canUseIncentives;
+    }
+
+    return true;
+  });
 
   return (
     <div className="space-y-6">
-      <TremorCard className="p-6">
+      <TremorCard className="rounded-md p-6">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-stretch xl:justify-between">
           <div className="space-y-2">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-indigo-600">
@@ -86,7 +94,7 @@ export function CollectorsIndividualMode({
           <div className="flex w-full flex-col gap-3 xl:w-auto xl:min-w-[520px] xl:self-stretch xl:justify-between">
             <div className="flex justify-start xl:justify-end">
               <Link href={profileHref}>
-                <Button type="button">View Profile</Button>
+                <Button className="h-11 rounded-md px-4" type="button">View Profile</Button>
               </Link>
             </div>
 
@@ -117,6 +125,7 @@ export function CollectorsIndividualMode({
                   </TooltipContent>
                 </Tooltip>
                 <CollectorsPeriodFilter
+                  controlClassName={UI_CONTROL_CLASS_NAME}
                   from={selectedFrom}
                   label="Period"
                   onRangeChange={onRangeChange}
@@ -130,11 +139,11 @@ export function CollectorsIndividualMode({
               <label className="flex w-full flex-col gap-1 sm:w-[240px]">
                 <Label>Ranking Basis</Label>
                 <Select onValueChange={(value) => onBasisChange(value as CollectorLeaderboardBasis)} value={selectedBasis}>
-                  <SelectTrigger className="w-full bg-card">
+                  <SelectTrigger className={`${UI_CONTROL_CLASS_NAME} w-full`}>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {BASIS_OPTIONS.map((option) => (
+                    {visibleBasisOptions.map((option) => (
                       <SelectItem
                         disabled={
                           (option.value === "average-monthly-collections" && !canUseAverageMonthly) ||
@@ -165,7 +174,7 @@ export function CollectorsIndividualMode({
           }}
         />
       ) : (
-        <Card className="border-dashed">
+        <Card className="rounded-md border-dashed">
           <CardContent className="px-5 py-4 text-sm text-muted-foreground">
             A detailed performance snapshot is not available for this period yet. Try another period or open the full profile view.
           </CardContent>
