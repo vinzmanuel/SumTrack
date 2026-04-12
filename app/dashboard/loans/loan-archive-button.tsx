@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { cloneElement, isValidElement, useState, useTransition, type MouseEvent as ReactMouseEvent, type ReactElement } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -23,12 +23,14 @@ export function LoanArchiveButton({
   visibleStatus,
   size = "sm",
   triggerLabel,
+  trigger,
 }: {
   loanId: number;
   loanCode: string;
   visibleStatus: VisibleLoanStatus;
   size?: "sm" | "default";
   triggerLabel?: string;
+  trigger?: ReactElement<{ onClick?: (event: ReactMouseEvent<HTMLElement>) => void }>;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -85,13 +87,21 @@ export function LoanArchiveButton({
       open={open}
     >
       <AlertDialogTrigger asChild>
-        <Button
-          className="bg-amber-500 text-white hover:bg-amber-600 hover:text-white"
-          size={size}
-          type="button"
-        >
-          {buttonLabel}
-        </Button>
+        {isValidElement(trigger)
+          ? cloneElement(trigger, {
+              onClick: (event: ReactMouseEvent<HTMLElement>) => {
+                trigger.props.onClick?.(event);
+              },
+            })
+          : (
+            <Button
+              className="bg-amber-500 text-white hover:bg-amber-600 hover:text-white"
+              size={size}
+              type="button"
+            >
+              {buttonLabel}
+            </Button>
+          )}
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>

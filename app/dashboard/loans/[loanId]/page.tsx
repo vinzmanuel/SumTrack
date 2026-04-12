@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { asc, desc, eq, inArray } from "drizzle-orm";
+import { FileChartColumn, ReceiptText } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { DashboardBackLink } from "@/app/dashboard/_components/dashboard-back-link";
+import { DashboardHeaderConfigurator } from "@/app/dashboard/_components/dashboard-header-config";
 import { requireDashboardAuth } from "@/app/dashboard/auth";
 import { resolveBackNavigation } from "@/app/dashboard/back-navigation";
 import { LoanDocumentsSection } from "@/app/dashboard/loans/[loanId]/documents/loan-documents-section";
@@ -9,6 +10,12 @@ import { LoanDetailForm } from "@/app/dashboard/loans/[loanId]/loan-digital-pass
 import { LoanReportsAndReceiptsTab } from "@/app/dashboard/loans/[loanId]/loan-reports-and-receipts-tab";
 import { LoanArchiveButton } from "@/app/dashboard/loans/loan-archive-button";
 import { LoanVisibleStatusBadge } from "@/app/dashboard/loans/loan-visible-status-badge";
+import {
+  UI_TAB_ICON_ACTIVE_CLASS_NAME,
+  UI_TAB_LIST_CLASS_NAME,
+  UI_TAB_SEPARATOR_CLASS_NAME,
+  getUiTabTriggerClassName,
+} from "@/app/dashboard/_components/ui-patterns";
 import {
   buildLoanComputedState,
   canRecordCollectionForLoan,
@@ -84,6 +91,107 @@ function formatMoney(value: number) {
 
 function formatBorrowerName(firstName: string | null, lastName: string | null, fallback: string) {
   return [firstName, lastName].filter(Boolean).join(" ").trim() || fallback;
+}
+
+function parseIsoDateParts(value: string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) {
+    return null;
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
+    return null;
+  }
+
+  return { year, month, day };
+}
+
+function formatDateKeyFromUtc(date: Date) {
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function getEasterSundayUtc(year: number) {
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31);
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+
+  return new Date(Date.UTC(year, month - 1, day));
+}
+
+function getExcludedHolidayKeysForYear(year: number) {
+  const easterSunday = getEasterSundayUtc(year);
+  const goodFriday = new Date(easterSunday);
+  goodFriday.setUTCDate(goodFriday.getUTCDate() - 2);
+
+  return new Set<string>([
+    `${year}-01-01`, // New Year's Day
+    `${year}-11-01`, // All Saints' Day
+    `${year}-12-25`, // Christmas Day
+    formatDateKeyFromUtc(goodFriday), // Good Friday
+  ]);
+}
+
+function countEstimatedCollectionDays(startDate: string, dueDate: string) {
+  const parsedStart = parseIsoDateParts(startDate);
+  const parsedDue = parseIsoDateParts(dueDate);
+
+  if (!parsedStart || !parsedDue) {
+    return 0;
+  }
+
+  const cursor = new Date(Date.UTC(parsedStart.year, parsedStart.month - 1, parsedStart.day));
+  const end = new Date(Date.UTC(parsedDue.year, parsedDue.month - 1, parsedDue.day));
+
+  if (cursor.getTime() > end.getTime()) {
+    return 0;
+  }
+
+  let count = 0;
+  const holidayKeysByYear = new Map<number, Set<string>>();
+
+  while (cursor.getTime() <= end.getTime()) {
+    const year = cursor.getUTCFullYear();
+    const holidayKeys =
+      holidayKeysByYear.get(year) ?? getExcludedHolidayKeysForYear(year);
+    if (!holidayKeysByYear.has(year)) {
+      holidayKeysByYear.set(year, holidayKeys);
+    }
+
+    const dayOfWeek = cursor.getUTCDay();
+    const key = formatDateKeyFromUtc(cursor);
+    const isSunday = dayOfWeek === 0;
+    const isExcludedHoliday = holidayKeys.has(key);
+
+    if (!isSunday && !isExcludedHoliday) {
+      count += 1;
+    }
+
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+
+  return count;
 }
 
 function renderMessageCard(message: string, tone: "default" | "destructive" = "default") {
@@ -341,6 +449,9 @@ export default async function LoanDetailPage({ params, searchParams }: PageProps
     storedStatus: loan.status,
     currentDate: getManilaTodayDateString(),
   });
+  const estimatedCollectionDays = countEstimatedCollectionDays(loan.start_date, loan.due_date);
+  const estimatedDailyPayment =
+    estimatedCollectionDays > 0 ? computedState.totalPayable / estimatedCollectionDays : null;
 
   const assignedCollectorLabel = assignedCollector
     ? [assignedCollector.first_name, assignedCollector.last_name].filter(Boolean).join(" ") ||
@@ -399,12 +510,28 @@ export default async function LoanDetailPage({ params, searchParams }: PageProps
       remainingBalance: computedState.remainingBalance,
     });
 
-  return (
-    <div className="space-y-6">
-      <DashboardBackLink href={backNavigation.href} label={backNavigation.label} />
+  const isOperationalLoanTab = resolvedActiveTab === "reports" || resolvedActiveTab === "documents";
+  const headerIcon = isOperationalLoanTab
+    ? <ReceiptText className="size-9 text-sidebar-foreground/65" />
+    : <FileChartColumn className="size-9 text-sidebar-foreground/65" />;
+  const headerDescription = isOperationalLoanTab
+    ? "Review operational receipts, schedules, and loan documents for this record."
+    : "Review loan summary, passbook entries, and repayment progression.";
 
-      <div className="overflow-hidden rounded-xl border border-border/70 bg-card text-card-foreground shadow-sm">
-        <div className="bg-gradient-to-r from-slate-50 via-white to-emerald-50/60 p-6">
+  return (
+    <div className="space-y-4">
+      <DashboardHeaderConfigurator
+        config={{
+          action: null,
+          breadcrumbTitle: loan.loan_code,
+          description: headerDescription,
+          icon: headerIcon,
+          title: "Loan View",
+        }}
+      />
+
+      <div className="overflow-hidden rounded-md border border-border/70 bg-card text-card-foreground shadow-sm">
+        <div className="p-5 md:p-6">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
             <div className="space-y-3">
               <div className="space-y-1">
@@ -434,53 +561,59 @@ export default async function LoanDetailPage({ params, searchParams }: PageProps
             </div>
           </div>
         </div>
-
-        {showTabNavigation ? (
-          <div className="border-t border-border/70 p-6">
-            <div className="inline-flex flex-wrap gap-2 rounded-xl border border-border/70 bg-muted/30 p-1">
-              <Link
-                href={buildTabHref({
-                  docsPage,
-                  loanId,
-                  returnTo: backNavigation.href,
-                  source: sourceParam,
-                  tab: "details",
-                })}
-              >
-                <TabButton active={resolvedActiveTab === "details"} label="Loan Details" />
-              </Link>
-              <Link
-                href={buildTabHref({
-                  docsPage,
-                  loanId,
-                  returnTo: backNavigation.href,
-                  source: sourceParam,
-                  tab: "reports",
-                })}
-              >
-                <TabButton active={resolvedActiveTab === "reports"} label="Reports & Receipts" />
-              </Link>
-              {canViewDocs ? (
-                <Link
-                  href={buildTabHref({
-                    docsPage,
-                    loanId,
-                    returnTo: backNavigation.href,
-                    source: sourceParam,
-                    tab: "documents",
-                  })}
-                >
-                  <TabButton active={resolvedActiveTab === "documents"} label="Documents" />
-                </Link>
-              ) : null}
-            </div>
-          </div>
-        ) : null}
       </div>
 
+      {showTabNavigation ? (
+        <div className={UI_TAB_SEPARATOR_CLASS_NAME}>
+          <div className={UI_TAB_LIST_CLASS_NAME}>
+            <Link
+              className={getUiTabTriggerClassName(resolvedActiveTab === "details")}
+              href={buildTabHref({
+                docsPage,
+                loanId,
+                returnTo: backNavigation.href,
+                source: sourceParam,
+                tab: "details",
+              })}
+            >
+              <FileChartColumn className={resolvedActiveTab === "details" ? UI_TAB_ICON_ACTIVE_CLASS_NAME : undefined} />
+              Loan Details
+            </Link>
+            <Link
+              className={getUiTabTriggerClassName(resolvedActiveTab === "reports")}
+              href={buildTabHref({
+                docsPage,
+                loanId,
+                returnTo: backNavigation.href,
+                source: sourceParam,
+                tab: "reports",
+              })}
+            >
+              <ReceiptText className={resolvedActiveTab === "reports" ? UI_TAB_ICON_ACTIVE_CLASS_NAME : undefined} />
+              Reports & Receipts
+            </Link>
+            {canViewDocs ? (
+              <Link
+                className={getUiTabTriggerClassName(resolvedActiveTab === "documents")}
+                href={buildTabHref({
+                  docsPage,
+                  loanId,
+                  returnTo: backNavigation.href,
+                  source: sourceParam,
+                  tab: "documents",
+                })}
+              >
+                <ReceiptText className={resolvedActiveTab === "documents" ? UI_TAB_ICON_ACTIVE_CLASS_NAME : undefined} />
+                Documents
+              </Link>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
       {resolvedActiveTab === "details" ? (
-        <div className="space-y-6">
-          <Card>
+        <div className="space-y-4">
+          <Card className="rounded-md border-border/70 shadow-sm">
             <CardHeader>
               <CardTitle>Loan Summary</CardTitle>
             </CardHeader>
@@ -521,14 +654,20 @@ export default async function LoanDetailPage({ params, searchParams }: PageProps
                 </div>
               </div>
 
-              <div className="grid gap-3 text-sm md:grid-cols-2">
-                <div className="rounded-lg border border-border/70 bg-muted/20 px-4 py-3">
+              <div className="grid gap-3 text-sm md:grid-cols-3">
+                <div className="rounded-md border border-border/70 bg-muted/20 px-4 py-3">
                   <p className="text-muted-foreground text-xs uppercase tracking-wide">Total Collected So Far</p>
                   <p className="mt-1 font-medium">{formatMoney(computedState.totalCollected)}</p>
                 </div>
-                <div className="rounded-lg border border-border/70 bg-muted/20 px-4 py-3">
+                <div className="rounded-md border border-border/70 bg-muted/20 px-4 py-3">
                   <p className="text-muted-foreground text-xs uppercase tracking-wide">Remaining Balance</p>
                   <p className="mt-1 font-medium">{formatMoney(computedState.remainingBalance)}</p>
+                </div>
+                <div className="rounded-md border border-border/70 bg-muted/20 px-4 py-3">
+                  <p className="text-muted-foreground text-xs uppercase tracking-wide">Estimated Daily Payment</p>
+                  <p className="mt-1 font-medium">
+                    {estimatedDailyPayment === null ? "N/A" : formatMoney(estimatedDailyPayment)}
+                  </p>
                 </div>
               </div>
             </CardContent>
@@ -564,23 +703,5 @@ export default async function LoanDetailPage({ params, searchParams }: PageProps
         />
       )}
     </div>
-  );
-}
-
-function TabButton({
-  active,
-  label,
-}: {
-  active: boolean;
-  label: string;
-}) {
-  return (
-    <span
-      className={`inline-flex rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-        active ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-      }`}
-    >
-      {label}
-    </span>
   );
 }

@@ -1,7 +1,27 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { Search } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import type { BorrowerAreaOption, BorrowerBranchOption } from "@/app/dashboard/borrowers/types";
+import {
+  UI_CONTROL_CLASS_NAME,
+  UI_FILTER_CONTROLS_CLASS_NAME,
+  UI_FILTER_ROW_CLASS_NAME,
+  UI_SEARCH_CONTAINER_CLASS_NAME,
+  UI_SEARCH_ICON_CLASS_NAME,
+  UI_SEARCH_INPUT_CLASS_NAME,
+} from "@/app/dashboard/_components/ui-patterns";
 
 type BorrowersFiltersProps = {
   canChooseBranch: boolean;
@@ -35,71 +55,66 @@ export function BorrowersFilters({
   action,
 }: BorrowersFiltersProps) {
   return (
-    <div className="space-y-2.5">
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-end">
-        <div className={`grid flex-1 gap-3 ${canChooseBranch ? "md:grid-cols-4" : "md:grid-cols-3"}`}>
-          <div className="space-y-1 md:col-span-2">
-            <label className="text-sm font-medium" htmlFor="borrowerSearch">
-              Search
-            </label>
-            <input
-              className="border-input focus-visible:border-ring focus-visible:ring-ring/50 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-[3px]"
-              id="borrowerSearch"
-              onChange={(event) => onSearchChange(event.target.value)}
-              placeholder="Search borrower name or company ID"
-              value={selectedSearchQuery}
-            />
-          </div>
-
-          {canChooseBranch ? (
-            <div className="space-y-1">
-              <label className="text-sm font-medium" htmlFor="branchId">
-                Branch
-              </label>
-              <select
-                className="border-input focus-visible:border-ring focus-visible:ring-ring/50 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-[3px]"
-                id="branchId"
-                onChange={(event) => onBranchChange(event.target.value ? Number(event.target.value) : null)}
-                value={selectedBranchId ? String(selectedBranchId) : ""}
-              >
-                <option value="">{allBranchLabel}</option>
-                {branches.map((item) => (
-                  <option key={item.branch_id} value={String(item.branch_id)}>
-                    {item.branch_name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : null}
-
-          <div className="space-y-1">
-            <label className="text-sm font-medium" htmlFor="areaId">
-              Area
-            </label>
-            <select
-              className="border-input focus-visible:border-ring focus-visible:ring-ring/50 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-[3px]"
-              id="areaId"
-              onChange={(event) => onAreaChange(event.target.value ? Number(event.target.value) : null)}
-              value={selectedAreaId ? String(selectedAreaId) : ""}
-            >
-              <option value="">All areas</option>
-              {areas.map((item) => (
-                <option key={item.area_id} value={String(item.area_id)}>
-                  {item.area_code}
-                </option>
-              ))}
-            </select>
-          </div>
+    <div className="space-y-3">
+      <div className={UI_FILTER_ROW_CLASS_NAME}>
+        <div className={UI_SEARCH_CONTAINER_CLASS_NAME}>
+          <Search className={UI_SEARCH_ICON_CLASS_NAME} />
+          <Input
+            aria-label="Search borrowers"
+            className={UI_SEARCH_INPUT_CLASS_NAME}
+            id="borrowerSearch"
+            onChange={(event) => onSearchChange(event.target.value)}
+            placeholder="Search borrower name or company ID"
+            value={selectedSearchQuery}
+          />
         </div>
 
-        <div className="flex shrink-0 flex-wrap items-end gap-2 xl:self-end">
-          <button
-            className="border-input hover:bg-accent hover:text-accent-foreground rounded-md border px-3 py-2 text-sm"
-            onClick={onClear}
-            type="button"
+        <div className={UI_FILTER_CONTROLS_CLASS_NAME}>
+          {canChooseBranch ? (
+            <Select
+              onValueChange={(value) => onBranchChange(value === "__all" ? null : Number(value))}
+              value={selectedBranchId ? String(selectedBranchId) : "__all"}
+            >
+              <SelectTrigger aria-label="Branch" className={`${UI_CONTROL_CLASS_NAME} w-full min-w-[190px] sm:w-[210px]`}>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectLabel>Branch</SelectLabel>
+                  <SelectItem value="__all">{allBranchLabel}</SelectItem>
+                  {branches.map((item) => (
+                    <SelectItem key={item.branch_id} value={String(item.branch_id)}>
+                      {item.branch_name}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          ) : null}
+
+          <Select
+            onValueChange={(value) => onAreaChange(value === "__all" ? null : Number(value))}
+            value={selectedAreaId ? String(selectedAreaId) : "__all"}
           >
+            <SelectTrigger aria-label="Area" className={`${UI_CONTROL_CLASS_NAME} w-full min-w-[170px] sm:w-[190px]`}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectLabel>Area</SelectLabel>
+                <SelectItem value="__all">All areas</SelectItem>
+                {areas.map((item) => (
+                  <SelectItem key={item.area_id} value={String(item.area_id)}>
+                    {item.area_code}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+
+          <Button className={`${UI_CONTROL_CLASS_NAME} px-4`} onClick={onClear} type="button" variant="outline">
             Clear
-          </button>
+          </Button>
           {action}
         </div>
       </div>

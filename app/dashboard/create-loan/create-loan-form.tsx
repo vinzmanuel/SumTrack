@@ -18,7 +18,9 @@ import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -28,6 +30,7 @@ import {
   calculateScheduledDueDate,
 } from "@/app/dashboard/loans/loan-schedule";
 import { initialCreateLoanState } from "@/app/dashboard/create-loan/state";
+import { UI_CONTROL_CLASS_NAME, UI_SURFACE_CLASS_NAME } from "@/app/dashboard/_components/ui-patterns";
 import type {
   AreaOption,
   BorrowerOption,
@@ -51,12 +54,17 @@ const STAFF_TERM_OPTIONS = [
   { label: "58 days", value: "58" },
   { label: "60 days", value: "60" },
 ];
+const CREATE_LOAN_CONTROL_CLASS_NAME = UI_CONTROL_CLASS_NAME;
 
 function SubmitButton({ blocked }: { blocked: boolean }) {
   const { pending } = useFormStatus();
 
   return (
-    <Button className="active:scale-[0.98]" disabled={pending || blocked} type="submit">
+    <Button
+      className="h-11 rounded-md bg-emerald-600 px-4 text-sm text-white hover:bg-emerald-700 hover:text-white active:scale-[0.98]"
+      disabled={pending || blocked}
+      type="submit"
+    >
       {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
       {pending ? "Creating..." : "Create Loan"}
     </Button>
@@ -338,17 +346,12 @@ export function CreateLoanForm({
 
   return (
     <div className="space-y-6">
-      <Card>
+      <Card className={UI_SURFACE_CLASS_NAME}>
         <CardHeader>
           <CardTitle>Loan Details</CardTitle>
         </CardHeader>
         <CardContent>
-          <form
-            action={formAction}
-            className="space-y-4"
-            onSubmit={handleSubmit}
-            ref={formRef}
-          >
+          <form action={formAction} className="space-y-5" onSubmit={handleSubmit} ref={formRef}>
             <input name="borrower_id" type="hidden" value={borrowerId} />
             <input name="branch_id" type="hidden" value={selectedBranchId} />
             <input name="area_id" type="hidden" value={selectedAreaId} />
@@ -362,15 +365,18 @@ export function CreateLoanForm({
               <div className="space-y-2">
                 <Label>Branch</Label>
                 <Select disabled={isBorrowerLocked} onValueChange={handleBranchChange} value={selectedBranchId}>
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger className={`${CREATE_LOAN_CONTROL_CLASS_NAME} w-full`}>
                     <SelectValue placeholder="Select branch" />
                   </SelectTrigger>
                   <SelectContent>
-                    {branches.map((branch) => (
-                      <SelectItem key={String(branch.branch_id)} value={String(branch.branch_id)}>
-                        {branch.branch_name}
-                      </SelectItem>
-                    ))}
+                    <SelectGroup>
+                      <SelectLabel>Branch</SelectLabel>
+                      {branches.map((branch) => (
+                        <SelectItem key={String(branch.branch_id)} value={String(branch.branch_id)}>
+                          {branch.branch_name}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
                   </SelectContent>
                 </Select>
                 {state.fieldErrors?.branch_id ? (
@@ -385,17 +391,20 @@ export function CreateLoanForm({
                   onValueChange={handleAreaChange}
                   value={selectedAreaId}
                 >
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger className={`${CREATE_LOAN_CONTROL_CLASS_NAME} w-full`}>
                     <SelectValue
                       placeholder={selectedBranchId ? "Select area" : "Select branch first"}
                     />
                   </SelectTrigger>
                   <SelectContent>
-                    {areaOptions.map((area) => (
-                      <SelectItem key={String(area.area_id)} value={String(area.area_id)}>
-                        {area.area_code}
-                      </SelectItem>
-                    ))}
+                    <SelectGroup>
+                      <SelectLabel>Area</SelectLabel>
+                      {areaOptions.map((area) => (
+                        <SelectItem key={String(area.area_id)} value={String(area.area_id)}>
+                          {area.area_code}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
                   </SelectContent>
                 </Select>
                 {state.fieldErrors?.area_id ? (
@@ -407,6 +416,7 @@ export function CreateLoanForm({
             <div className="space-y-2">
               <Label htmlFor="borrower_search">Borrower Search</Label>
               <Input
+                className={CREATE_LOAN_CONTROL_CLASS_NAME}
                 disabled={!selectedAreaId || isBorrowerLocked}
                 id="borrower_search"
                 onChange={(event) => {
@@ -417,7 +427,7 @@ export function CreateLoanForm({
                 value={borrowerSearch}
               />
               {isBorrowerLocked ? (
-                <Button onClick={clearBorrowerPrefill} size="sm" type="button" variant="outline">
+                <Button className="h-11 rounded-md px-4" onClick={clearBorrowerPrefill} type="button" variant="outline">
                   Change borrower
                 </Button>
               ) : null}
@@ -461,15 +471,18 @@ export function CreateLoanForm({
             <div className="space-y-2">
               <Label>Collector</Label>
               <Select disabled={!selectedAreaId} onValueChange={setCollectorId} value={collectorId}>
-                <SelectTrigger className="w-full">
+                <SelectTrigger className={`${CREATE_LOAN_CONTROL_CLASS_NAME} w-full`}>
                   <SelectValue placeholder={selectedAreaId ? "Select collector" : "Select area first"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {collectorOptions.map((collector) => (
-                    <SelectItem key={collector.user_id} value={collector.user_id}>
-                      {collector.label}
-                    </SelectItem>
-                  ))}
+                  <SelectGroup>
+                    <SelectLabel>Collector</SelectLabel>
+                    {collectorOptions.map((collector) => (
+                      <SelectItem key={collector.user_id} value={collector.user_id}>
+                        {collector.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
                 </SelectContent>
               </Select>
               {!selectedAreaId ? (
@@ -487,16 +500,19 @@ export function CreateLoanForm({
             <div className="space-y-2">
               <Label>Loan Term</Label>
               <Select onValueChange={handleTermChange} value={termOption}>
-                <SelectTrigger className="w-full">
+                <SelectTrigger className={`${CREATE_LOAN_CONTROL_CLASS_NAME} w-full`}>
                   <SelectValue placeholder="Select loan term" />
                 </SelectTrigger>
                 <SelectContent>
-                  {STAFF_TERM_OPTIONS.map((term) => (
-                    <SelectItem key={term.value} value={term.value}>
-                      {term.label}
-                    </SelectItem>
-                  ))}
-                  {isAdmin ? <SelectItem value="custom">Custom</SelectItem> : null}
+                  <SelectGroup>
+                    <SelectLabel>Loan Term</SelectLabel>
+                    {STAFF_TERM_OPTIONS.map((term) => (
+                      <SelectItem key={term.value} value={term.value}>
+                        {term.label}
+                      </SelectItem>
+                    ))}
+                    {isAdmin ? <SelectItem value="custom">Custom</SelectItem> : null}
+                  </SelectGroup>
                 </SelectContent>
               </Select>
               {state.fieldErrors?.term_option ? (
@@ -512,7 +528,7 @@ export function CreateLoanForm({
                     {"\u20B1"}
                   </span>
                   <Input
-                    className="pl-7"
+                    className={`${CREATE_LOAN_CONTROL_CLASS_NAME} pl-7`}
                     id="principal"
                     inputMode="decimal"
                     onChange={(event) => setPrincipalRaw(sanitizeNumericInput(event.target.value))}
@@ -529,6 +545,7 @@ export function CreateLoanForm({
                 <Label htmlFor="interest">Interest</Label>
                 <div className="relative">
                   <Input
+                    className={CREATE_LOAN_CONTROL_CLASS_NAME}
                     id="interest"
                     inputMode="decimal"
                     onChange={(event) => setInterest(sanitizeNumericInput(event.target.value))}
@@ -555,6 +572,7 @@ export function CreateLoanForm({
               <div className="space-y-2">
                 <Label htmlFor="start_date">Start Date</Label>
                 <Input
+                  className={CREATE_LOAN_CONTROL_CLASS_NAME}
                   id="start_date"
                   name="start_date"
                   onChange={(event) => handleStartDateChange(event.target.value)}
@@ -568,6 +586,7 @@ export function CreateLoanForm({
               <div className="space-y-2">
                 <Label htmlFor="due_date">Due Date</Label>
                 <Input
+                  className={CREATE_LOAN_CONTROL_CLASS_NAME}
                   disabled={!isCustomTerm}
                   id="due_date"
                   name={isCustomTerm ? "due_date" : undefined}
@@ -653,11 +672,11 @@ export function CreateLoanForm({
               </div>
 
               <DialogFooter>
-                <Button onClick={() => setIsConfirmOpen(false)} type="button" variant="outline">
+                <Button className="h-11 rounded-md px-4" onClick={() => setIsConfirmOpen(false)} type="button" variant="outline">
                   Cancel
                 </Button>
                 <Button
-                  className="active:scale-[0.98]"
+                  className="h-11 rounded-md px-4 active:scale-[0.98]"
                   disabled={hasExistingActiveLoan}
                   onClick={handleConfirmCreate}
                   type="button"
@@ -671,7 +690,7 @@ export function CreateLoanForm({
       </Card>
 
       {state.status === "success" && state.result ? (
-        <Card>
+        <Card className={UI_SURFACE_CLASS_NAME}>
           <CardHeader>
             <CardTitle>Loan Created</CardTitle>
           </CardHeader>

@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { Card, CardContent } from "@/components/ui/card";
 import { LoansResultsSection } from "@/app/dashboard/loans/loans-results-section";
 import type { StaffLoansPageData } from "@/app/dashboard/loans/types";
 
@@ -9,6 +8,7 @@ export function LoanRecordsModule({
   errorMessage,
   isPending,
   onPageChange,
+  onPageSizeChange,
   returnTo,
   detailSource,
 }: {
@@ -17,27 +17,27 @@ export function LoanRecordsModule({
   errorMessage: string | null;
   isPending: boolean;
   onPageChange: (page: number) => void;
+  onPageSizeChange?: (pageSize: number) => void;
   returnTo: string;
   detailSource?: string;
 }) {
   return (
-    <Card className="w-full overflow-hidden border-border/70 shadow-sm">
-      <CardContent className="p-0">
-        <div className="px-4 pb-4 md:px-5 md:pb-5 md:pt-1">
-          {controls}
-        </div>
-        <div className="border-t border-border/70 px-4 pb-4 pt-1 md:px-5 md:pb-5">
-          <LoansResultsSection
-            data={data}
-            embedded
-            errorMessage={errorMessage}
-            isPending={isPending}
-            onPageChange={onPageChange}
-            returnTo={returnTo}
-            detailSource={detailSource}
-          />
-        </div>
-      </CardContent>
-    </Card>
+    <div className="space-y-4">
+      <div className="px-1">
+        {controls}
+      </div>
+      <div className="px-1">
+        <LoansResultsSection
+          data={data}
+          embedded
+          errorMessage={errorMessage}
+          isPending={isPending}
+          onPageChange={onPageChange}
+          onPageSizeChange={onPageSizeChange}
+          returnTo={returnTo}
+          detailSource={detailSource}
+        />
+      </div>
+    </div>
   );
 }

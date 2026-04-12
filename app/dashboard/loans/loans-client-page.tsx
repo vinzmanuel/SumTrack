@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Plus } from "lucide-react";
+import { Plus, ReceiptText } from "lucide-react";
 import { appendBackNavigationToHref } from "@/app/dashboard/back-navigation";
+import { DashboardHeaderConfigurator } from "@/app/dashboard/_components/dashboard-header-config";
+import { UI_PAGE_STACK_CLASS_NAME } from "@/app/dashboard/_components/ui-patterns";
 import { Button } from "@/components/ui/button";
 import { LoanRecordsModule } from "@/app/dashboard/loans/loan-records-module";
 import { LoansFilters } from "@/app/dashboard/loans/loans-filters";
@@ -27,6 +29,7 @@ type LoanResultFilters = {
   status: LoanStatusFilter;
   query: string;
   page: number;
+  pageSize: number;
 };
 
 function buildResultsUrl(filters: LoanResultFilters) {
@@ -47,6 +50,10 @@ function buildResultsUrl(filters: LoanResultFilters) {
 
   if (filters.page > 1) {
     params.set("page", String(filters.page));
+  }
+
+  if (filters.pageSize !== 20) {
+    params.set("pageSize", String(filters.pageSize));
   }
 
   const queryString = params.toString();
@@ -74,6 +81,10 @@ function buildDataUrl(filters: LoanResultFilters) {
     params.set("page", String(filters.page));
   }
 
+  if (filters.pageSize !== 20) {
+    params.set("pageSize", String(filters.pageSize));
+  }
+
   const queryString = params.toString();
   return queryString ? `/dashboard/loans/data?${queryString}` : "/dashboard/loans/data";
 }
@@ -83,6 +94,16 @@ export function LoansClientPage({
   initialScope,
   branchOptions,
 }: LoansClientPageProps) {
+  const headerConfig = useMemo(
+    () => ({
+      action: null,
+      description: "Track, filter, and manage loan records across your current visible scope.",
+      icon: <ReceiptText className="size-9 text-sidebar-foreground/65" />,
+      title: "Loans",
+    }),
+    [],
+  );
+
   const initialFilters = useMemo<LoanResultFilters>(
     () => ({
       branchId: initialScope.selectedBranchId,
@@ -90,8 +111,9 @@ export function LoansClientPage({
       status: initialScope.status,
       query: initialScope.searchQuery,
       page: initialData.page,
+      pageSize: initialData.pageSize,
     }),
-    [initialData.page, initialScope.searchQuery, initialScope.selectedBranchId, initialScope.status, initialScope.tab],
+    [initialData.page, initialData.pageSize, initialScope.searchQuery, initialScope.selectedBranchId, initialScope.status, initialScope.tab],
   );
   const [results, setResults] = useState(initialData);
   const [filters, setFilters] = useState<LoanResultFilters>(initialFilters);
@@ -142,6 +164,7 @@ export function LoansClientPage({
         status: nextFilters.status,
         query: nextFilters.query,
         page: nextData.page,
+        pageSize: nextData.pageSize,
       });
       updateHistory({
         branchId: nextFilters.branchId,
@@ -149,6 +172,7 @@ export function LoansClientPage({
         status: nextFilters.status,
         query: nextFilters.query,
         page: nextData.page,
+        pageSize: nextData.pageSize,
       });
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") {
@@ -180,12 +204,14 @@ export function LoansClientPage({
       status: filters.status,
       query: filters.query,
       page: 1,
+      pageSize: filters.pageSize,
     });
   }, [
     appliedFilters.branchId,
     appliedFilters.status,
     appliedFilters.tab,
     filters.branchId,
+    filters.pageSize,
     filters.query,
     filters.status,
     filters.tab,
@@ -204,6 +230,7 @@ export function LoansClientPage({
         status: filtersRef.current.status,
         query: filtersRef.current.query,
         page: 1,
+        pageSize: filtersRef.current.pageSize,
       });
     }, 400);
 
@@ -221,8 +248,26 @@ export function LoansClientPage({
       status: filters.status,
       query: filters.query,
       page,
+      pageSize: filters.pageSize,
     });
-  }, [filters.branchId, filters.query, filters.status, filters.tab, loadResults]);
+  }, [filters.branchId, filters.pageSize, filters.query, filters.status, filters.tab, loadResults]);
+
+  const handlePageSizeChange = useCallback((pageSize: number) => {
+    setFilters((previous) => ({
+      ...previous,
+      pageSize,
+      page: 1,
+    }));
+
+    void loadResults({
+      branchId: filtersRef.current.branchId,
+      tab: filtersRef.current.tab,
+      status: filtersRef.current.status,
+      query: filtersRef.current.query,
+      page: 1,
+      pageSize,
+    });
+  }, [loadResults]);
 
   const handleBranchChange = useCallback((branchId: number | null) => {
     setFilters((previous) => ({
@@ -257,11 +302,27 @@ export function LoansClientPage({
     }));
   }, []);
 
+  const handleClear = useCallback(() => {
+    const clearedFilters: LoanResultFilters = {
+      branchId: initialScope.canChooseBranchFilter ? null : initialScope.selectedBranchId,
+      tab: "active",
+      status: "all",
+      query: "",
+      page: 1,
+      pageSize: 20,
+    };
+
+    setFilters(clearedFilters);
+    void loadResults(clearedFilters);
+  }, [initialScope.canChooseBranchFilter, initialScope.selectedBranchId, loadResults]);
+
   const currentReturnTo = buildResultsUrl(filters);
 
   return (
-    <div className="w-full max-w-none space-y-5 pb-6 pt-1 sm:pb-6 sm:pt-2">
-      <LoanRecordsModule
+    <>
+      <DashboardHeaderConfigurator config={headerConfig} />
+      <div className={`w-full max-w-none ${UI_PAGE_STACK_CLASS_NAME}`}>
+        <LoanRecordsModule
         controls={(
           <LoansFilters
             activeCount={results.activeCount}
@@ -274,12 +335,11 @@ export function LoansClientPage({
                   returnTo: currentReturnTo,
                 })}>
                   <Button
-                    className="w-full bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white xl:w-auto"
-                    size="sm"
+                    className="h-11 w-full rounded-md bg-emerald-600 px-4 text-sm text-white hover:bg-emerald-700 hover:text-white xl:w-auto"
                     type="button"
                   >
                     <Plus className="h-4 w-4" />
-                    Create loan
+                    Create Loan
                   </Button>
                 </Link>
               ) : null
@@ -287,6 +347,7 @@ export function LoansClientPage({
             canChooseBranchFilter={initialScope.canChooseBranchFilter}
             isPending={isPending}
             onBranchChange={handleBranchChange}
+            onClear={handleClear}
             onSearchChange={handleSearchChange}
             onStatusChange={handleStatusChange}
             onTabChange={handleTabChange}
@@ -300,9 +361,11 @@ export function LoansClientPage({
         errorMessage={errorMessage}
         isPending={isPending}
         onPageChange={handlePageChange}
+        onPageSizeChange={handlePageSizeChange}
         returnTo={currentReturnTo}
         detailSource="loans"
       />
-    </div>
+      </div>
+    </>
   );
 }

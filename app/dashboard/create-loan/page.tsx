@@ -1,5 +1,7 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ReceiptText } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DashboardBackLink } from "@/app/dashboard/_components/dashboard-back-link";
+import { DashboardHeaderConfigurator } from "@/app/dashboard/_components/dashboard-header-config";
 import { firstSearchValue, resolveBackNavigation } from "@/app/dashboard/back-navigation";
 import { CreateLoanForm } from "@/app/dashboard/create-loan/create-loan-form";
 import { loadCreateLoanPageData } from "@/app/dashboard/create-loan/queries";
@@ -116,26 +118,21 @@ export default async function CreateLoanPage({ searchParams }: CreateLoanPagePro
   }
 
   return (
-    <main className="mx-auto min-h-screen w-full max-w-5xl px-6 pb-6 pt-3 md:pt-4">
-      <div className="space-y-4">
-        <DashboardBackLink href={backNavigation.href} label={backNavigation.label} />
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Create Loan</CardTitle>
-            <CardDescription>Create a loan record for an existing borrower.</CardDescription>
-          </CardHeader>
-          {pageState.borrowers.length === 0 ? (
-            <CardContent className="pt-0">
-              <p className="text-sm text-amber-700 dark:text-amber-400">
-                No borrowers found. Create a borrower account first.
-              </p>
-            </CardContent>
-          ) : null}
-        </Card>
-      </div>
-
-      <div className="mt-6">
+    <>
+      <DashboardHeaderConfigurator
+        config={{
+          action: null,
+          description: "Create a new loan record with borrower, collector, and term details.",
+          icon: <ReceiptText className="size-9 text-sidebar-foreground/65" />,
+          title: "Create Loan",
+        }}
+      />
+      <main className="mx-auto w-full max-w-5xl space-y-4">
+        {pageState.borrowers.length === 0 ? (
+          <div className="rounded-md border border-amber-200/70 bg-amber-50/80 px-4 py-3 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+            No borrowers found. Create a borrower account first.
+          </div>
+        ) : null}
         <CreateLoanForm
           activeLoanBorrowerIds={pageState.activeLoanBorrowerIds}
           areas={pageState.areas}
@@ -145,7 +142,7 @@ export default async function CreateLoanPage({ searchParams }: CreateLoanPagePro
           isAdmin={pageState.isAdmin}
           prefilledBorrower={pageState.prefilledBorrower}
         />
-      </div>
-    </main>
+      </main>
+    </>
   );
 }

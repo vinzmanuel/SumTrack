@@ -373,6 +373,33 @@ function buildDefaultDashboardHeaderConfig(
     };
   }
 
+  if (pathname === "/dashboard/loans") {
+    return {
+      action: null,
+      description: "Track, filter, and manage loan records across your current visible scope.",
+      icon: <ReceiptText className="size-9 text-sidebar-foreground/65" />,
+      title: "Loans",
+    };
+  }
+
+  if (pathname === "/dashboard/create-loan") {
+    return {
+      action: null,
+      description: "Create a new loan record with borrower, collector, and term details.",
+      icon: <ReceiptText className="size-9 text-sidebar-foreground/65" />,
+      title: "Create Loan",
+    };
+  }
+
+  if (/^\/dashboard\/loans\/\d+$/.test(pathname)) {
+    return {
+      action: null,
+      description: "Review loan summary, passbook entries, and repayment progression.",
+      icon: <FileChartColumn className="size-9 text-sidebar-foreground/65" />,
+      title: "Loan View",
+    };
+  }
+
   if (/^\/dashboard\/reports\/\d+$/.test(pathname)) {
     return {
       action: null,
@@ -801,6 +828,10 @@ export function DashboardShell({
       return "Create User";
     }
 
+    if (pathname === "/dashboard/create-loan") {
+      return "Create Loan";
+    }
+
     if (/^\/dashboard\/collectors\/[^/]+$/.test(pathname)) {
       return "Collector Details";
     }
@@ -823,6 +854,10 @@ export function DashboardShell({
 
     if (pathname === "/dashboard/reports/create") {
       return "Generate Report";
+    }
+
+    if (/^\/dashboard\/loans\/\d+$/.test(pathname)) {
+      return "Loan View";
     }
 
     if (/^\/dashboard\/reports\/\d+$/.test(pathname)) {

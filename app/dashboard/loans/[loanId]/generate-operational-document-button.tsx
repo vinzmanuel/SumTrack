@@ -19,11 +19,12 @@ function SubmitButton(props: {
   size?: "sm" | "default";
   variant?: "default" | "outline" | "secondary";
   disabled?: boolean;
+  className?: string;
 }) {
   const { pending } = useFormStatus();
 
   return (
-    <Button disabled={pending || props.disabled} size={props.size} type="submit" variant={props.variant}>
+    <Button className={props.className} disabled={pending || props.disabled} size={props.size} type="submit" variant={props.variant}>
       {pending ? "Generating..." : props.label}
     </Button>
   );
@@ -38,6 +39,7 @@ export function GenerateOperationalDocumentButton(props: {
   variant?: "default" | "outline" | "secondary";
   disabled?: boolean;
   disabledReason?: string;
+  className?: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -91,6 +93,7 @@ export function GenerateOperationalDocumentButton(props: {
         <input name="template_key" type="hidden" value={props.templateKey} />
         <input name="source_entity_id" type="hidden" value={String(props.sourceEntityId)} />
         <SubmitButton
+          className={props.className}
           disabled={props.disabled}
           label={props.label}
           size={props.size}

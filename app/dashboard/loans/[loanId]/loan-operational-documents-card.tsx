@@ -8,7 +8,7 @@ export function LoanOperationalDocumentsCard(props: {
   canGenerate: boolean;
 }) {
   return (
-    <Card>
+    <Card className="rounded-md border-border/70 shadow-sm">
       <CardHeader>
         <CardTitle>Loan Reports</CardTitle>
         <CardDescription>
@@ -17,6 +17,7 @@ export function LoanOperationalDocumentsCard(props: {
       </CardHeader>
       <CardContent className="flex flex-col gap-3 md:flex-row">
         <GenerateOperationalDocumentButton
+          className="h-11 rounded-md"
           disabled={!props.canGenerate}
           disabledReason={
             props.canGenerate ? undefined : "Only Admin, Branch Manager, and Secretary can generate loan reports."
@@ -28,6 +29,7 @@ export function LoanOperationalDocumentsCard(props: {
           variant="default"
         />
         <GenerateOperationalDocumentButton
+          className="h-11 rounded-md"
           label="Generate Loan Receipt Summary"
           disabled={!props.canGenerate}
           disabledReason={

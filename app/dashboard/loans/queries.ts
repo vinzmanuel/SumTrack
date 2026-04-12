@@ -32,7 +32,6 @@ import type {
 
 const borrowerUsers = alias(users, "borrower_users");
 const collectorUsers = alias(users, "collector_users");
-const STAFF_LOANS_PAGE_SIZE = 20;
 const ARCHIVED_BUCKET_STORED_VALUES = ["archived", "abandoned"] as const satisfies readonly StoredLoanStatus[];
 
 const loanCollectionStats = db
@@ -220,6 +219,7 @@ export async function loadStaffLoansPageData(scope: StaffLoansScope): Promise<St
   const countWhereCondition = whereFrom(countFilters);
   const branchOptionsWhere = buildBranchOptionsWhere(scope);
   const requestedPage = Math.max(scope.page, 1);
+  const pageSize = scope.pageSize;
 
   const branchOptions = await (
     scope.canChooseBranchFilter
@@ -265,9 +265,9 @@ export async function loadStaffLoansPageData(scope: StaffLoansScope): Promise<St
       archivedCount: 0,
     }));
 
-  const totalPages = Math.max(Math.ceil(totalCount / STAFF_LOANS_PAGE_SIZE), 1);
+  const totalPages = Math.max(Math.ceil(totalCount / pageSize), 1);
   const page = Math.min(requestedPage, totalPages);
-  const offset = (page - 1) * STAFF_LOANS_PAGE_SIZE;
+  const offset = (page - 1) * pageSize;
 
   const pageLoanRows = await db
     .select({
@@ -301,7 +301,7 @@ export async function loadStaffLoansPageData(scope: StaffLoansScope): Promise<St
     .leftJoin(employee_info, eq(employee_info.user_id, collectorUsers.user_id))
     .where(whereCondition)
     .orderBy(desc(loan_records.loan_id))
-    .limit(STAFF_LOANS_PAGE_SIZE)
+    .limit(pageSize)
     .offset(offset)
     .catch(() => []);
 
@@ -311,7 +311,7 @@ export async function loadStaffLoansPageData(scope: StaffLoansScope): Promise<St
     activeCount: tabCounts.activeCount,
     archivedCount: tabCounts.archivedCount,
     page,
-    pageSize: STAFF_LOANS_PAGE_SIZE,
+    pageSize,
     totalCount,
   };
 }

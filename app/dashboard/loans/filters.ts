@@ -10,6 +10,15 @@ function toPositiveInt(value: string | undefined) {
   return /^\d+$/.test(String(value ?? "")) ? Number(value) : null;
 }
 
+function normalizePageSize(value: string | undefined) {
+  const numeric = toPositiveInt(value);
+  if (numeric === 10 || numeric === 20 || numeric === 50) {
+    return numeric;
+  }
+
+  return 20;
+}
+
 function normalizeSearchQuery(value: string | undefined) {
   return String(value ?? "").trim().slice(0, 100);
 }
@@ -46,6 +55,7 @@ export function parseLoansListFilters(params: Awaited<LoansPageProps["searchPara
     status: normalizeStatus(params?.status, tab),
     searchQuery: normalizeSearchQuery(params?.query),
     page: Math.max(toPositiveInt(params?.page) ?? 1, 1),
+    pageSize: normalizePageSize(params?.pageSize),
   };
 }
 
@@ -56,6 +66,7 @@ type LoansPageProps = {
     status?: string;
     query?: string;
     page?: string;
+    pageSize?: string;
   }>;
 };
 
@@ -110,5 +121,6 @@ export function resolveLoansPageAccess(
     status: filters.status,
     searchQuery: filters.searchQuery,
     page: filters.page,
+    pageSize: filters.pageSize,
   };
 }

@@ -3,20 +3,22 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { BorrowerListRow } from "@/app/dashboard/borrowers/types";
+import {
+  UI_TABLE_HEADER_ROW_CLASS_NAME,
+  UI_TABLE_WRAPPER_CLASS_NAME,
+  UI_TABLE_ROW_HOVER_CLASS_NAME,
+} from "@/app/dashboard/_components/ui-patterns";
 
-function formatNameList(lastName: string | null, firstName: string | null, middleName: string | null) {
+function formatNameList(firstName: string | null, middleName: string | null, lastName: string | null) {
   const first = (firstName ?? "").trim();
   const last = (lastName ?? "").trim();
   const middle = (middleName ?? "").trim();
   const middleInitial = middle ? `${middle[0].toUpperCase()}.` : "";
-  const right = [first, middleInitial].filter(Boolean).join(" ");
+  const left = [first, middleInitial, last].filter(Boolean).join(" ");
 
-  if (last && right) {
-    return `${last}, ${right}`;
-  }
-
-  return last || right || "N/A";
+  return left || "N/A";
 }
 
 export function BorrowersTable({ borrowers }: { borrowers: BorrowerListRow[] }) {
@@ -26,41 +28,55 @@ export function BorrowersTable({ borrowers }: { borrowers: BorrowerListRow[] }) 
   const returnTo = query ? `${pathname}?${query}` : pathname;
 
   if (borrowers.length === 0) {
-    return <p className="text-muted-foreground text-sm">No borrowers found for the selected filter.</p>;
+    return (
+      <div className={UI_TABLE_WRAPPER_CLASS_NAME}>
+        <Table className="min-w-[980px] text-sm">
+          <TableBody>
+            <TableRow>
+              <TableCell className="py-10 text-center text-sm text-muted-foreground" colSpan={6}>
+                No borrowers found for the selected filter.
+              </TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
+      </div>
+    );
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[900px] text-sm">
-        <thead>
-          <tr className="border-b text-left">
-            <th className="px-2 py-2.5 font-medium">Company ID</th>
-            <th className="px-2 py-2.5 font-medium">Name</th>
-            <th className="px-2 py-2.5 font-medium">Area</th>
-            <th className="px-2 py-2.5 font-medium">Branch</th>
-            <th className="px-2 py-2.5 font-medium">Contact</th>
-            <th className="px-2 py-2.5 font-medium">Action</th>
-          </tr>
-        </thead>
-        <tbody>
+    <div className={UI_TABLE_WRAPPER_CLASS_NAME}>
+      <Table className="min-w-[980px] text-sm">
+        <TableHeader>
+          <TableRow className={UI_TABLE_HEADER_ROW_CLASS_NAME}>
+            <TableHead className="h-auto py-3 pl-5">Name</TableHead>
+            <TableHead className="h-auto py-3">Company ID</TableHead>
+            <TableHead className="h-auto py-3">Branch / Area</TableHead>
+            <TableHead className="h-auto py-3">Contact</TableHead>
+            <TableHead className="h-auto py-3">Email</TableHead>
+            <TableHead className="h-auto py-3">Action</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
           {borrowers.map((row) => (
-            <tr className="border-b" key={row.userId}>
-              <td className="px-2 py-3">{row.companyId}</td>
-              <td className="px-2 py-3">{formatNameList(row.lastName, row.firstName, row.middleName)}</td>
-              <td className="px-2 py-3">{row.areaCode}</td>
-              <td className="px-2 py-3">{row.branchCode || row.branchName}</td>
-              <td className="px-2 py-3">{row.contactNumber || "N/A"}</td>
-              <td className="px-2 py-3">
+            <TableRow className={UI_TABLE_ROW_HOVER_CLASS_NAME} key={row.userId}>
+              <TableCell className="py-3 pl-5 font-medium">
+                {formatNameList(row.firstName, row.middleName, row.lastName)}
+              </TableCell>
+              <TableCell className="py-3">{row.companyId}</TableCell>
+              <TableCell className="py-3">{`${row.branchName}-${row.areaNo}`}</TableCell>
+              <TableCell className="py-3 text-muted-foreground">{row.contactNumber || "N/A"}</TableCell>
+              <TableCell className="py-3 text-muted-foreground">{row.email || "N/A"}</TableCell>
+              <TableCell className="py-3">
                 <Link href={`/dashboard/borrowers/${row.userId}?source=borrowers&returnTo=${encodeURIComponent(returnTo)}`}>
-                  <Button size="sm" type="button" variant="outline">
+                  <Button className="h-11 rounded-md px-4" type="button" variant="outline">
                     View
                   </Button>
                 </Link>
-              </td>
-            </tr>
+              </TableCell>
+            </TableRow>
           ))}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </div>
   );
 }

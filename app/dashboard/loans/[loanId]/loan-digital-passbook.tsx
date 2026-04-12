@@ -17,6 +17,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/components/ui/sonner";
+import { UI_CONTROL_CLASS_NAME, UI_SURFACE_CLASS_NAME } from "@/app/dashboard/_components/ui-patterns";
 import { createCollectionAction } from "@/app/dashboard/loans/[loanId]/actions";
 import {
   isValidScheduledCollectionDate,
@@ -32,11 +33,17 @@ type LoanDetailFormProps = {
   canRecordCollections: boolean;
 };
 
+const LOAN_DETAIL_CONTROL_CLASS_NAME = UI_CONTROL_CLASS_NAME;
+
 function SubmitButton({ blocked }: { blocked: boolean }) {
   const { pending } = useFormStatus();
 
   return (
-    <Button className="active:scale-[0.98]" disabled={pending || blocked} type="submit">
+    <Button
+      className="h-11 rounded-md bg-emerald-600 px-4 text-sm text-white hover:bg-emerald-700 hover:text-white active:scale-[0.98]"
+      disabled={pending || blocked}
+      type="submit"
+    >
       {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
       {pending ? "Saving..." : "Record Collection"}
     </Button>
@@ -302,10 +309,10 @@ export function LoanDetailForm({
             <span className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-sm">
               {"\u20B1"}
             </span>
-            <Input
-              className="pl-7"
-              disabled={missedPayment}
-              id="amount"
+              <Input
+                className={`${LOAN_DETAIL_CONTROL_CLASS_NAME} pl-7`}
+                disabled={missedPayment}
+                id="amount"
               inputMode="decimal"
               onChange={(event) => setAmount(sanitizeNumericInput(event.target.value))}
               placeholder="0"
@@ -320,6 +327,7 @@ export function LoanDetailForm({
         <div className="space-y-2">
           <Label htmlFor="collection_date">Collection Date</Label>
           <Input
+            className={LOAN_DETAIL_CONTROL_CLASS_NAME}
             id="collection_date"
             name="collection_date"
             onChange={(event) => setCollectionDate(event.target.value)}
@@ -417,16 +425,16 @@ export function LoanDetailForm({
           </div>
 
           <DialogFooter>
-            <Button onClick={() => setIsConfirmOpen(false)} type="button" variant="outline">
+            <Button className="h-11 rounded-md px-4" onClick={() => setIsConfirmOpen(false)} type="button" variant="outline">
               Cancel
             </Button>
-            <Button className="active:scale-[0.98]" onClick={handleConfirmSubmit} type="button">
+            <Button className="h-11 rounded-md px-4 active:scale-[0.98]" onClick={handleConfirmSubmit} type="button">
               Confirm Save
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <Card>
+      <Card className={UI_SURFACE_CLASS_NAME}>
         <CardHeader>
           <div>
             <CardTitle>Digital Passbook</CardTitle>
@@ -437,9 +445,9 @@ export function LoanDetailForm({
           <CardAction>
             {canRecordCollections ? (
               <Button
-                className="bg-emerald-600 text-white hover:bg-emerald-700 active:scale-[0.98]"
+                className="h-11 rounded-md bg-emerald-600 px-4 text-sm text-white hover:bg-emerald-700 active:scale-[0.98]"
                 onClick={openCollectionForm}
-                size="sm"
+                size="default"
                 type="button"
               >
                 <Plus className="h-4 w-4" />
@@ -452,7 +460,7 @@ export function LoanDetailForm({
           {historyWithBalance.length === 0 ? (
             <p className="text-sm text-muted-foreground">No collections recorded yet.</p>
           ) : (
-            <div className="overflow-hidden rounded-lg border border-border/70">
+            <div className="overflow-hidden rounded-md border border-border/70">
               <div className="overflow-auto">
               <table className="min-w-245 w-full table-fixed text-sm">
                 <colgroup>

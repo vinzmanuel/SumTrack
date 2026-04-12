@@ -8,6 +8,7 @@ export type LoansPageProps = {
     status?: string;
     query?: string;
     page?: string;
+    pageSize?: string;
   }>;
 };
 
@@ -17,6 +18,7 @@ export type LoansListFilters = {
   status: LoanStatusFilter;
   searchQuery: string;
   page: number;
+  pageSize: number;
 };
 
 export type LoanListTab = "active" | "archived";
@@ -61,6 +63,7 @@ export type StaffLoansScope = {
   status: LoanStatusFilter;
   searchQuery: string;
   page: number;
+  pageSize: number;
 };
 
 export type LoansPageAccessState =

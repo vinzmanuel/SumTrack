@@ -5,6 +5,15 @@ function toPositiveInt(value: string | undefined) {
   return /^\d+$/.test(String(value ?? "")) ? Number(value) : null;
 }
 
+function normalizePageSize(value: string | undefined) {
+  const numeric = toPositiveInt(value);
+  if (numeric === 10 || numeric === 20 || numeric === 50) {
+    return numeric;
+  }
+
+  return 20;
+}
+
 function normalizeSearchQuery(value: string | undefined) {
   return String(value ?? "").trim().slice(0, 100);
 }
@@ -17,6 +26,7 @@ export function parseBorrowersListFilters(
     requestedAreaId: toPositiveInt(params?.areaId),
     searchQuery: normalizeSearchQuery(params?.query),
     page: Math.max(toPositiveInt(params?.page) ?? 1, 1),
+    pageSize: normalizePageSize(params?.pageSize),
   };
 }
 
@@ -63,6 +73,7 @@ export function resolveBorrowersPageAccess(
       scopeMessage: "",
       searchQuery: filters.searchQuery,
       page: filters.page,
+      pageSize: filters.pageSize,
     };
   }
 
@@ -88,6 +99,7 @@ export function resolveBorrowersPageAccess(
       scopeMessage: "Read-only view is limited to your assigned branches.",
       searchQuery: filters.searchQuery,
       page: filters.page,
+      pageSize: filters.pageSize,
     };
   }
 
@@ -109,5 +121,6 @@ export function resolveBorrowersPageAccess(
     scopeMessage: "Branch scope is enforced from your active assignment.",
     searchQuery: filters.searchQuery,
     page: filters.page,
+    pageSize: filters.pageSize,
   };
 }

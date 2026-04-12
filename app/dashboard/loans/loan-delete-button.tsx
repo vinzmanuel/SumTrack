@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import type { MouseEvent as ReactMouseEvent, ReactElement } from "react";
 import { toast } from "sonner";
 import { DestructiveDeleteFlow } from "@/app/dashboard/_components/destructive-delete-flow";
 
@@ -9,11 +10,13 @@ export function LoanDeleteButton({
   loanCode,
   redirectHref,
   size = "sm",
+  trigger,
 }: {
   loanId: number;
   loanCode: string;
   redirectHref?: string;
   size?: "sm" | "default";
+  trigger?: ReactElement<{ onClick?: (event: ReactMouseEvent<HTMLElement>) => void }>;
 }) {
   const router = useRouter();
 
@@ -53,6 +56,7 @@ export function LoanDeleteButton({
       itemValue={loanCode}
       onExecute={performDelete}
       title="Delete Loan"
+      trigger={trigger}
       triggerClassName="bg-destructive text-white hover:bg-destructive/90"
       triggerLabel="Delete"
       triggerSize={size}

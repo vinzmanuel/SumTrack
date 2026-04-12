@@ -1,5 +1,3 @@
-import { Card, CardContent } from "@/components/ui/card";
-
 export function LoanRecordsModuleSkeleton({
   canChooseBranchFilter,
   showAction,
@@ -8,65 +6,48 @@ export function LoanRecordsModuleSkeleton({
   showAction: boolean;
 }) {
   return (
-    <Card className="overflow-hidden border-border/70 shadow-sm">
-      <CardContent className="p-0">
-        <div className="space-y-2.5 px-4 pb-4 pt-2 md:px-5 md:pb-5 md:pt-3">
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-end">
-            <div className={`grid flex-1 gap-3 ${canChooseBranchFilter ? "md:grid-cols-4" : "md:grid-cols-3"}`}>
-              <div className="space-y-1 md:col-span-2">
-                <div className="h-4 w-14 animate-pulse rounded bg-muted" />
-                <div className="h-10 w-full animate-pulse rounded-md bg-muted" />
-              </div>
-
-              {canChooseBranchFilter ? (
-                <div className="space-y-1">
-                  <div className="h-4 w-14 animate-pulse rounded bg-muted" />
-                  <div className="h-10 w-full animate-pulse rounded-md bg-muted" />
-                </div>
-              ) : null}
-
-              <div className="space-y-1">
-                <div className="h-4 w-14 animate-pulse rounded bg-muted" />
-                <div className="h-10 w-full animate-pulse rounded-md bg-muted" />
-              </div>
-            </div>
-
-            {showAction ? <div className="h-9 w-28 animate-pulse rounded-md bg-muted" /> : null}
+    <div className="space-y-4">
+      <div className="space-y-3 px-1">
+        <div className="h-11 w-72 animate-pulse rounded-md bg-zinc-200 dark:bg-zinc-800" />
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="h-11 w-full animate-pulse rounded-md bg-zinc-200 xl:w-[360px] dark:bg-zinc-800" />
+          <div className="flex w-full flex-wrap items-center gap-2.5 xl:w-auto xl:justify-end">
+            {canChooseBranchFilter ? <div className="h-11 w-[210px] animate-pulse rounded-md bg-zinc-200 dark:bg-zinc-800" /> : null}
+            <div className="h-11 w-[210px] animate-pulse rounded-md bg-zinc-200 dark:bg-zinc-800" />
+            <div className="h-11 w-[100px] animate-pulse rounded-md bg-zinc-200 dark:bg-zinc-800" />
+            {showAction ? <div className="h-11 w-32 animate-pulse rounded-md bg-zinc-200 dark:bg-zinc-800" /> : null}
           </div>
         </div>
+      </div>
 
-        <div className="border-t border-border/70 px-4 pb-4 pt-3 md:px-5 md:pb-5">
-          <div className="space-y-3">
-            <div className="overflow-x-auto">
-              <div className="min-w-[1100px]">
-                <div className="grid grid-cols-10 gap-4 border-b pb-2.5">
-                  {Array.from({ length: 10 }).map((_, index) => (
-                    <div className="h-4 animate-pulse rounded bg-muted" key={`header-${index}`} />
-                  ))}
-                </div>
-                <div className="space-y-0">
-                  {Array.from({ length: 5 }).map((_, rowIndex) => (
-                    <div className="grid grid-cols-10 gap-4 border-b py-3" key={`row-${rowIndex}`}>
-                      {Array.from({ length: 10 }).map((_, columnIndex) => (
-                        <div className="h-5 animate-pulse rounded bg-muted/80" key={`cell-${rowIndex}-${columnIndex}`} />
-                      ))}
-                    </div>
-                  ))}
-                </div>
-              </div>
+      <div className="space-y-4 px-1">
+        <div className="overflow-x-auto rounded-md border border-border/70 bg-card shadow-sm">
+          <div className="min-w-[1200px]">
+            <div className="grid grid-cols-11 gap-4 border-b px-5 py-3">
+              {Array.from({ length: 11 }).map((_, index) => (
+                <div className="h-4 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" key={`header-${index}`} />
+              ))}
             </div>
-
-            <div className="flex flex-col gap-3 border-t pt-3 text-sm md:flex-row md:items-center md:justify-between">
-              <div className="h-4 w-40 animate-pulse rounded bg-muted" />
-              <div className="flex items-center gap-2">
-                <div className="h-4 w-20 animate-pulse rounded bg-muted" />
-                <div className="h-9 w-24 animate-pulse rounded-md bg-muted" />
-                <div className="h-9 w-20 animate-pulse rounded-md bg-muted" />
+            {Array.from({ length: 6 }).map((_, rowIndex) => (
+              <div className="grid grid-cols-11 gap-4 border-b px-5 py-3 last:border-b-0" key={`row-${rowIndex}`}>
+                {Array.from({ length: 11 }).map((_, columnIndex) => (
+                  <div className="h-5 animate-pulse rounded bg-zinc-200/90 dark:bg-zinc-800/90" key={`cell-${rowIndex}-${columnIndex}`} />
+                ))}
               </div>
-            </div>
+            ))}
           </div>
         </div>
-      </CardContent>
-    </Card>
+        <div className="flex flex-col gap-3 px-1 text-sm xl:flex-row xl:items-center xl:justify-between">
+          <div className="h-4 w-44 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
+          <div className="flex items-center gap-2">
+            <div className="h-4 w-10 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
+            <div className="h-11 w-[84px] animate-pulse rounded-md bg-zinc-200 dark:bg-zinc-800" />
+            <div className="ml-4 h-4 w-24 animate-pulse rounded bg-zinc-200 dark:bg-zinc-800" />
+            <div className="h-10 w-10 animate-pulse rounded-md bg-zinc-200 dark:bg-zinc-800" />
+            <div className="h-10 w-10 animate-pulse rounded-md bg-zinc-200 dark:bg-zinc-800" />
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

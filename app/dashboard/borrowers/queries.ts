@@ -10,7 +10,6 @@ import type {
   BorrowersPageData,
   BorrowersStaffScope,
 } from "@/app/dashboard/borrowers/types";
-const BORROWERS_PAGE_SIZE = 20;
 
 function buildAreasWhere(scope: BorrowersStaffScope): SQL | undefined {
   if (scope.roleName === "Admin") {
@@ -84,10 +83,10 @@ function toBorrowerListRow(row: {
   first_name: string | null;
   middle_name: string | null;
   last_name: string | null;
-  area_code: string;
+  area_no: string;
   branch_name: string;
-  branch_code: string | null;
   contact_number: string | null;
+  email: string | null;
 }): BorrowerListRow {
   return {
     userId: row.user_id,
@@ -95,10 +94,10 @@ function toBorrowerListRow(row: {
     firstName: row.first_name,
     middleName: row.middle_name,
     lastName: row.last_name,
-    areaCode: row.area_code,
+    areaNo: row.area_no,
     branchName: row.branch_name,
-    branchCode: row.branch_code,
     contactNumber: row.contact_number,
+    email: row.email,
   };
 }
 
@@ -120,6 +119,7 @@ export async function loadBorrowersPageData(scope: BorrowersStaffScope): Promise
   const areasWhere = buildAreasWhere(scope);
   const branchesWhere = buildBranchesWhere(scope);
   const requestedPage = Math.max(scope.page, 1);
+  const pageSize = scope.pageSize;
 
   const [branches, areasRows] = await Promise.all([
     scope.canChooseBranch
@@ -161,9 +161,9 @@ export async function loadBorrowersPageData(scope: BorrowersStaffScope): Promise
     .then((rows) => Number(rows[0]?.value) || 0)
     .catch(() => 0);
 
-  const totalPages = Math.max(Math.ceil(totalCount / BORROWERS_PAGE_SIZE), 1);
+  const totalPages = Math.max(Math.ceil(totalCount / pageSize), 1);
   const page = Math.min(requestedPage, totalPages);
-  const offset = (page - 1) * BORROWERS_PAGE_SIZE;
+  const offset = (page - 1) * pageSize;
 
   const borrowers = await db
     .select({
@@ -172,10 +172,10 @@ export async function loadBorrowersPageData(scope: BorrowersStaffScope): Promise
       first_name: borrower_info.first_name,
       middle_name: borrower_info.middle_name,
       last_name: borrower_info.last_name,
-      area_code: areas.area_code,
+      area_no: areas.area_no,
       branch_name: branch.branch_name,
-      branch_code: branch.branch_code,
       contact_number: users.contact_no,
+      email: users.email,
     })
     .from(borrower_info)
     .innerJoin(users, eq(users.user_id, borrower_info.user_id))
@@ -183,7 +183,7 @@ export async function loadBorrowersPageData(scope: BorrowersStaffScope): Promise
     .innerJoin(branch, eq(branch.branch_id, areas.branch_id))
     .where(whereCondition)
     .orderBy(asc(users.company_id))
-    .limit(BORROWERS_PAGE_SIZE)
+    .limit(pageSize)
     .offset(offset)
     .catch(() => []);
 
@@ -193,7 +193,7 @@ export async function loadBorrowersPageData(scope: BorrowersStaffScope): Promise
     borrowers: borrowers.map(toBorrowerListRow),
     selectedAreaId,
     page,
-    pageSize: BORROWERS_PAGE_SIZE,
+    pageSize,
     totalCount,
   };
 }

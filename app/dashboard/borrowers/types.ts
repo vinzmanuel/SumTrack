@@ -6,6 +6,7 @@ export type BorrowersPageProps = {
     areaId?: string;
     query?: string;
     page?: string;
+    pageSize?: string;
   }>;
 };
 
@@ -85,6 +86,7 @@ export type BorrowersListFilters = {
   requestedAreaId: number | null;
   searchQuery: string;
   page: number;
+  pageSize: number;
 };
 
 export type BorrowerBranchOption = {
@@ -103,10 +105,10 @@ export type BorrowerListRow = {
   firstName: string | null;
   middleName: string | null;
   lastName: string | null;
-  areaCode: string;
+  areaNo: string;
   branchName: string;
-  branchCode: string | null;
   contactNumber: string | null;
+  email: string | null;
 };
 
 export type BorrowersStaffScope = {
@@ -120,6 +122,7 @@ export type BorrowersStaffScope = {
   scopeMessage: string;
   searchQuery: string;
   page: number;
+  pageSize: number;
 };
 
 export type BorrowersAccessState =
