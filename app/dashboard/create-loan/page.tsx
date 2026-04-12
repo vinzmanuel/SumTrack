@@ -133,7 +133,7 @@ export default async function CreateLoanPage({ searchParams }: CreateLoanPagePro
                   : { label: "Borrowers", href: "/dashboard/borrowers" },
                 {
                   label: pageState.prefilledBorrower.breadcrumbLabel,
-                  href: firstSearchValue(params.returnTo) || `/dashboard/borrowers/${pageState.prefilledBorrower.userId}`,
+                  href: firstSearchValue(params.returnTo) || `/dashboard/borrowers/${pageState.prefilledBorrower.borrowerId}`,
                 },
                 { label: "Create Loan", current: true },
               ]

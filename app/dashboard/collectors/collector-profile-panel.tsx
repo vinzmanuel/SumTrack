@@ -204,22 +204,13 @@ export function CollectorProfilePanel({
             <SectionIntro
               badges={
                 <>
-                  <Badge
-                    className="rounded-md border-emerald-200 bg-emerald-50 py-1 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300"
-                    variant="outline"
-                  >
+                  <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700" variant="outline">
                     Status: {data.status === "active" ? "Active" : "Inactive"}
                   </Badge>
-                  <Badge
-                    className="rounded-md border-emerald-200 bg-emerald-50 py-1 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300"
-                    variant="outline"
-                  >
+                  <Badge className="border-emerald-200 bg-emerald-50 text-emerald-700" variant="outline">
                     Period: {data.periodLabel}
                   </Badge>
-                  <Badge
-                    className="rounded-md border-border/70 bg-card py-1 text-zinc-700 shadow-xs dark:border-white/12 dark:bg-white/[0.04] dark:text-zinc-300"
-                    variant="outline"
-                  >
+                  <Badge className="border-border/70 bg-card text-zinc-700 shadow-xs" variant="outline">
                     {trendLabel}
                   </Badge>
                 </>
@@ -245,19 +236,14 @@ export function CollectorProfilePanel({
                   Collected output against expected pace across the selected period.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="flex min-h-0 flex-1 pb-6 pt-0">
-                <div className="flex min-h-0 w-full flex-1 rounded-md border border-border/70 bg-muted/10 p-3">
-                  <div className="w-full overflow-x-auto">
-                    <div className="h-full min-h-0 min-w-[540px] w-full">
-                      <CollectorProfileTrendChart
-                        axisFormatter={formatCollectorsAxisCurrency}
-                        chart={data.periodTrendChart}
-                        condensed
-                        fillHeight
-                        valueFormatter={formatCollectorsCurrency}
-                      />
-                    </div>
-                  </div>
+              <CardContent className="pb-6 pt-0">
+                <div className="rounded-md border border-border/70 bg-muted/10 p-3">
+                  <CollectorProfileTrendChart
+                    axisFormatter={formatCollectorsAxisCurrency}
+                    chart={data.periodTrendChart}
+                    condensed
+                    valueFormatter={formatCollectorsCurrency}
+                  />
                 </div>
               </CardContent>
             </Card>
@@ -383,16 +369,10 @@ export function CollectorProfilePanel({
         <SectionIntro
           badges={
             <>
-              <Badge
-                className="rounded-md border-border/70 bg-card py-1 text-zinc-700 shadow-xs dark:border-white/12 dark:bg-white/[0.04] dark:text-zinc-300"
-                variant="outline"
-              >
+              <Badge className="border-border/70 bg-card text-zinc-700 shadow-xs" variant="outline">
                 {formatCollectorsInteger(data.loanPortfolio.total)} loans in view
               </Badge>
-              <Badge
-                className="rounded-md border-border/70 bg-card py-1 text-zinc-700 shadow-xs dark:border-white/12 dark:bg-white/[0.04] dark:text-zinc-300"
-                variant="outline"
-              >
+              <Badge className="border-border/70 bg-card text-zinc-700 shadow-xs" variant="outline">
                 Live operational context
               </Badge>
             </>
@@ -560,18 +540,13 @@ export function CollectorProfilePanel({
                 Total collected per month across visible history, with the lifetime monthly average overlaid for reference.
               </CardDescription>
             </CardHeader>
-            <CardContent className="flex min-h-0 flex-1 pb-6 pt-0">
-              <div className="flex min-h-0 w-full flex-1 rounded-md border border-border/70 bg-muted/10 p-3">
-                <div className="w-full overflow-x-auto">
-                  <div className="h-full min-h-0 min-w-[540px] w-full">
-                    <CollectorProfileBarChart
-                      axisFormatter={formatCollectorsAxisCurrency}
-                      chart={data.lifetimeTrendChart}
-                      className="h-full min-h-0"
-                      valueFormatter={formatCollectorsCurrency}
-                    />
-                  </div>
-                </div>
+            <CardContent className="pb-6 pt-0">
+              <div className="rounded-md border border-border/70 bg-muted/10 p-3">
+                <CollectorProfileBarChart
+                  axisFormatter={formatCollectorsAxisCurrency}
+                  chart={data.lifetimeTrendChart}
+                  valueFormatter={formatCollectorsCurrency}
+                />
               </div>
             </CardContent>
           </Card>
