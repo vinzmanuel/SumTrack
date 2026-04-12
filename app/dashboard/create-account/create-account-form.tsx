@@ -57,6 +57,7 @@ type CreateAccountFormProps = {
   occupiedBranchManagerBranchIds?: string[];
   occupiedAuditorBranchIds?: string[];
   collectorWarningAreaIds?: string[];
+  prefillRole?: string | null;
 };
 
 const EMPLOYEE_ROLE_NAMES = ["Admin", "Auditor", "Branch Manager", "Secretary", "Collector"];
@@ -229,13 +230,26 @@ export function CreateAccountForm({
   occupiedBranchManagerBranchIds = [],
   occupiedAuditorBranchIds = [],
   collectorWarningAreaIds = [],
+  prefillRole = null,
 }: CreateAccountFormProps) {
   const [state, formAction] = useActionState(createAccountAction, initialCreateAccountState);
   const formRef = useRef<HTMLFormElement>(null);
   const confirmedSubmitRef = useRef(false);
 
-  const [accountCategory, setAccountCategory] = useState<AccountCategory>(borrowerOnly ? "Borrower" : "Employee");
-  const [roleId, setRoleId] = useState("");
+  const [accountCategory, setAccountCategory] = useState<AccountCategory>(
+    borrowerOnly 
+      ? "Borrower" 
+      : prefillRole === "Borrower" 
+        ? "Borrower" 
+        : "Employee"
+  );
+  const [roleId, setRoleId] = useState(() => {
+    if (prefillRole && prefillRole !== "Borrower") {
+      const found = roles.find((r) => r.role_name === prefillRole);
+      return found ? String(found.role_id) : "";
+    }
+    return "";
+  });
   const [firstName, setFirstName] = useState("");
   const [middleName, setMiddleName] = useState("");
   const [lastName, setLastName] = useState("");

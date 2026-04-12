@@ -1,71 +1,112 @@
-import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+
+const CONTROL_SKELETON_CLASS_NAME =
+  "rounded-md border border-border/70 bg-white shadow-xs dark:bg-muted/70";
 
 export function BorrowerRecordsModuleSkeleton({
-  canChooseBranch,
-  showAction,
+  canChooseBranch = true,
+  showAction = true,
 }: {
-  canChooseBranch: boolean;
-  showAction: boolean;
+  canChooseBranch?: boolean;
+  showAction?: boolean;
 }) {
   return (
-    <Card className="overflow-hidden border-border/70 shadow-sm">
-      <CardContent className="p-0">
-        <div className="space-y-2.5 px-4 pb-4 pt-2 md:px-5 md:pb-5 md:pt-3">
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-end">
-            <div className={`grid flex-1 gap-3 ${canChooseBranch ? "md:grid-cols-4" : "md:grid-cols-3"}`}>
-              <div className="space-y-1 md:col-span-2">
-                <div className="h-4 w-14 animate-pulse rounded bg-muted" />
-                <div className="h-10 w-full animate-pulse rounded-md bg-muted" />
-              </div>
-              {canChooseBranch ? (
-                <div className="space-y-1">
-                  <div className="h-4 w-14 animate-pulse rounded bg-muted" />
-                  <div className="h-10 w-full animate-pulse rounded-md bg-muted" />
-                </div>
-              ) : null}
-              <div className="space-y-1">
-                <div className="h-4 w-10 animate-pulse rounded bg-muted" />
-                <div className="h-10 w-full animate-pulse rounded-md bg-muted" />
-              </div>
-            </div>
-
-            <div className="flex shrink-0 gap-2 xl:self-end">
-              <div className="h-9 w-16 animate-pulse rounded-md bg-muted" />
-              {showAction ? <div className="h-9 w-40 animate-pulse rounded-md bg-muted" /> : null}
-            </div>
-          </div>
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+        <div className="relative w-full xl:w-[360px] xl:shrink-0">
+          <Skeleton className={`h-11 w-full ${CONTROL_SKELETON_CLASS_NAME}`} />
         </div>
 
-        <div className="border-t border-border/70 px-4 pb-4 pt-3 md:px-5 md:pb-5">
-          <div className="space-y-3">
-            <div className="overflow-x-auto">
-              <div className="min-w-[900px]">
-                <div className="grid grid-cols-6 gap-4 border-b pb-2.5">
-                  {Array.from({ length: 6 }).map((_, index) => (
-                    <div className="h-4 animate-pulse rounded bg-muted" key={`header-${index}`} />
+        <div className="flex w-full flex-wrap items-center gap-2.5 xl:w-auto xl:justify-end">
+          {canChooseBranch ? (
+            <Skeleton className={`h-11 w-full min-w-[180px] sm:w-[190px] ${CONTROL_SKELETON_CLASS_NAME}`} />
+          ) : null}
+          <Skeleton className={`h-11 w-full min-w-[160px] sm:w-[170px] ${CONTROL_SKELETON_CLASS_NAME}`} />
+          <Skeleton className={`h-11 w-[84px] ${CONTROL_SKELETON_CLASS_NAME}`} />
+          {showAction ? <Skeleton className={`h-11 w-[160px] ${CONTROL_SKELETON_CLASS_NAME}`} /> : null}
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        <div className="px-1 py-1">
+          <Skeleton className="mt-1 h-4 w-72 max-w-full" />
+        </div>
+
+        <div className="space-y-5">
+          <div className="relative">
+            <div className="overflow-x-auto rounded-md border border-border/70 bg-card shadow-sm">
+              <Table className="min-w-[980px] text-sm">
+                <TableHeader>
+                  <TableRow className="border-border/70 bg-card">
+                    <TableHead className="h-auto py-3 pl-5">
+                      <Skeleton className="h-4 w-20 rounded-md" />
+                    </TableHead>
+                    <TableHead className="h-auto py-3">
+                      <Skeleton className="h-4 w-20 rounded-md" />
+                    </TableHead>
+                    <TableHead className="h-auto py-3">
+                      <Skeleton className="h-4 w-20 rounded-md" />
+                    </TableHead>
+                    <TableHead className="h-auto py-3">
+                      <Skeleton className="h-4 w-24 rounded-md" />
+                    </TableHead>
+                    <TableHead className="h-auto py-3">
+                      <Skeleton className="h-4 w-28 rounded-md" />
+                    </TableHead>
+                    <TableHead className="h-auto py-3">
+                      <Skeleton className="h-4 w-12 rounded-md" />
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {Array.from({ length: 6 }).map((_, rowIndex) => (
+                    <TableRow key={`borrower-row-${rowIndex}`}>
+                      <TableCell className="py-3 pl-5">
+                        <Skeleton className="h-5 w-44" />
+                      </TableCell>
+                      <TableCell className="py-3">
+                        <Skeleton className="h-5 w-24 rounded-md" />
+                      </TableCell>
+                      <TableCell className="py-3">
+                        <Skeleton className="h-5 w-28 rounded-md" />
+                      </TableCell>
+                      <TableCell className="py-3">
+                        <Skeleton className="h-5 w-28" />
+                      </TableCell>
+                      <TableCell className="py-3">
+                        <Skeleton className="h-5 w-40" />
+                      </TableCell>
+                      <TableCell className="py-3">
+                        <Skeleton className="h-11 w-[72px] rounded-md" />
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </div>
-                {Array.from({ length: 5 }).map((_, rowIndex) => (
-                  <div className="grid grid-cols-6 gap-4 border-b py-3" key={`row-${rowIndex}`}>
-                    {Array.from({ length: 6 }).map((_, columnIndex) => (
-                      <div className="h-5 animate-pulse rounded bg-muted/80" key={`cell-${rowIndex}-${columnIndex}`} />
-                    ))}
-                  </div>
-                ))}
-              </div>
+                </TableBody>
+              </Table>
             </div>
+          </div>
 
-            <div className="flex flex-col gap-3 border-t pt-3 text-sm md:flex-row md:items-center md:justify-between">
-              <div className="h-4 w-40 animate-pulse rounded bg-muted" />
-              <div className="flex items-center gap-2">
-                <div className="h-4 w-20 animate-pulse rounded bg-muted" />
-                <div className="h-9 w-24 animate-pulse rounded-md bg-muted" />
-                <div className="h-9 w-20 animate-pulse rounded-md bg-muted" />
+          <div className="px-1 py-1">
+            <div className="flex flex-col gap-3 text-sm xl:flex-row xl:items-center xl:justify-between">
+              <div className="space-y-1">
+                <Skeleton className="h-4 w-40" />
+              </div>
+              <div className="flex flex-wrap items-center gap-2 xl:justify-center">
+                <div className="flex items-center gap-2">
+                  <Skeleton className="h-4 w-10" />
+                  <Skeleton className={`h-9 w-[84px] ${CONTROL_SKELETON_CLASS_NAME}`} />
+                </div>
+                <div className="ml-4 flex items-center gap-2">
+                  <Skeleton className="h-4 w-20" />
+                  <Skeleton className={`h-9 w-9 ${CONTROL_SKELETON_CLASS_NAME}`} />
+                  <Skeleton className={`h-9 w-9 ${CONTROL_SKELETON_CLASS_NAME}`} />
+                </div>
               </div>
             </div>
           </div>
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }

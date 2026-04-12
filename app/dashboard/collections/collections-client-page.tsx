@@ -1,8 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { HandCoins } from "lucide-react";
-import { DashboardHeaderConfigurator } from "@/app/dashboard/_components/dashboard-header-config";
 import { UI_PAGE_STACK_CLASS_NAME } from "@/app/dashboard/_components/ui-patterns";
 import { CollectionsFilters } from "@/app/dashboard/collections/collections-filters";
 import { CollectionsResultsSection } from "@/app/dashboard/collections/collections-results-section";
@@ -119,14 +117,6 @@ export function CollectionsClientPage({
 
   return (
     <div className={UI_PAGE_STACK_CLASS_NAME}>
-      <DashboardHeaderConfigurator
-        config={{
-          icon: <HandCoins className="size-9 text-sidebar-foreground/65" />,
-          title: "Collections",
-          description:
-            "Analyze collection composition, reliability, and payment behavior across your selected branch scope.",
-        }}
-      />
 
       <CollectionsFilters
         branchFilterLabel={branchFilterLabel}

@@ -55,10 +55,12 @@ const ALLOWED_ROLE_NAMES = [
 export default async function CreateAccountPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ source?: string; returnTo?: string | string[] }>;
+  searchParams?: Promise<{ source?: string; returnTo?: string | string[]; prefillRole?: string; context?: string }>;
 }) {
   const auth = await getDashboardAuthContext();
   const resolvedSearchParams = (await searchParams) ?? {};
+  const prefillRole = resolvedSearchParams.prefillRole ?? null;
+  const context = resolvedSearchParams.context ?? null;
   const backNavigation = resolveBackNavigation({
     source: typeof resolvedSearchParams.source === "string" ? resolvedSearchParams.source : null,
     returnTo: Array.isArray(resolvedSearchParams.returnTo)
@@ -302,14 +304,19 @@ export default async function CreateAccountPage({
       ? "Create secretary, collector, and borrower accounts within your assigned branch."
       : "Create borrower accounts within your assigned branch.";
 
+  const pageTitle = context === "borrower" ? "Create Borrower" : "Create User";
+  const customDescription = context === "borrower" 
+    ? "Provision a new borrower account with an initial branch and area assignment." 
+    : description;
+
   return (
     <>
       <DashboardHeaderConfigurator
         config={{
           action: null,
-          description,
+          description: customDescription,
           icon: <UserPlus className="size-9 text-sidebar-foreground/65" />,
-          title: "Create User",
+          title: pageTitle,
         }}
       />
 
@@ -323,6 +330,7 @@ export default async function CreateAccountPage({
           occupiedBranchManagerBranchIds={occupiedAssignments.occupiedBranchManagerBranchIds}
           collectorWarningAreaIds={occupiedAssignments.collectorWarningAreaIds}
           roles={mappedRoles}
+          prefillRole={prefillRole}
         />
       </div>
     </>

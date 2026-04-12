@@ -1,15 +1,16 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { desc, eq, sql } from "drizzle-orm";
 import { FileChartColumn, Plus, ReceiptText, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { DashboardBackLink } from "@/app/dashboard/_components/dashboard-back-link";
 import { DashboardHeaderConfigurator } from "@/app/dashboard/_components/dashboard-header-config";
 import {
   UI_TAB_ICON_ACTIVE_CLASS_NAME,
   UI_TAB_LIST_CLASS_NAME,
   UI_TAB_SEPARATOR_CLASS_NAME,
-  getUiRoleBadgeClassName,
   getUiTabTriggerClassName,
 } from "@/app/dashboard/_components/ui-patterns";
 import {
@@ -106,6 +107,134 @@ function buildTabHref(params: {
   return query
     ? `/dashboard/borrowers/${params.borrowerId}?${query}`
     : `/dashboard/borrowers/${params.borrowerId}`;
+}
+
+async function BorrowerLoanHistoryLoader({ borrowerId, returnTo }: { borrowerId: string; returnTo: string }) {
+  const loans = await db
+    .select({
+      loan_id: loan_records.loan_id,
+      loan_code: loan_records.loan_code,
+      principal: loan_records.principal,
+      interest: loan_records.interest,
+      start_date: loan_records.start_date,
+      due_date: loan_records.due_date,
+      status: loan_records.status,
+      collector_first_name: employee_info.first_name,
+      collector_last_name: employee_info.last_name,
+      paid_amount: sql<number>`COALESCE((SELECT SUM(amount) FROM collections WHERE collections.loan_id = loan_records.loan_id), 0)`,
+    })
+    .from(loan_records)
+    .leftJoin(employee_info, eq(employee_info.user_id, loan_records.collector_id))
+    .where(eq(loan_records.borrower_id, borrowerId))
+    .orderBy(desc(loan_records.loan_id))
+    .catch(() => []);
+
+  return (
+    <BorrowerLoanHistoryTab
+      loans={loans.map((loan) => {
+        const principal = Number(loan.principal) || 0;
+        const interest = Number(loan.interest) || 0;
+        const totalPayable = principal + (principal * interest) / 100;
+        const paid = Number(loan.paid_amount) || 0;
+        const remainingBalance = Math.max(0, totalPayable - paid);
+
+        return {
+          loanId: loan.loan_id,
+          loanCode: loan.loan_code,
+          principal,
+          interest,
+          startDate: loan.start_date,
+          dueDate: loan.due_date,
+          visibleStatus: getVisibleLoanStatusFromStoredStatus(loan.status),
+          collectorName: [loan.collector_first_name, loan.collector_last_name].filter(Boolean).join(" ").trim() || null,
+          remainingBalance,
+        };
+      })}
+      returnTo={returnTo}
+    />
+  );
+}
+
+async function BorrowerDocumentsLoader({
+  borrowerId,
+  docsOffset,
+  docsPage,
+  canManageDocs,
+  canViewDocs,
+}: {
+  borrowerId: string;
+  docsOffset: number;
+  docsPage: number;
+  canManageDocs: boolean;
+  canViewDocs: boolean;
+}) {
+  const docs = await db
+    .select({
+      borrower_doc_id: borrower_docs.borrower_doc_id,
+      borrower_id: borrower_docs.borrower_id,
+      document_type: borrower_docs.document_type,
+      file_path: borrower_docs.file_path,
+      uploaded_by: borrower_docs.uploaded_by,
+      original_filename: borrower_docs.original_filename,
+      mime_type: borrower_docs.mime_type,
+      file_size: borrower_docs.file_size,
+      uploaded_at: borrower_docs.uploaded_at,
+      uploader_company_id: users.company_id,
+      uploader_username: users.username,
+      uploader_first_name: employee_info.first_name,
+      uploader_last_name: employee_info.last_name,
+    })
+    .from(borrower_docs)
+    .leftJoin(users, eq(users.user_id, borrower_docs.uploaded_by))
+    .leftJoin(employee_info, eq(employee_info.user_id, borrower_docs.uploaded_by))
+    .where(eq(borrower_docs.borrower_id, borrowerId))
+    .orderBy(desc(borrower_docs.uploaded_at), desc(borrower_docs.borrower_doc_id))
+    .limit(DOCS_PAGE_SIZE + 1)
+    .offset(docsOffset)
+    .catch(() => []);
+
+  const hasMoreDocs = docs.length > DOCS_PAGE_SIZE;
+  const pagedDocs = docs.slice(0, DOCS_PAGE_SIZE).map((doc) => {
+    const uploaderName =
+      [doc.uploader_first_name, doc.uploader_last_name].filter(Boolean).join(" ") ||
+      doc.uploader_company_id ||
+      doc.uploader_username ||
+      "Unknown";
+
+    return {
+      ...doc,
+      file_size: Number(doc.file_size ?? 0),
+      uploaded_by_name: uploaderName,
+    };
+  });
+
+  return (
+    <BorrowerDocumentsSection
+      borrowerId={borrowerId}
+      canManage={canManageDocs}
+      canView={canViewDocs}
+      currentPage={docsPage}
+      docs={pagedDocs}
+      hasMore={hasMoreDocs}
+    />
+  );
+}
+
+function TabSkeleton() {
+  return (
+    <div className="space-y-4">
+      <div className="overflow-hidden rounded-md border border-border/70 bg-card shadow-sm">
+        <div className="p-5 md:p-6 space-y-4">
+          <Skeleton className="h-10 w-full mb-6" />
+          <div className="space-y-2">
+             <Skeleton className="h-6 w-full" />
+             <Skeleton className="h-6 w-5/6" />
+             <Skeleton className="h-6 w-full" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default async function BorrowerProfilePage({ params, searchParams }: PageProps) {
@@ -227,75 +356,8 @@ export default async function BorrowerProfilePage({ params, searchParams }: Page
     });
   }
 
-  const loans = await db
-    .select({
-      loan_id: loan_records.loan_id,
-      loan_code: loan_records.loan_code,
-      principal: loan_records.principal,
-      interest: loan_records.interest,
-      start_date: loan_records.start_date,
-      due_date: loan_records.due_date,
-      status: loan_records.status,
-      collector_first_name: employee_info.first_name,
-      collector_last_name: employee_info.last_name,
-      paid_amount: sql<number>`COALESCE((SELECT SUM(amount) FROM collections WHERE collections.loan_id = loan_records.loan_id), 0)`,
-    })
-    .from(loan_records)
-    .leftJoin(employee_info, eq(employee_info.user_id, loan_records.collector_id))
-    .where(eq(loan_records.borrower_id, borrower.user_id))
-    .orderBy(desc(loan_records.loan_id))
-    .catch(() => []);
-
-  const docs = await db
-    .select({
-      borrower_doc_id: borrower_docs.borrower_doc_id,
-      borrower_id: borrower_docs.borrower_id,
-      document_type: borrower_docs.document_type,
-      file_path: borrower_docs.file_path,
-      uploaded_by: borrower_docs.uploaded_by,
-      original_filename: borrower_docs.original_filename,
-      mime_type: borrower_docs.mime_type,
-      file_size: borrower_docs.file_size,
-      uploaded_at: borrower_docs.uploaded_at,
-      uploader_company_id: users.company_id,
-      uploader_username: users.username,
-      uploader_first_name: employee_info.first_name,
-      uploader_last_name: employee_info.last_name,
-    })
-    .from(borrower_docs)
-    .leftJoin(users, eq(users.user_id, borrower_docs.uploaded_by))
-    .leftJoin(employee_info, eq(employee_info.user_id, borrower_docs.uploaded_by))
-    .where(eq(borrower_docs.borrower_id, borrower.user_id))
-    .orderBy(desc(borrower_docs.uploaded_at), desc(borrower_docs.borrower_doc_id))
-    .limit(DOCS_PAGE_SIZE + 1)
-    .offset(docsOffset)
-    .catch(() => []);
-
-  const hasMoreDocs = docs.length > DOCS_PAGE_SIZE;
-  const pagedDocs = docs.slice(0, DOCS_PAGE_SIZE).map((doc) => {
-    const uploaderName =
-      [doc.uploader_first_name, doc.uploader_last_name].filter(Boolean).join(" ") ||
-      doc.uploader_company_id ||
-      doc.uploader_username ||
-      "Unknown";
-
-    return {
-      ...doc,
-      file_size: Number(doc.file_size ?? 0),
-      uploaded_by_name: uploaderName,
-    };
-  });
-
-  const fullName = formatDisplayName(
-    borrower.first_name,
-    borrower.middle_name,
-    borrower.last_name,
-  );
-  const fullNameWithMiddle = formatFullName(
-    borrower.first_name,
-    borrower.middle_name,
-    borrower.last_name,
-  );
+  const fullName = formatDisplayName(borrower.first_name, borrower.middle_name, borrower.last_name);
+  const fullNameWithMiddle = formatFullName(borrower.first_name, borrower.middle_name, borrower.last_name);
   const branchLabel = borrower.branch_name || borrower.branch_code;
   const areaLabel = borrower.area_no ? `Area ${borrower.area_no} (${borrower.area_code})` : borrower.area_code;
   const headerBadgeBaseClassName = "inline-flex items-center rounded-md border px-3 py-1 text-xs font-medium leading-none shadow-xs";
@@ -424,37 +486,19 @@ export default async function BorrowerProfilePage({ params, searchParams }: Page
           borrowerId={borrower.user_id}
         />
       ) : activeTab === "loan-history" ? (
-        <BorrowerLoanHistoryTab
-          loans={loans.map((loan) => {
-            const principal = Number(loan.principal) || 0;
-            const interest = Number(loan.interest) || 0;
-            const totalPayable = principal + (principal * interest) / 100;
-            const paid = Number(loan.paid_amount) || 0;
-            const remainingBalance = Math.max(0, totalPayable - paid);
-
-            return {
-              loanId: loan.loan_id,
-              loanCode: loan.loan_code,
-              principal,
-              interest,
-              startDate: loan.start_date,
-              dueDate: loan.due_date,
-              visibleStatus: getVisibleLoanStatusFromStoredStatus(loan.status),
-              collectorName: [loan.collector_first_name, loan.collector_last_name].filter(Boolean).join(" ").trim() || null,
-              remainingBalance,
-            };
-          })}
-          returnTo={currentBorrowerHref}
-        />
+        <Suspense fallback={<TabSkeleton />}>
+          <BorrowerLoanHistoryLoader borrowerId={borrower.user_id} returnTo={currentBorrowerHref} />
+        </Suspense>
       ) : (
-        <BorrowerDocumentsSection
-          borrowerId={borrower.user_id}
-          canManage={canManageDocs}
-          canView={canViewDocs}
-          currentPage={docsPage}
-          docs={pagedDocs}
-          hasMore={hasMoreDocs}
-        />
+        <Suspense fallback={<TabSkeleton />}>
+          <BorrowerDocumentsLoader
+            borrowerId={borrower.user_id}
+            canManageDocs={canManageDocs}
+            canViewDocs={canViewDocs}
+            docsOffset={docsOffset}
+            docsPage={docsPage}
+          />
+        </Suspense>
       )}
     </div>
   );

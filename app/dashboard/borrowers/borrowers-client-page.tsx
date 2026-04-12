@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Plus, Users } from "lucide-react";
+import { appendBackNavigationToHref } from "@/app/dashboard/back-navigation";
 import { DashboardHeaderConfigurator } from "@/app/dashboard/_components/dashboard-header-config";
 import { Button } from "@/components/ui/button";
 import { UI_PAGE_STACK_CLASS_NAME } from "@/app/dashboard/_components/ui-patterns";
@@ -82,15 +83,6 @@ export function BorrowersClientPage({
   initialData,
   initialScope,
 }: BorrowersClientPageProps) {
-  const headerConfig = useMemo(
-    () => ({
-      action: null,
-      description: "Browse and manage borrowers within your current branch and area scope.",
-      icon: <Users className="size-9 text-sidebar-foreground/65" />,
-      title: "Borrowers",
-    }),
-    [],
-  );
   const initialFilters = useMemo<BorrowerResultFilters>(
     () => ({
       branchId: initialScope.selectedBranchId,
@@ -290,14 +282,16 @@ export function BorrowersClientPage({
 
   return (
     <>
-      <DashboardHeaderConfigurator config={headerConfig} />
       <div className={`w-full max-w-none ${UI_PAGE_STACK_CLASS_NAME}`}>
       <BorrowerRecordsModule
         controls={
           <BorrowersFilters
             action={
               canCreateBorrower ? (
-                <Link href="/dashboard/create-account">
+                <Link href={appendBackNavigationToHref("/dashboard/create-account?prefillRole=Borrower&context=borrower", {
+                  source: "borrowers",
+                  returnTo: buildResultsUrl(appliedFilters)
+                })}>
                   <Button
                     className="h-11 w-full rounded-md bg-emerald-600 px-4 text-sm text-white hover:bg-emerald-700 hover:text-white xl:w-auto"
                     type="button"

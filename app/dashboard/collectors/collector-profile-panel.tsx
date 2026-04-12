@@ -236,12 +236,13 @@ export function CollectorProfilePanel({
                   Collected output against expected pace across the selected period.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="pb-6 pt-0">
-                <div className="rounded-md border border-border/70 bg-muted/10 p-3">
+              <CardContent className="flex min-h-[300px] flex-1 flex-col pb-6 pt-0">
+                <div className="flex min-h-[300px] w-full flex-1 flex-col rounded-md border border-border/70 bg-muted/10 p-3">
                   <CollectorProfileTrendChart
                     axisFormatter={formatCollectorsAxisCurrency}
                     chart={data.periodTrendChart}
                     condensed
+                    fillHeight
                     valueFormatter={formatCollectorsCurrency}
                   />
                 </div>
@@ -540,11 +541,12 @@ export function CollectorProfilePanel({
                 Total collected per month across visible history, with the lifetime monthly average overlaid for reference.
               </CardDescription>
             </CardHeader>
-            <CardContent className="pb-6 pt-0">
-              <div className="rounded-md border border-border/70 bg-muted/10 p-3">
+            <CardContent className="flex min-h-[300px] flex-1 flex-col pb-6 pt-0">
+              <div className="flex min-h-[300px] w-full flex-1 flex-col rounded-md border border-border/70 bg-muted/10 p-3">
                 <CollectorProfileBarChart
                   axisFormatter={formatCollectorsAxisCurrency}
                   chart={data.lifetimeTrendChart}
+                  className="h-full min-h-0"
                   valueFormatter={formatCollectorsCurrency}
                 />
               </div>

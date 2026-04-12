@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { UserStar } from "lucide-react";
-import { DashboardHeaderConfigurator } from "@/app/dashboard/_components/dashboard-header-config";
 import { CollectorsFilters } from "@/app/dashboard/collectors/collectors-filters";
 import {
   supportsAverageMonthlyCollectionsSelection,
@@ -216,23 +215,9 @@ export function CollectorsClientPage({
     return () => window.clearTimeout(timeoutId);
   }, [appliedFilters.query, filters.query, loadResults]);
 
-  const headerConfig = useMemo(
-    () => ({
-      action: null,
-      description: canChooseBranch
-        ? "Compare collector performance across your visible branches with period-based ranking and focused summaries."
-        : `Compare collector performance in ${fixedBranchName ?? "your assigned branch"} with period-based ranking and focused summaries.`,
-      icon: <UserStar className="size-9 text-sidebar-foreground/65" />,
-      title: "Collectors",
-    }),
-    [canChooseBranch, fixedBranchName],
-  );
-
   return (
     <TooltipProvider delayDuration={80}>
       <>
-        <DashboardHeaderConfigurator config={headerConfig} />
-
         <div className="w-full space-y-4">
           <CollectorsFilters
             branchFilterLabel={branchFilterLabel}

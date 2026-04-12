@@ -1,10 +1,41 @@
+import { Suspense } from "react";
+import { UserStar } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DashboardHeaderConfigurator } from "@/app/dashboard/_components/dashboard-header-config";
 import { requireDashboardAuth } from "@/app/dashboard/auth";
 import { resolveCollectorsPageAccess } from "@/app/dashboard/collectors/access";
 import { CollectorsClientPage } from "@/app/dashboard/collectors/collectors-client-page";
+import { CollectorsResultsSkeleton } from "@/app/dashboard/collectors/collectors-results-skeleton";
 import { parseCollectorsFilters } from "@/app/dashboard/collectors/filters";
 import { loadCollectorsAnalyticsData, loadCollectorsBranchOptions } from "@/app/dashboard/collectors/queries";
 import type { CollectorsPageProps } from "@/app/dashboard/collectors/types";
+
+async function CollectorsModuleLoader({ access, filters }: { access: any, filters: any }) {
+  const [branchOptions, initialData] = await Promise.all([
+    loadCollectorsBranchOptions(access),
+    loadCollectorsAnalyticsData(access, filters),
+  ]);
+
+  return (
+    <CollectorsClientPage
+      branchFilterLabel={access.branchFilterLabel}
+      branchOptions={branchOptions}
+      canChooseBranch={access.canChooseBranch}
+      fixedBranchName={access.fixedBranchName}
+      initialData={initialData}
+      initialFilters={{
+        selectedBranchRaw: access.selectedBranchId ? String(access.selectedBranchId) : "all",
+        selectedRange: filters.selectedRange,
+        fromRaw: filters.fromRaw,
+        toRaw: filters.toRaw,
+        searchQuery: filters.searchQuery,
+        selectedBasis: filters.selectedBasis,
+        page: filters.page,
+        pageSize: filters.pageSize,
+      }}
+    />
+  );
+}
 
 export default async function CollectorsPage({ searchParams }: CollectorsPageProps) {
   const auth = await requireDashboardAuth();
@@ -37,28 +68,24 @@ export default async function CollectorsPage({ searchParams }: CollectorsPagePro
     );
   }
 
-  const [branchOptions, initialData] = await Promise.all([
-    loadCollectorsBranchOptions(access),
-    loadCollectorsAnalyticsData(access, filters),
-  ]);
+  const description = access.canChooseBranch
+    ? "Compare collector performance across your visible branches with period-based ranking and focused summaries."
+    : `Compare collector performance in ${access.fixedBranchName ?? "your assigned branch"} with period-based ranking and focused summaries.`;
 
   return (
-    <CollectorsClientPage
-      branchFilterLabel={access.branchFilterLabel}
-      branchOptions={branchOptions}
-      canChooseBranch={access.canChooseBranch}
-      fixedBranchName={access.fixedBranchName}
-      initialData={initialData}
-      initialFilters={{
-        selectedBranchRaw: access.selectedBranchId ? String(access.selectedBranchId) : "all",
-        selectedRange: filters.selectedRange,
-        fromRaw: filters.fromRaw,
-        toRaw: filters.toRaw,
-        searchQuery: filters.searchQuery,
-        selectedBasis: filters.selectedBasis,
-        page: filters.page,
-        pageSize: filters.pageSize,
-      }}
-    />
+    <>
+      <DashboardHeaderConfigurator
+        config={{
+          action: null,
+          description,
+          icon: <UserStar className="size-9 text-sidebar-foreground/65" />,
+          title: "Collectors",
+        }}
+      />
+      
+      <Suspense fallback={<div className="w-full space-y-4 pt-1"><CollectorsResultsSkeleton /></div>}>
+        <CollectorsModuleLoader access={access} filters={filters} />
+      </Suspense>
+    </>
   );
 }

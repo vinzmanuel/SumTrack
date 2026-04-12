@@ -1,10 +1,14 @@
+import { Suspense } from "react";
 import Link from "next/link";
+import { Users } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DashboardHeaderConfigurator } from "@/app/dashboard/_components/dashboard-header-config";
 import { getDashboardAuthContext } from "@/app/dashboard/auth";
+import { BorrowerRecordsModuleSkeleton } from "@/app/dashboard/borrowers/borrower-records-module-skeleton";
 import { BorrowersClientPage } from "@/app/dashboard/borrowers/borrowers-client-page";
 import { parseBorrowersListFilters, resolveBorrowersPageAccess } from "@/app/dashboard/borrowers/filters";
 import { loadBorrowersPageData } from "@/app/dashboard/borrowers/queries";
-import type { BorrowersPageProps } from "@/app/dashboard/borrowers/types";
+import type { BorrowersPageProps, BorrowersStaffScope } from "@/app/dashboard/borrowers/types";
 
 function renderCenteredCard(props: { message: string; href: string; actionLabel: string }) {
   return (
@@ -42,6 +46,11 @@ function renderScopeErrorCard(message: string) {
   );
 }
 
+async function BorrowersModuleLoader({ accessState }: { accessState: BorrowersStaffScope }) {
+  const pageData = await loadBorrowersPageData(accessState);
+  return <BorrowersClientPage initialData={pageData} initialScope={accessState} />;
+}
+
 export default async function BorrowersPage({ searchParams }: BorrowersPageProps) {
   const auth = await getDashboardAuthContext();
   const filters = parseBorrowersListFilters((await searchParams) ?? {});
@@ -67,7 +76,19 @@ export default async function BorrowersPage({ searchParams }: BorrowersPageProps
     return renderScopeErrorCard(accessState.message);
   }
 
-  const pageData = await loadBorrowersPageData(accessState);
-
-  return <BorrowersClientPage initialData={pageData} initialScope={accessState} />;
+  return (
+    <>
+      <DashboardHeaderConfigurator
+        config={{
+          action: null,
+          description: "Browse and manage borrowers within your current branch and area scope.",
+          icon: <Users className="size-9 text-sidebar-foreground/65" />,
+          title: "Borrowers",
+        }}
+      />
+      <Suspense fallback={<BorrowerRecordsModuleSkeleton canChooseBranch={accessState.canChooseBranch} showAction={accessState.roleName === "Admin" || accessState.roleName === "Branch Manager" || accessState.roleName === "Secretary"} />}>
+        <BorrowersModuleLoader accessState={accessState} />
+      </Suspense>
+    </>
+  );
 }
