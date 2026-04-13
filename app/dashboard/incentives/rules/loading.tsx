@@ -1,10 +1,18 @@
+import { Settings2 } from "lucide-react";
+import { DashboardHeaderConfigurator } from "@/app/dashboard/_components/dashboard-header-config";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function LoadingIncentiveRulesPage() {
   return (
     <main className="w-full space-y-4">
-      <Skeleton className="h-9 w-36" />
+      <DashboardHeaderConfigurator
+        config={{
+          description: "Configure branch-role incentive formulas used by monthly payout computation.",
+          icon: <Settings2 className="size-9 text-sidebar-foreground/65" />,
+          title: "Incentive Rules",
+        }}
+      />
 
       <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,300px)_minmax(0,1fr)] 2xl:grid-cols-[minmax(0,320px)_minmax(0,1fr)]">
         <Card className="h-fit rounded-md">

@@ -135,7 +135,9 @@ export function CreateLoanForm({
 
   const [borrowerId, setBorrowerId] = useState(prefilledBorrower?.borrowerId ?? "");
   const [borrowerSearch, setBorrowerSearch] = useState(prefilledBorrower?.label ?? "");
-  const [selectedBranchId, setSelectedBranchId] = useState(prefilledBorrower?.branchId ?? "");
+  const [selectedBranchId, setSelectedBranchId] = useState(
+    prefilledBorrower?.branchId ?? (!isAdmin && branches.length === 1 ? String(branches[0].branch_id) : ""),
+  );
   const [selectedAreaId, setSelectedAreaId] = useState(prefilledBorrower?.areaId ?? "");
   const [collectorId, setCollectorId] = useState("");
   const [termOption, setTermOption] = useState(defaultTermOption);
@@ -362,29 +364,29 @@ export function CreateLoanForm({
             {!isCustomTerm ? <input name="due_date" type="hidden" value={dueDate} /> : null}
 
             <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Branch</Label>
-                <Select disabled={isBorrowerLocked} onValueChange={handleBranchChange} value={selectedBranchId}>
-                  <SelectTrigger className={`${CREATE_LOAN_CONTROL_CLASS_NAME} w-full`}>
-                    <SelectValue placeholder="Select branch" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectLabel>Branch</SelectLabel>
-                      {branches.map((branch) => (
-                        <SelectItem key={String(branch.branch_id)} value={String(branch.branch_id)}>
-                          {branch.branch_name}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
+              <div className={`space-y-2 ${isAdmin ? "" : "md:col-span-2"}`}>
+                {isAdmin ? <Label>Branch</Label> : null}
+                {isAdmin ? (
+                  <Select disabled={isBorrowerLocked} onValueChange={handleBranchChange} value={selectedBranchId}>
+                    <SelectTrigger className={`${CREATE_LOAN_CONTROL_CLASS_NAME} w-full`}>
+                      <SelectValue placeholder="Select branch" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        <SelectLabel>Branch</SelectLabel>
+                        {branches.map((branch) => (
+                          <SelectItem key={String(branch.branch_id)} value={String(branch.branch_id)}>
+                            {branch.branch_name}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                ) : null}
                 {state.fieldErrors?.branch_id ? (
                   <p className="text-sm text-destructive">{state.fieldErrors.branch_id}</p>
                 ) : null}
-              </div>
 
-              <div className="space-y-2">
                 <Label>Area</Label>
                 <Select
                   disabled={!selectedBranchId || isBorrowerLocked}
@@ -393,7 +395,7 @@ export function CreateLoanForm({
                 >
                   <SelectTrigger className={`${CREATE_LOAN_CONTROL_CLASS_NAME} w-full`}>
                     <SelectValue
-                      placeholder={selectedBranchId ? "Select area" : "Select branch first"}
+                      placeholder={selectedBranchId ? "Select area" : isAdmin ? "Select branch first" : "Branch unavailable"}
                     />
                   </SelectTrigger>
                   <SelectContent>
@@ -451,7 +453,7 @@ export function CreateLoanForm({
               ) : null}
               {!selectedAreaId ? (
                 <p className="text-muted-foreground text-sm">
-                  Select a branch and area before searching for a borrower.
+                  {isAdmin ? "Select a branch and area before searching for a borrower." : "Select an area before searching for a borrower."}
                 </p>
               ) : null}
               {state.fieldErrors?.borrower_id ? (

@@ -260,6 +260,9 @@ export function AnalyticsReportGenerationForm(props: {
             }
           }}
         >
+          {usingFixedBranch ? (
+            <input name="branch_ids" type="hidden" value={String(props.access.fixedBranchId)} />
+          ) : null}
           <FormSection
             description="Choose the report lane, select the saved template, and set the output title before generating a report snapshot."
             title="Report Setup"
@@ -359,19 +362,9 @@ export function AnalyticsReportGenerationForm(props: {
             description="Define the branch scope and any record-specific targets required by the selected template."
             title="Scope and Targets"
           >
-            <Field invalid={Boolean(state.fieldErrors?.branch_ids) || shouldShowBranchSelectionError}>
-              <FieldLabel required>Branch Scope</FieldLabel>
-              {usingFixedBranch ? (
-                <div className="rounded-md border border-border/70 bg-background/70 px-3 py-3 text-sm">
-                  <p className="font-medium text-foreground">
-                    {props.access.fixedBranchName ?? "Assigned branch"}
-                  </p>
-                  <p className="mt-1 text-muted-foreground">
-                    Your role is fixed to a single branch for manual analytics generation.
-                  </p>
-                  <input name="branch_ids" type="hidden" value={String(props.access.fixedBranchId)} />
-                </div>
-              ) : (
+            {!usingFixedBranch ? (
+              <Field invalid={Boolean(state.fieldErrors?.branch_ids) || shouldShowBranchSelectionError}>
+                <FieldLabel required>Branch Scope</FieldLabel>
                 <div
                   className="space-y-2 rounded-md border border-border/70 bg-background/70 p-3 data-[invalid=true]:border-destructive"
                   data-invalid={Boolean(state.fieldErrors?.branch_ids) || shouldShowBranchSelectionError || undefined}
@@ -409,31 +402,31 @@ export function AnalyticsReportGenerationForm(props: {
                     })}
                   </div>
                 </div>
-              )}
-              {state.fieldErrors?.branch_ids ? (
-                <p className="text-sm text-destructive">{state.fieldErrors.branch_ids}</p>
-              ) : null}
-              {shouldShowBranchSelectionError ? (
-                <p className="text-sm text-destructive">{branchSelectionError}</p>
-              ) : null}
-              {selectedTemplate?.key === "branch_performance_overview" ? (
-                <p className="text-sm text-muted-foreground">
-                  This template is the single-branch branch snapshot. Select exactly one branch.
-                </p>
-              ) : null}
-              {selectedTemplate?.key === "branch_performance_comparison" ? (
-                <p className="text-sm text-muted-foreground">
-                  This template compares branches side by side. Select two or more branches.
-                </p>
-              ) : null}
-              {selectedTemplate?.category === "branches" &&
-              selectedTemplate.key !== "branch_performance_overview" &&
-              selectedTemplate.key !== "branch_performance_comparison" ? (
-                <p className="text-sm text-muted-foreground">
-                  Branch-focused templates use the exact branches you choose here. Single-branch output is still allowed unless the template requires otherwise.
-                </p>
-              ) : null}
-            </Field>
+                {state.fieldErrors?.branch_ids ? (
+                  <p className="text-sm text-destructive">{state.fieldErrors.branch_ids}</p>
+                ) : null}
+                {shouldShowBranchSelectionError ? (
+                  <p className="text-sm text-destructive">{branchSelectionError}</p>
+                ) : null}
+                {selectedTemplate?.key === "branch_performance_overview" ? (
+                  <p className="text-sm text-muted-foreground">
+                    This template is the single-branch branch snapshot. Select exactly one branch.
+                  </p>
+                ) : null}
+                {selectedTemplate?.key === "branch_performance_comparison" ? (
+                  <p className="text-sm text-muted-foreground">
+                    This template compares branches side by side. Select two or more branches.
+                  </p>
+                ) : null}
+                {selectedTemplate?.category === "branches" &&
+                selectedTemplate.key !== "branch_performance_overview" &&
+                selectedTemplate.key !== "branch_performance_comparison" ? (
+                  <p className="text-sm text-muted-foreground">
+                    Branch-focused templates use the exact branches you choose here. Single-branch output is still allowed unless the template requires otherwise.
+                  </p>
+                ) : null}
+              </Field>
+            ) : null}
 
             {collectorSelectionRequired ? (
               <Field invalid={Boolean(state.fieldErrors?.collector_id)}>

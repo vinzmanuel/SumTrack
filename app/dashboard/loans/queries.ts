@@ -134,6 +134,15 @@ function resolveStoredStatusFilter(statusFilter: LoanStatusFilter): StoredLoanSt
   return "abandoned";
 }
 
+function formatDisplayName(firstName: string | null, middleName: string | null, lastName: string | null) {
+  const normalizedFirst = firstName?.trim() ?? "";
+  const normalizedMiddle = middleName?.trim() ?? "";
+  const normalizedLast = lastName?.trim() ?? "";
+  const middleInitial = normalizedMiddle ? `${normalizedMiddle.charAt(0).toUpperCase()}.` : "";
+
+  return [normalizedFirst, middleInitial, normalizedLast].filter(Boolean).join(" ").trim();
+}
+
 function toLoanListRow(
   row: {
     loan_id: number;
@@ -147,11 +156,13 @@ function toLoanListRow(
     due_date: string;
     status: string;
     borrower_first_name: string | null;
+    borrower_middle_name: string | null;
     borrower_last_name: string | null;
     borrower_company_id: string | null;
     borrower_username: string | null;
     branch_name: string;
     collector_first_name: string | null;
+    collector_middle_name: string | null;
     collector_last_name: string | null;
     collector_username: string | null;
     total_collected: number;
@@ -159,13 +170,23 @@ function toLoanListRow(
   },
   scope: StaffLoansScope,
 ): LoanListRow {
+  const formattedBorrowerName = formatDisplayName(
+    row.borrower_first_name,
+    row.borrower_middle_name,
+    row.borrower_last_name,
+  );
   const borrowerName =
-    [row.borrower_first_name, row.borrower_last_name].filter(Boolean).join(" ") ||
+    formattedBorrowerName ||
     row.borrower_company_id ||
     row.borrower_username ||
     row.borrower_id;
+  const formattedCollectorName = formatDisplayName(
+    row.collector_first_name,
+    row.collector_middle_name,
+    row.collector_last_name,
+  );
   const collectorName = row.collector_id
-    ? [row.collector_first_name, row.collector_last_name].filter(Boolean).join(" ") ||
+    ? formattedCollectorName ||
       row.collector_username ||
       row.collector_id
     : "N/A";
@@ -282,11 +303,13 @@ export async function loadStaffLoansPageData(scope: StaffLoansScope): Promise<St
       due_date: loan_records.due_date,
       status: loan_records.status,
       borrower_first_name: borrower_info.first_name,
+      borrower_middle_name: borrower_info.middle_name,
       borrower_last_name: borrower_info.last_name,
       borrower_company_id: borrowerUsers.company_id,
       borrower_username: borrowerUsers.username,
       branch_name: branch.branch_name,
       collector_first_name: employee_info.first_name,
+      collector_middle_name: employee_info.middle_name,
       collector_last_name: employee_info.last_name,
       collector_username: collectorUsers.username,
       total_collected: sql<number>`coalesce(${loanCollectionStats.totalCollected}, 0)`,

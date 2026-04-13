@@ -356,7 +356,7 @@ export const OPERATIONAL_DOCUMENT_TEMPLATES: OperationalDocumentTemplateDefiniti
     reportCategory: "document",
     description:
       "Loan-scoped schedule summary document generated from a saved loan record.",
-    allowedRoles: ["Admin", "Branch Manager", "Secretary"],
+    allowedRoles: ["Admin", "Auditor", "Branch Manager", "Secretary"],
     generationMode: "record",
     sourceEntityType: "loan",
     implemented: true,
@@ -369,7 +369,7 @@ export const OPERATIONAL_DOCUMENT_TEMPLATES: OperationalDocumentTemplateDefiniti
     reportCategory: "document",
     description:
       "Single collection receipt generated from a saved collection entry.",
-    allowedRoles: ["Admin", "Branch Manager", "Secretary"],
+    allowedRoles: ["Admin", "Auditor", "Branch Manager", "Secretary"],
     generationMode: "record",
     sourceEntityType: "collection",
     implemented: true,
@@ -382,7 +382,7 @@ export const OPERATIONAL_DOCUMENT_TEMPLATES: OperationalDocumentTemplateDefiniti
     reportCategory: "document",
     description:
       "Whole-loan payment summary document with saved collection history context.",
-    allowedRoles: ["Admin", "Branch Manager", "Secretary"],
+    allowedRoles: ["Admin", "Auditor", "Branch Manager", "Secretary"],
     generationMode: "record",
     sourceEntityType: "loan",
     implemented: true,

@@ -61,9 +61,10 @@ export function resolveReportsPageAccess(
       displayName: auth.displayName,
       roleName: "Auditor",
       canAccessAnalytics: true,
-      canAccessOperationalDocuments: false,
+      canAccessOperationalDocuments: true,
       scopeLabel: formatBranchScopeLabel(auth.assignedBranchIds.length),
-      scopeDetail: "Auditor access is limited to analytical reporting within assigned branch jurisdictions.",
+      scopeDetail:
+        "Auditor access includes analytical reporting and operational receipt documents within assigned branch jurisdictions.",
       allowedBranchIds: auth.assignedBranchIds,
       fixedBranchId: null,
       fixedBranchName: null,

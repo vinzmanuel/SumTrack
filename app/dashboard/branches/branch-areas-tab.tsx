@@ -140,7 +140,7 @@ export function BranchAreasTab({
   return (
     <div className={UI_FILTER_STACK_CLASS_NAME}>
       <div className={UI_FILTER_ROW_CLASS_NAME}>
-        <div className={UI_SEARCH_CONTAINER_CLASS_NAME}>
+        <div className={`${UI_SEARCH_CONTAINER_CLASS_NAME} xl:w-[460px]`}>
           <Search className={UI_SEARCH_ICON_CLASS_NAME} />
           <Input
             className={UI_SEARCH_INPUT_CLASS_NAME}

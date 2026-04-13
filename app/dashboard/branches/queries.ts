@@ -84,10 +84,6 @@ function lastSixMonthBuckets() {
   return buckets;
 }
 
-function formatFullName(firstName: string | null, middleName: string | null, lastName: string | null) {
-  return [firstName, middleName, lastName].filter(Boolean).join(" ").trim() || "Unassigned";
-}
-
 function formatDisplayName(firstName: string | null, middleName: string | null, lastName: string | null) {
   const normalizedFirst = firstName?.trim() ?? "";
   const normalizedMiddle = middleName?.trim() ?? "";
@@ -229,7 +225,7 @@ async function loadBranchSummaryCards(
   for (const row of branchManagerRows) {
     if (!managerMap.has(row.branchId)) {
       managerMap.set(row.branchId, {
-        managerName: formatFullName(row.firstName, row.middleName, row.lastName),
+        managerName: formatDisplayName(row.firstName, row.middleName, row.lastName),
         companyId: row.companyId ?? null,
       });
     }
@@ -603,11 +599,11 @@ export async function loadBranchDetailOverviewByCode(
     dateCreated: branchCard.dateCreated,
     statusLabel: branchCard.status === "active" ? "Active" : "Inactive",
     managerName: managerRow
-      ? formatFullName(managerRow.firstName, managerRow.middleName, managerRow.lastName)
+      ? formatDisplayName(managerRow.firstName, managerRow.middleName, managerRow.lastName)
       : null,
     managerCompanyId: managerRow?.companyId ?? null,
     auditorName: auditorRow
-      ? formatFullName(auditorRow.firstName, auditorRow.middleName, auditorRow.lastName)
+      ? formatDisplayName(auditorRow.firstName, auditorRow.middleName, auditorRow.lastName)
       : null,
     auditorCompanyId: auditorRow?.companyId ?? null,
     branchManagerCount: branchAssignedCountMap.get("Branch Manager") ?? 0,

@@ -76,7 +76,7 @@ export function LoanReportsAndReceiptsTab({
                           disabledReason={
                             canGenerateOperationalDocuments
                               ? undefined
-                              : "Only Admin, Branch Manager, and Secretary can generate receipts."
+                              : "Only Admin, Auditor, Branch Manager, and Secretary can generate receipts."
                           }
                           label="Generate Receipt"
                           size="default"

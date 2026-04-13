@@ -20,7 +20,9 @@ export function LoanOperationalDocumentsCard(props: {
           className="h-11 rounded-md"
           disabled={!props.canGenerate}
           disabledReason={
-            props.canGenerate ? undefined : "Only Admin, Branch Manager, and Secretary can generate loan reports."
+            props.canGenerate
+              ? undefined
+              : "Only Admin, Auditor, Branch Manager, and Secretary can generate loan reports."
           }
           label="Generate Borrower Loan Schedule"
           successBehavior="stay"
@@ -34,7 +36,7 @@ export function LoanOperationalDocumentsCard(props: {
           disabled={!props.canGenerate}
           disabledReason={
             !props.canGenerate
-              ? "Only Admin, Branch Manager, and Secretary can generate loan reports."
+              ? "Only Admin, Auditor, Branch Manager, and Secretary can generate loan reports."
               : undefined
           }
           successBehavior="redirect"

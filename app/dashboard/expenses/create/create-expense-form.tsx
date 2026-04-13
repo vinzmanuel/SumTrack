@@ -218,12 +218,7 @@ export function CreateExpenseForm({
                   <p className="text-sm text-destructive" data-slot="field-error">{state.fieldErrors.branch_id}</p>
                 ) : null}
               </Field>
-            ) : (
-              <Field>
-                <Label>Branch</Label>
-                <Input className={UI_CONTROL_CLASS_NAME} readOnly value={branchName ?? "N/A"} />
-              </Field>
-            )}
+            ) : null}
 
             <Field invalid={Boolean(state.fieldErrors?.expense_category)}>
               <Label>Expense Category</Label>

@@ -20,15 +20,26 @@ function StatTile({
   icon,
   label,
   value,
+  tone = "zinc",
 }: {
   icon: ReactNode;
   label: string;
   value: string;
+  tone?: "emerald" | "blue" | "amber" | "zinc";
 }) {
+  const iconToneClassName =
+    tone === "emerald"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300"
+      : tone === "blue"
+        ? "border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-300"
+        : tone === "amber"
+          ? "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300"
+          : "border-zinc-200 bg-zinc-50 text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100";
+
   return (
-    <div className="rounded-md border border-border/70 bg-muted/20 px-3 py-2.5">
+    <div className="rounded-md border border-border/70 bg-card px-3 py-2.5">
       <div className="mb-1 flex items-center gap-2 text-muted-foreground">
-        <span className="flex h-7 w-7 items-center justify-center rounded-md border border-border/70 bg-card">{icon}</span>
+        <span className={`flex h-7 w-7 items-center justify-center rounded-md border ${iconToneClassName}`}>{icon}</span>
         <span className="text-sm">{label}</span>
       </div>
       <p className="text-base font-semibold text-foreground">{value}</p>
@@ -41,12 +52,12 @@ export function BranchNetworkCard({ branch }: { branch: BranchNetworkCardData })
 
   return (
     <Link className="group block h-full" href={href}>
-      <Card className="h-full overflow-hidden rounded-md border-border/70 py-0 shadow-sm transition-colors hover:border-border/90">
+      <Card className="h-full overflow-hidden rounded-md border-border/70 py-0 shadow-sm transition-all duration-200 group-hover:-translate-y-0.5 group-hover:border-border/90 group-hover:shadow-md">
         <CardContent className="flex h-full flex-col gap-4 p-4">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
               <div className="flex items-start gap-3">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-border/70 bg-muted/20 text-muted-foreground">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-border/70 bg-card text-muted-foreground">
                   <Building2 className="h-5 w-5" />
                 </div>
                 <div className="min-w-0 flex-1 space-y-1">
@@ -68,7 +79,7 @@ export function BranchNetworkCard({ branch }: { branch: BranchNetworkCardData })
             </div>
           </div>
 
-          <div className="rounded-md border border-border/70 bg-muted/10 px-3 py-3">
+          <div className="rounded-md border border-border/70 bg-card px-3 py-3">
             <div className="flex flex-wrap items-center gap-2">
               <Badge className={getUiRoleBadgeClassName("Branch Manager")} variant="outline">
                 Branch Manager
@@ -92,29 +103,34 @@ export function BranchNetworkCard({ branch }: { branch: BranchNetworkCardData })
 
           <div className="grid gap-3 sm:grid-cols-2">
             <StatTile
-              icon={<Users className="h-4 w-4 text-emerald-600" />}
+              icon={<Users className="h-4 w-4" />}
               label="Collectors"
+              tone="emerald"
               value={String(branch.collectorCount)}
             />
             <StatTile
-              icon={<Users className="h-4 w-4 text-zinc-500 dark:text-zinc-300" />}
+              icon={<Users className="h-4 w-4" />}
               label="Borrowers"
+              tone="zinc"
               value={String(branch.borrowerCount)}
             />
             <StatTile
-              icon={<TriangleAlert className="h-4 w-4 text-amber-700 dark:text-amber-300" />}
+              icon={<TriangleAlert className="h-4 w-4" />}
               label="Overdue Loans"
+              tone="amber"
               value={String(branch.overdueLoanCount)}
             />
             <StatTile
-              icon={<FileText className="h-4 w-4 text-sky-700 dark:text-sky-300" />}
+              icon={<FileText className="h-4 w-4" />}
               label="Active Loans"
+              tone="blue"
               value={String(branch.activeLoanCount)}
             />
             <div className="sm:col-span-2">
               <StatTile
-                icon={<Wallet className="h-4 w-4 text-emerald-600" />}
+                icon={<Wallet className="h-4 w-4" />}
                 label="Collections This Month"
+                tone="emerald"
                 value={formatCurrency(branch.collectionsThisMonth)}
               />
             </div>

@@ -297,6 +297,7 @@ export function CreateAccountForm({
     (showRoleSelector && selectedRoleName === "Collector");
   const showBranchOnlySelector =
     showRoleSelector && BRANCH_ONLY_ROLE_NAMES.includes(selectedRoleName);
+  const hasFixedBranchScope = Boolean(fixedBranchId);
 
   const areaOptions = useMemo(
     () => areas.filter((item) => String(item.branch_id) === singleBranchId),
@@ -685,43 +686,48 @@ export function CreateAccountForm({
               >
                 {showAreaFlow ? (
                 <div className="grid gap-4 md:grid-cols-2">
-                  <Field invalid={Boolean(state.fieldErrors?.branch_id)}>
-                    <FieldLabel required>Branch</FieldLabel>
-                    <Select
-                      disabled={Boolean(fixedBranchId)}
-                      onValueChange={handleBranchChange}
-                      value={singleBranchId}
-                    >
-                      <SelectTrigger
-                        aria-invalid={Boolean(state.fieldErrors?.branch_id) || undefined}
-                        className={`${CREATE_ACCOUNT_CONTROL_CLASS_NAME} w-full`}
+                  {!hasFixedBranchScope ? (
+                    <Field invalid={Boolean(state.fieldErrors?.branch_id)}>
+                      <FieldLabel required>Branch</FieldLabel>
+                      <Select
+                        disabled={Boolean(fixedBranchId)}
+                        onValueChange={handleBranchChange}
+                        value={singleBranchId}
                       >
-                        <SelectValue placeholder="Select branch" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectGroup>
-                          <SelectLabel>Branch</SelectLabel>
-                          {selectableSingleBranchOptions.map((item) => (
-                            <SelectItem key={String(item.branch_id)} value={String(item.branch_id)}>
-                              {item.branch_name}
-                            </SelectItem>
-                          ))}
-                        </SelectGroup>
-                      </SelectContent>
-                    </Select>
-                    {selectableSingleBranchOptions.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">
-                        No branches are available for this role right now.
-                      </p>
-                    ) : null}
-                    {state.fieldErrors?.branch_id ? (
-                      <p className="text-sm text-destructive" data-slot="field-error">
-                        {state.fieldErrors.branch_id}
-                      </p>
-                    ) : null}
-                  </Field>
+                        <SelectTrigger
+                          aria-invalid={Boolean(state.fieldErrors?.branch_id) || undefined}
+                          className={`${CREATE_ACCOUNT_CONTROL_CLASS_NAME} w-full`}
+                        >
+                          <SelectValue placeholder="Select branch" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            <SelectLabel>Branch</SelectLabel>
+                            {selectableSingleBranchOptions.map((item) => (
+                              <SelectItem key={String(item.branch_id)} value={String(item.branch_id)}>
+                                {item.branch_name}
+                              </SelectItem>
+                            ))}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                      {selectableSingleBranchOptions.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">
+                          No branches are available for this role right now.
+                        </p>
+                      ) : null}
+                      {state.fieldErrors?.branch_id ? (
+                        <p className="text-sm text-destructive" data-slot="field-error">
+                          {state.fieldErrors.branch_id}
+                        </p>
+                      ) : null}
+                    </Field>
+                  ) : null}
 
-                  <Field invalid={Boolean(state.fieldErrors?.area_id)}>
+                  <Field
+                    className={hasFixedBranchScope ? "md:col-span-2" : undefined}
+                    invalid={Boolean(state.fieldErrors?.area_id)}
+                  >
                     <FieldLabel required>Area</FieldLabel>
                     <Select disabled={!singleBranchId} onValueChange={setAreaId} value={areaId}>
                       <SelectTrigger
@@ -768,7 +774,7 @@ export function CreateAccountForm({
                   </Alert>
                 ) : null}
 
-                {showBranchOnlySelector ? (
+                {showBranchOnlySelector && !hasFixedBranchScope ? (
                   <Field invalid={Boolean(state.fieldErrors?.branch_id)}>
                 <FieldLabel required>Branch</FieldLabel>
                 <Select

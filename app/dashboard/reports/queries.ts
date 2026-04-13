@@ -744,7 +744,7 @@ function buildSystemRecipientAccessState(
     displayName: recipient.displayName,
     roleName: recipient.roleName,
     canAccessAnalytics: true,
-    canAccessOperationalDocuments: recipient.roleName !== "Auditor",
+    canAccessOperationalDocuments: true,
     scopeLabel: recipient.scopeLabel,
     scopeDetail: "System-generated monthly reporting context.",
     allowedBranchIds: recipient.scopeBranchIds,
@@ -760,11 +760,11 @@ function buildReportsLibraryScopeWhere(access: ReportsReadyAccessState) {
 
   const conditions: SQL[] = [];
 
-  if (access.roleName === "Auditor") {
+  if (access.canAccessAnalytics && !access.canAccessOperationalDocuments) {
     conditions.push(eq(reports.report_category, "analytics"));
   }
 
-  if (access.roleName === "Secretary") {
+  if (!access.canAccessAnalytics && access.canAccessOperationalDocuments) {
     conditions.push(eq(reports.report_category, "document"));
   }
 
