@@ -88,6 +88,15 @@ function formatFullName(firstName: string | null, middleName: string | null, las
   return [firstName, middleName, lastName].filter(Boolean).join(" ").trim() || "Unassigned";
 }
 
+function formatDisplayName(firstName: string | null, middleName: string | null, lastName: string | null) {
+  const normalizedFirst = firstName?.trim() ?? "";
+  const normalizedMiddle = middleName?.trim() ?? "";
+  const normalizedLast = lastName?.trim() ?? "";
+  const middleInitial = normalizedMiddle ? `${normalizedMiddle.charAt(0).toUpperCase()}.` : "";
+
+  return [normalizedFirst, middleInitial, normalizedLast].filter(Boolean).join(" ").trim() || "Unassigned";
+}
+
 function pluralize(count: number, singular: string, plural = `${singular}s`) {
   return `${count} ${count === 1 ? singular : plural}`;
 }
@@ -1259,7 +1268,7 @@ export async function loadBranchEmployeesTabDataByCode(
   const rows: BranchEmployeeListRow[] = [
     ...branchAssignedRows.map((row) => ({
       userId: row.userId,
-      fullName: formatFullName(row.firstName, row.middleName, row.lastName),
+      fullName: formatDisplayName(row.firstName, row.middleName, row.lastName),
       companyId: row.companyId,
       roleName: row.roleName,
       status: row.status,
@@ -1271,7 +1280,7 @@ export async function loadBranchEmployeesTabDataByCode(
     })),
     ...collectorRows.map((row) => ({
       userId: row.userId,
-      fullName: formatFullName(row.firstName, row.middleName, row.lastName),
+      fullName: formatDisplayName(row.firstName, row.middleName, row.lastName),
       companyId: row.companyId,
       roleName: row.roleName,
       status: row.status,
@@ -1393,7 +1402,7 @@ export async function loadBranchAreasTabDataByCode(
 
   const collectorMap = new Map<number, string[]>();
   for (const row of collectorRows) {
-    const nextName = formatFullName(row.firstName, row.middleName, row.lastName);
+    const nextName = formatDisplayName(row.firstName, row.middleName, row.lastName);
     const existing = collectorMap.get(row.areaId) ?? [];
     collectorMap.set(row.areaId, [...existing, nextName]);
   }

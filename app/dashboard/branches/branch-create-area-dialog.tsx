@@ -99,7 +99,7 @@ export function BranchCreateAreaDialog({
   return (
     <>
       <Button
-        className="bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white"
+        className="!h-11 rounded-md bg-emerald-600 px-4 text-white hover:bg-emerald-700 hover:text-white"
         onClick={() => setOpen(true)}
         size="sm"
         type="button"

@@ -12,19 +12,23 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import type { ReactNode } from "react";
 
 export function AreaDeleteButton({
   areaCode,
   areaId,
   branchCode,
   onDeleted,
+  trigger,
 }: {
   areaCode: string;
   areaId: number;
   branchCode: string;
   onDeleted?: () => void;
+  trigger?: ReactNode;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -65,16 +69,19 @@ export function AreaDeleteButton({
 
   return (
     <>
-      <Button
-        className="bg-red-600 text-white hover:bg-red-700 hover:text-white"
-        onClick={() => setOpen(true)}
-        size="sm"
-        type="button"
-      >
-        Delete
-      </Button>
-
       <AlertDialog onOpenChange={setOpen} open={open}>
+        {trigger ? (
+          <AlertDialogTrigger asChild>{trigger}</AlertDialogTrigger>
+        ) : (
+          <Button
+            className="bg-red-600 text-white hover:bg-red-700 hover:text-white"
+            onClick={() => setOpen(true)}
+            size="sm"
+            type="button"
+          >
+            Delete
+          </Button>
+        )}
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete this area?</AlertDialogTitle>

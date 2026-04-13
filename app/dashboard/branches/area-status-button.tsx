@@ -12,8 +12,10 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import type { ReactNode } from "react";
 
 export function AreaStatusButton({
   areaCode,
@@ -21,12 +23,14 @@ export function AreaStatusButton({
   branchCode,
   onStatusChanged,
   status,
+  trigger,
 }: {
   areaCode: string;
   areaId: number;
   branchCode: string;
   onStatusChanged?: (nextStatus: "active" | "inactive") => void;
   status: "active" | "inactive";
+  trigger?: ReactNode;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -72,20 +76,23 @@ export function AreaStatusButton({
 
   return (
     <>
-      <Button
-        className={
-          status === "active"
-            ? "bg-amber-500 text-white hover:bg-amber-600 hover:text-white"
-            : "bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white"
-        }
-        onClick={() => setOpen(true)}
-        size="sm"
-        type="button"
-      >
-        {status === "active" ? "Deactivate" : "Reactivate"}
-      </Button>
-
       <AlertDialog onOpenChange={setOpen} open={open}>
+        {trigger ? (
+          <AlertDialogTrigger asChild>{trigger}</AlertDialogTrigger>
+        ) : (
+          <Button
+            className={
+              status === "active"
+                ? "bg-amber-500 text-white hover:bg-amber-600 hover:text-white"
+                : "bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white"
+            }
+            onClick={() => setOpen(true)}
+            size="sm"
+            type="button"
+          >
+            {status === "active" ? "Deactivate" : "Reactivate"}
+          </Button>
+        )}
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>

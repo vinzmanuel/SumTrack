@@ -1,9 +1,15 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
-import { Building2, MapPin } from "lucide-react";
-import { DashboardBackLink } from "@/app/dashboard/_components/dashboard-back-link";
+import { Building2, BriefcaseBusiness, LayoutGrid, MapPin } from "lucide-react";
 import { DashboardHeaderConfigurator } from "@/app/dashboard/_components/dashboard-header-config";
+import {
+  UI_TAB_ICON_ACTIVE_CLASS_NAME,
+  UI_TAB_LIST_CLASS_NAME,
+  UI_TAB_SEPARATOR_CLASS_NAME,
+  getUiTabTriggerClassName,
+} from "@/app/dashboard/_components/ui-patterns";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { BranchDeleteButton } from "@/app/dashboard/branches/branch-delete-button";
@@ -35,37 +41,34 @@ function replacePageUrl(next: { tab: BranchDetailTabKey }) {
 
 function TabButton({
   active,
+  icon,
   label,
   onClick,
 }: {
   active: boolean;
+  icon: ReactNode;
   label: string;
   onClick: () => void;
 }) {
   return (
     <button
-      className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-        active ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-      }`}
+      className={getUiTabTriggerClassName(active)}
       onClick={onClick}
       type="button"
     >
+      <span className={active ? UI_TAB_ICON_ACTIVE_CLASS_NAME : undefined}>{icon}</span>
       {label}
     </button>
   );
 }
 
 export function BranchDetailClientPage({
-  backHref,
-  backLabel,
   data,
   areasData,
   employeesData,
   initialTab,
   permissions,
 }: {
-  backHref: string;
-  backLabel: string;
   data: BranchDetailOverviewData;
   areasData: BranchAreasTabData;
   employeesData: BranchEmployeesTabData;
@@ -75,8 +78,8 @@ export function BranchDetailClientPage({
   const [activeTab, setActiveTab] = useState<BranchDetailTabKey>(initialTab);
   const statusBadgeClass =
     data.status === "active"
-      ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-      : "border-amber-200 bg-amber-50 text-amber-800";
+      ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300"
+      : "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300";
 
   useEffect(() => {
     setActiveTab(initialTab);
@@ -86,94 +89,94 @@ export function BranchDetailClientPage({
     <div className="space-y-4">
       <DashboardHeaderConfigurator
         config={{
-          title: data.branchName,
+          breadcrumbTitle: data.branchName,
+          description: "Review branch profile, staffing roster, and area coverage inside your allowed scope.",
+          icon: <Building2 className="size-9 text-sidebar-foreground/65" />,
+          title: "Branch Details",
         }}
       />
-      <DashboardBackLink href={backHref} label={backLabel} />
 
-      <Card className="overflow-hidden border-border/70 py-0 shadow-sm">
-        <CardContent className="p-0">
-          <div className="rounded-t-[inherit] bg-gradient-to-r from-slate-50 via-white to-emerald-50/60 p-6">
-            <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-              <div className="space-y-3">
-                <div className="flex items-start gap-3">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700">
-                    <Building2 className="h-5 w-5" />
-                  </div>
-                  <div className="space-y-1">
-                    <h1 className="text-3xl font-semibold tracking-tight text-foreground">{data.branchName}</h1>
-                    <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                      <MapPin className="h-4 w-4" />
-                      <span>{data.municipalityName}, {data.provinceName}</span>
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap gap-2 text-xs font-medium">
-                  <Badge className="border-zinc-300 bg-background text-zinc-700" variant="outline">
-                    Branch Code: {data.branchCode}
-                  </Badge>
-                  <Badge className={statusBadgeClass} variant="outline">
-                    Status: {data.statusLabel}
-                  </Badge>
-                </div>
+      <Card className="overflow-hidden rounded-md border-border/70 py-0 shadow-sm">
+        <CardContent className="flex flex-col gap-4 p-5 md:p-6">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+            <div className="space-y-3">
+              <div className="space-y-1">
+                <h1 className="text-3xl font-semibold tracking-tight text-foreground">{data.branchName}</h1>
+                <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                  <MapPin className="h-4 w-4" />
+                  <span>
+                    {data.municipalityName}, {data.provinceName}
+                  </span>
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2 text-xs font-medium">
+                <Badge
+                  className="rounded-md border-zinc-200 bg-zinc-50 py-1 text-zinc-700 dark:border-white/12 dark:bg-white/[0.06] dark:text-zinc-100"
+                  variant="outline"
+                >
+                  Branch Code: {data.branchCode}
+                </Badge>
+                <Badge className={`${statusBadgeClass} rounded-md py-1`} variant="outline">
+                  Status: {data.statusLabel}
+                </Badge>
               </div>
             </div>
-          </div>
 
-          <div className="border-t border-border/70 p-6">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-              <div className="inline-flex flex-wrap gap-2 rounded-xl border border-border/70 bg-muted/30 p-1">
-                <TabButton
-                  active={activeTab === "overview"}
-                  label="Overview"
-                  onClick={() => {
-                    setActiveTab("overview");
-                    replacePageUrl({ tab: "overview" });
-                  }}
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {permissions.canEditDetails ? (
+                <BranchEditDialog
+                  branchAddress={data.branchAddress}
+                  branchCode={data.branchCode}
+                  branchName={data.branchName}
+                  triggerLabel="Edit"
                 />
-                <TabButton
-                  active={activeTab === "employees"}
-                  label="Employees"
-                  onClick={() => {
-                    setActiveTab("employees");
-                    replacePageUrl({ tab: "employees" });
-                  }}
+              ) : null}
+              {permissions.canManageLifecycle ? (
+                <BranchStatusButton
+                  branchCode={data.branchCode}
+                  branchName={data.branchName}
+                  status={data.status}
                 />
-                <TabButton
-                  active={activeTab === "areas"}
-                  label="Areas"
-                  onClick={() => {
-                    setActiveTab("areas");
-                    replacePageUrl({ tab: "areas" });
-                  }}
-                />
-              </div>
-
-              <div className="flex flex-wrap items-center justify-end gap-2">
-                {permissions.canEditDetails ? (
-                  <BranchEditDialog
-                    branchAddress={data.branchAddress}
-                    branchCode={data.branchCode}
-                    branchName={data.branchName}
-                    triggerLabel="Edit"
-                  />
-                ) : null}
-                {permissions.canManageLifecycle ? (
-                  <BranchStatusButton
-                    branchCode={data.branchCode}
-                    branchName={data.branchName}
-                    status={data.status}
-                  />
-                ) : null}
-                {permissions.canDelete ? (
-                  <BranchDeleteButton branchCode={data.branchCode} branchName={data.branchName} />
-                ) : null}
-              </div>
+              ) : null}
+              {permissions.canDelete ? (
+                <BranchDeleteButton branchCode={data.branchCode} branchName={data.branchName} />
+              ) : null}
             </div>
           </div>
         </CardContent>
       </Card>
+
+      <div className={UI_TAB_SEPARATOR_CLASS_NAME}>
+        <div className={UI_TAB_LIST_CLASS_NAME}>
+          <TabButton
+            active={activeTab === "overview"}
+            icon={<LayoutGrid className="h-4 w-4" />}
+            label="Overview"
+            onClick={() => {
+              setActiveTab("overview");
+              replacePageUrl({ tab: "overview" });
+            }}
+          />
+          <TabButton
+            active={activeTab === "employees"}
+            icon={<BriefcaseBusiness className="h-4 w-4" />}
+            label="Employees"
+            onClick={() => {
+              setActiveTab("employees");
+              replacePageUrl({ tab: "employees" });
+            }}
+          />
+          <TabButton
+            active={activeTab === "areas"}
+            icon={<Building2 className="h-4 w-4" />}
+            label="Areas"
+            onClick={() => {
+              setActiveTab("areas");
+              replacePageUrl({ tab: "areas" });
+            }}
+          />
+        </div>
+      </div>
 
       {activeTab === "overview" ? (
         <BranchOverviewTab data={data} />

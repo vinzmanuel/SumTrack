@@ -11,8 +11,10 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import type { ReactNode } from "react";
 
 export function BranchEditAreaDialog({
   areaCode,
@@ -20,12 +22,14 @@ export function BranchEditAreaDialog({
   branchCode,
   description,
   onUpdated,
+  trigger,
 }: {
   areaCode: string;
   areaId: number;
   branchCode: string;
   description: string | null;
   onUpdated?: (nextDescription: string | null) => void;
+  trigger?: ReactNode;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -91,16 +95,19 @@ export function BranchEditAreaDialog({
 
   return (
     <>
-      <Button
-        className="bg-blue-600 text-white hover:bg-blue-700 hover:text-white"
-        onClick={() => setOpen(true)}
-        size="sm"
-        type="button"
-      >
-        Edit
-      </Button>
-
       <Dialog onOpenChange={handleOpenChange} open={open}>
+        {trigger ? (
+          <DialogTrigger asChild>{trigger}</DialogTrigger>
+        ) : (
+          <Button
+            className="bg-blue-600 text-white hover:bg-blue-700 hover:text-white"
+            onClick={() => setOpen(true)}
+            size="sm"
+            type="button"
+          >
+            Edit
+          </Button>
+        )}
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Edit Area</DialogTitle>

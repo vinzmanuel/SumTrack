@@ -169,7 +169,7 @@ export function CreateBranchDialog() {
   return (
     <>
       <Button
-        className="bg-emerald-600 text-white hover:bg-emerald-700 hover:text-white"
+        className="h-11 rounded-md bg-emerald-600 px-4 text-sm text-white hover:bg-emerald-700 hover:text-white"
         onClick={() => setOpen(true)}
         type="button"
       >

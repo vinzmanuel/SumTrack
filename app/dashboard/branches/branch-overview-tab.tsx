@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { getUiRoleBadgeClassName } from "@/app/dashboard/_components/ui-patterns";
 import { CollectionsAreaChart } from "@/app/dashboard/collections/collections-area-chart";
 import { formatStoredDateForManila } from "@/app/dashboard/datetime";
 import type { BranchDetailOverviewData } from "@/app/dashboard/branches/types";
@@ -28,55 +29,30 @@ function DetailItem({
   value: string;
 }) {
   return (
-    <div className="flex h-full flex-col rounded-lg border border-zinc-200/80 bg-zinc-50/70 px-4 py-4">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-        {label}
-      </p>
-      <p className="mt-1.5 text-sm font-medium text-foreground">{value}</p>
+    <div className="flex h-full min-h-[108px] flex-col rounded-md border border-border/70 bg-muted/15 px-4 py-3">
+      <p className="text-xs font-medium text-muted-foreground">{label}</p>
+      <p className="mt-1 text-sm font-medium text-foreground">{value}</p>
     </div>
   );
 }
 
-function RoleBadge({
-  label,
-  tone,
-}: {
-  label: string;
-  tone: "branchManager" | "auditor" | "secretary" | "collector";
-}) {
-  const className =
-    tone === "branchManager"
-      ? "border-amber-200 bg-amber-50 text-amber-700"
-      : tone === "auditor"
-        ? "border-blue-200 bg-blue-50 text-blue-700"
-        : tone === "secretary"
-          ? "border-violet-200 bg-violet-50 text-violet-700"
-          : "border-emerald-200 bg-emerald-50 text-emerald-700";
-
-  return (
-    <Badge className={className} variant="outline">
-      {label}
-    </Badge>
-  );
-}
-
 function LeadershipCard({
-  roleLabel,
-  roleTone,
+  roleName,
   name,
   companyId,
 }: {
-  roleLabel: string;
-  roleTone: "branchManager" | "auditor";
+  roleName: "Branch Manager" | "Auditor";
   name: string | null;
   companyId: string | null;
 }) {
   return (
-    <div className="flex h-full flex-col justify-center rounded-xl border border-border/70 bg-background px-4 py-4">
+    <div className="flex h-full min-h-[108px] flex-col rounded-md border border-border/70 bg-card px-4 py-3">
       <div>
-        <RoleBadge label={roleLabel} tone={roleTone} />
+        <Badge className={getUiRoleBadgeClassName(roleName)} variant="outline">
+          {roleName}
+        </Badge>
       </div>
-      <p className="mt-3 text-sm font-semibold text-foreground">{name ?? "No active assignment"}</p>
+      <p className="mt-2 text-sm font-semibold text-foreground">{name ?? "No active assignment"}</p>
       <p className="mt-1 text-xs text-muted-foreground">
         {companyId ? `Company ID ${companyId}` : "No active account assigned right now."}
       </p>
@@ -86,19 +62,21 @@ function LeadershipCard({
 
 function CountCard({
   roleLabel,
-  roleTone,
+  roleName,
   value,
 }: {
   roleLabel: string;
-  roleTone: "secretary" | "collector";
+  roleName: "Secretary" | "Collector";
   value: string;
 }) {
   return (
-    <div className="flex h-full flex-col justify-center rounded-xl border border-border/70 bg-background px-4 py-4">
+    <div className="flex h-full min-h-[108px] flex-col rounded-md border border-border/70 bg-card px-4 py-3">
       <div>
-        <RoleBadge label={roleLabel} tone={roleTone} />
+        <Badge className={getUiRoleBadgeClassName(roleName)} variant="outline">
+          {roleLabel}
+        </Badge>
       </div>
-      <p className="mt-3 text-3xl font-semibold text-foreground">{value}</p>
+      <p className="mt-2 text-2xl font-semibold text-foreground">{value}</p>
     </div>
   );
 }
@@ -113,13 +91,13 @@ function MetricCard({
   tone?: "default" | "warning";
 }) {
   return (
-    <div className="flex h-full flex-col justify-center rounded-xl border border-border/70 bg-background px-4 py-4">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{label}</p>
+    <div className="rounded-md border border-border/70 bg-muted/10 px-4 py-3">
+      <p className="text-xs font-medium text-muted-foreground">{label}</p>
       <p
         className={
           tone === "warning"
-            ? "mt-1.5 text-2xl font-semibold text-amber-700"
-            : "mt-1.5 text-2xl font-semibold text-foreground"
+            ? "mt-1 text-2xl font-semibold text-amber-700 dark:text-amber-300"
+            : "mt-1 text-2xl font-semibold text-foreground"
         }
       >
         {value}
@@ -130,19 +108,12 @@ function MetricCard({
 
 export function BranchOverviewTab({ data }: { data: BranchDetailOverviewData }) {
   return (
-    <div className="space-y-4">
-      <Card className="overflow-hidden border-zinc-200/80 py-0 shadow-sm">
-        <CardHeader className="space-y-3 rounded-t-[inherit] border-b bg-linear-to-r from-zinc-50 via-white to-slate-50/80 pb-4 pt-6">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">
-              Branch Overview
-            </p>
-            <p className="text-sm text-muted-foreground">
-              Read-only branch summary for staffing, loan activity, and collections.
-            </p>
-          </div>
+    <div className="grid gap-4 xl:grid-cols-12 xl:items-stretch">
+      <Card className="rounded-md border-border/70 py-0 shadow-sm xl:col-span-6">
+        <CardHeader className="pb-2 pt-4">
+          <CardTitle className="text-base">Branch Overview</CardTitle>
         </CardHeader>
-        <CardContent className="grid gap-3 pb-6 md:grid-cols-2 xl:grid-cols-4 ">
+        <CardContent className="grid gap-3 pb-4 pt-0 sm:grid-cols-2">
           <DetailItem label="Municipality / City and Province" value={`${data.municipalityName}, ${data.provinceName}`} />
           <DetailItem label="Branch Code" value={data.branchCode} />
           <DetailItem label="Branch Address" value={data.branchAddress} />
@@ -150,33 +121,31 @@ export function BranchOverviewTab({ data }: { data: BranchDetailOverviewData }) 
         </CardContent>
       </Card>
 
-      <Card className="border-border/70 py-0 shadow-sm">
-        <CardHeader className="gap-0 pt-6">
-          <CardTitle className="text-lg">Assigned Leadership and Staff Breakdown</CardTitle>
+      <Card className="rounded-md border-border/70 py-0 shadow-sm xl:col-span-6">
+        <CardHeader className="pb-2 pt-4">
+          <CardTitle className="text-base">Assigned Leadership and Staff Coverage</CardTitle>
         </CardHeader>
-        <CardContent className="grid gap-3 pb-6 md:grid-cols-2 xl:grid-cols-4">
+        <CardContent className="grid gap-3 pb-4 pt-0 sm:grid-cols-2">
           <LeadershipCard
             companyId={data.managerCompanyId}
             name={data.managerName}
-            roleLabel="Branch Manager"
-            roleTone="branchManager"
+            roleName="Branch Manager"
           />
           <LeadershipCard
             companyId={data.auditorCompanyId}
             name={data.auditorName}
-            roleLabel="Auditor"
-            roleTone="auditor"
+            roleName="Auditor"
           />
-          <CountCard roleLabel="Secretaries" roleTone="secretary" value={String(data.secretaryCount)} />
-          <CountCard roleLabel="Collectors" roleTone="collector" value={String(data.collectorCount)} />
+          <CountCard roleLabel="Secretaries" roleName="Secretary" value={String(data.secretaryCount)} />
+          <CountCard roleLabel="Collectors" roleName="Collector" value={String(data.collectorCount)} />
         </CardContent>
       </Card>
 
-      <Card className="border-border/70 py-0 shadow-sm">
-        <CardHeader className="gap-0 pt-6">
-          <CardTitle className="text-lg">Operational Metrics</CardTitle>
+      <Card className="rounded-md border-border/70 py-0 shadow-sm xl:col-span-4 xl:h-full">
+        <CardHeader className="pb-2 pt-4">
+          <CardTitle className="text-base">Operational Metrics</CardTitle>
         </CardHeader>
-        <CardContent className="grid gap-3 pb-6 pt-0 sm:grid-cols-2 xl:grid-cols-5">
+        <CardContent className="grid gap-2.5 pb-4 pt-0">
           <MetricCard label="Borrowers" value={String(data.borrowerCount)} />
           <MetricCard label="Active Areas" value={String(data.activeAreaCount)} />
           <MetricCard label="Active Loans" value={String(data.activeLoanCount)} />
@@ -185,16 +154,17 @@ export function BranchOverviewTab({ data }: { data: BranchDetailOverviewData }) 
         </CardContent>
       </Card>
 
-      <Card className="border-border/70 shadow-sm">
-        <CardHeader className="space-y-1 pb-0">
-          <CardTitle className="text-lg">Monthly Collections</CardTitle>
+      <Card className="flex rounded-md border-border/70 py-0 shadow-sm xl:col-span-8 xl:h-full xl:flex-col">
+        <CardHeader className="space-y-1 pb-0 pt-4">
+          <CardTitle className="text-base">Monthly Collections</CardTitle>
           <p className="text-sm text-muted-foreground">
             Six-month branch collection trend based on recorded collections inside this branch.
           </p>
         </CardHeader>
-        <CardContent className="pt-4">
+        <CardContent className="flex-1 pb-4 pt-2">
           <CollectionsAreaChart
             chart={data.collectionsTrend}
+            className="h-full min-h-[340px]"
             valueFormatter={(value) => formatCurrency(value)}
           />
         </CardContent>

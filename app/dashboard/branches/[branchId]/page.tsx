@@ -2,7 +2,6 @@ import { notFound } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DashboardBackLink } from "@/app/dashboard/_components/dashboard-back-link";
 import { getDashboardAuthContext } from "@/app/dashboard/auth";
-import { firstSearchValue, resolveBackNavigation } from "@/app/dashboard/back-navigation";
 import { BranchDetailClientPage } from "@/app/dashboard/branches/branch-detail-client-page";
 import {
   loadBranchAreasTabDataByCode,
@@ -78,31 +77,10 @@ export default async function BranchDetailPage({ params, searchParams }: BranchD
     notFound();
   }
 
-  const backNavigation = resolveBackNavigation({
-    source: firstSearchValue(resolvedSearchParams.source),
-    returnTo: firstSearchValue(resolvedSearchParams.returnTo),
-    fallbackHref: "/dashboard/branches",
-    fallbackLabel: "Back to Branches",
-    allowedPrefixes: ["/dashboard/branches", "/dashboard/manage-user-accounts"],
-    sourceMap: {
-      branches: {
-        href: "/dashboard/branches",
-        label: "Back to Branches",
-        allowedPrefixes: ["/dashboard/branches"],
-      },
-      "manage-users": {
-        href: "/dashboard/manage-user-accounts",
-        label: "Back to User Accounts",
-        allowedPrefixes: ["/dashboard/manage-user-accounts"],
-      },
-    },
-  });
   const permissions = resolveBranchActionPermissions(access);
 
   return (
     <BranchDetailClientPage
-      backHref={backNavigation.href}
-      backLabel={backNavigation.label}
       data={branch}
       areasData={areasData}
       employeesData={employeesData}
