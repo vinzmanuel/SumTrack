@@ -1,24 +1,27 @@
 import "server-only";
 
-import { and, desc, eq, gte, inArray, isNull, lte, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, lte, sql, type SQL } from "drizzle-orm";
 import {
   buildLoanDerivedMetricsSubquery,
   LIVE_STORED_LOAN_STATUSES,
   buildStoredLoanStatusEqualsSql,
   buildStoredLoanStatusInSql,
 } from "@/app/dashboard/loans/loan-derived-status-sql";
-import { firstDayOfMonth, toNumber, todayInManila } from "@/app/dashboard/overview-format";
+import { formatDateShort, formatMoney, toNumber, todayInManila } from "@/app/dashboard/overview-format";
 import { getVisibleLoanStatusFromStoredStatus } from "@/app/dashboard/loans/loan-state";
 import type {
   BorrowerOverview,
   BorrowerCollectorContact,
   CollectorMetrics,
+  DashboardMiniListWidget,
   DashboardOverviewData,
+  DashboardSecondaryChartWidget,
   DashboardOverviewState,
   DashboardScope,
   OverviewMetrics,
   SecretaryMetrics,
 } from "@/app/dashboard/overview-types";
+import type { AnalyticsChartModel } from "@/components/analytics/types";
 import { db } from "@/db";
 import {
   areas,
@@ -81,14 +84,17 @@ function whereFrom(conditions: SQL[]) {
   return and(...conditions);
 }
 
-async function getOverviewMetrics(scope: DashboardScope): Promise<OverviewMetrics> {
-  const today = todayInManila();
-  const monthStart = firstDayOfMonth(today);
+type OverviewPeriod = {
+  start: string;
+  end: string;
+};
+
+async function getOverviewMetrics(scope: DashboardScope, period: OverviewPeriod): Promise<OverviewMetrics> {
   const loanScope = loanScopeConditions(scope);
   const expenseScope = expenseScopeConditions(scope);
   const loanMetrics = buildLoanDerivedMetricsSubquery({
     aliasName: "overview_loan_metrics",
-    currentDate: today,
+    currentDate: period.end,
     where: whereFrom(loanScope),
   });
 
@@ -116,14 +122,24 @@ async function getOverviewMetrics(scope: DashboardScope): Promise<OverviewMetric
       .from(collections)
       .innerJoin(loan_records, eq(loan_records.loan_id, collections.loan_id))
       .where(
-        whereFrom([...loanScope, gte(collections.collection_date, monthStart), lte(collections.collection_date, today)]),
+        whereFrom([
+          ...loanScope,
+          gte(collections.collection_date, period.start),
+          lte(collections.collection_date, period.end),
+        ]),
       )
       .then((rows) => toNumber(rows[0]?.value))
       .catch(() => 0),
     db
       .select({ value: sql<number>`coalesce(sum(${expenses.amount}), 0)` })
       .from(expenses)
-      .where(whereFrom([...expenseScope, gte(expenses.expense_date, monthStart), lte(expenses.expense_date, today)]))
+      .where(
+        whereFrom([
+          ...expenseScope,
+          gte(expenses.expense_date, period.start),
+          lte(expenses.expense_date, period.end),
+        ]),
+      )
       .then((rows) => toNumber(rows[0]?.value))
       .catch(() => 0),
     db
@@ -155,14 +171,12 @@ async function getOverviewMetrics(scope: DashboardScope): Promise<OverviewMetric
   };
 }
 
-async function getSecretaryMetrics(scope: DashboardScope): Promise<SecretaryMetrics> {
-  const today = todayInManila();
-  const monthStart = firstDayOfMonth(today);
+async function getSecretaryMetrics(scope: DashboardScope, period: OverviewPeriod): Promise<SecretaryMetrics> {
   const loanScope = loanScopeConditions(scope);
   const branchIds = scope.kind === "branches" ? scope.branchIds : [];
   const borrowerConditions: SQL[] = [
-    gte(sql`date(${users.date_created})`, monthStart),
-    lte(sql`date(${users.date_created})`, today),
+    gte(sql`date(${users.date_created})`, period.start),
+    lte(sql`date(${users.date_created})`, period.end),
   ];
 
   if (branchIds.length > 0) {
@@ -175,7 +189,13 @@ async function getSecretaryMetrics(scope: DashboardScope): Promise<SecretaryMetr
     db
       .select({ value: sql<number>`count(*)` })
       .from(loan_records)
-      .where(whereFrom([...loanScope, gte(loan_records.start_date, monthStart), lte(loan_records.start_date, today)]))
+      .where(
+        whereFrom([
+          ...loanScope,
+          gte(loan_records.start_date, period.start),
+          lte(loan_records.start_date, period.end),
+        ]),
+      )
       .then((rows) => toNumber(rows[0]?.value))
       .catch(() => 0),
     db
@@ -194,9 +214,7 @@ async function getSecretaryMetrics(scope: DashboardScope): Promise<SecretaryMetr
   };
 }
 
-async function getCollectorMetrics(collectorId: string): Promise<CollectorMetrics> {
-  const today = todayInManila();
-  const monthStart = firstDayOfMonth(today);
+async function getCollectorMetrics(collectorId: string, period: OverviewPeriod): Promise<CollectorMetrics> {
 
   const [assignedLoansCount, missedPaymentsCount] = await Promise.all([
     db
@@ -213,8 +231,8 @@ async function getCollectorMetrics(collectorId: string): Promise<CollectorMetric
         and(
           eq(loan_records.collector_id, collectorId),
           eq(collections.amount, "0"),
-          gte(collections.collection_date, monthStart),
-          lte(collections.collection_date, today),
+          gte(collections.collection_date, period.start),
+          lte(collections.collection_date, period.end),
         ),
       )
       .then((rows) => toNumber(rows[0]?.value))
@@ -374,24 +392,226 @@ async function getBorrowerOverview(borrowerId: string): Promise<BorrowerOverview
   };
 }
 
+function formatPersonName(parts: {
+  firstName?: string | null;
+  middleName?: string | null;
+  lastName?: string | null;
+  fallback: string;
+}) {
+  const firstName = parts.firstName?.trim() ?? "";
+  const middleName = parts.middleName?.trim() ?? "";
+  const lastName = parts.lastName?.trim() ?? "";
+  const middleInitial = middleName ? `${middleName.charAt(0)}.` : "";
+
+  return [firstName, middleInitial, lastName].filter(Boolean).join(" ").trim() || parts.fallback;
+}
+
+async function loadBranchRankChartWidget(
+  scope: DashboardScope,
+  period: OverviewPeriod,
+): Promise<DashboardSecondaryChartWidget> {
+  const loanScope = loanScopeConditions(scope);
+  const rows = await db
+    .select({
+      branchName: branch.branch_name,
+      amount: sql<number>`coalesce(sum(${collections.amount}), 0)`,
+    })
+    .from(collections)
+    .innerJoin(loan_records, eq(loan_records.loan_id, collections.loan_id))
+    .innerJoin(branch, eq(branch.branch_id, loan_records.branch_id))
+    .where(
+      whereFrom([
+        ...loanScope,
+        gte(collections.collection_date, period.start),
+        lte(collections.collection_date, period.end),
+      ]),
+    )
+    .groupBy(branch.branch_id, branch.branch_name)
+    .orderBy(desc(sql`coalesce(sum(${collections.amount}), 0)`))
+    .limit(7)
+    .catch(() => []);
+
+  const chart: AnalyticsChartModel = {
+    rows: rows.map((row) => ({
+      bucket: row.branchName,
+      values: { amount: toNumber(row.amount) },
+    })),
+    series: [{ key: "amount", label: "Collections", color: "#22c55e" }],
+    noData: rows.length === 0 || rows.every((row) => toNumber(row.amount) <= 0),
+  };
+
+  return {
+    id: "chart.branch_collections_rank",
+    title: "Top Branch Collections",
+    description: "Collections ranked by branch in the selected period.",
+    chart,
+  };
+}
+
+async function loadRecentLoansCreatedWidget(
+  scope: DashboardScope,
+  period: OverviewPeriod,
+): Promise<DashboardMiniListWidget> {
+  const rows = await db
+    .select({
+      loanId: loan_records.loan_id,
+      loanCode: loan_records.loan_code,
+      principal: loan_records.principal,
+      interest: loan_records.interest,
+      startDate: loan_records.start_date,
+      dueDate: loan_records.due_date,
+      borrowerId: loan_records.borrower_id,
+      borrowerFirstName: borrower_info.first_name,
+      borrowerMiddleName: borrower_info.middle_name,
+      borrowerLastName: borrower_info.last_name,
+      borrowerCompanyId: users.company_id,
+    })
+    .from(loan_records)
+    .innerJoin(users, eq(users.user_id, loan_records.borrower_id))
+    .leftJoin(borrower_info, eq(borrower_info.user_id, loan_records.borrower_id))
+    .where(
+      whereFrom([
+        ...loanScopeConditions(scope),
+        gte(loan_records.start_date, period.start),
+        lte(loan_records.start_date, period.end),
+      ]),
+    )
+    .orderBy(desc(loan_records.loan_id))
+    .limit(8)
+    .catch(() => []);
+
+  return {
+    id: "list.recent_loans_created",
+    title: "Recent Loans Created",
+    description: "Latest loan records created in the selected period.",
+    emptyMessage: "No loans were created in the selected period.",
+    items: rows.map((row) => ({
+      id: String(row.loanId),
+      title: row.loanCode,
+      subtitle: `${formatPersonName({
+        firstName: row.borrowerFirstName,
+        middleName: row.borrowerMiddleName,
+        lastName: row.borrowerLastName,
+        fallback: row.borrowerCompanyId ?? row.borrowerId,
+      })} • Due ${formatDateShort(row.dueDate)}`,
+      meta: formatMoney(toNumber(row.principal) + (toNumber(row.principal) * toNumber(row.interest)) / 100),
+    })),
+  };
+}
+
+async function loadCollectorDueSoonLoansWidget(
+  collectorId: string,
+  period: OverviewPeriod,
+): Promise<DashboardMiniListWidget> {
+  const loanMetrics = buildLoanDerivedMetricsSubquery({
+    aliasName: "dashboard_collector_due_soon_loan_metrics",
+    currentDate: period.end,
+    where: whereFrom([eq(loan_records.collector_id, collectorId)]),
+  });
+
+  const rows = await db
+    .select({
+      loanId: loanMetrics.loanId,
+      loanCode: loanMetrics.loanCode,
+      dueDate: loanMetrics.dueDate,
+      storedStatus: loanMetrics.storedStatus,
+      remainingBalance: loanMetrics.remainingBalance,
+      borrowerId: loanMetrics.borrowerId,
+      borrowerFirstName: borrower_info.first_name,
+      borrowerMiddleName: borrower_info.middle_name,
+      borrowerLastName: borrower_info.last_name,
+      borrowerCompanyId: users.company_id,
+    })
+    .from(loanMetrics)
+    .innerJoin(users, eq(users.user_id, loanMetrics.borrowerId))
+    .leftJoin(borrower_info, eq(borrower_info.user_id, loanMetrics.borrowerId))
+    .where(buildStoredLoanStatusInSql(loanMetrics.storedStatus, LIVE_STORED_LOAN_STATUSES))
+    .orderBy(asc(loanMetrics.dueDate), asc(loanMetrics.loanId))
+    .limit(8)
+    .catch(() => []);
+
+  return {
+    id: "list.collector_due_soon_loans",
+    title: "Due Soon Loans",
+    description: "Assigned loans requiring near-term collection action.",
+    emptyMessage: "No active assigned loans are due soon.",
+    items: rows.map((row) => ({
+      id: String(row.loanId),
+      title: row.loanCode,
+      subtitle: `${formatPersonName({
+        firstName: row.borrowerFirstName,
+        middleName: row.borrowerMiddleName,
+        lastName: row.borrowerLastName,
+        fallback: row.borrowerCompanyId ?? row.borrowerId,
+      })} • Due ${formatDateShort(row.dueDate)}`,
+      meta: formatMoney(toNumber(row.remainingBalance)),
+    })),
+  };
+}
+
+async function loadBorrowerRecentPaymentsWidget(
+  borrowerId: string,
+): Promise<DashboardMiniListWidget> {
+  const rows = await db
+    .select({
+      collectionId: collections.collection_id,
+      loanCode: loan_records.loan_code,
+      collectionDate: collections.collection_date,
+      amount: collections.amount,
+    })
+    .from(collections)
+    .innerJoin(loan_records, eq(loan_records.loan_id, collections.loan_id))
+    .where(eq(loan_records.borrower_id, borrowerId))
+    .orderBy(desc(collections.collection_date), desc(collections.collection_id))
+    .limit(8)
+    .catch(() => []);
+
+  return {
+    id: "list.borrower_recent_payments",
+    title: "Recent Payments",
+    description: "Latest recorded collections across your loan records.",
+    emptyMessage: "No recorded payments yet.",
+    items: rows.map((row) => ({
+      id: String(row.collectionId),
+      title: row.loanCode,
+      subtitle: formatDateShort(row.collectionDate),
+      meta: formatMoney(toNumber(row.amount)),
+    })),
+  };
+}
+
+void loadCollectorDueSoonLoansWidget;
+void loadBorrowerRecentPaymentsWidget;
+
 export async function loadDashboardOverviewData(
   state: DashboardOverviewState,
+  period: OverviewPeriod,
 ): Promise<DashboardOverviewData> {
   if (state.variant === "none" || !state.scope) {
     return { variant: "none" };
   }
 
   if (state.variant === "management") {
+    const overview = await getOverviewMetrics(state.scope, period);
+    const shouldShowBranchCollectionsChart =
+      state.auth.roleName === "Admin" || state.auth.roleName === "Auditor";
+    const branchRankChart = shouldShowBranchCollectionsChart
+      ? await loadBranchRankChartWidget(state.scope, period)
+      : undefined;
+
     return {
       variant: "management",
-      overview: await getOverviewMetrics(state.scope),
+      overview,
+      widgets: {
+        branchRankChart,
+      },
     };
   }
 
   if (state.variant === "secretary") {
     const [overview, secretary] = await Promise.all([
-      getOverviewMetrics(state.scope),
-      getSecretaryMetrics(state.scope),
+      getOverviewMetrics(state.scope, period),
+      getSecretaryMetrics(state.scope, period),
     ]);
 
     return {
@@ -403,8 +623,8 @@ export async function loadDashboardOverviewData(
 
   if (state.variant === "collector") {
     const [overview, collector] = await Promise.all([
-      getOverviewMetrics(state.scope),
-      getCollectorMetrics(state.auth.userId),
+      getOverviewMetrics(state.scope, period),
+      getCollectorMetrics(state.auth.userId, period),
     ]);
 
     return {

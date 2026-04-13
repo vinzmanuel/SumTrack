@@ -48,12 +48,12 @@ export function resolveDashboardChartConfig(
       roleName: auth.roleName,
       variant: "management",
       title: "Operational Overview",
-      description: "Collections, expenses, and incentives trend",
+      description: "Collections and expenses trend",
       branchFilterLabel: "Branch",
       canChooseBranch: true,
       branchOptions: toBranchOptions(branchOptions, "All branches"),
       scopedBranchIds,
-      series: [dashboardSeries.collections, dashboardSeries.expenses, dashboardSeries.incentives],
+      series: [dashboardSeries.collections, dashboardSeries.expenses],
     };
   }
 
@@ -63,12 +63,12 @@ export function resolveDashboardChartConfig(
       roleName: auth.roleName,
       variant: "management",
       title: "Operational Overview",
-      description: "Collections, expenses, and incentives trend",
+      description: "Collections and expenses trend",
       branchFilterLabel: "Assigned Branch",
       canChooseBranch: true,
       branchOptions: toBranchOptions(branchOptions, "All assigned branches"),
       scopedBranchIds,
-      series: [dashboardSeries.collections, dashboardSeries.expenses, dashboardSeries.incentives],
+      series: [dashboardSeries.collections, dashboardSeries.expenses],
     };
   }
 
@@ -78,12 +78,12 @@ export function resolveDashboardChartConfig(
       roleName: auth.roleName,
       variant: "management",
       title: "Operational Overview",
-      description: "Collections, expenses, and incentives trend",
+      description: "Collections and expenses trend",
       branchFilterLabel: null,
       canChooseBranch: false,
       branchOptions: [],
       scopedBranchIds,
-      series: [dashboardSeries.collections, dashboardSeries.expenses, dashboardSeries.incentives],
+      series: [dashboardSeries.collections, dashboardSeries.expenses],
     };
   }
 

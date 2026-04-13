@@ -1,7 +1,7 @@
 import "server-only";
 
 import { cache } from "react";
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
 import {
@@ -41,6 +41,7 @@ export type DashboardAuthContext = {
   companyId: string;
   contactNo: string | null;
   email: string | null;
+  firstName: string;
   displayName: string;
   assignedBranchIds: number[];
   activeBranchId: number | null;
@@ -102,9 +103,33 @@ export const getAuthenticatedAppContext = cache(async (): Promise<AppAuthResult>
     .where(eq(users.user_id, user.id))
     .limit(1)
     .then((rows) => rows[0] ?? null)
-    .catch((error) => {
-      console.error("[sumtrack][auth-debug] Error fetching app user:", error);
-      return null;
+    .catch(async (error) => {
+      console.warn("[sumtrack][auth] profile join query failed; trying base user lookup.");
+      if (process.env.NODE_ENV !== "production") {
+        console.warn(error);
+      }
+
+      return db
+        .select({
+          user_id: users.user_id,
+          company_id: users.company_id,
+          contact_no: users.contact_no,
+          email: users.email,
+          status: users.status,
+          role_name: roles.role_name,
+          employee_first_name: sql<string | null>`null`,
+          employee_middle_name: sql<string | null>`null`,
+          employee_last_name: sql<string | null>`null`,
+          borrower_first_name: sql<string | null>`null`,
+          borrower_middle_name: sql<string | null>`null`,
+          borrower_last_name: sql<string | null>`null`,
+        })
+        .from(users)
+        .innerJoin(roles, eq(roles.role_id, users.role_id))
+        .where(eq(users.user_id, user.id))
+        .limit(1)
+        .then((rows) => rows[0] ?? null)
+        .catch(() => null);
     });
 
   if (!appUser) {
@@ -127,6 +152,10 @@ export const getAuthenticatedAppContext = cache(async (): Promise<AppAuthResult>
     lastName: appUser.employee_last_name ?? appUser.borrower_last_name,
     fallback: appUser.company_id,
   });
+  const firstName =
+    appUser.employee_first_name?.trim() ??
+    appUser.borrower_first_name?.trim() ??
+    appUser.company_id;
 
   const roleName = appUser.role_name;
   if (!roleName) {
@@ -219,6 +248,7 @@ export const getAuthenticatedAppContext = cache(async (): Promise<AppAuthResult>
     companyId: appUser.company_id,
     contactNo: appUser.contact_no,
     email: appUser.email,
+    firstName,
     displayName,
     assignedBranchIds,
     activeBranchId,

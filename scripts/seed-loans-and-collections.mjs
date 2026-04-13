@@ -11,17 +11,13 @@ const ABANDONED_TARGET = 1;
 const MISSED_PAYMENT_TARGET = 11;
 const FIXED_HOLIDAYS = new Set(["01-01", "11-02", "12-25"]);
 const MISSED_PAYMENT_NOTES = [
+  "No one was at home and client did not respond to call.",
   "Borrower not present during collection.",
   "Did not answer phone; follow-up tomorrow.",
   "Requested follow-up tomorrow after market hours.",
   "Temporarily away for family errand.",
   "Requested another visit on the next round.",
   "No one at home during collection round.",
-  "Collector advised return visit in the morning.",
-  "Borrower attending family errand; to follow up next day.",
-  "Requested one-day extension due to school expense.",
-  "Client was at work; requested evening follow-up.",
-  "Left reminder with household member for next visit.",
 ];
 
 function requireEnv(name) {

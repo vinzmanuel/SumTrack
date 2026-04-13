@@ -7,6 +7,7 @@ import {
   TremorMetric,
   TremorTitle,
 } from "@/components/tremor/raw/metric-card";
+import { UI_SURFACE_CLASS_NAME } from "@/app/dashboard/_components/ui-patterns";
 import {
   AlertTriangle,
   Banknote,
@@ -38,6 +39,7 @@ const metricIconMap: Record<MetricIconKey, LucideIcon> = {
 };
 
 export type OverviewMetric = {
+  id?: string;
   label: string;
   value: string;
   supportingText?: string;
@@ -48,19 +50,21 @@ export type OverviewMetric = {
 export function DashboardMetricGrid({
   items,
   children,
+  className,
 }: {
   items: OverviewMetric[];
   children?: ReactNode;
+  className?: string;
 }) {
   if (items.length === 0 && !children) return null;
 
   return (
-    <div className="grid w-full gap-4 md:grid-cols-2 xl:grid-cols-3">
+    <div className={`grid w-full gap-4 md:grid-cols-2 ${className ?? ""}`}>
       {items.map((item) => (
-        <TremorCard key={item.label}>
+        <TremorCard className={UI_SURFACE_CLASS_NAME} data-widget-id={item.id ?? item.label} key={item.id ?? item.label}>
           <div className="flex items-start justify-between gap-3">
             <div>
-              <TremorTitle>{item.label}</TremorTitle>
+              <TremorTitle className="text-sm font-medium">{item.label}</TremorTitle>
               <TremorMetric>{item.value}</TremorMetric>
               {item.supportingText ? (
                 <TremorDescription className="mt-1 text-xs">{item.supportingText}</TremorDescription>
@@ -80,7 +84,7 @@ export function DashboardMetricGrid({
 function MetricIcon({ iconKey, iconClassName }: { iconKey: MetricIconKey; iconClassName?: string }) {
   const Icon = metricIconMap[iconKey];
   return (
-    <div className={`rounded-lg p-2 ${iconClassName ?? "bg-muted text-foreground"}`}>
+    <div className={`rounded-md border border-current/35 p-2 ${iconClassName ?? "bg-muted text-foreground"}`}>
       <Icon className="h-4 w-4" />
     </div>
   );

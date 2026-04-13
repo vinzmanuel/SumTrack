@@ -25,6 +25,12 @@ function addDays(value: Date, amount: number) {
   return next;
 }
 
+function addMonths(value: Date, amount: number) {
+  const next = new Date(value);
+  next.setUTCMonth(next.getUTCMonth() + amount);
+  return next;
+}
+
 function startOfWeek(value: Date) {
   const day = value.getUTCDay();
   const offset = day === 0 ? -6 : 1 - day;
@@ -51,6 +57,8 @@ export const DASHBOARD_DATE_RANGE_OPTIONS: Array<{ value: AnalyticsDateRangeKey;
   { value: "this-week", label: "This Week" },
   { value: "this-month", label: "This Month" },
   { value: "last-30-days", label: "Last 30 Days" },
+  { value: "past-3-months", label: "Past 3 Months" },
+  { value: "past-6-months", label: "Past 6 Months" },
   { value: "this-year", label: "This Year" },
   { value: "custom", label: "Custom" },
 ];
@@ -62,10 +70,12 @@ export function parseDashboardChartFilters(
     params?.range === "this-week" ||
     params?.range === "this-month" ||
     params?.range === "last-30-days" ||
+    params?.range === "past-3-months" ||
+    params?.range === "past-6-months" ||
     params?.range === "this-year" ||
     params?.range === "custom"
       ? params.range
-      : "this-month";
+      : "last-30-days";
 
   return {
     selectedBranchRaw: params?.branch ?? "all",
@@ -84,6 +94,10 @@ export function resolveDashboardChartDateRange(filters: DashboardChartFilters): 
     start = startOfWeek(today);
   } else if (filters.selectedRange === "last-30-days") {
     start = addDays(today, -29);
+  } else if (filters.selectedRange === "past-3-months") {
+    start = addMonths(today, -3);
+  } else if (filters.selectedRange === "past-6-months") {
+    start = addMonths(today, -6);
   } else if (filters.selectedRange === "this-year") {
     start = startOfYear(today);
   } else if (filters.selectedRange === "custom") {
@@ -107,6 +121,10 @@ export function resolveDashboardChartDateRange(filters: DashboardChartFilters): 
           ? "This Month"
           : filters.selectedRange === "last-30-days"
             ? "Last 30 Days"
+            : filters.selectedRange === "past-3-months"
+              ? "Past 3 Months"
+              : filters.selectedRange === "past-6-months"
+                ? "Past 6 Months"
             : filters.selectedRange === "this-year"
               ? "This Year"
               : "Custom Range",

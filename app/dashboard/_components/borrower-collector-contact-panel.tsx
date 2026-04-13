@@ -14,6 +14,7 @@ import {
 import { toast } from "@/components/ui/sonner";
 import { TremorDescription, TremorTitle } from "@/components/tremor/raw/metric-card";
 import type { BorrowerOverview } from "@/app/dashboard/overview-types";
+import { UI_SURFACE_CLASS_NAME } from "@/app/dashboard/_components/ui-patterns";
 import { cn } from "@/lib/utils";
 
 function normalizeContactNumber(value: string | null) {
@@ -56,8 +57,8 @@ function InlineNotice({
     <div
       className={
         tone === "warning"
-          ? "rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
-          : "rounded-xl border border-border/70 bg-muted/20 px-4 py-3 text-sm text-muted-foreground"
+          ? "rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300"
+          : "rounded-md border border-border/70 bg-muted/20 px-4 py-3 text-sm text-muted-foreground dark:bg-muted/10"
       }
     >
       {children}
@@ -90,7 +91,11 @@ export function BorrowerCollectorContactPanel({ borrower }: { borrower: Borrower
     <Dialog>
       <DialogTrigger asChild>
         <button
-          className="group flex w-full flex-col justify-between rounded-xl border border-dashed border-border/80 bg-gradient-to-br from-slate-50 via-white to-amber-50/40 p-4 text-left shadow-sm transition-colors hover:border-emerald-200 hover:from-emerald-50/60 hover:to-amber-50/45"
+          className={cn(
+            UI_SURFACE_CLASS_NAME,
+            "group flex w-full flex-col justify-between p-4 text-left transition-colors",
+            "hover:border-emerald-300/60 dark:hover:border-emerald-400/40",
+          )}
           type="button"
         >
           <div className="flex items-start justify-between gap-3">
@@ -103,7 +108,7 @@ export function BorrowerCollectorContactPanel({ borrower }: { borrower: Borrower
                 </TremorDescription>
               </div>
             </div>
-            <div className="rounded-lg bg-emerald-50 p-2 text-emerald-600">
+            <div className="rounded-md border border-emerald-200 bg-emerald-50 p-2 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">
               <ContactRound className="size-4" />
             </div>
           </div>
@@ -136,8 +141,8 @@ export function BorrowerCollectorContactPanel({ borrower }: { borrower: Borrower
         </button>
       </DialogTrigger>
 
-      <DialogContent className="max-h-[calc(100svh-1.5rem)] max-w-[calc(100%-1.5rem)] gap-0 overflow-hidden border-border/70 p-0 sm:max-w-md md:max-w-lg">
-        <div className="bg-gradient-to-r from-slate-50 via-white to-amber-50/45 px-4 py-4 sm:px-5 sm:py-4">
+      <DialogContent className="max-h-[calc(100svh-1.5rem)] max-w-[calc(100%-1.5rem)] gap-0 overflow-hidden rounded-md border-border/70 p-0 sm:max-w-md md:max-w-lg">
+        <div className="border-b border-border/70 bg-card px-4 py-4 sm:px-5 sm:py-4">
           <DialogHeader className="gap-2 pr-10 text-left sm:pr-12">
             <p className="text-muted-foreground text-xs font-medium uppercase tracking-[0.28em]">Borrower Support</p>
             <div className="min-w-0 space-y-1">
@@ -163,9 +168,9 @@ export function BorrowerCollectorContactPanel({ borrower }: { borrower: Borrower
               office for assistance.
             </InlineNotice>
           ) : (
-            <div className="rounded-2xl border border-border/70 bg-background p-4 shadow-xs sm:p-5">
+            <div className="rounded-md border border-border/70 bg-card p-4 shadow-sm sm:p-5">
               <div className="flex items-start gap-3">
-                <div className="rounded-full bg-emerald-50 p-2 text-emerald-600">
+                <div className="rounded-md border border-emerald-200 bg-emerald-50 p-2 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">
                   <MapPinned className="size-4" />
                 </div>
                 <div className="min-w-0 flex-1 space-y-1">
@@ -194,19 +199,19 @@ export function BorrowerCollectorContactPanel({ borrower }: { borrower: Borrower
               ) : null}
 
               <div className="mt-3 grid gap-3 sm:mt-4 sm:grid-cols-2">
-                <div className="rounded-xl border border-border/70 bg-muted/15 px-4 py-3">
+                <div className="rounded-md border border-border/70 bg-muted/15 px-4 py-3 dark:bg-muted/10">
                   <p className="text-muted-foreground text-[11px] font-medium uppercase tracking-[0.24em]">
                     Assigned area
                   </p>
                   <p className="mt-1 text-sm font-semibold text-foreground">{collectorContact.areaLabel}</p>
                 </div>
-                <div className="rounded-xl border border-border/70 bg-muted/15 px-4 py-3">
+                <div className="rounded-md border border-border/70 bg-muted/15 px-4 py-3 dark:bg-muted/10">
                   <p className="text-muted-foreground text-[11px] font-medium uppercase tracking-[0.24em]">Branch</p>
                   <p className="mt-1 text-sm font-semibold text-foreground">{collectorContact.branchName}</p>
                 </div>
               </div>
 
-              <div className="mt-3 rounded-2xl border border-border/70 bg-muted/20 p-4 sm:mt-4">
+              <div className="mt-3 rounded-md border border-border/70 bg-muted/20 p-4 dark:bg-muted/10 sm:mt-4">
                 <p className="text-muted-foreground text-[11px] font-medium uppercase tracking-[0.24em]">
                   Collector contact number
                 </p>

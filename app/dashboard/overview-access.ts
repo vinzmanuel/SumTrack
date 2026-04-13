@@ -11,7 +11,13 @@ function resolveDashboardScope(auth: DashboardAuthContext): DashboardScope | nul
   }
 
   if (auth.roleName === "Branch Manager" || auth.roleName === "Secretary") {
-    return { kind: "branches", branchIds: auth.activeBranchId ? [auth.activeBranchId] : [] };
+    const branchIds =
+      auth.assignedBranchIds.length > 0
+        ? auth.assignedBranchIds
+        : auth.activeBranchId
+          ? [auth.activeBranchId]
+          : [];
+    return { kind: "branches", branchIds };
   }
 
   if (auth.roleName === "Collector") {

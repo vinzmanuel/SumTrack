@@ -3,19 +3,29 @@ import { formatDateShort, formatMoney } from "@/app/dashboard/overview-format";
 import type { DashboardOverviewData } from "@/app/dashboard/overview-types";
 
 const cardStyles = {
-  loans: "bg-red-100 text-red-600",
-  collections: "bg-green-100 text-green-600",
-  expenses: "bg-blue-100 text-blue-600",
-  outstanding: "bg-purple-100 text-purple-600",
-  overdue: "bg-amber-100 text-amber-600",
-  borrowers: "bg-orange-100 text-orange-600",
-  dueDate: "bg-cyan-100 text-cyan-600",
+  loans: "bg-red-50 text-red-700 dark:bg-red-500/10 dark:text-red-300",
+  collections: "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300",
+  expenses: "bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300",
+  outstanding: "bg-violet-50 text-violet-700 dark:bg-violet-500/10 dark:text-violet-300",
+  overdue: "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300",
+  borrowers: "bg-zinc-100 text-zinc-700 dark:bg-white/10 dark:text-zinc-100",
+  dueDate: "bg-cyan-50 text-cyan-700 dark:bg-cyan-500/10 dark:text-cyan-300",
 } as const;
 
 export function buildDashboardOverviewCards(data: DashboardOverviewData): OverviewMetric[] {
+  return buildDashboardOverviewCardsForPeriod(data, "Last 30 Days");
+}
+
+export function buildDashboardOverviewCardsForPeriod(
+  data: DashboardOverviewData,
+  periodLabel: string,
+): OverviewMetric[] {
+  const periodLabelLower = periodLabel.toLowerCase();
+
   if (data.variant === "management") {
     return [
       {
+        id: "kpi.active_loans",
         label: "Total Active Loans",
         value: String(data.overview.activeLoans),
         supportingText: "Loans currently being repaid",
@@ -23,20 +33,23 @@ export function buildDashboardOverviewCards(data: DashboardOverviewData): Overvi
         iconClassName: cardStyles.loans,
       },
       {
-        label: "Collections This Month",
+        id: "kpi.collections_period",
+        label: "Collections",
         value: formatMoney(data.overview.collectionsThisMonth),
-        supportingText: "Recorded collections for the current month",
+        supportingText: `Recorded collections for ${periodLabelLower}`,
         iconKey: "collections",
         iconClassName: cardStyles.collections,
       },
       {
-        label: "Expenses This Month",
+        id: "kpi.expenses_period",
+        label: "Expenses",
         value: formatMoney(data.overview.expensesThisMonth),
-        supportingText: "Recorded branch expenses for the current month",
+        supportingText: `Recorded branch expenses for ${periodLabelLower}`,
         iconKey: "expenses",
         iconClassName: cardStyles.expenses,
       },
       {
+        id: "kpi.outstanding_balance",
         label: "Outstanding Balance",
         value: formatMoney(data.overview.outstandingBalance),
         supportingText: "Remaining unpaid balance across active/overdue loans",
@@ -44,6 +57,7 @@ export function buildDashboardOverviewCards(data: DashboardOverviewData): Overvi
         iconClassName: cardStyles.outstanding,
       },
       {
+        id: "kpi.overdue_loans",
         label: "Overdue Loans",
         value: String(data.overview.overdueLoans),
         supportingText: "Loans requiring follow-up",
@@ -51,6 +65,7 @@ export function buildDashboardOverviewCards(data: DashboardOverviewData): Overvi
         iconClassName: cardStyles.overdue,
       },
       {
+        id: "kpi.borrower_count",
         label: "Borrower Count",
         value: String(data.overview.borrowerCount),
         supportingText: "Borrowers within visible scope",
@@ -63,23 +78,26 @@ export function buildDashboardOverviewCards(data: DashboardOverviewData): Overvi
   if (data.variant === "secretary") {
     return [
       {
-        label: "Collections This Month",
+        id: "kpi.collections_period",
+        label: "Collections",
         value: formatMoney(data.overview.collectionsThisMonth),
-        supportingText: "Recorded collections for the current month",
+        supportingText: `Recorded collections for ${periodLabelLower}`,
         iconKey: "collections",
         iconClassName: cardStyles.collections,
       },
       {
-        label: "Loans Created This Month",
+        id: "kpi.loans_created_period",
+        label: "Loans Created",
         value: String(data.secretary.loansCreatedThisMonth),
-        supportingText: "Loan records created this month",
+        supportingText: `Loan records created during ${periodLabelLower}`,
         iconKey: "loans",
         iconClassName: cardStyles.loans,
       },
       {
-        label: "Borrowers Added This Month",
+        id: "kpi.borrowers_added_period",
+        label: "Borrowers Added",
         value: String(data.secretary.borrowersAddedThisMonth),
-        supportingText: "Borrower accounts added this month",
+        supportingText: `Borrower accounts added during ${periodLabelLower}`,
         iconKey: "borrowers",
         iconClassName: cardStyles.borrowers,
       },
@@ -89,20 +107,23 @@ export function buildDashboardOverviewCards(data: DashboardOverviewData): Overvi
   if (data.variant === "collector") {
     return [
       {
-        label: "My Collections This Month",
+        id: "kpi.collections_period",
+        label: "My Collections",
         value: formatMoney(data.overview.collectionsThisMonth),
-        supportingText: "Recorded collections for the current month",
+        supportingText: `Recorded collections for ${periodLabelLower}`,
         iconKey: "collections",
         iconClassName: cardStyles.collections,
       },
       {
-        label: "Assigned Loans Count",
+        id: "kpi.assigned_loans_count",
+        label: "Active Assigned Loans",
         value: String(data.collector.assignedLoansCount),
         supportingText: "Loans assigned to you",
         iconKey: "loans",
         iconClassName: cardStyles.loans,
       },
       {
+        id: "kpi.missed_payments_period",
         label: "Missed Payments on Assigned Loans",
         value: String(data.collector.missedPaymentsCount),
         supportingText: "Missed payment entries this month",
@@ -115,6 +136,7 @@ export function buildDashboardOverviewCards(data: DashboardOverviewData): Overvi
   if (data.variant === "borrower") {
     return [
       {
+        id: "kpi.current_loan_code",
         label: "Current Loan Code",
         value: data.borrower.currentLoanCode,
         supportingText: "Your current loan reference",
@@ -122,6 +144,7 @@ export function buildDashboardOverviewCards(data: DashboardOverviewData): Overvi
         iconClassName: cardStyles.loans,
       },
       {
+        id: "kpi.outstanding_balance",
         label: "Outstanding Balance",
         value: formatMoney(data.borrower.outstandingBalance),
         supportingText: "Remaining balance for current loan",
@@ -129,6 +152,7 @@ export function buildDashboardOverviewCards(data: DashboardOverviewData): Overvi
         iconClassName: cardStyles.outstanding,
       },
       {
+        id: "kpi.latest_payment_amount",
         label: "Latest Payment",
         value: formatMoney(data.borrower.latestPayment),
         supportingText: "Most recent collection amount",
@@ -136,6 +160,7 @@ export function buildDashboardOverviewCards(data: DashboardOverviewData): Overvi
         iconClassName: cardStyles.collections,
       },
       {
+        id: "kpi.last_payment_date",
         label: "Last Payment Date",
         value:
           data.borrower.lastPaymentDate && data.borrower.lastPaymentDate !== "N/A"
@@ -146,6 +171,7 @@ export function buildDashboardOverviewCards(data: DashboardOverviewData): Overvi
         iconClassName: cardStyles.borrowers,
       },
       {
+        id: "kpi.loan_status",
         label: "Loan Status",
         value: data.borrower.loanStatus,
         supportingText: "Current status of your loan",
@@ -153,6 +179,7 @@ export function buildDashboardOverviewCards(data: DashboardOverviewData): Overvi
         iconClassName: cardStyles.overdue,
       },
       {
+        id: "kpi.next_due_date",
         label: "Next Due Date",
         value:
           data.borrower.nextDueDate && data.borrower.nextDueDate !== "N/A"

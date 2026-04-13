@@ -1,4 +1,5 @@
 import type { DashboardAuthContext } from "@/app/dashboard/auth";
+import type { AnalyticsChartModel } from "@/components/analytics/types";
 
 export type DashboardScope =
   | { kind: "all_branches" }
@@ -65,6 +66,9 @@ export type DashboardOverviewData =
   | {
       variant: "management";
       overview: OverviewMetrics;
+      widgets: {
+        branchRankChart?: DashboardSecondaryChartWidget;
+      };
     }
   | {
       variant: "secretary";
@@ -83,3 +87,25 @@ export type DashboardOverviewData =
   | {
       variant: "none";
     };
+
+export type DashboardMiniListItem = {
+  id: string;
+  title: string;
+  subtitle?: string;
+  meta?: string;
+};
+
+export type DashboardMiniListWidget = {
+  id: string;
+  title: string;
+  description: string;
+  emptyMessage: string;
+  items: DashboardMiniListItem[];
+};
+
+export type DashboardSecondaryChartWidget = {
+  id: string;
+  title: string;
+  description: string;
+  chart: AnalyticsChartModel;
+};
