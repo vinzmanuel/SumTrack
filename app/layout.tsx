@@ -37,10 +37,10 @@ export const metadata: Metadata = {
     url: "https://sumtrack.org",
     images: [
       {
-        url: "/icon.png",
-        width: 512,
-        height: 512,
-        alt: "SumTrack",
+        url: "/landing/SEO-image.png",
+        width: 1200,
+        height: 630,
+        alt: "SumTrack landing preview",
       },
     ],
   },

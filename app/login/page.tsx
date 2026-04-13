@@ -41,8 +41,6 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
 
   return (
     <main className={`${styles.page} ${styles.grain} relative flex items-center justify-center bg-[#0a0e17] font-sans text-slate-300 antialiased`}>
-      <div aria-hidden="true" className={styles.pageCurtain} />
-
       <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
         <div className={`${styles.animateBlob} absolute -left-20 -top-20 h-[600px] w-[600px] rounded-full bg-teal-500/20 blur-[120px]`} />
         <div className={`${styles.animateBlob} ${styles.animationDelay1000} absolute -right-40 top-1/4 h-[550px] w-[550px] rounded-full bg-[#c43d14]/15 blur-[120px]`} />
