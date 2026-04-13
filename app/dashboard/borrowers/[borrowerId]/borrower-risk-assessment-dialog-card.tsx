@@ -229,7 +229,7 @@ function RiskResultContent({ result }: { result: BorrowerRiskAssessmentResult })
                   label="Severity Score"
                   value={
                     result.aiAnalysis.severityScore !== null
-                      ? `${result.aiAnalysis.severityScore} / 10`
+                      ? `${result.aiAnalysis.severityScore} / 50`
                       : "N/A"
                   }
                 />

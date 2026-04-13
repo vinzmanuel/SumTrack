@@ -16,6 +16,16 @@ type GeminiRiskPayload = {
   mitigating_signals: string[];
   confidence: BorrowerRiskAiConfidence;
 };
+type BorrowerRiskPromptContext = {
+  totalMissedPayments: number;
+  totalCollectionEntries: number;
+  missedPaymentRatio: number;
+  missedPaymentsLast30Days: number;
+  missedPaymentsLast90Days: number;
+  loansWithMissedPayments: number;
+  overdueLoans: number;
+  abandonedLoans: number;
+};
 
 const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta";
 const DEFAULT_GEMINI_MODEL = "gemini-3-flash-preview";
@@ -31,45 +41,103 @@ const ALLOWED_SIGNALS = new Set<BorrowerRiskSignalKind>([
   "other",
 ]);
 
-function extractGeminiText(responseBody: unknown) {
+function extractGeminiTexts(responseBody: unknown) {
   if (!responseBody || typeof responseBody !== "object") {
-    return null;
+    return [];
   }
 
   const candidates = (responseBody as { candidates?: unknown }).candidates;
   if (!Array.isArray(candidates) || candidates.length === 0) {
-    return null;
+    return [];
   }
 
-  const firstCandidate = candidates[0];
-  if (!firstCandidate || typeof firstCandidate !== "object") {
-    return null;
-  }
-
-  const content = (firstCandidate as { content?: unknown }).content;
-  if (!content || typeof content !== "object") {
-    return null;
-  }
-
-  const parts = (content as { parts?: unknown }).parts;
-  if (!Array.isArray(parts) || parts.length === 0) {
-    return null;
-  }
-
-  const text = parts
-    .map((part) => {
-      if (!part || typeof part !== "object") {
+  return candidates
+    .map((candidate) => {
+      if (!candidate || typeof candidate !== "object") {
         return "";
       }
 
-      return typeof (part as { text?: unknown }).text === "string"
-        ? (part as { text: string }).text
-        : "";
-    })
-    .join("")
-    .trim();
+      const content = (candidate as { content?: unknown }).content;
+      if (!content || typeof content !== "object") {
+        return "";
+      }
 
-  return text || null;
+      const parts = (content as { parts?: unknown }).parts;
+      if (!Array.isArray(parts) || parts.length === 0) {
+        return "";
+      }
+
+      return parts
+        .map((part) => {
+          if (!part || typeof part !== "object") {
+            return "";
+          }
+
+          return typeof (part as { text?: unknown }).text === "string"
+            ? (part as { text: string }).text
+            : "";
+        })
+        .join("")
+        .trim();
+    })
+    .filter((text) => text.length > 0);
+}
+
+function extractGeminiBlockReason(responseBody: unknown) {
+  if (!responseBody || typeof responseBody !== "object") {
+    return null;
+  }
+
+  const promptFeedback = (responseBody as { promptFeedback?: unknown }).promptFeedback;
+  if (promptFeedback && typeof promptFeedback === "object") {
+    const blockReason = (promptFeedback as { blockReason?: unknown }).blockReason;
+    if (typeof blockReason === "string" && blockReason.trim().length > 0) {
+      return blockReason.trim();
+    }
+  }
+
+  const candidates = (responseBody as { candidates?: unknown }).candidates;
+  if (Array.isArray(candidates)) {
+    for (const candidate of candidates) {
+      if (!candidate || typeof candidate !== "object") {
+        continue;
+      }
+      const finishReason = (candidate as { finishReason?: unknown }).finishReason;
+      if (typeof finishReason === "string" && finishReason !== "STOP") {
+        return finishReason;
+      }
+    }
+  }
+
+  return null;
+}
+
+function parseJsonLikeText(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const candidates: string[] = [trimmed];
+  const fencedMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fencedMatch?.[1]) {
+    candidates.push(fencedMatch[1].trim());
+  }
+  const firstBrace = trimmed.indexOf("{");
+  const lastBrace = trimmed.lastIndexOf("}");
+  if (firstBrace >= 0 && lastBrace > firstBrace) {
+    candidates.push(trimmed.slice(firstBrace, lastBrace + 1));
+  }
+
+  for (const candidate of candidates) {
+    try {
+      return JSON.parse(candidate) as unknown;
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
 }
 
 function normalizeText(value: unknown) {
@@ -110,8 +178,8 @@ function isGeminiRiskPayload(value: unknown): value is GeminiRiskPayload {
   if (
     typeof severityScore !== "number" ||
     !Number.isFinite(severityScore) ||
-    severityScore < 0 ||
-    severityScore > 10
+    severityScore < 1 ||
+    severityScore > 50
   ) {
     return false;
   }
@@ -135,17 +203,32 @@ function isGeminiRiskPayload(value: unknown): value is GeminiRiskPayload {
   return true;
 }
 
-function buildPrompt(notes: string[]) {
+function buildPrompt(notes: string[], context?: BorrowerRiskPromptContext) {
+  const ratioPercent = context ? (context.missedPaymentRatio * 100).toFixed(1) : "N/A";
+  const contextLines = context
+    ? [
+      `- total_missed_payments: ${context.totalMissedPayments}`,
+      `- total_collection_entries: ${context.totalCollectionEntries}`,
+      `- missed_payment_ratio_percent: ${ratioPercent}`,
+      `- missed_payments_last_30_days: ${context.missedPaymentsLast30Days}`,
+      `- missed_payments_last_90_days: ${context.missedPaymentsLast90Days}`,
+      `- loans_with_missed_payments: ${context.loansWithMissedPayments}`,
+      `- overdue_loans: ${context.overdueLoans}`,
+      `- abandoned_loans: ${context.abandonedLoans}`,
+    ]
+    : ["- context_unavailable"];
+
   return [
     "You are helping a lending app review borrower missed-payment notes.",
-    "Analyze only the note text provided below. Do not infer facts beyond the notes.",
+    "Analyze note text and borrower payment context below.",
+    "Do not invent facts that are not supported by the notes/context.",
     "Return strict JSON only.",
     "",
     "Required JSON schema:",
     "{",
     '  "summary": "Concise 1-2 sentence explanation of the note pattern.",',
     '  "overall_tone": "neutral | mixed | concerning | severe",',
-    '  "severity_score": 0,',
+    '  "severity_score": 1,',
     '  "risk_signals": [',
     "    {",
     '      "signal": "income_instability | avoidance | health_issue | family_emergency | work_disruption | repeated_promises | other",',
@@ -157,11 +240,22 @@ function buildPrompt(notes: string[]) {
     "}",
     "",
     "Rules:",
-    "- severity_score must be an integer from 0 to 10.",
+    "- severity_score must be an integer from 1 to 50.",
+    "- Most normal cases MUST stay in 1 to 10.",
+    "- Use 1 to 3 for isolated/light reasons with no strong avoidance pattern.",
+    "- Use 4 to 6 for moderate but explainable missed-payment reasons.",
+    "- Use 7 to 10 for repeated reliability concerns without confirmed severe evasion.",
+    "- Only use 11+ when there is strong evidence of serious risk behavior.",
+    "- Use 11 to 20 for persistent non-response/repeated avoidance patterns.",
+    "- Use 21 to 35 for deliberate evasion signs (e.g., sustained AWOL pattern, intentional disappearance indicators).",
+    "- Use 36 to 50 only for extreme/high-confidence cases such as fleeing, hiding to avoid legal process, or severe deliberate evasion with clear evidence.",
     "- summary must stay short.",
     "- risk_signals max 5.",
     "- mitigating_signals max 3.",
     "- If notes are repetitive, summarize the repeated pattern rather than inventing new facts.",
+    "",
+    "Borrower payment context:",
+    ...contextLines,
     "",
     "Missed-payment notes:",
     ...notes.map((note, index) => `${index + 1}. ${note}`),
@@ -170,6 +264,7 @@ function buildPrompt(notes: string[]) {
 
 export async function analyzeBorrowerMissedPaymentNotes(
   notes: string[],
+  context?: BorrowerRiskPromptContext,
 ): Promise<BorrowerRiskAiResult> {
   const sanitizedNotes = notes.map((note) => note.trim()).filter(Boolean);
 
@@ -215,7 +310,7 @@ export async function analyzeBorrowerMissedPaymentNotes(
         contents: [
           {
             role: "user",
-            parts: [{ text: buildPrompt(sanitizedNotes) }],
+            parts: [{ text: buildPrompt(sanitizedNotes, context) }],
           },
         ],
         generationConfig: {
@@ -247,9 +342,11 @@ export async function analyzeBorrowerMissedPaymentNotes(
     }
 
     const responseBody = (await response.json()) as unknown;
-    const text = extractGeminiText(responseBody);
+    const texts = extractGeminiTexts(responseBody);
+    const text = texts[0] ?? null;
 
     if (!text) {
+      const blockReason = extractGeminiBlockReason(responseBody);
       return {
         status: "unavailable",
         summary: "AI note analysis was unavailable for this assessment.",
@@ -259,11 +356,13 @@ export async function analyzeBorrowerMissedPaymentNotes(
         riskSignals: [],
         mitigatingSignals: [],
         notesAnalyzedCount: sanitizedNotes.length,
-        message: "Gemini returned an empty response.",
+        message: blockReason
+          ? `Gemini response was blocked (${blockReason}).`
+          : "Gemini returned an empty response.",
       };
     }
 
-    const parsed = JSON.parse(text) as unknown;
+    const parsed = parseJsonLikeText(text);
     if (!isGeminiRiskPayload(parsed)) {
       return {
         status: "unavailable",
@@ -282,14 +381,15 @@ export async function analyzeBorrowerMissedPaymentNotes(
       status: "success",
       summary: parsed.summary,
       overallTone: parsed.overall_tone,
-      severityScore: Math.max(0, Math.min(10, Math.round(parsed.severity_score))),
+      severityScore: Math.max(1, Math.min(50, Math.round(parsed.severity_score))),
       confidence: parsed.confidence,
       riskSignals: parsed.risk_signals,
       mitigatingSignals: parsed.mitigating_signals.map((signal) => signal.trim()),
       notesAnalyzedCount: sanitizedNotes.length,
       message: null,
     };
-  } catch {
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : "Unknown exception";
     return {
       status: "unavailable",
       summary: "AI note analysis was unavailable for this assessment.",
@@ -299,7 +399,10 @@ export async function analyzeBorrowerMissedPaymentNotes(
       riskSignals: [],
       mitigatingSignals: [],
       notesAnalyzedCount: sanitizedNotes.length,
-      message: "Gemini response could not be parsed safely.",
+      message:
+        process.env.NODE_ENV === "production"
+          ? "Gemini response could not be parsed safely."
+          : `Gemini response could not be parsed safely. (${detail})`,
     };
   }
 }

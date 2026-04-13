@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DASHBOARD_DATE_RANGE_OPTIONS } from "@/app/dashboard/dashboard-chart-filters";
@@ -26,6 +26,11 @@ export function DashboardOverviewFilters({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
+  const isHydrated = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
 
   const [selectedBranch, setSelectedBranch] = useState(initialFilters.branch);
   const [selectedRange, setSelectedRange] = useState<DashboardRangeValue>(
@@ -56,6 +61,10 @@ export function DashboardOverviewFilters({
   }, [canChooseBranch, searchParams, selectedBranch, selectedRange]);
 
   useEffect(() => {
+    if (!isHydrated) {
+      return;
+    }
+
     const currentQuery = searchParams.toString();
     if (serializedTargetQuery === currentQuery) {
       return;
@@ -71,7 +80,7 @@ export function DashboardOverviewFilters({
     }, 380);
 
     return () => window.clearTimeout(timeoutId);
-  }, [pathname, router, searchParams, serializedTargetQuery, startTransition]);
+  }, [isHydrated, pathname, router, searchParams, serializedTargetQuery, startTransition]);
 
   return (
     <div className="space-y-2">
@@ -89,33 +98,50 @@ export function DashboardOverviewFilters({
         </div>
       ) : null}
       <div className={canChooseBranch ? "grid grid-cols-2 gap-3" : "grid grid-cols-1 gap-3"}>
-        {canChooseBranch ? (
-          <Select onValueChange={setSelectedBranch} value={selectedBranch}>
-            <SelectTrigger className="!h-11 w-full rounded-md">
-              <SelectValue placeholder={branchFilterLabel ?? "Branch"} />
-            </SelectTrigger>
-            <SelectContent className="rounded-md">
-              {branchOptions.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        ) : null}
+        {!isHydrated ? (
+          <>
+            {canChooseBranch ? (
+              <div
+                aria-hidden="true"
+                className="!h-11 w-full rounded-md border border-border/70 bg-muted/30 dark:bg-muted/20"
+              />
+            ) : null}
+            <div
+              aria-hidden="true"
+              className="!h-11 w-full rounded-md border border-border/70 bg-muted/30 dark:bg-muted/20"
+            />
+          </>
+        ) : (
+          <>
+            {canChooseBranch ? (
+              <Select onValueChange={setSelectedBranch} value={selectedBranch}>
+                <SelectTrigger className="!h-11 w-full rounded-md">
+                  <SelectValue placeholder={branchFilterLabel ?? "Branch"} />
+                </SelectTrigger>
+                <SelectContent className="rounded-md">
+                  {branchOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : null}
 
-        <Select onValueChange={handleRangeChange} value={selectedRange}>
-          <SelectTrigger className="!h-11 w-full rounded-md">
-            <SelectValue placeholder="Range" />
-          </SelectTrigger>
-          <SelectContent className="rounded-md">
-            {RANGE_OPTIONS.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+            <Select onValueChange={handleRangeChange} value={selectedRange}>
+              <SelectTrigger className="!h-11 w-full rounded-md">
+                <SelectValue placeholder="Range" />
+              </SelectTrigger>
+              <SelectContent className="rounded-md">
+                {RANGE_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </>
+        )}
       </div>
     </div>
   );

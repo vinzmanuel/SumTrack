@@ -124,7 +124,9 @@ function buildScoreBreakdown(metrics: BorrowerRiskMetrics, aiAnalysis: BorrowerR
     metrics.currentLoanMix.abandoned > 0 ? 25 : metrics.currentLoanMix.overdue > 0 ? 15 : 0;
 
   const aiNoteSeverityScore =
-    aiAnalysis.status === "success" ? Math.max(0, Math.min(10, aiAnalysis.severityScore ?? 0)) : 0;
+    aiAnalysis.status === "success"
+      ? Math.max(1, Math.min(50, aiAnalysis.severityScore ?? 1))
+      : 0;
 
   const total =
     missedCountScore + missedRatioScore + recencyScore + loanDistressScore + aiNoteSeverityScore;
@@ -186,6 +188,9 @@ function buildExplanation(
 
   if (aiAnalysis.status === "success" && aiAnalysis.summary) {
     reasons.push(`AI note review suggests ${aiAnalysis.summary.charAt(0).toLowerCase()}${aiAnalysis.summary.slice(1)}`);
+    if ((aiAnalysis.severityScore ?? 0) >= 40) {
+      reasons.push("AI note severity is very high based on language indicating evasion or sustained non-response.");
+    }
   } else if (aiAnalysis.status === "unavailable") {
     reasons.push("AI note analysis was unavailable, so this result used rule-based scoring only.");
   }
@@ -344,7 +349,16 @@ export async function assessBorrowerReapprovalRisk(params: {
   }
 
   const notesForAi = selectNotesForAi(missedPaymentRows);
-  const aiAnalysis = await analyzeBorrowerMissedPaymentNotes(notesForAi);
+  const aiAnalysis = await analyzeBorrowerMissedPaymentNotes(notesForAi, {
+    totalMissedPayments: metrics.totalMissedPayments,
+    totalCollectionEntries: metrics.totalCollectionEntries,
+    missedPaymentRatio: metrics.missedPaymentRatio,
+    missedPaymentsLast30Days: metrics.missedPaymentsLast30Days,
+    missedPaymentsLast90Days: metrics.missedPaymentsLast90Days,
+    loansWithMissedPayments: metrics.loansWithMissedPayments,
+    overdueLoans: metrics.currentLoanMix.overdue,
+    abandonedLoans: metrics.currentLoanMix.abandoned,
+  });
   const scoreBreakdown = buildScoreBreakdown(metrics, aiAnalysis);
   const label = resolveFinalLabel(scoreBreakdown.total);
 
