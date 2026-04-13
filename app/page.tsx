@@ -15,11 +15,42 @@ import { SmoothScroll } from "@/components/marketing/smooth-scroll";
 import { SumtrackBrand } from "@/components/marketing/sumtrack-brand";
 
 export const metadata: Metadata = {
-  title: {
-    absolute: "SumTrack",
+  title: "SumTrack",
+  description: "Secure multi-branch management, automated financial logic, and AI-assisted risk assessment exclusively for Sum Finance Services Corp.",
+  authors: [{ name: "Vinz Manuel B. Limosnero" }, { name: "Aeron Dave O. Valenzuela" }],
+  creator: "Vinz Manuel B. Limosnero & Aeron Dave O. Valenzuela",
+  keywords: [
+    "SumTrack",
+    "Sum Finance Services Corp",
+    "Microfinance Software",
+    "Holy Name University Capstone",
+    "BSIT Information Technology",
+    "Bohol Philippines",
+    "Vinz Manuel B. Limosnero",
+    "Aeron Dave O. Valenzuela"
+  ],
+  openGraph: {
+    title: "SumTrack",
+    description: "Secure multi-branch management, automated financial logic, and AI-assisted risk assessment exclusively for Sum Finance Services Corp.",
+    url: "https://sumtrack.org",
+    siteName: "SumTrack",
+    images: [
+      {
+        url: "/landing/SEO-image.png",
+        width: 1200,
+        height: 630,
+        alt: "SumTrack Dashboard Preview",
+      },
+    ],
+    locale: "en_US",
+    type: "website",
   },
-  description:
-    "SumTrack is a secure microfinance operations platform for Sum Finance Services Corp., with real-time branch monitoring, collections, expense tracking, and reporting.",
+  twitter: {
+    card: "summary_large_image",
+    title: "SumTrack",
+    description: "Secure multi-branch management, automated financial logic, and AI-assisted risk assessment exclusively for Sum Finance Services Corp.",
+    images: ["/landing/SEO-image.png"],
+  },
 };
 
 const SITE_URL = "https://sumtrack.org/";
