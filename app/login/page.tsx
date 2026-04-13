@@ -15,7 +15,7 @@ type LoginPageProps = {
 };
 
 export const metadata: Metadata = {
-  title: "Log In | SumTrack",
+  title: { absolute: "SumTrack" },
 };
 
 export default async function LoginPage({ searchParams }: LoginPageProps) {

@@ -5,7 +5,7 @@ import { animate, useInView } from "framer-motion";
 
 export function AnimatedNumber({ text, className, fast }: { text: string; className?: string; fast?: boolean }) {
   const ref = useRef<HTMLSpanElement>(null);
-  const isInView = useInView(ref, { once: true, margin: "-50px" });
+  const isInView = useInView(ref, { once: true, margin: "0px 0px -50px 0px" });
 
   const match = text.match(/^(\d+)(.*)$/);
   const value = match ? parseInt(match[1], 10) : NaN;
