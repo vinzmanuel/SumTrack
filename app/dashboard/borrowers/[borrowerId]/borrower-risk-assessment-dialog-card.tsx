@@ -64,18 +64,21 @@ function getAiStatusLabel(result: BorrowerRiskAssessmentResult["aiAnalysis"]) {
 function getLabelPresentation(label: BorrowerRiskLabel) {
   if (label === "Okay") {
     return {
-      badgeClassName: "border-emerald-200 bg-emerald-50 text-emerald-700",
+      badgeClassName:
+        "rounded-md border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300",
     };
   }
 
   if (label === "Warning") {
     return {
-      badgeClassName: "border-amber-200 bg-amber-50 text-amber-700",
+      badgeClassName:
+        "rounded-md border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300",
     };
   }
 
   return {
-    badgeClassName: "border-red-200 bg-red-50 text-red-700",
+    badgeClassName:
+      "rounded-md border-red-200 bg-red-50 text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300",
   };
 }
 
@@ -234,11 +237,11 @@ function RiskResultContent({ result }: { result: BorrowerRiskAssessmentResult })
               </div>
 
               {result.aiAnalysis.message ? (
-                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-3">
-                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-900">
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-3 dark:border-amber-500/30 dark:bg-amber-500/10">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-amber-900 dark:text-amber-200">
                     AI Status Detail
                   </p>
-                  <p className="mt-1 text-sm text-amber-800">{result.aiAnalysis.message}</p>
+                  <p className="mt-1 text-sm text-amber-800 dark:text-amber-300">{result.aiAnalysis.message}</p>
                 </div>
               ) : null}
 
@@ -278,7 +281,7 @@ function RiskResultContent({ result }: { result: BorrowerRiskAssessmentResult })
         </AccordionItem>
       </Accordion>
 
-      <div className="rounded-md border border-border/70 bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
+      <div className="rounded-md border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-200">
         {result.disclaimer}
       </div>
     </div>
@@ -419,7 +422,7 @@ export function BorrowerRiskAssessmentCard({ borrowerId }: BorrowerRiskAssessmen
                     </div>
                   </div>
 
-                  <div className="rounded-md border border-border/70 bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
+                  <div className="rounded-md border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-800 dark:border-sky-500/30 dark:bg-sky-500/10 dark:text-sky-200">
                     AI-assisted risk analysis only. This is not the final approval decision and should be reviewed alongside borrower payment history and staff judgment.
                   </div>
                 </div>

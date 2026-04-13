@@ -219,237 +219,12 @@ export function exportReportCsv(report: ReportsViewerPageData) {
   void notifyReportExport(report.reportId, "csv");
 }
 
-function copyComputedStyles(source: Element, target: Element) {
-  const computedStyle = window.getComputedStyle(source);
-  const cssText = Array.from(computedStyle).map((property) => `${property}:${computedStyle.getPropertyValue(property)};`).join("");
-  target.setAttribute("style", cssText);
-}
-
-function cloneNodeWithInlineStyles<T extends HTMLElement>(sourceNode: T) {
-  const clonedNode = sourceNode.cloneNode(true) as T;
-  const sourceElements = [sourceNode, ...Array.from(sourceNode.querySelectorAll("*"))];
-  const targetElements = [clonedNode, ...Array.from(clonedNode.querySelectorAll("*"))];
-
-  sourceElements.forEach((element, index) => {
-    const clonedElement = targetElements[index];
-    if (clonedElement) {
-      copyComputedStyles(element, clonedElement);
-    }
-  });
-
-  return clonedNode;
-}
-
-function normalizePrintLayout(rootNode: HTMLElement) {
-  const elements = [rootNode, ...Array.from(rootNode.querySelectorAll("*"))];
-
-  elements.forEach((element) => {
-    if (!(element instanceof HTMLElement)) {
-      return;
-    }
-
-    if (
-      element.style.overflowX === "auto" ||
-      element.style.overflowX === "scroll" ||
-      element.style.overflowY === "auto" ||
-      element.style.overflowY === "scroll" ||
-      element.style.overflow === "auto" ||
-      element.style.overflow === "scroll" ||
-      element.style.overflow === "hidden"
-    ) {
-      element.style.overflow = "visible";
-      element.style.overflowX = "visible";
-      element.style.overflowY = "visible";
-    }
-
-    if (element.style.height && element.style.height !== "auto") {
-      element.style.height = "auto";
-    }
-
-    if (element.style.maxHeight && element.style.maxHeight !== "none") {
-      element.style.maxHeight = "none";
-    }
-
-    if (element.style.minHeight && element.style.minHeight !== "0px") {
-      element.style.minHeight = "0";
-    }
-  });
-}
-
 function isThermalReceiptReport(report: ReportsViewerPageData) {
   return report.templateKey === "collection_receipt" || report.templateKey === "loan_receipt_summary";
 }
 
-function getReceiptPrintableWidthPx() {
-  return Math.floor((80 / 25.4) * 96);
-}
-
-function serializePrintHeadAssets() {
-  return Array.from(
-    document.head.querySelectorAll("style, link[rel='stylesheet'], link[as='style']"),
-  )
-    .map((node) => node.outerHTML)
-    .join("\n");
-}
-
-function buildPrintDocumentHtml(params: {
-  title: string;
-  contentHtml: string;
-  baseFontFamily: string;
-  headAssetsHtml: string;
-  layout: "default" | "receipt";
-  sourceHeightPx: number;
-  sourceWidthPx: number;
-}) {
-  const receiptScale =
-    params.layout === "receipt"
-      ? Math.min(1, getReceiptPrintableWidthPx() / Math.max(params.sourceWidthPx, 1))
-      : 1;
-  const pageRule =
-    params.layout === "receipt"
-      ? `
-      @page {
-        size: 80mm auto;
-        margin: 0;
-      }
-    `
-      : `
-      @page {
-        size: auto;
-        margin: 16mm;
-      }
-    `;
-
-  const bodyRule =
-    params.layout === "receipt"
-      ? `
-      body {
-        width: ${Math.max(Math.round(params.sourceWidthPx), 1)}px;
-        min-width: ${Math.max(Math.round(params.sourceWidthPx), 1)}px;
-        padding: 0;
-        margin: 0;
-        zoom: ${receiptScale};
-      }
-
-      * {
-        box-shadow: none !important;
-      }
-    `
-      : `
-      body {
-        padding: 24px;
-      }
-    `;
-
-  return `<!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <title>${params.title}</title>
-    ${params.headAssetsHtml}
-    <style>
-      ${pageRule}
-
-      html, body {
-        margin: 0;
-        padding: 0;
-        background: #ffffff;
-        color: #0f172a;
-        font-family: ${params.baseFontFamily};
-      }
-
-      ${bodyRule}
-
-      a, button {
-        display: none !important;
-      }
-
-      table {
-        width: 100%;
-        border-collapse: collapse;
-        page-break-inside: auto;
-      }
-
-      th, td {
-        vertical-align: top;
-        page-break-inside: avoid;
-        break-inside: avoid;
-      }
-
-      thead {
-        display: table-header-group;
-      }
-
-      tfoot {
-        display: table-footer-group;
-      }
-
-      svg {
-        max-width: 100%;
-        height: auto;
-      }
-    </style>
-  </head>
-  <body>
-    ${params.contentHtml}
-  </body>
-</html>`;
-}
-
-function createPrintFrame(reportTitle: string, reportContentNode: HTMLElement) {
-  const layout = reportContentNode.dataset.printLayout === "receipt" ? "receipt" : "default";
-  const receiptPaperNode =
-    layout === "receipt"
-      ? (reportContentNode.querySelector("[data-receipt-paper='true']") as HTMLElement | null)
-      : null;
-  const sourceNode = receiptPaperNode ?? reportContentNode;
-  const clonedNode = cloneNodeWithInlineStyles(sourceNode);
-  const baseFontFamily = window.getComputedStyle(document.body).fontFamily || "sans-serif";
-  const headAssetsHtml = serializePrintHeadAssets();
-  const sourceWidthPx = sourceNode.getBoundingClientRect().width || sourceNode.offsetWidth || 1;
-  const sourceHeightPx = sourceNode.getBoundingClientRect().height || sourceNode.offsetHeight || 1;
-  normalizePrintLayout(clonedNode);
-  const existingFrame = document.getElementById("reports-print-frame");
-  if (existingFrame) {
-    existingFrame.remove();
-  }
-
-  const iframe = document.createElement("iframe");
-  iframe.id = "reports-print-frame";
-  iframe.setAttribute("aria-hidden", "true");
-  iframe.style.position = "fixed";
-  iframe.style.right = "0";
-  iframe.style.bottom = "0";
-  iframe.style.width = "0";
-  iframe.style.height = "0";
-  iframe.style.border = "0";
-  iframe.style.opacity = "0";
-  iframe.style.pointerEvents = "none";
-
-  document.body.appendChild(iframe);
-
-  const frameDocument = iframe.contentDocument;
-  if (!frameDocument) {
-    iframe.remove();
-    toast.error("Unable to prepare the print document right now.");
-    return null;
-  }
-
-  frameDocument.open();
-  frameDocument.write(
-    buildPrintDocumentHtml({
-      title: reportTitle,
-      contentHtml: clonedNode.outerHTML,
-      baseFontFamily,
-      headAssetsHtml,
-      layout,
-      sourceHeightPx,
-      sourceWidthPx,
-    }),
-  );
-  frameDocument.close();
-
-  return iframe;
+function shouldShowHeaderFooterReminder(report: ReportsViewerPageData) {
+  return report.reportCategory === "analytics" || report.templateKey === "borrower_loan_schedule";
 }
 
 export function printReportContent(params: {
@@ -457,62 +232,28 @@ export function printReportContent(params: {
   contentNode: HTMLElement | null;
   mode: "print" | "pdf";
 }) {
-  if (!params.contentNode) {
-    toast.error("The saved report content is not ready to print yet.");
-    return;
-  }
+  const mode = params.mode === "pdf" ? "pdf" : "print";
+  const printUrl = `/reports-print/${params.report.reportId}?mode=${mode}`;
+  const popup = window.open(printUrl, "_blank");
 
-  const printFrame = createPrintFrame(params.report.title, params.contentNode);
-  if (!printFrame) {
-    return;
-  }
-
-  let didCleanup = false;
-  const cleanupPrintFrame = () => {
-    if (didCleanup) {
-      return;
-    }
-
-    didCleanup = true;
-    printFrame.remove();
-  };
-
-  const runPrint = () => {
-    const frameWindow = printFrame.contentWindow;
-    const frameDocument = printFrame.contentDocument;
-    if (!frameWindow) {
-      cleanupPrintFrame();
-      toast.error("Unable to access the print document right now.");
-      return;
-    }
-
-    if (!frameDocument || frameDocument.readyState !== "complete") {
-      window.setTimeout(runPrint, 75);
-      return;
-    }
-
-    if (params.mode === "pdf") {
-      void notifyReportExport(params.report.reportId, "pdf");
-      toast.message(
-        isThermalReceiptReport(params.report)
-          ? "Use your browser's print dialog and choose Save as PDF. Thermal receipts are sized for 80mm paper."
+  if (mode === "pdf") {
+    void notifyReportExport(params.report.reportId, "pdf");
+    toast.message(
+      isThermalReceiptReport(params.report)
+        ? "Use your browser's print dialog and choose Save as PDF. Thermal receipts are sized for 80mm paper."
+        : shouldShowHeaderFooterReminder(params.report)
+          ? "Use your browser's print dialog and choose Save as PDF. Turn off Headers and Footers to remove the browser date/URL/page markers."
           : "Use your browser's print dialog and choose Save as PDF.",
-      );
+    );
+  } else {
+    void notifyReportExport(params.report.reportId, "print");
+    if (shouldShowHeaderFooterReminder(params.report)) {
+      toast.message("For clean output, disable browser Headers and Footers in the print dialog.");
     }
+  }
 
-    if (params.mode === "print") {
-      void notifyReportExport(params.report.reportId, "print");
-    }
-
-    frameWindow.addEventListener("afterprint", cleanupPrintFrame, { once: true });
-    frameWindow.focus();
-    frameWindow.requestAnimationFrame(() => {
-      frameWindow.requestAnimationFrame(() => {
-        frameWindow.print();
-      });
-    });
-  };
-
-  window.setTimeout(runPrint, 150);
-  window.setTimeout(cleanupPrintFrame, 120000);
+  if (popup) {
+    return;
+  }
+  toast.error("Unable to open print preview. Please allow popups for this site.");
 }

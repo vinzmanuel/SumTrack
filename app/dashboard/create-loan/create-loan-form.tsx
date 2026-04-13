@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useMemo, useRef, useState, type FormEvent } from "react";
+import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { useFormStatus } from "react-dom";
 import { Button } from "@/components/ui/button";
@@ -121,6 +122,7 @@ export function CreateLoanForm({
 }: CreateLoanFormProps) {
   const [state, formAction] = useActionState(createLoanAction, initialCreateLoanState);
   const formRef = useRef<HTMLFormElement>(null);
+  const confirmedSubmitRef = useRef(false);
 
   const defaultStartDate = useMemo(() => formatDateInput(new Date()), []);
   const defaultTermOption = "58";
@@ -146,7 +148,7 @@ export function CreateLoanForm({
   const [startDate, setStartDate] = useState(defaultStartDate);
   const [dueDate, setDueDate] = useState(defaultDueDate);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
-  const [isConfirmedSubmit, setIsConfirmedSubmit] = useState(false);
+  const [successDialogDismissed, setSuccessDialogDismissed] = useState(false);
   const [isBorrowerLocked, setIsBorrowerLocked] = useState(Boolean(prefilledBorrower));
 
   const selectedBorrower = useMemo(
@@ -248,6 +250,7 @@ export function CreateLoanForm({
   const interestSuffixLeft = `calc(0.75rem + ${Math.max(interest.length, 1)}ch)`;
   const shouldShowBorrowerSuggestions =
     !isBorrowerLocked && Boolean(selectedAreaId) && borrowerSearch.trim().length > 0 && borrowerId === "";
+  const isSuccessOpen = state.status === "success" && Boolean(state.result) && !successDialogDismissed;
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     if (hasExistingActiveLoan) {
@@ -255,8 +258,8 @@ export function CreateLoanForm({
       return;
     }
 
-    if (isConfirmedSubmit) {
-      setIsConfirmedSubmit(false);
+    if (confirmedSubmitRef.current) {
+      confirmedSubmitRef.current = false;
       return;
     }
 
@@ -266,8 +269,18 @@ export function CreateLoanForm({
 
   function handleConfirmCreate() {
     setIsConfirmOpen(false);
-    setIsConfirmedSubmit(true);
+    setSuccessDialogDismissed(false);
+    confirmedSubmitRef.current = true;
     formRef.current?.requestSubmit();
+  }
+
+  function handleSuccessDialogOpenChange(nextOpen: boolean) {
+    if (nextOpen) {
+      setSuccessDialogDismissed(false);
+      return;
+    }
+
+    setSuccessDialogDismissed(true);
   }
 
   function handleBorrowerSelect(nextBorrowerId: string) {
@@ -692,46 +705,43 @@ export function CreateLoanForm({
       </Card>
 
       {state.status === "success" && state.result ? (
-        <Card className={UI_SURFACE_CLASS_NAME}>
-          <CardHeader>
-            <CardTitle>Loan Created</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <p>
-              <span className="font-medium">Loan Code:</span> {state.result.loanCode}
-            </p>
-            <p>
-              <span className="font-medium">Loan ID:</span> {state.result.loanId}
-            </p>
-            <p>
-              <span className="font-medium">Borrower:</span> {state.result.borrowerName}
-            </p>
-            <p>
-              <span className="font-medium">Branch:</span> {state.result.branchName}
-            </p>
-            <p>
-              <span className="font-medium">Collector:</span> {state.result.collectorName}
-            </p>
-            <p>
-              <span className="font-medium">Principal:</span> {formatMoney(state.result.principal)}
-            </p>
-            <p>
-              <span className="font-medium">Interest:</span> {state.result.interest}%
-            </p>
-            <p>
-              <span className="font-medium">Start Date:</span> {state.result.startDate}
-            </p>
-            <p>
-              <span className="font-medium">Due Date:</span> {state.result.dueDate}
-            </p>
-            <p>
-              <span className="font-medium">Loan Term:</span> {state.result.termDays} days
-            </p>
-            <p>
-              <span className="font-medium">Status:</span> {state.result.status}
-            </p>
-          </CardContent>
-        </Card>
+        <Dialog onOpenChange={handleSuccessDialogOpenChange} open={isSuccessOpen}>
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Loan Created</DialogTitle>
+              <DialogDescription>
+                The loan was created successfully. You can review it now or close this message.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-2 text-sm">
+              <p>
+                <span className="font-medium">Loan Code:</span> {state.result.loanCode}
+              </p>
+              <p>
+                <span className="font-medium">Borrower:</span> {state.result.borrowerName}
+              </p>
+              <p>
+                <span className="font-medium">Branch:</span> {state.result.branchName}
+              </p>
+              <p>
+                <span className="font-medium">Collector:</span> {state.result.collectorName}
+              </p>
+              <p>
+                <span className="font-medium">Total Term:</span> {state.result.termDays} days
+              </p>
+            </div>
+
+            <DialogFooter>
+              <Button className="h-11 rounded-md" onClick={() => setSuccessDialogDismissed(true)} type="button" variant="outline">
+                Close
+              </Button>
+              <Button asChild className="h-11 rounded-md">
+                <Link href={`/dashboard/loans/${state.result.loanId}`}>View Loan</Link>
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       ) : null}
     </div>
   );

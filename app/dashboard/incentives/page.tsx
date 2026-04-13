@@ -124,24 +124,14 @@ export default async function IncentivesPage({ searchParams }: IncentivesPagePro
         </AlertDescription>
       </Alert>
     );
-  } else if (access.isAuditor && access.allAssignedBranchesMode) {
-    summaryAlert = (
-      <Alert className="border-0 bg-transparent p-0 shadow-none">
-        <History className="size-4" />
-        <AlertTitle>Combined auditor view</AlertTitle>
-        <AlertDescription>
-          This summary combines all assigned branches. Totals shown below are cross-branch aggregates, not one
-          branch&apos;s finalized payout batch.
-        </AlertDescription>
-      </Alert>
-    );
   } else if (access.isAuditor) {
     summaryAlert = (
       <Alert className="border-0 bg-transparent p-0 shadow-none">
         <History className="size-4" />
         <AlertTitle>Auditor access</AlertTitle>
         <AlertDescription>
-          You can inspect live or historical incentive data here, but payout finalization remains disabled.
+          This view can show live computed payouts or finalized payout history for the selected period. You can review
+          and export results here, but payout finalization remains disabled.
         </AlertDescription>
       </Alert>
     );

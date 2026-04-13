@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import type { ReactNode } from "react";
 import { FileChartColumn, ReceiptText } from "lucide-react";
 import { DashboardHeaderConfigurator } from "@/app/dashboard/_components/dashboard-header-config";
@@ -835,12 +835,56 @@ function ReportSection(props: {
   );
 }
 
+function ReceiptCompanyHeader(props: {
+  branchName: string;
+  localityLine?: string | null;
+  addressLine?: string | null;
+}) {
+  return (
+    <header className="space-y-1 text-center">
+      <img
+        alt="Sum Finance Services Corp."
+        className="mx-auto h-12 w-12 object-contain"
+        height={48}
+        src="/Logo/SUM_FINANCE_LOGO.png"
+        width={48}
+      />
+      <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-black">
+        Sum Finance Services Corp.
+      </p>
+      <div className="space-y-0.5 text-[10px] leading-4 text-black/70">
+        <p className="font-semibold uppercase tracking-[0.18em] text-black">{props.branchName}</p>
+        {props.localityLine ? <p>{props.localityLine}</p> : null}
+        {props.addressLine ? <p>{props.addressLine}</p> : null}
+      </div>
+    </header>
+  );
+}
+
+function CompactCompanyMasthead() {
+  return (
+    <div className="flex items-center gap-3">
+      <img
+        alt="Sum Finance Services Corp."
+        className="h-7 w-7 shrink-0 object-contain"
+        height={28}
+        src="/Logo/SUM_FINANCE_LOGO.png"
+        width={28}
+      />
+      <p className="text-xs font-semibold uppercase tracking-[0.24em] text-foreground">
+        SUM FINANCE SERVICES CORP.
+      </p>
+    </div>
+  );
+}
+
 function DocumentHeader(props: { title: string; subtitle: string }) {
   return (
     <div className="border-b border-border/70 pb-5 text-center">
-      <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">SumTrack</p>
-      <h1 className="mt-2 text-2xl font-semibold text-foreground">Sum Finance Services Corp.</h1>
-      <p className="mt-1 text-sm text-muted-foreground">{props.title}</p>
+      <div className="flex justify-center">
+        <CompactCompanyMasthead />
+      </div>
+      <p className="mt-2 text-sm text-muted-foreground">{props.title}</p>
       <p className="mt-1 text-sm text-muted-foreground">{props.subtitle}</p>
     </div>
   );
@@ -1608,16 +1652,7 @@ function renderCollectionReceipt(report: ReportsViewerPageData) {
   return (
     <ReceiptPaper>
       <div className="space-y-4">
-        <header className="space-y-1 text-center">
-          <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-black">
-            Sum Finance Services Corp.
-          </p>
-          <div className="space-y-0.5 text-[10px] leading-4 text-black/70">
-            <p className="font-semibold uppercase tracking-[0.18em] text-black">{branchName}</p>
-            {localityLine ? <p>{localityLine}</p> : null}
-            {addressLine ? <p>{addressLine}</p> : null}
-          </div>
-        </header>
+        <ReceiptCompanyHeader addressLine={addressLine} branchName={branchName} localityLine={localityLine} />
 
         <ReceiptDivider />
 
@@ -1806,16 +1841,7 @@ function renderLoanReceiptSummary(report: ReportsViewerPageData) {
   return (
     <ReceiptPaper>
       <div className="space-y-4">
-        <header className="space-y-1 text-center">
-          <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-black">
-            Sum Finance Services Corp.
-          </p>
-          <div className="space-y-0.5 text-[10px] leading-4 text-black/70">
-            <p className="font-semibold uppercase tracking-[0.18em] text-black">{branchName}</p>
-            {localityLine ? <p>{localityLine}</p> : null}
-            {addressLine ? <p>{addressLine}</p> : null}
-          </div>
-        </header>
+        <ReceiptCompanyHeader addressLine={addressLine} branchName={branchName} localityLine={localityLine} />
 
         <ReceiptDivider />
 
@@ -2023,12 +2049,21 @@ function renderReportBody(report: ReportsViewerPageData) {
   );
 }
 
-export function ReportsViewPage(props: { report: ReportsViewerPageData }) {
+export function ReportsViewPage(props: {
+  report: ReportsViewerPageData;
+  printMode?: boolean;
+  autoPrintDelayMs?: number;
+}) {
   const isDocument = props.report.reportCategory === "document";
   const isReceiptDocument = isReceiptTemplate(props.report);
   const reportContentRef = useRef<HTMLDivElement | null>(null);
   const receiptContentRef = useRef<HTMLDivElement | null>(null);
   const csvAvailable = canExportCsv(props.report);
+  const isPrintMode = Boolean(props.printMode);
+  const showCompanyMastheadForHeader =
+    props.report.reportCategory === "analytics" || props.report.templateKey === "borrower_loan_schedule";
+  const isAnalyticsPrintMode =
+    isPrintMode && !isReceiptDocument && props.report.reportCategory === "analytics";
   const headerIcon = isDocument ? (
     <ReceiptText className="size-9 text-sidebar-foreground/65" />
   ) : (
@@ -2038,22 +2073,114 @@ export function ReportsViewPage(props: { report: ReportsViewerPageData }) {
     ? "Open, print, and export operational document snapshots saved from loan and collection records."
     : "Open, review, and export analytics report snapshots saved from your reporting workflows.";
 
+  useEffect(() => {
+    if (!isPrintMode || !props.autoPrintDelayMs) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      window.focus();
+      window.print();
+    }, props.autoPrintDelayMs);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [isPrintMode, props.autoPrintDelayMs]);
+
   return (
-    <main className="mx-auto max-w-6xl p-6">
-      <DashboardHeaderConfigurator
-        config={{
-          icon: headerIcon,
-          title: "Report Snapshot Viewer",
-          breadcrumbTitle: props.report.title,
-          description: headerDescription,
-        }}
-      />
+    <main
+      className={
+        isPrintMode ? "report-print-root mx-auto max-w-[1100px] p-4 print:p-0" : "mx-auto max-w-6xl p-6"
+      }
+    >
+      {isPrintMode && isReceiptDocument ? (
+        <style jsx global>{`
+          @media print {
+            @page {
+              size: 80mm auto;
+              margin: 0;
+            }
+
+            html,
+            body {
+              margin: 0 !important;
+              padding: 0 !important;
+              background: #fff !important;
+            }
+
+            body {
+              width: 80mm !important;
+            }
+
+            main {
+              padding: 0 !important;
+              margin: 0 !important;
+              max-width: none !important;
+            }
+
+            [data-receipt-paper='true'] {
+              width: 80mm !important;
+              max-width: 80mm !important;
+              margin: 0 !important;
+              box-shadow: none !important;
+            }
+          }
+        `}</style>
+      ) : null}
+      {isAnalyticsPrintMode ? (
+        <style jsx global>{`
+          @media print {
+            html,
+            body {
+              zoom: 0.9;
+            }
+
+            .report-print-root section,
+            .report-print-root header,
+            .report-print-root .rounded-lg,
+            .report-print-root [class*='shadow-'] {
+              break-inside: avoid-page;
+              page-break-inside: avoid;
+            }
+
+            .report-print-root .recharts-wrapper,
+            .report-print-root .recharts-responsive-container,
+            .report-print-root svg {
+              break-inside: avoid-page;
+              page-break-inside: avoid;
+            }
+
+            .report-print-root table {
+              break-inside: auto;
+              page-break-inside: auto;
+            }
+
+            .report-print-root thead,
+            .report-print-root tfoot,
+            .report-print-root tr {
+              break-inside: avoid-page;
+              page-break-inside: avoid;
+            }
+          }
+        `}</style>
+      ) : null}
+      {!isPrintMode ? (
+        <DashboardHeaderConfigurator
+          config={{
+            icon: headerIcon,
+            title: "Report Snapshot Viewer",
+            breadcrumbTitle: props.report.title,
+            description: headerDescription,
+          }}
+        />
+      ) : null}
       <div className="space-y-5">
         <article
           className={
             isReceiptDocument
-              ? "mx-auto max-w-5xl rounded-[2rem] border border-border/70 bg-muted/15 px-4 py-6 shadow-sm md:px-8"
-              : "mx-auto max-w-5xl rounded-2xl border border-border/70 bg-background px-6 py-8 shadow-sm md:px-10"
+              ? "mx-auto max-w-5xl rounded-[2rem] border border-border/70 bg-muted/15 px-4 py-6 shadow-sm md:px-8 print:border-0 print:bg-white print:shadow-none"
+              : "mx-auto max-w-5xl rounded-2xl border border-border/70 bg-background px-6 py-8 shadow-sm md:px-10 print:max-w-none print:border-0 print:shadow-none"
           }
         >
           {isReceiptDocument ? (
@@ -2075,6 +2202,7 @@ export function ReportsViewPage(props: { report: ReportsViewerPageData }) {
             <div ref={reportContentRef}>
               <header className="space-y-4 border-b border-border/70 pb-6">
                 <div className="space-y-2">
+                  {showCompanyMastheadForHeader ? <CompactCompanyMasthead /> : null}
                   <p className="text-xs uppercase tracking-[0.2em] text-muted-foreground">
                     {isDocument ? "Saved Document" : "Saved Report"}
                   </p>
@@ -2088,7 +2216,8 @@ export function ReportsViewPage(props: { report: ReportsViewerPageData }) {
             </div>
           )}
 
-          <div className="mt-10 border-t border-border/70 pt-5">
+          {!isPrintMode ? (
+            <div className="mt-10 border-t border-border/70 pt-5">
             <div className="flex flex-wrap items-center justify-end gap-3">
               <Button
                 disabled={!csvAvailable}
@@ -2129,7 +2258,8 @@ export function ReportsViewPage(props: { report: ReportsViewerPageData }) {
                 CSV export is only available when this saved snapshot contains a natural raw table.
               </p>
             ) : null}
-          </div>
+            </div>
+          ) : null}
         </article>
       </div>
     </main>

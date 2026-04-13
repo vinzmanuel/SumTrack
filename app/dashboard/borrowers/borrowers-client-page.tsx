@@ -2,9 +2,8 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Plus, Users } from "lucide-react";
+import { Plus } from "lucide-react";
 import { appendBackNavigationToHref } from "@/app/dashboard/back-navigation";
-import { DashboardHeaderConfigurator } from "@/app/dashboard/_components/dashboard-header-config";
 import { Button } from "@/components/ui/button";
 import { UI_PAGE_STACK_CLASS_NAME } from "@/app/dashboard/_components/ui-patterns";
 import { BorrowerRecordsModule } from "@/app/dashboard/borrowers/borrower-records-module";

@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Logs, Search } from "lucide-react";
 import { DashboardHeaderConfigurator } from "@/app/dashboard/_components/dashboard-header-config";
+import {
+  UI_TABLE_OVERLAY_CLASS_NAME,
+  UI_TABLE_OVERLAY_TEXT_CLASS_NAME,
+} from "@/app/dashboard/_components/ui-patterns";
 import { AuditLogTable } from "@/app/dashboard/audit-log/audit-log-table";
 import type {
   AuditLogDatePreset,
@@ -615,8 +619,13 @@ export function AuditLogClientPage({ initialData, canChooseBranch }: AuditLogCli
           {errorMessage ? <p className="mt-2 text-sm text-destructive">{errorMessage}</p> : null}
         </div>
 
-        <div className={isPending ? "transition-opacity" : undefined}>
+        <div className="relative">
           <AuditLogTable branchOptions={data.branchOptions} rows={data.rows} />
+          {isPending ? (
+            <div className={UI_TABLE_OVERLAY_CLASS_NAME}>
+              <div className={UI_TABLE_OVERLAY_TEXT_CLASS_NAME}>Updating audit log...</div>
+            </div>
+          ) : null}
         </div>
 
         <div className="px-1">

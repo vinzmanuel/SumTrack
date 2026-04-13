@@ -107,10 +107,6 @@ export function BranchesClientPage({ data }: { data: BranchNetworkPageData }) {
           ]}
           selectedValue={statusFilter}
         />
-
-        <p className="text-sm text-muted-foreground">
-          {visibleBranches.length} of {data.totalCount} branches currently in scope. {data.scopeMessage}
-        </p>
       </div>
 
       {visibleBranches.length === 0 ? (
