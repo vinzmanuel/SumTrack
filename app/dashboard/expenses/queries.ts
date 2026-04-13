@@ -173,6 +173,26 @@ function resolveTrendGranularity(range: ReadyExpensesAccess["dateRange"]): Expen
   return "month";
 }
 
+function resolveAnalyticsTrendRange(params: {
+  dateRange: ReadyExpensesAccess["dateRange"];
+  selectedRange: ReadyExpensesAccess["selectedRange"];
+  dailyActivityRows: Array<{ expense_date: string }>;
+}): ReadyExpensesAccess["dateRange"] {
+  if (params.selectedRange !== "lifetime") {
+    return params.dateRange;
+  }
+
+  const earliestExpenseDate = params.dailyActivityRows[0]?.expense_date ?? null;
+  if (!earliestExpenseDate || earliestExpenseDate <= params.dateRange.start) {
+    return params.dateRange;
+  }
+
+  return {
+    ...params.dateRange,
+    start: earliestExpenseDate,
+  };
+}
+
 function buildTrendBuckets(
   range: ReadyExpensesAccess["dateRange"],
   granularity: ExpensesTrendGranularity,
@@ -504,8 +524,6 @@ export async function loadExpensesResultsData(
   const requestedPage = Math.max(access.page, 1);
   const pageSize = access.pageSize;
   const breakdownMode = resolveBreakdownMode(access);
-  const trendGranularity = resolveTrendGranularity(access.dateRange);
-  const trendBuckets = buildTrendBuckets(access.dateRange, trendGranularity);
 
   const [
     totalsRow,
@@ -751,8 +769,16 @@ export async function loadExpensesResultsData(
     };
   }
 
+  const analyticsTrendRange = resolveAnalyticsTrendRange({
+    dateRange: access.dateRange,
+    selectedRange: access.selectedRange,
+    dailyActivityRows,
+  });
+  const trendGranularity = resolveTrendGranularity(analyticsTrendRange);
+  const trendBuckets = buildTrendBuckets(analyticsTrendRange, trendGranularity);
+
   const trendSourceRows = dailyActivityRows.reduce<Array<{ bucket: string; amount: number }>>((rows, rawRow) => {
-    const bucket = bucketKeyForExpenseDate(rawRow.expense_date, access.dateRange.start, trendGranularity);
+    const bucket = bucketKeyForExpenseDate(rawRow.expense_date, analyticsTrendRange.start, trendGranularity);
     const existing = rows.find((row) => row.bucket === bucket);
     if (existing) {
       existing.amount += toNumber(rawRow.amount);
@@ -882,7 +908,7 @@ export async function loadExpensesResultsData(
   );
 
   const utilitySourceRows = utilityTrendRows.map((row) => ({
-    bucket: bucketKeyForExpenseDate(row.expense_date, access.dateRange.start, trendGranularity),
+    bucket: bucketKeyForExpenseDate(row.expense_date, analyticsTrendRange.start, trendGranularity),
     seriesKey: row.category === "Electricity" ? "electricity" : "water",
     amount: toNumber(row.amount),
   }));

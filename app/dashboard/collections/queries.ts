@@ -141,6 +141,32 @@ function buildBuckets(range: CollectionsDateRange) {
   return buckets;
 }
 
+function resolveAnalyticsDateRangeForLifetime(params: {
+  dateRange: CollectionsDateRange;
+  selectedRange: CollectionsFilterState["selectedRange"];
+  inPeriodRows: Array<{ activityDate: string }>;
+}) {
+  if (params.selectedRange !== "lifetime") {
+    return params.dateRange;
+  }
+
+  const earliestActivityDate = params.inPeriodRows.reduce<string | null>((earliest, row) => {
+    if (!earliest) {
+      return row.activityDate;
+    }
+    return row.activityDate < earliest ? row.activityDate : earliest;
+  }, null);
+
+  if (!earliestActivityDate || earliestActivityDate <= params.dateRange.start) {
+    return params.dateRange;
+  }
+
+  return {
+    ...params.dateRange,
+    start: earliestActivityDate,
+  } satisfies CollectionsDateRange;
+}
+
 function buildChartModel(
   buckets: Array<{ key: string; label: string }>,
   sourceRows: BucketValueRow[],
@@ -444,7 +470,8 @@ export async function loadCollectionsAnalyticsData(
   filters: CollectionsFilterState,
 ): Promise<CollectionsAnalyticsData> {
   const dateRange = resolveCollectionsDateRange(filters);
-  const buckets = buildBuckets(dateRange);
+  let trendDateRange = dateRange;
+  let buckets = buildBuckets(trendDateRange);
   const branchConditions: SQL[] = [];
 
   if (access.selectedBranchId) {
@@ -555,6 +582,12 @@ export async function loadCollectionsAnalyticsData(
     const branchComparison = new Map<string, CollectionsComparisonItem>();
     const weekdayComparison = new Map<string, CollectionsComparisonItem>();
     const activeCollectionDays = new Set<string>();
+    trendDateRange = resolveAnalyticsDateRangeForLifetime({
+      dateRange,
+      selectedRange: filters.selectedRange,
+      inPeriodRows: inPeriodRows.map((row) => ({ activityDate: row.activityDate })),
+    });
+    buckets = buildBuckets(trendDateRange);
 
     for (const rawRow of inPeriodRows) {
       const row: GroupedCollectionRow = {
@@ -580,7 +613,7 @@ export async function loadCollectionsAnalyticsData(
         principal: loanMeta.principal,
         interestCap: loanMeta.interestCap,
       });
-      const bucketKey = bucketKeyForCollectionDate(row.activityDate, dateRange.granularity);
+      const bucketKey = bucketKeyForCollectionDate(row.activityDate, trendDateRange.granularity);
       const bucketEntry = bucketCompositionTotals.get(bucketKey) ?? {
         principalRecovered: 0,
         realizedInterest: 0,

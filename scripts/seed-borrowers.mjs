@@ -1,14 +1,15 @@
-import { randomUUID } from "node:crypto";
+import { randomInt, randomUUID } from "node:crypto";
 import dotenv from "dotenv";
 import postgres from "postgres";
 import { createClient } from "@supabase/supabase-js";
 
 dotenv.config({ path: ".env.local" });
 
-const BORROWERS_PER_AREA = 10;
+const BORROWERS_PER_AREA = 30;
 const INTERNAL_AUTH_DOMAIN = "sumtrack.local";
 const DEFAULT_SEED_PASSWORD = process.env.BORROWER_SEED_PASSWORD ?? "Borrower123!";
 const SEED_CREATED_BY_USER_ID = process.env.BORROWER_SEED_CREATED_BY ?? null;
+const EMAIL_DOMAINS = ["gmail.com", "yahoo.com"];
 
 const MOBILE_PREFIXES = [
   "0917",
@@ -31,16 +32,30 @@ const MOBILE_PREFIXES = [
   "0937",
   "0938",
   "0939",
+  "0946",
   "0945",
+  "0948",
   "0947",
   "0949",
   "0950",
   "0951",
+  "0955",
+  "0956",
   "0961",
+  "0963",
+  "0965",
+  "0966",
   "0967",
   "0975",
+  "0976",
   "0977",
+  "0978",
+  "0979",
   "0995",
+  "0996",
+  "0997",
+  "0998",
+  "0999",
 ];
 
 const FIRST_NAMES = [
@@ -278,11 +293,48 @@ function buildDesiredCompanyId(areaCode, slot) {
   return `${areaCode}-${String(slot).padStart(4, "0")}`;
 }
 
-function generateUniqueContactNo(usedContactNos, areaIndex, slot) {
+function normalizeNamePart(value) {
+  return String(value ?? "")
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]/g, "");
+}
+
+function buildEmailBase(identity) {
+  const firstName = normalizeNamePart(identity.firstName);
+  const middleName = normalizeNamePart(identity.middleName);
+  const lastName = normalizeNamePart(identity.lastName);
+  const firstSegment = firstName || middleName || "borrower";
+  const lastSegment = lastName || "account";
+  return `${firstSegment}${lastSegment}`;
+}
+
+function generateUniqueEmail(identity, usedEmails, seed) {
+  const base = buildEmailBase(identity);
   let attempt = 0;
-  while (attempt < 2000) {
-    const prefix = MOBILE_PREFIXES[(areaIndex + slot + attempt) % MOBILE_PREFIXES.length];
-    const body = String((areaIndex + 1) * 100 + slot + attempt * 250).padStart(7, "0").slice(-7);
+
+  while (attempt < 500) {
+    const domain = EMAIL_DOMAINS[(seed + attempt) % EMAIL_DOMAINS.length];
+    const suffix = attempt === 0 ? "" : String(attempt + 1);
+    const candidate = `${base}${suffix}@${domain}`;
+
+    if (!usedEmails.has(candidate)) {
+      usedEmails.add(candidate);
+      return candidate;
+    }
+
+    attempt += 1;
+  }
+
+  throw new Error(`Unable to generate a unique email for ${identity.firstName} ${identity.lastName}.`);
+}
+
+function generateUniqueContactNo(usedContactNos) {
+  let attempt = 0;
+  while (attempt < 5000) {
+    const prefix = MOBILE_PREFIXES[randomInt(MOBILE_PREFIXES.length)];
+    const body = String(randomInt(0, 10_000_000)).padStart(7, "0");
     const candidate = `${prefix}${body}`;
     if (!usedContactNos.has(candidate)) {
       usedContactNos.add(candidate);
@@ -390,6 +442,7 @@ async function main() {
         u.user_id,
         u.company_id,
         u.username,
+        u.email,
         u.contact_no,
         bi.area_id
       from users u
@@ -398,12 +451,16 @@ async function main() {
 
     const usedCompanyIds = new Set();
     const usedUsernames = new Set();
+    const usedEmails = new Set();
     const usedContactNos = new Set();
     const borrowersByAreaAndCompanyId = new Map();
 
     for (const row of existingRows) {
       usedCompanyIds.add(row.company_id);
       usedUsernames.add(row.username);
+      if (row.email) {
+        usedEmails.add(String(row.email).toLowerCase());
+      }
       if (row.contact_no) {
         usedContactNos.add(row.contact_no);
       }
@@ -417,8 +474,12 @@ async function main() {
 
     console.log(`Borrower role id: ${borrowerRoleId}`);
     console.log(`Active areas discovered: ${areaRows.length}`);
-    if (areaRows.length !== 25) {
-      console.warn(`Expected 25 active areas for a full 250-borrower seed, but found ${areaRows.length}.`);
+    const expectedAreas = 25;
+    const expectedTotalBorrowers = expectedAreas * BORROWERS_PER_AREA;
+    if (areaRows.length !== expectedAreas) {
+      console.warn(
+        `Expected ${expectedAreas} active areas for a full ${expectedTotalBorrowers}-borrower seed, but found ${areaRows.length}.`,
+      );
     }
     console.log(`Seed password source: BORROWER_SEED_PASSWORD ${process.env.BORROWER_SEED_PASSWORD ? "(from env)" : "(default fallback)"}`);
 
@@ -457,7 +518,8 @@ async function main() {
 
         const identity = buildBorrowerIdentity(area, areaIndex, slot);
         const address = buildBorrowerAddress(area, areaIndex, slot);
-        const contactNo = generateUniqueContactNo(usedContactNos, areaIndex, slot);
+        const contactNo = generateUniqueContactNo(usedContactNos);
+        const borrowerEmail = generateUniqueEmail(identity, usedEmails, areaIndex * BORROWERS_PER_AREA + slot);
 
         let provisionedAuth = null;
 
@@ -483,7 +545,7 @@ async function main() {
                 ${desiredCompanyId},
                 ${borrowerRoleId},
                 ${contactNo},
-                ${null},
+                ${borrowerEmail},
                 'active',
                 ${SEED_CREATED_BY_USER_ID},
                 ${updatedAt}
@@ -544,7 +606,7 @@ async function main() {
     console.log(`Collisions skipped: ${totals.collisions}`);
     console.log(`Failures: ${totals.failures}`);
     console.log(`Target per area: ${BORROWERS_PER_AREA}`);
-    console.log(`Total target if 25 areas exist: ${25 * BORROWERS_PER_AREA}`);
+    console.log(`Total target if ${expectedAreas} areas exist: ${expectedAreas * BORROWERS_PER_AREA}`);
 
     if (totals.failures > 0) {
       process.exitCode = 1;

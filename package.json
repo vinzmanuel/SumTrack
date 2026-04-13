@@ -10,7 +10,8 @@
     "seed:borrowers": "node scripts/seed-borrowers.mjs",
     "seed:refresh-borrower-contact-data": "node scripts/refresh-borrower-contact-data.mjs",
     "seed:loans-and-collections": "node scripts/seed-loans-and-collections.mjs",
-    "seed:expenses": "node scripts/seed-expenses.mjs"
+    "seed:expenses": "node scripts/seed-expenses.mjs",
+    "seed:finalize-incentives": "node scripts/finalize-incentive-payouts.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",

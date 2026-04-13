@@ -3,8 +3,8 @@ import postgres from "postgres";
 
 dotenv.config({ path: ".env.local" });
 
-const SEED_START_MONTH = { year: 2025, month: 8 };
-const SEED_END_MONTH = { year: 2026, month: 4 };
+const SEED_START_DATE = "2025-01-01";
+const SEED_END_DATE = "2026-04-08";
 const FIXED_CATEGORY_ORDER = ["Rent", "Electricity", "Water", "Salary", "Transportation", "Lunch", "Miscellaneous"];
 
 const MISCELLANEOUS_DESCRIPTIONS = [
@@ -99,6 +99,19 @@ function buildMonthWindows(start, end) {
 
 function toIsoDate(year, month, day) {
   return new Date(Date.UTC(year, month - 1, day)).toISOString().slice(0, 10);
+}
+
+function parseIsoDate(value) {
+  const [year, month, day] = String(value).split("-").map(Number);
+  if (!year || !month || !day) {
+    return null;
+  }
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function isoDateInRange(isoDate, startIsoDate, endIsoDate) {
+  return isoDate >= startIsoDate && isoDate <= endIsoDate;
 }
 
 function weekdayOrPrevious(date) {
@@ -472,6 +485,15 @@ async function main() {
   const sql = postgres(databaseUrl, { prepare: false });
 
   try {
+    const parsedSeedStartDate = parseIsoDate(SEED_START_DATE);
+    const parsedSeedEndDate = parseIsoDate(SEED_END_DATE);
+    if (!parsedSeedStartDate || !parsedSeedEndDate) {
+      throw new Error(`Invalid seed date window. Start=${SEED_START_DATE}, End=${SEED_END_DATE}`);
+    }
+    if (parsedSeedStartDate > parsedSeedEndDate) {
+      throw new Error(`Invalid seed date window: start date ${SEED_START_DATE} is after end date ${SEED_END_DATE}.`);
+    }
+
     const [existingCounts] = await sql`
       select count(*)::int as expense_count
       from expenses
@@ -540,12 +562,24 @@ async function main() {
       console.warn(`Expected 5 active branches for the locked seed shape, but found ${branchContexts.length}.`);
     }
 
-    const monthWindows = buildMonthWindows(SEED_START_MONTH, SEED_END_MONTH);
+    const monthWindows = buildMonthWindows(
+      {
+        year: parsedSeedStartDate.getUTCFullYear(),
+        month: parsedSeedStartDate.getUTCMonth() + 1,
+      },
+      {
+        year: parsedSeedEndDate.getUTCFullYear(),
+        month: parsedSeedEndDate.getUTCMonth() + 1,
+      },
+    );
     const expenseRows = [];
 
     for (const branchContext of branchContexts) {
       for (const monthWindow of monthWindows) {
-        expenseRows.push(...buildExpenseRowsForBranchMonth(branchContext, monthWindow));
+        const monthRows = buildExpenseRowsForBranchMonth(branchContext, monthWindow).filter((row) =>
+          isoDateInRange(row.expenseDate, SEED_START_DATE, SEED_END_DATE),
+        );
+        expenseRows.push(...monthRows);
       }
     }
 
@@ -568,6 +602,7 @@ async function main() {
     console.log("Expense seed summary");
     console.log(`Active branches: ${branchContexts.length}`);
     console.log(`Months covered: ${monthWindows.length}`);
+    console.log(`Date window: ${SEED_START_DATE} to ${SEED_END_DATE}`);
     console.log(`Expenses created: ${expenseRows.length}`);
     console.log("");
 

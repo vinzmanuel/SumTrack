@@ -3,12 +3,17 @@ import postgres from "postgres";
 
 dotenv.config({ path: ".env.local" });
 
-const SEED_WINDOW_START = "2025-08-01";
-const CURRENT_DATE = "2026-04-09";
-const ACTIVE_TARGET = 27;
-const OVERDUE_TARGET = 2;
+const SEED_WINDOW_START = "2025-01-01";
+const SEED_WINDOW_END = "2026-04-14";
+const CURRENT_DATE = "2026-04-08";
+const ACTIVE_TARGET = 675;
+const OVERDUE_TARGET = 27;
 const ABANDONED_TARGET = 1;
-const MISSED_PAYMENT_TARGET = 11;
+const MISSED_PAYMENT_TARGET = 42;
+const ARCHIVE_PAID_WINDOW_START = "2025-01-01";
+const ARCHIVE_PAID_WINDOW_END = "2025-08-31";
+const COMPLETED_DUE_DATE_START = "2025-03-20";
+const COMPLETED_DUE_DATE_END = "2025-08-31";
 const FIXED_HOLIDAYS = new Set(["01-01", "11-02", "12-25"]);
 const MISSED_PAYMENT_NOTES = [
   "No one was at home and client did not respond to call.",
@@ -71,6 +76,24 @@ function addUtcDays(value, amount) {
   const next = new Date(value);
   next.setUTCDate(next.getUTCDate() + amount);
   return next;
+}
+
+function daysBetweenIsoDates(startIsoDate, endIsoDate) {
+  const start = parseIsoDate(startIsoDate);
+  const end = parseIsoDate(endIsoDate);
+  if (!start || !end) {
+    return 0;
+  }
+  const millisecondsPerDay = 24 * 60 * 60 * 1000;
+  return Math.floor((end.getTime() - start.getTime()) / millisecondsPerDay);
+}
+
+function isDateWithinRange(isoDate, startIsoDate, endIsoDate) {
+  return isoDate >= startIsoDate && isoDate <= endIsoDate;
+}
+
+function isFullyPaidStoredStatus(status) {
+  return status === "completed" || status === "archived";
 }
 
 function calculateEasterSunday(year) {
@@ -206,6 +229,10 @@ function calculateRemainingBalance(totalPayable, totalCollected) {
 }
 
 function resolveStatus({ storedStatus, dueDate, totalPayable, totalCollected }) {
+  if (storedStatus === "archived") {
+    return "archived";
+  }
+
   if (storedStatus === "abandoned") {
     return "abandoned";
   }
@@ -393,14 +420,15 @@ function chooseAmountAndInterest({ borrower, loanIndex, finalStatus, hadCleanRep
 }
 
 function pickCompletedDueDate(borrower, totalLoans) {
-  const spanDays = 166;
+  const spanDays = Math.max(daysBetweenIsoDates(COMPLETED_DUE_DATE_START, COMPLETED_DUE_DATE_END), 0) + 1;
   const offset = hashString(`${borrower.company_id}:completed-due:${totalLoans}`) % spanDays;
-  const baseDate = addUtcDays(parseIsoDate("2025-10-15"), offset);
+  const baseDate = addUtcDays(parseIsoDate(COMPLETED_DUE_DATE_START), offset);
   return previousValidCollectionDate(toIsoDate(baseDate));
 }
 
 function pickActiveDueDate(borrower, quotaIndex) {
-  const offset = (hashString(`${borrower.company_id}:active:${quotaIndex}`) % 56) + 5;
+  const maxOffset = Math.max(daysBetweenIsoDates(CURRENT_DATE, SEED_WINDOW_END), 1);
+  const offset = (hashString(`${borrower.company_id}:active:${quotaIndex}`) % maxOffset) + 1;
   const baseDate = addUtcDays(parseIsoDate(CURRENT_DATE), offset);
   return previousValidCollectionDate(toIsoDate(baseDate));
 }
@@ -541,7 +569,7 @@ function createLoanTimeline({ borrower, totalLoans, finalStatus, quotaIndex }) {
         obligationCount: termDays,
       });
 
-      if (!startDate || startDate < SEED_WINDOW_START) {
+      if (!startDate || startDate < SEED_WINDOW_START || dueDate > SEED_WINDOW_END) {
         success = false;
         break;
       }
@@ -597,7 +625,7 @@ function createLoanTimeline({ borrower, totalLoans, finalStatus, quotaIndex }) {
 function chooseTargetCollectedCents(loan, recordDates) {
   const totalCents = toMoneyCents(loan.totalPayable);
   const expectedDailyDueCents = Math.round(totalCents / loan.termDays);
-  if (loan.status === "completed") {
+  if (isFullyPaidStoredStatus(loan.status)) {
     return totalCents;
   }
 
@@ -1152,19 +1180,34 @@ async function main() {
     ].filter(Boolean);
 
     let overdueAssigned = 0;
-    for (const branchContext of overdueBranchOrder) {
-      if (overdueAssigned >= OVERDUE_TARGET) {
-        break;
+    let overduePassesWithoutAssignment = 0;
+    while (overdueAssigned < OVERDUE_TARGET) {
+      let assignedThisPass = 0;
+
+      for (const branchContext of overdueBranchOrder) {
+        if (overdueAssigned >= OVERDUE_TARGET) {
+          break;
+        }
+
+        const available = branchContext.borrowers.filter((borrower) => !chosenStatuses.has(borrower.user_id));
+        const overdueBorrower = chooseOverdueBorrower(available);
+        if (!overdueBorrower) {
+          continue;
+        }
+
+        chosenStatuses.set(overdueBorrower.user_id, "overdue");
+        overdueAssigned += 1;
+        assignedThisPass += 1;
       }
 
-      const available = branchContext.borrowers.filter((borrower) => !chosenStatuses.has(borrower.user_id));
-      const overdueBorrower = chooseOverdueBorrower(available);
-      if (!overdueBorrower) {
-        continue;
+      if (assignedThisPass === 0) {
+        overduePassesWithoutAssignment += 1;
+        if (overduePassesWithoutAssignment >= 1) {
+          break;
+        }
+      } else {
+        overduePassesWithoutAssignment = 0;
       }
-
-      chosenStatuses.set(overdueBorrower.user_id, "overdue");
-      overdueAssigned += 1;
     }
 
     if (overdueAssigned !== OVERDUE_TARGET) {
@@ -1180,6 +1223,17 @@ async function main() {
 
       const available = branchContext.borrowers.filter((borrower) => !chosenStatuses.has(borrower.user_id));
       for (const borrower of chooseActiveBorrowers(available, quota)) {
+        chosenStatuses.set(borrower.user_id, "active");
+        activeAssigned += 1;
+      }
+    }
+
+    if (activeAssigned < ACTIVE_TARGET) {
+      const remainingNeeded = ACTIVE_TARGET - activeAssigned;
+      const unassignedBorrowers = borrowers.filter((borrower) => !chosenStatuses.has(borrower.user_id));
+      const fallbackActives = chooseActiveBorrowers(unassignedBorrowers, remainingNeeded);
+
+      for (const borrower of fallbackActives) {
         chosenStatuses.set(borrower.user_id, "active");
         activeAssigned += 1;
       }
@@ -1220,6 +1274,15 @@ async function main() {
       loanPlans.push(...borrowerLoans);
     }
 
+    for (const loan of loanPlans) {
+      if (
+        loan.status === "completed" &&
+        isDateWithinRange(loan.dueDate, ARCHIVE_PAID_WINDOW_START, ARCHIVE_PAID_WINDOW_END)
+      ) {
+        loan.status = "archived";
+      }
+    }
+
     const loansByBorrower = new Map();
     for (const loan of loanPlans) {
       const group = loansByBorrower.get(loan.borrowerId) ?? [];
@@ -1235,7 +1298,7 @@ async function main() {
         summary[loan.status] += 1;
         return summary;
       },
-      { active: 0, overdue: 0, completed: 0, abandoned: 0 },
+      { active: 0, overdue: 0, completed: 0, archived: 0, abandoned: 0 },
     );
 
     if (
@@ -1396,6 +1459,7 @@ async function main() {
     console.log(`Loans created: ${loanPlans.length}`);
     console.log(`Collections created: ${allCollectionRows.length}`);
     console.log(`Completed loans: ${statusCounts.completed}`);
+    console.log(`Archived loans: ${statusCounts.archived}`);
     console.log(`Active loans: ${statusCounts.active}`);
     console.log(`Overdue loans: ${statusCounts.overdue}`);
     console.log(`Abandoned loans: ${statusCounts.abandoned}`);
