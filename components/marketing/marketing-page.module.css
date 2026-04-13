@@ -187,11 +187,11 @@
 }
   
   :global(#partner).sectionAnchor {
-    scroll-margin-top: 19.5vh;
+    scroll-margin-top: 18.6vh;
   }
   
   :global(#contact).sectionAnchor {
-    scroll-margin-top: 12vh;
+    scroll-margin-top: 1vh;
   }
 }
 
