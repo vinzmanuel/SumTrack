@@ -9,7 +9,6 @@ export function BorrowerRecordsModule({
   isPending,
   onPageChange,
   onPageSizeChange,
-  scopeMessage,
 }: {
   controls: ReactNode;
   data: BorrowersPageData;
@@ -17,13 +16,11 @@ export function BorrowerRecordsModule({
   isPending: boolean;
   onPageChange: (page: number) => void;
   onPageSizeChange: (pageSize: number) => void;
-  scopeMessage?: string;
 }) {
   return (
     <div className="space-y-4">
       <div className="px-1">
         {controls}
-        {scopeMessage ? <p className="mt-3 text-sm text-muted-foreground">{scopeMessage}</p> : null}
       </div>
       <div className="px-1">
         <BorrowersResultsSection

@@ -321,7 +321,6 @@ export function BorrowersClientPage({
         isPending={isPending}
         onPageChange={handlePageChange}
         onPageSizeChange={handlePageSizeChange}
-        scopeMessage={initialScope.scopeMessage}
       />
       </div>
     </>

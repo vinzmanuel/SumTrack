@@ -18,7 +18,6 @@ export function ManageUserAccountsModule({
   onReassignmentRequired,
   onSortChange,
   selectedSort,
-  scopeMessage,
 }: {
   controls: ReactNode;
   data: ManageUserAccountsPageData;
@@ -34,13 +33,11 @@ export function ManageUserAccountsModule({
   ) => void;
   onSortChange: (sort: ManageUserAccountsSort) => void;
   selectedSort: ManageUserAccountsSort;
-  scopeMessage?: string;
 }) {
   return (
     <div className="space-y-4">
       <div className="px-1 py-1">
         <div className="flex items-center gap-3">{controls}</div>
-        {scopeMessage ? <p className="mt-3 text-sm text-muted-foreground">{scopeMessage}</p> : null}
       </div>
 
       <ManageUserAccountsResultsSection

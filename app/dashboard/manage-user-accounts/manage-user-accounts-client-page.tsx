@@ -438,7 +438,6 @@ export function ManageUserAccountsClientPage({
             }))
           }
           selectedSort={filters.sort}
-          scopeMessage={initialScope.scopeMessage}
         />
       </div>
 
