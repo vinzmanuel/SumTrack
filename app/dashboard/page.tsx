@@ -2,7 +2,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BorrowerCollectorContactPanel } from "@/app/dashboard/_components/borrower-collector-contact-panel";
 import { DashboardAnalyticsCard } from "@/app/dashboard/_components/dashboard-analytics-card";
 import { DashboardOverviewFilters } from "@/app/dashboard/_components/dashboard-overview-filters-v2";
-import { DashboardOverviewHeaderConfig } from "@/app/dashboard/_components/dashboard-overview-header-config";
 import { DashboardSecondaryChartCard } from "@/app/dashboard/_components/dashboard-secondary-chart-card";
 import { requireDashboardAuth } from "@/app/dashboard/auth";
 import { DashboardMetricGrid } from "@/app/dashboard/_components/dashboard-tremor";
@@ -132,8 +131,6 @@ export default async function DashboardPage({ searchParams }: DashboardChartPage
 
   return (
     <div className={`relative w-full max-w-none pb-6 pt-0 sm:pb-6 sm:pt-0 ${UI_PAGE_STACK_CLASS_NAME}`}>
-      <DashboardOverviewHeaderConfig />
-
       {useManagementGreetingLayout ? (
         <section className="grid gap-4">
           <section className={`${UI_SURFACE_CLASS_NAME} px-5 py-5 sm:px-6 sm:py-6`}>

@@ -12,6 +12,7 @@ import {
   FileChartColumn,
   FileStack,
   CircleUserRound,
+  ChevronLeft,
   EllipsisVertical,
   Gift,
   HandCoins,
@@ -318,6 +319,16 @@ function buildDefaultDashboardHeaderConfig(
   pathname: string,
   roleName: string,
 ): DashboardHeaderConfig | null {
+  if (pathname === "/dashboard") {
+    return {
+      action: null,
+      description: "Monitor performance, operational health, and priorities in your current scope.",
+      icon: <LayoutDashboard className="size-9 text-sidebar-foreground/65" />,
+      title: "Overview",
+      breadcrumbTitle: "Overview",
+    };
+  }
+
   if (pathname === "/dashboard/audit-log") {
     return {
       action: null,
@@ -904,6 +915,16 @@ export function DashboardShell({
       pathname.split("/").filter(Boolean).length >= 2 || Boolean(searchParams.get("returnTo")),
     [pathname, searchParams],
   );
+  const previousBreadcrumbTarget = useMemo(() => {
+    for (let index = breadcrumbItems.length - 2; index >= 0; index -= 1) {
+      const item = breadcrumbItems[index];
+      if (item?.href) {
+        return item;
+      }
+    }
+    return null;
+  }, [breadcrumbItems]);
+  const previousBreadcrumbHref = previousBreadcrumbTarget?.href ?? null;
 
   return (
     <div
@@ -959,26 +980,45 @@ export function DashboardShell({
             <div className="px-3 pb-4 pt-4 md:p-4">
               <div className="w-full">
                 {shouldShowBreadcrumb ? (
-                  <Breadcrumb className="pl-1 mb-3 md:mb-4">
-                    <BreadcrumbList>
-                      {breadcrumbItems.map((item, index) => (
-                        <Fragment key={`${item.label}-${index}`}>
-                          <BreadcrumbItem>
-                            {item.current ? (
-                              <BreadcrumbPage>{item.label}</BreadcrumbPage>
-                            ) : item.href ? (
-                              <BreadcrumbLink asChild>
-                                <Link href={item.href}>{item.label}</Link>
-                              </BreadcrumbLink>
-                            ) : (
-                              <span>{item.label}</span>
-                            )}
-                          </BreadcrumbItem>
-                          {index < breadcrumbItems.length - 1 ? <BreadcrumbSeparator /> : null}
-                        </Fragment>
-                      ))}
-                    </BreadcrumbList>
-                  </Breadcrumb>
+                  <div className="mb-3 flex items-center gap-2 md:mb-4">
+                    {previousBreadcrumbTarget && previousBreadcrumbHref ? (
+                      <Button
+                        asChild
+                        className="h-9 w-9 rounded-md border border-border/70 bg-card p-0 text-muted-foreground hover:bg-accent/40 hover:text-foreground"
+                        size="icon"
+                        type="button"
+                        variant="ghost"
+                      >
+                        <Link
+                          aria-label={`Go back to ${previousBreadcrumbTarget.label}`}
+                          href={previousBreadcrumbHref}
+                        >
+                          <ChevronLeft className="size-4" />
+                        </Link>
+                      </Button>
+                    ) : null}
+
+                    <Breadcrumb className="pl-1">
+                      <BreadcrumbList>
+                        {breadcrumbItems.map((item, index) => (
+                          <Fragment key={`${item.label}-${index}`}>
+                            <BreadcrumbItem>
+                              {item.current ? (
+                                <BreadcrumbPage>{item.label}</BreadcrumbPage>
+                              ) : item.href ? (
+                                <BreadcrumbLink asChild>
+                                  <Link href={item.href}>{item.label}</Link>
+                                </BreadcrumbLink>
+                              ) : (
+                                <span>{item.label}</span>
+                              )}
+                            </BreadcrumbItem>
+                            {index < breadcrumbItems.length - 1 ? <BreadcrumbSeparator /> : null}
+                          </Fragment>
+                        ))}
+                      </BreadcrumbList>
+                    </Breadcrumb>
+                  </div>
                 ) : null}
                 {children}
               </div>
