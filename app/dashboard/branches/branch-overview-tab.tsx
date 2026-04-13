@@ -29,9 +29,9 @@ function DetailItem({
   value: string;
 }) {
   return (
-    <div className="flex h-full min-h-[108px] flex-col rounded-md border border-border/70 bg-muted/15 px-4 py-3">
-      <p className="text-xs font-medium text-muted-foreground">{label}</p>
-      <p className="mt-1 text-sm font-medium text-foreground">{value}</p>
+    <div className="flex h-full min-h-[108px] flex-col rounded-md border border-border/70 bg-muted/15 px-4 py-4">
+      <p className="text-sm font-medium text-muted-foreground">{label}</p>
+      <p className="mt-2 text-sm font-medium text-foreground">{value}</p>
     </div>
   );
 }
@@ -46,7 +46,7 @@ function LeadershipCard({
   companyId: string | null;
 }) {
   return (
-    <div className="flex h-full min-h-[108px] flex-col rounded-md border border-border/70 bg-card px-4 py-3">
+    <div className="flex h-full min-h-[108px] flex-col rounded-md border border-border/70 bg-card px-4 py-4">
       <div>
         <Badge className={getUiRoleBadgeClassName(roleName)} variant="outline">
           {roleName}
@@ -70,13 +70,13 @@ function CountCard({
   value: string;
 }) {
   return (
-    <div className="flex h-full min-h-[108px] flex-col rounded-md border border-border/70 bg-card px-4 py-3">
+    <div className="flex h-full min-h-[108px] flex-col rounded-md border border-border/70 bg-card px-4 py-4">
       <div>
         <Badge className={getUiRoleBadgeClassName(roleName)} variant="outline">
           {roleLabel}
         </Badge>
       </div>
-      <p className="mt-2 text-2xl font-semibold text-foreground">{value}</p>
+      <p className="mt-2 text-3xl font-semibold text-foreground">{value}</p>
     </div>
   );
 }
@@ -110,7 +110,7 @@ export function BranchOverviewTab({ data }: { data: BranchDetailOverviewData }) 
   return (
     <div className="grid gap-4 xl:grid-cols-12 xl:items-stretch">
       <Card className="rounded-md border-border/70 py-0 shadow-sm xl:col-span-6">
-        <CardHeader className="pb-2 pt-4">
+        <CardHeader className="pt-4">
           <CardTitle className="text-base">Branch Overview</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-3 pb-4 pt-0 sm:grid-cols-2">
@@ -122,10 +122,10 @@ export function BranchOverviewTab({ data }: { data: BranchDetailOverviewData }) 
       </Card>
 
       <Card className="rounded-md border-border/70 py-0 shadow-sm xl:col-span-6">
-        <CardHeader className="pb-2 pt-4">
+        <CardHeader className="pt-4">
           <CardTitle className="text-base">Assigned Leadership and Staff Coverage</CardTitle>
         </CardHeader>
-        <CardContent className="grid gap-3 pb-4 pt-0 sm:grid-cols-2">
+        <CardContent className="grid gap-3 sm:grid-cols-2">
           <LeadershipCard
             companyId={data.managerCompanyId}
             name={data.managerName}
@@ -142,10 +142,10 @@ export function BranchOverviewTab({ data }: { data: BranchDetailOverviewData }) 
       </Card>
 
       <Card className="rounded-md border-border/70 py-0 shadow-sm xl:col-span-4 xl:h-full">
-        <CardHeader className="pb-2 pt-4">
+        <CardHeader className="pt-4">
           <CardTitle className="text-base">Operational Metrics</CardTitle>
         </CardHeader>
-        <CardContent className="grid gap-2.5 pb-4 pt-0">
+        <CardContent className="grid gap-2.5 pb-4 pt-">
           <MetricCard label="Borrowers" value={String(data.borrowerCount)} />
           <MetricCard label="Active Areas" value={String(data.activeAreaCount)} />
           <MetricCard label="Active Loans" value={String(data.activeLoanCount)} />
