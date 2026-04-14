@@ -320,9 +320,22 @@ function buildDefaultDashboardHeaderConfig(
   roleName: string,
 ): DashboardHeaderConfig | null {
   if (pathname === "/dashboard") {
+    const overviewDescription =
+      roleName === "Borrower"
+        ? "Track your loan status, payment progress, and next priorities from your account overview."
+        : roleName === "Collector"
+          ? "Monitor assigned loan activity, collection performance, and field priorities in your current scope."
+          : roleName === "Secretary"
+            ? "Track branch loan operations, borrower activity, and daily priorities in your assigned scope."
+            : roleName === "Branch Manager"
+              ? "Monitor branch performance, operational health, and priority actions across your managed scope."
+              : roleName === "Auditor"
+                ? "Review operational performance signals, compliance indicators, and branch priorities in your audit scope."
+                : "Monitor performance, operational health, and priorities in your current scope.";
+
     return {
       action: null,
-      description: "Monitor performance, operational health, and priorities in your current scope.",
+      description: overviewDescription,
       icon: <LayoutDashboard className="size-9 text-sidebar-foreground/65" />,
       title: "Overview",
       breadcrumbTitle: "Overview",
