@@ -250,7 +250,7 @@ function buildDashboardBreadcrumbs({
 
     if (!detailConsumed && breadcrumbDetailLabels[activeNav.href]) {
       items.push({
-        label: breadcrumbDetailLabels[activeNav.href] ?? currentPageLabel,
+        label: isLast ? currentPageLabel : breadcrumbDetailLabels[activeNav.href] ?? currentPageLabel,
         current: isLast ? true : undefined,
       });
       detailConsumed = true;
