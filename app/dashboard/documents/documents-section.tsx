@@ -36,6 +36,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   DOC_INPUT_ACCEPT,
   MAX_DOC_FILE_SIZE_BYTES,
   fileKindFromMimeType,
@@ -551,7 +558,7 @@ export function DocumentsSection({
       </CardContent>
 
       <Dialog onOpenChange={setUploadOpen} open={uploadOpen}>
-        <DialogContent className="sm:max-w-2xl">
+        <DialogContent className="border-border/70 bg-background sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Upload document</DialogTitle>
             <DialogDescription>
@@ -560,8 +567,10 @@ export function DocumentsSection({
           </DialogHeader>
           <div className="space-y-4">
             <div
-              className={`rounded-lg border border-dashed p-6 text-center transition ${
-                dragOver ? "border-primary bg-primary/5" : "border-muted-foreground/30"
+              className={`rounded-md border border-dashed p-6 text-center transition ${
+                dragOver
+                  ? "border-primary bg-primary/10 dark:bg-primary/15"
+                  : "border-border/70 bg-muted/25 dark:bg-muted/15"
               }`}
               onDragLeave={() => setDragOver(false)}
               onDragOver={(event) => {
@@ -603,7 +612,7 @@ export function DocumentsSection({
             </div>
 
             {uploadFile ? (
-              <div className="flex items-center justify-between rounded-md border bg-muted/20 px-3 py-2">
+              <div className="flex items-center justify-between rounded-md border border-border/70 bg-muted/25 px-3 py-2 dark:bg-muted/15">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium">{uploadFile.name}</p>
                   <p className="text-muted-foreground text-xs">{formatBytes(uploadFile.size)}</p>
@@ -624,18 +633,18 @@ export function DocumentsSection({
               <label className="text-sm font-medium" htmlFor={`${recordLabel}_doc_type`}>
                 Document Type
               </label>
-              <select
-                className="border-input focus-visible:border-ring focus-visible:ring-ring/50 w-full rounded-md border bg-transparent px-3 py-2 text-sm shadow-xs outline-none focus-visible:ring-[3px]"
-                id={`${recordLabel}_doc_type`}
-                onChange={(event) => setUploadType(event.target.value)}
-                value={uploadType}
-              >
-                {documentTypes.map((type) => (
-                  <option key={type} value={type}>
-                    {type}
-                  </option>
-                ))}
-              </select>
+              <Select onValueChange={setUploadType} value={uploadType}>
+                <SelectTrigger className="!h-11 w-full rounded-md" id={`${recordLabel}_doc_type`}>
+                  <SelectValue placeholder="Select document type" />
+                </SelectTrigger>
+                <SelectContent className="rounded-md">
+                  {documentTypes.map((type) => (
+                    <SelectItem key={type} value={type}>
+                      {type}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               {existingTypeLabel() ? (
                 <p className="text-amber-700 text-xs dark:text-amber-400">{existingTypeLabel()}</p>
               ) : null}
