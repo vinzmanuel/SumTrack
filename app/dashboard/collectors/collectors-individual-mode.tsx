@@ -38,6 +38,7 @@ export function CollectorsIndividualMode({
   selectedFrom,
   selectedRange,
   selectedTo,
+  viewerRoleName,
   onBasisChange,
   onRangeChange,
 }: {
@@ -51,6 +52,7 @@ export function CollectorsIndividualMode({
   selectedFrom: string;
   selectedRange: CollectorsFilterInput["range"];
   selectedTo: string;
+  viewerRoleName: string;
   onBasisChange: (basis: CollectorLeaderboardBasis) => void;
   onRangeChange: (value: { range: CollectorsFilterInput["range"]; from: string; to: string }) => void;
 }) {
@@ -71,6 +73,18 @@ export function CollectorsIndividualMode({
 
     return true;
   });
+  const rankContextScope =
+    viewerRoleName === "Branch Manager"
+      ? "branch-only"
+      : viewerRoleName === "Auditor"
+        ? "assigned-branches"
+        : "nationwide";
+  const scopeLabel =
+    rankContextScope === "branch-only"
+      ? "branch scope"
+      : rankContextScope === "assigned-branches"
+        ? "assigned-branches scope"
+        : "nationwide scope";
 
   return (
     <div className="space-y-6">
@@ -86,7 +100,7 @@ export function CollectorsIndividualMode({
             </div>
             <p className="text-sm leading-6 text-muted-foreground">
               Only one collector matches the current filters, so this view stays in summary mode and
-              highlights the strongest KPI signals for {dateRangeLabel}.
+              highlights the strongest KPI signals for {dateRangeLabel} using your {scopeLabel}.
             </p>
             {errorMessage ? <p className="text-sm text-destructive">{errorMessage}</p> : null}
           </div>
@@ -166,6 +180,7 @@ export function CollectorsIndividualMode({
       {focusedProfileData ? (
         <CollectorProfilePanel
           data={focusedProfileData}
+          rankContextScope={rankContextScope}
           showSectionIntros={false}
           visibleSections={{
             selectedPeriod: true,

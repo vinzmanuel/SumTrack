@@ -52,6 +52,7 @@ export function CollectorsResultsSection({
   onRangeChange,
   onPageChange,
   onPageSizeChange,
+  viewerRoleName,
 }: {
   data: CollectorsAnalyticsData | null;
   errorMessage: string | null;
@@ -61,6 +62,7 @@ export function CollectorsResultsSection({
   onRangeChange: (value: { range: CollectorsFilterInput["range"]; from: string; to: string }) => void;
   onPageChange: (page: number) => void;
   onPageSizeChange: (pageSize: number) => void;
+  viewerRoleName: string;
 }) {
   const router = useRouter();
   const isIndividualMode = data?.totalCount === 1;
@@ -89,6 +91,7 @@ export function CollectorsResultsSection({
           selectedFrom={filters.from}
           selectedRange={filters.range}
           selectedTo={filters.to}
+          viewerRoleName={viewerRoleName}
         />
       ) : (
         <CollectorsRankedMode

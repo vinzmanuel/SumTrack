@@ -15,6 +15,10 @@ export function CollectorRankContextCard({
   visibleCollectorCount,
   className,
   basisLabel = "Average monthly collections in the active view.",
+  primaryScopeLabel = "Nationwide",
+  primaryCountLabel,
+  helpText = "Ranks are based on the active period view. Nationwide rank compares against every visible collector in your current scope. Branch rank compares only within this collector's branch.",
+  showPrimaryScope = true,
 }: {
   branchName: string;
   branchRank: number;
@@ -23,7 +27,13 @@ export function CollectorRankContextCard({
   visibleCollectorCount: number;
   className?: string;
   basisLabel?: string;
+  primaryScopeLabel?: string;
+  primaryCountLabel?: string;
+  helpText?: string;
+  showPrimaryScope?: boolean;
 }) {
+  const resolvedPrimaryCountLabel = primaryCountLabel ?? `${visibleCollectorCount} visible collectors`;
+
   return (
     <Card className={cn("gap-0 overflow-hidden rounded-md py-0", className)}>
       <CardHeader className="gap-0 pb-3 pt-4">
@@ -31,7 +41,7 @@ export function CollectorRankContextCard({
           <div className="space-y-1">
             <CardTitle className="text-base font-semibold tracking-tight">
               <CollectorInfoHint
-                help="Ranks are based on the active period view. Nationwide rank compares against every visible collector in your current scope. Branch rank compares only within this collector's branch."
+                help={helpText}
                 label="Rank Context"
               />
             </CardTitle>
@@ -45,8 +55,10 @@ export function CollectorRankContextCard({
           </Badge>
         </div>
       </CardHeader>
-      <CardContent className="grid gap-3 pb-6 pt-0 sm:grid-cols-2">
-        <RankTile countLabel={`${visibleCollectorCount} visible collectors`} rank={nationwideRank} title="Nationwide" />
+      <CardContent className={cn("grid gap-3 pb-6 pt-0", showPrimaryScope ? "sm:grid-cols-2" : undefined)}>
+        {showPrimaryScope ? (
+          <RankTile countLabel={resolvedPrimaryCountLabel} rank={nationwideRank} title={primaryScopeLabel} />
+        ) : null}
         <RankTile countLabel={`${branchCollectorCount} in ${branchName}`} rank={branchRank} title="Branch" />
       </CardContent>
     </Card>

@@ -28,12 +28,14 @@ export function CollectorProfilePanel({
   data,
   showRankContext = true,
   periodControl,
+  rankContextScope = "nationwide",
   visibleSections,
   showSectionIntros = true,
 }: {
   data: CollectorProfileData;
   showRankContext?: boolean;
   periodControl?: ReactNode;
+  rankContextScope?: "nationwide" | "assigned-branches" | "branch-only";
   visibleSections?: {
     selectedPeriod?: boolean;
     currentPortfolio?: boolean;
@@ -77,6 +79,18 @@ export function CollectorProfilePanel({
       : data.selectedBasis === "incentives"
         ? "Ranked by total incentive"
         : "Ranked by average monthly collections";
+  const rankContextPrimaryScopeLabel =
+    rankContextScope === "assigned-branches" ? "Assigned Branches" : "Nationwide";
+  const rankContextPrimaryCountLabel =
+    rankContextScope === "assigned-branches"
+      ? `${formatCollectorsInteger(data.visibleCollectorCount)} collectors in assigned branches`
+      : `${formatCollectorsInteger(data.visibleCollectorCount)} visible collectors`;
+  const rankContextHelpText =
+    rankContextScope === "assigned-branches"
+      ? "Ranks are based on the active period view. Assigned-branches rank compares collectors visible inside your assigned branches. Branch rank compares only within this collector's branch."
+      : rankContextScope === "branch-only"
+        ? "Ranks are based on the active period view. Branch rank compares only within this collector's branch."
+        : "Ranks are based on the active period view. Nationwide rank compares against every visible collector in your current scope. Branch rank compares only within this collector's branch.";
   const periodSignals: PeriodSignalItem[] = [
     {
       key: "missed-rate",
@@ -324,7 +338,11 @@ export function CollectorProfilePanel({
                 branchName={data.branchName}
                 branchRank={data.branchRank}
                 className="rounded-md shadow-sm"
+                helpText={rankContextHelpText}
                 nationwideRank={data.nationwideRank}
+                primaryCountLabel={rankContextPrimaryCountLabel}
+                primaryScopeLabel={rankContextPrimaryScopeLabel}
+                showPrimaryScope={rankContextScope !== "branch-only"}
                 visibleCollectorCount={data.visibleCollectorCount}
               />
             ) : null}

@@ -96,6 +96,7 @@ export function CollectorProfileClientPage({
   initialAssignedLoansFilters,
   initialData,
   initialTab,
+  viewerRoleName,
 }: {
   backHref: string;
   backLabel: string;
@@ -104,6 +105,7 @@ export function CollectorProfileClientPage({
   initialAssignedLoansFilters: CollectorAssignedLoansFilters;
   initialData: CollectorProfileData;
   initialTab: CollectorDetailTabKey;
+  viewerRoleName: string;
 }) {
   const [data, setData] = useState(initialData);
   const [activeTab, setActiveTab] = useState<CollectorDetailTabKey>(initialTab);
@@ -206,6 +208,12 @@ export function CollectorProfileClientPage({
     from: periodFilters.fromRaw,
     to: periodFilters.toRaw,
   });
+  const rankContextScope =
+    viewerRoleName === "Branch Manager"
+      ? "branch-only"
+      : viewerRoleName === "Auditor"
+        ? "assigned-branches"
+        : "nationwide";
 
   return (
     <div className="space-y-4">
@@ -354,6 +362,7 @@ export function CollectorProfileClientPage({
                   </div>
                 )
               }
+              rankContextScope={rankContextScope}
             />
           </div>
           {errorMessage ? <p className="mt-3 text-sm text-destructive">{errorMessage}</p> : null}

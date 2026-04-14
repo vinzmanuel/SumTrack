@@ -8,9 +8,17 @@ import { CollectorsClientPage } from "@/app/dashboard/collectors/collectors-clie
 import { CollectorsResultsSkeleton } from "@/app/dashboard/collectors/collectors-results-skeleton";
 import { parseCollectorsFilters } from "@/app/dashboard/collectors/filters";
 import { loadCollectorsAnalyticsData, loadCollectorsBranchOptions } from "@/app/dashboard/collectors/queries";
-import type { CollectorsPageProps } from "@/app/dashboard/collectors/types";
+import type { CollectorsAccessState, CollectorsPageProps } from "@/app/dashboard/collectors/types";
 
-async function CollectorsModuleLoader({ access, filters }: { access: any, filters: any }) {
+type CollectorsAnalyticsAccess = Extract<CollectorsAccessState, { view: "analytics" }>;
+
+async function CollectorsModuleLoader({
+  access,
+  filters,
+}: {
+  access: CollectorsAnalyticsAccess;
+  filters: ReturnType<typeof parseCollectorsFilters>;
+}) {
   const [branchOptions, initialData] = await Promise.all([
     loadCollectorsBranchOptions(access),
     loadCollectorsAnalyticsData(access, filters),
@@ -22,6 +30,7 @@ async function CollectorsModuleLoader({ access, filters }: { access: any, filter
       branchOptions={branchOptions}
       canChooseBranch={access.canChooseBranch}
       fixedBranchName={access.fixedBranchName}
+      viewerRoleName={access.roleName}
       initialData={initialData}
       initialFilters={{
         selectedBranchRaw: access.selectedBranchId ? String(access.selectedBranchId) : "all",

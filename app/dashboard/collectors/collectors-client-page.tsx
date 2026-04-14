@@ -80,6 +80,7 @@ export function CollectorsClientPage({
   branchOptions,
   canChooseBranch,
   fixedBranchName,
+  viewerRoleName,
   initialData,
   initialFilters,
 }: {
@@ -87,6 +88,7 @@ export function CollectorsClientPage({
   branchOptions: CollectorsBranchOption[];
   canChooseBranch: boolean;
   fixedBranchName: string | null;
+  viewerRoleName: string;
   initialData: CollectorsAnalyticsData;
   initialFilters: CollectorsFilterState;
 }) {
@@ -311,6 +313,7 @@ export function CollectorsClientPage({
                 pageSize,
               }))
             }
+            viewerRoleName={viewerRoleName}
           />
         </div>
       </>

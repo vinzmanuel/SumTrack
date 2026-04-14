@@ -161,6 +161,7 @@ export default async function CollectorProfilePage({
       initialAssignedLoansFilters={assignedLoansFilters}
       initialData={profile}
       initialTab={detailTab}
+      viewerRoleName={access.roleName}
     />
   );
 }
