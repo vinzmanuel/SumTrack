@@ -280,6 +280,7 @@ export async function loadCreateLoanPageData(
   return {
     status: "ready",
     isAdmin: access.isAdmin,
+    canUseCustomTerm: access.roleName === "Admin" || access.roleName === "Branch Manager",
     branches,
     areas: areasData,
     borrowers,

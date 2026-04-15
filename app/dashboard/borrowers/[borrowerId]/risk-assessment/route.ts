@@ -23,6 +23,18 @@ export async function POST(_request: Request, context: RouteContext) {
     );
   }
 
+  if (auth.roleName === "Secretary") {
+    return NextResponse.json(
+      { message: "Secretaries are not authorized to assess borrower risk." },
+      {
+        status: 403,
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      },
+    );
+  }
+
   try {
     const { borrowerId } = await context.params;
     const result = await assessBorrowerReapprovalRisk({

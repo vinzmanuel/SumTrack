@@ -47,6 +47,7 @@ export type PrefilledBorrower = {
 export type CreateLoanReadyState = {
   status: "ready";
   isAdmin: boolean;
+  canUseCustomTerm: boolean;
   branches: BranchOption[];
   areas: AreaOption[];
   borrowers: BorrowerOption[];

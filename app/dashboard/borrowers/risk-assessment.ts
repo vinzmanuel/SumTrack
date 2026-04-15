@@ -224,7 +224,7 @@ async function resolveBorrowerRiskAccess(
 
   const isAdmin = auth.roleName === "Admin";
   const isAuditor = auth.roleName === "Auditor";
-  const isBranchScoped = auth.roleName === "Branch Manager" || auth.roleName === "Secretary";
+  const isBranchScoped = auth.roleName === "Branch Manager";
 
   if (!isAdmin && !isAuditor && !isBranchScoped) {
     return { ok: false, status: 403, message: "You are not authorized to assess borrower risk." };

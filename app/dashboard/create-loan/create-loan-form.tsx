@@ -2,10 +2,19 @@
 
 import { useActionState, useMemo, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { Loader2 } from "lucide-react";
+import { Calendar as CalendarIcon, ChevronDown, Loader2 } from "lucide-react";
 import { useFormStatus } from "react-dom";
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+} from "@/components/ui/combobox";
 import {
   Dialog,
   DialogContent,
@@ -16,6 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -47,10 +57,13 @@ type CreateLoanFormProps = {
   areas: AreaOption[];
   collectors: CollectorOption[];
   isAdmin: boolean;
+  canUseCustomTerm: boolean;
   prefilledBorrower?: PrefilledBorrower | null;
 };
 
 const DEFAULT_TERM_DAYS = 58;
+const MAX_PRINCIPAL = 25_000;
+const MAX_INTEREST = 99.99;
 const STAFF_TERM_OPTIONS = [
   { label: "58 days", value: "58" },
   { label: "60 days", value: "60" },
@@ -88,6 +101,43 @@ function sanitizeNumericInput(value: string) {
   return `${intPart}.${decimalPart}`;
 }
 
+function sanitizePrincipalInput(value: string) {
+  const sanitized = sanitizeNumericInput(value);
+  if (!sanitized) {
+    return "";
+  }
+
+  const parsed = Number(sanitized);
+  if (!Number.isFinite(parsed)) {
+    return "";
+  }
+
+  return String(Math.min(parsed, MAX_PRINCIPAL));
+}
+
+function sanitizeInterestInput(value: string) {
+  const sanitized = sanitizeNumericInput(value);
+  if (!sanitized) {
+    return "";
+  }
+
+  const [intPartRaw = "", decimalPartRaw] = sanitized.split(".");
+  const intPartDigits = intPartRaw.replace(/\D/g, "").slice(0, 2);
+  if (!intPartDigits) {
+    return "";
+  }
+
+  const decimalPartDigits = (decimalPartRaw ?? "").replace(/\D/g, "").slice(0, 2);
+  const normalized = decimalPartDigits ? `${intPartDigits}.${decimalPartDigits}` : intPartDigits;
+  const parsed = Number(normalized);
+
+  if (!Number.isFinite(parsed)) {
+    return "";
+  }
+
+  return String(Math.min(parsed, MAX_INTEREST));
+}
+
 function formatMoneyDisplay(rawValue: string) {
   if (!rawValue) {
     return "";
@@ -111,6 +161,115 @@ function formatDateInput(date: Date) {
   return `${year}-${month}-${day}`;
 }
 
+function formatDatePreview(value: string) {
+  if (!value) {
+    return "Select date";
+  }
+
+  const [year, month, day] = value.split("-");
+  if (!year || !month || !day) {
+    return value;
+  }
+
+  return new Date(`${year}-${month}-${day}T00:00:00`).toLocaleDateString("en-PH", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
+
+function parseDateParts(value: string) {
+  const [yearRaw, monthRaw, dayRaw] = value.split("-");
+  const year = Number(yearRaw);
+  const month = Number(monthRaw);
+  const day = Number(dayRaw);
+
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) {
+    return null;
+  }
+
+  if (month < 1 || month > 12 || day < 1 || day > 31) {
+    return null;
+  }
+
+  return { year, month, day };
+}
+
+function toUtcDate(value: string) {
+  const parsed = parseDateParts(value);
+  if (!parsed) {
+    return null;
+  }
+
+  return new Date(Date.UTC(parsed.year, parsed.month - 1, parsed.day));
+}
+
+function parseDateInputToDate(value: string) {
+  const parsed = parseDateParts(value);
+  if (!parsed) {
+    return undefined;
+  }
+
+  const date = new Date(parsed.year, parsed.month - 1, parsed.day);
+  return Number.isNaN(date.getTime()) ? undefined : date;
+}
+
+function getGoodFriday(year: number) {
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31);
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+  const easterSunday = new Date(Date.UTC(year, month - 1, day));
+  easterSunday.setUTCDate(easterSunday.getUTCDate() - 2);
+  return easterSunday;
+}
+
+function getBlockedDateReason(value: string) {
+  const parsed = parseDateParts(value);
+  const date = toUtcDate(value);
+
+  if (!parsed || !date) {
+    return null;
+  }
+
+  if (date.getUTCDay() === 0) {
+    return "Sundays are not allowed for custom terms.";
+  }
+
+  const goodFriday = getGoodFriday(parsed.year);
+  if (
+    goodFriday.getUTCFullYear() === parsed.year &&
+    goodFriday.getUTCMonth() + 1 === parsed.month &&
+    goodFriday.getUTCDate() === parsed.day
+  ) {
+    return "Good Friday is not allowed for custom terms.";
+  }
+
+  if (parsed.month === 1 && parsed.day === 1) {
+    return "New Year's Day is not allowed for custom terms.";
+  }
+
+  if (parsed.month === 11 && parsed.day === 1) {
+    return "All Saints' Day is not allowed for custom terms.";
+  }
+
+  if (parsed.month === 12 && parsed.day === 25) {
+    return "Christmas Day is not allowed for custom terms.";
+  }
+
+  return null;
+}
+
 export function CreateLoanForm({
   borrowers,
   activeLoanBorrowerIds,
@@ -118,11 +277,13 @@ export function CreateLoanForm({
   areas,
   collectors,
   isAdmin,
+  canUseCustomTerm,
   prefilledBorrower = null,
 }: CreateLoanFormProps) {
   const [state, formAction] = useActionState(createLoanAction, initialCreateLoanState);
   const formRef = useRef<HTMLFormElement>(null);
   const confirmedSubmitRef = useRef(false);
+  const defaultBranchId = !isAdmin && branches.length === 1 ? String(branches[0].branch_id) : "";
 
   const defaultStartDate = useMemo(() => formatDateInput(new Date()), []);
   const defaultTermOption = "58";
@@ -136,9 +297,8 @@ export function CreateLoanForm({
   );
 
   const [borrowerId, setBorrowerId] = useState(prefilledBorrower?.borrowerId ?? "");
-  const [borrowerSearch, setBorrowerSearch] = useState(prefilledBorrower?.label ?? "");
   const [selectedBranchId, setSelectedBranchId] = useState(
-    prefilledBorrower?.branchId ?? (!isAdmin && branches.length === 1 ? String(branches[0].branch_id) : ""),
+    prefilledBorrower?.branchId ?? defaultBranchId,
   );
   const [selectedAreaId, setSelectedAreaId] = useState(prefilledBorrower?.areaId ?? "");
   const [collectorId, setCollectorId] = useState("");
@@ -147,6 +307,8 @@ export function CreateLoanForm({
   const [interest, setInterest] = useState("");
   const [startDate, setStartDate] = useState(defaultStartDate);
   const [dueDate, setDueDate] = useState(defaultDueDate);
+  const [isStartDateOpen, setIsStartDateOpen] = useState(false);
+  const [isDueDateOpen, setIsDueDateOpen] = useState(false);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [successDialogDismissed, setSuccessDialogDismissed] = useState(false);
   const [isBorrowerLocked, setIsBorrowerLocked] = useState(Boolean(prefilledBorrower));
@@ -185,58 +347,19 @@ export function CreateLoanForm({
     [collectorId, collectorOptions],
   );
 
-  const filteredBorrowers = useMemo(() => {
-    const query = borrowerSearch.trim().toLowerCase();
-    const areaBorrowers = borrowers.filter(
-      (borrower) => String(borrower.area_id) === selectedAreaId,
-    );
+  const areaBorrowerOptions = useMemo(
+    () => borrowers.filter((borrower) => String(borrower.area_id) === selectedAreaId),
+    [borrowers, selectedAreaId],
+  );
 
-    if (!query) {
-      return [];
-    }
-
-    return areaBorrowers
-      .map((borrower) => {
-        const firstName = (borrower.first_name ?? "").toLowerCase().trim();
-        const lastName = (borrower.last_name ?? "").toLowerCase().trim();
-        const companyId = (borrower.company_id ?? "").toLowerCase().trim();
-        const fullName = `${firstName} ${lastName}`.trim();
-        const fullNameWords = fullName.split(/\s+/).filter(Boolean);
-
-        const startsWithFirst = firstName.startsWith(query);
-        const startsWithLast = lastName.startsWith(query);
-        const startsWithAnyWord = fullNameWords.some((word) => word.startsWith(query));
-        const startsWithCompanyId = companyId.startsWith(query);
-        const includesFullName = fullName.includes(query);
-        const includesCompanyId = companyId.includes(query);
-
-        let score = 0;
-
-        if (query.length === 1) {
-          if (startsWithFirst) score = 6;
-          else if (startsWithLast) score = 5;
-          else if (startsWithCompanyId) score = 4;
-          else if (startsWithAnyWord) score = 3;
-        } else {
-          if (startsWithFirst) score = 6;
-          else if (startsWithLast) score = 5;
-          else if (startsWithCompanyId) score = 4;
-          else if (startsWithAnyWord) score = 3;
-          else if (includesCompanyId) score = 2;
-          else if (includesFullName) score = 1;
-        }
-
-        return { borrower, score };
-      })
-      .filter((item) => item.score > 0)
-      .sort((a, b) => b.score - a.score || a.borrower.label.localeCompare(b.borrower.label))
-      .slice(0, 10)
-      .map((item) => item.borrower);
-  }, [borrowerSearch, borrowers, selectedAreaId]);
+  const selectedBorrowerOption = useMemo(
+    () => areaBorrowerOptions.find((borrower) => borrower.user_id === borrowerId) ?? null,
+    [areaBorrowerOptions, borrowerId],
+  );
 
   const parsedPrincipal = Number(principalRaw);
   const parsedInterest = Number(interest);
-  const isCustomTerm = isAdmin && termOption === "custom";
+  const isCustomTerm = canUseCustomTerm && termOption === "custom";
   const fixedTermDays =
     !isCustomTerm && Number.isFinite(Number(termOption)) ? Number(termOption) : null;
   const durationDays = isCustomTerm ? calculateCalendarDayDiff(startDate, dueDate) : fixedTermDays;
@@ -248,8 +371,12 @@ export function CreateLoanForm({
     totalPayable !== null && durationDays ? totalPayable / durationDays : null;
   const principalDisplay = formatMoneyDisplay(principalRaw);
   const interestSuffixLeft = `calc(0.75rem + ${Math.max(interest.length, 1)}ch)`;
-  const shouldShowBorrowerSuggestions =
-    !isBorrowerLocked && Boolean(selectedAreaId) && borrowerSearch.trim().length > 0 && borrowerId === "";
+  const customStartDateBlockedReason = isCustomTerm ? getBlockedDateReason(startDate) : null;
+  const customDueDateBlockedReason = isCustomTerm ? getBlockedDateReason(dueDate) : null;
+  const hasCustomDateBlockingIssue =
+    Boolean(customStartDateBlockedReason) || Boolean(customDueDateBlockedReason);
+  const startDateValue = parseDateInputToDate(startDate);
+  const dueDateValue = parseDateInputToDate(dueDate);
   const isSuccessOpen = state.status === "success" && Boolean(state.result) && !successDialogDismissed;
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -280,13 +407,25 @@ export function CreateLoanForm({
       return;
     }
 
-    setSuccessDialogDismissed(true);
+    resetFormAfterSuccessClose();
   }
 
-  function handleBorrowerSelect(nextBorrowerId: string) {
-    const nextBorrower = borrowers.find((borrower) => borrower.user_id === nextBorrowerId);
-    setBorrowerId(nextBorrowerId);
-    setBorrowerSearch(nextBorrower?.label ?? "");
+  function resetFormAfterSuccessClose() {
+    confirmedSubmitRef.current = false;
+    setIsConfirmOpen(false);
+    setIsStartDateOpen(false);
+    setIsDueDateOpen(false);
+    setSuccessDialogDismissed(true);
+    setBorrowerId("");
+    setSelectedBranchId(defaultBranchId);
+    setSelectedAreaId("");
+    setCollectorId("");
+    setTermOption(defaultTermOption);
+    setPrincipalRaw("");
+    setInterest("");
+    setStartDate(defaultStartDate);
+    setDueDate(defaultDueDate);
+    setIsBorrowerLocked(false);
   }
 
   function handleBranchChange(nextBranchId: string) {
@@ -294,7 +433,6 @@ export function CreateLoanForm({
     setSelectedAreaId("");
     setBorrowerId("");
     setCollectorId("");
-    setBorrowerSearch("");
     setIsBorrowerLocked(false);
   }
 
@@ -302,19 +440,17 @@ export function CreateLoanForm({
     setSelectedAreaId(nextAreaId);
     setBorrowerId("");
     setCollectorId("");
-    setBorrowerSearch("");
     setIsBorrowerLocked(false);
   }
 
   function clearBorrowerPrefill() {
     setIsBorrowerLocked(false);
     setBorrowerId("");
-    setBorrowerSearch("");
     setCollectorId("");
   }
 
   function handleTermChange(value: string) {
-    if (!isAdmin && value === "custom") {
+    if (!canUseCustomTerm && value === "custom") {
       return;
     }
 
@@ -373,8 +509,9 @@ export function CreateLoanForm({
             <input name="collector_id" type="hidden" value={collectorId} />
             <input name="principal" type="hidden" value={principalRaw} />
             <input name="interest" type="hidden" value={interest} />
+            <input name="start_date" type="hidden" value={startDate} />
+            <input name="due_date" type="hidden" value={dueDate} />
             <input name="term_option" type="hidden" value={termOption} />
-            {!isCustomTerm ? <input name="due_date" type="hidden" value={dueDate} /> : null}
 
             <div className="grid gap-4 md:grid-cols-2">
               <div className={`space-y-2 ${isAdmin ? "" : "md:col-span-2"}`}>
@@ -430,39 +567,39 @@ export function CreateLoanForm({
 
             <div className="space-y-2">
               <Label htmlFor="borrower_search">Borrower Search</Label>
-              <Input
-                className={CREATE_LOAN_CONTROL_CLASS_NAME}
-                disabled={!selectedAreaId || isBorrowerLocked}
-                id="borrower_search"
-                onChange={(event) => {
-                  setBorrowerSearch(event.target.value);
-                  setBorrowerId("");
+              <Combobox
+                items={areaBorrowerOptions}
+                isItemEqualToValue={(item, value) => item.user_id === value.user_id}
+                itemToStringLabel={(item) => item.label}
+                itemToStringValue={(item) => item.user_id}
+                onValueChange={(nextValue) => {
+                  const nextBorrower = (nextValue as BorrowerOption | null) ?? null;
+                  setBorrowerId(nextBorrower?.user_id ?? "");
                 }}
-                placeholder={selectedAreaId ? "Type borrower name or company ID" : "Select area first"}
-                value={borrowerSearch}
-              />
+                value={selectedBorrowerOption}
+              >
+                <ComboboxInput
+                  className={`${CREATE_LOAN_CONTROL_CLASS_NAME} w-full`}
+                  disabled={!selectedAreaId || isBorrowerLocked}
+                  id="borrower_search"
+                  placeholder={selectedAreaId ? "Search borrower name or company ID" : "Select area first"}
+                  showClear
+                />
+                <ComboboxContent className="z-[100] max-h-72">
+                  <ComboboxEmpty>No borrowers found.</ComboboxEmpty>
+                  <ComboboxList>
+                    {(item: BorrowerOption) => (
+                      <ComboboxItem key={item.user_id} value={item}>
+                        {item.label}
+                      </ComboboxItem>
+                    )}
+                  </ComboboxList>
+                </ComboboxContent>
+              </Combobox>
               {isBorrowerLocked ? (
                 <Button className="h-11 rounded-md px-4" onClick={clearBorrowerPrefill} type="button" variant="outline">
                   Change borrower
                 </Button>
-              ) : null}
-              {shouldShowBorrowerSuggestions ? (
-                <div className="max-h-52 overflow-auto rounded-md border p-1">
-                  {filteredBorrowers.length > 0 ? (
-                    filteredBorrowers.map((borrower) => (
-                      <button
-                        className="hover:bg-accent w-full rounded-sm px-2 py-1 text-left text-sm"
-                        key={borrower.user_id}
-                        onClick={() => handleBorrowerSelect(borrower.user_id)}
-                        type="button"
-                      >
-                        {borrower.label}
-                      </button>
-                    ))
-                  ) : (
-                    <p className="text-muted-foreground px-2 py-1 text-sm">No borrowers found.</p>
-                  )}
-                </div>
               ) : null}
               {!selectedAreaId ? (
                 <p className="text-muted-foreground text-sm">
@@ -526,7 +663,7 @@ export function CreateLoanForm({
                         {term.label}
                       </SelectItem>
                     ))}
-                    {isAdmin ? <SelectItem value="custom">Custom</SelectItem> : null}
+                    {canUseCustomTerm ? <SelectItem value="custom">Custom</SelectItem> : null}
                   </SelectGroup>
                 </SelectContent>
               </Select>
@@ -546,7 +683,7 @@ export function CreateLoanForm({
                     className={`${CREATE_LOAN_CONTROL_CLASS_NAME} pl-7`}
                     id="principal"
                     inputMode="decimal"
-                    onChange={(event) => setPrincipalRaw(sanitizeNumericInput(event.target.value))}
+                    onChange={(event) => setPrincipalRaw(sanitizePrincipalInput(event.target.value))}
                     placeholder="0"
                     type="text"
                     value={principalDisplay}
@@ -563,7 +700,7 @@ export function CreateLoanForm({
                     className={CREATE_LOAN_CONTROL_CLASS_NAME}
                     id="interest"
                     inputMode="decimal"
-                    onChange={(event) => setInterest(sanitizeNumericInput(event.target.value))}
+                    onChange={(event) => setInterest(sanitizeInterestInput(event.target.value))}
                     placeholder="0%"
                     type="text"
                     value={interest}
@@ -586,31 +723,93 @@ export function CreateLoanForm({
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="start_date">Start Date</Label>
-                <Input
-                  className={CREATE_LOAN_CONTROL_CLASS_NAME}
-                  id="start_date"
-                  name="start_date"
-                  onChange={(event) => handleStartDateChange(event.target.value)}
-                  type="date"
-                  value={startDate}
-                />
+                <Popover onOpenChange={setIsStartDateOpen} open={isStartDateOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      className={`${CREATE_LOAN_CONTROL_CLASS_NAME} w-full justify-between border-input bg-transparent font-normal text-foreground hover:bg-card`}
+                      id="start_date"
+                      type="button"
+                      variant="outline"
+                    >
+                      <span className="inline-flex items-center gap-2 truncate">
+                        <CalendarIcon className="size-4 text-muted-foreground" />
+                        <span className="truncate">{formatDatePreview(startDate)}</span>
+                      </span>
+                      <ChevronDown className="size-4 text-muted-foreground" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="start" className="w-auto rounded-md p-0" sideOffset={6}>
+                    <Calendar
+                      disabled={(date) =>
+                        isCustomTerm ? Boolean(getBlockedDateReason(formatDateInput(date))) : false
+                      }
+                      mode="single"
+                      onSelect={(value) => {
+                        if (!value) {
+                          return;
+                        }
+                        handleStartDateChange(formatDateInput(value));
+                        setIsStartDateOpen(false);
+                      }}
+                      selected={startDateValue}
+                    />
+                  </PopoverContent>
+                </Popover>
                 {state.fieldErrors?.start_date ? (
                   <p className="text-sm text-destructive">{state.fieldErrors.start_date}</p>
+                ) : null}
+                {customStartDateBlockedReason ? (
+                  <p className="text-sm text-destructive">{customStartDateBlockedReason}</p>
                 ) : null}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="due_date">Due Date</Label>
-                <Input
-                  className={CREATE_LOAN_CONTROL_CLASS_NAME}
-                  disabled={!isCustomTerm}
-                  id="due_date"
-                  name={isCustomTerm ? "due_date" : undefined}
-                  onChange={(event) => setDueDate(event.target.value)}
-                  type="date"
-                  value={dueDate}
-                />
+                <Popover onOpenChange={setIsDueDateOpen} open={isDueDateOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      className={`${CREATE_LOAN_CONTROL_CLASS_NAME} w-full justify-between border-input bg-transparent font-normal text-foreground hover:bg-card`}
+                      disabled={!isCustomTerm}
+                      id="due_date"
+                      type="button"
+                      variant="outline"
+                    >
+                      <span className="inline-flex items-center gap-2 truncate">
+                        <CalendarIcon className="size-4 text-muted-foreground" />
+                        <span className="truncate">{formatDatePreview(dueDate)}</span>
+                      </span>
+                      <ChevronDown className="size-4 text-muted-foreground" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="start" className="w-auto rounded-md p-0" sideOffset={6}>
+                    <Calendar
+                      disabled={(date) => {
+                        if (!isCustomTerm) {
+                          return true;
+                        }
+
+                        if (startDateValue && date < startDateValue) {
+                          return true;
+                        }
+
+                        return Boolean(getBlockedDateReason(formatDateInput(date)));
+                      }}
+                      mode="single"
+                      onSelect={(value) => {
+                        if (!value) {
+                          return;
+                        }
+                        setDueDate(formatDateInput(value));
+                        setIsDueDateOpen(false);
+                      }}
+                      selected={dueDateValue}
+                    />
+                  </PopoverContent>
+                </Popover>
                 {state.fieldErrors?.due_date ? (
                   <p className="text-sm text-destructive">{state.fieldErrors.due_date}</p>
+                ) : null}
+                {customDueDateBlockedReason ? (
+                  <p className="text-sm text-destructive">{customDueDateBlockedReason}</p>
                 ) : null}
               </div>
             </div>
@@ -640,7 +839,7 @@ export function CreateLoanForm({
               <p className="text-sm text-destructive">{state.message}</p>
             ) : null}
 
-            <SubmitButton blocked={hasExistingActiveLoan} />
+            <SubmitButton blocked={hasExistingActiveLoan || hasCustomDateBlockingIssue} />
           </form>
 
           <Dialog onOpenChange={setIsConfirmOpen} open={isConfirmOpen}>
@@ -733,7 +932,7 @@ export function CreateLoanForm({
             </div>
 
             <DialogFooter>
-              <Button className="h-11 rounded-md" onClick={() => setSuccessDialogDismissed(true)} type="button" variant="outline">
+              <Button className="h-11 rounded-md" onClick={resetFormAfterSuccessClose} type="button" variant="outline">
                 Close
               </Button>
               <Button asChild className="h-11 rounded-md">

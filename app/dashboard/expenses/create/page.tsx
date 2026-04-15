@@ -1,14 +1,16 @@
 import { BanknoteArrowDown } from "lucide-react";
+import { and, eq, inArray } from "drizzle-orm";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DashboardBackLink } from "@/app/dashboard/_components/dashboard-back-link";
 import { DashboardHeaderConfigurator } from "@/app/dashboard/_components/dashboard-header-config";
 import {
   getDashboardAuthContext,
   getSingleAssignedBranchId,
-  resolveBranchNames,
 } from "@/app/dashboard/auth";
 import { resolveBackNavigation } from "@/app/dashboard/back-navigation";
 import { CreateExpenseForm } from "@/app/dashboard/expenses/create/create-expense-form";
+import { db } from "@/db";
+import { branch } from "@/db/schema";
 
 function renderCreateExpenseWorkspace(props: {
   form: React.ReactNode;
@@ -88,13 +90,41 @@ export default async function CreateExpensePage({
   }
 
   if (auth.roleName === "Admin") {
-    const branchNames = await resolveBranchNames(auth.assignedBranchIds);
-    const branchOptions = auth.assignedBranchIds
-      .map((branchId) => ({
-        branch_id: branchId,
-        branch_name: branchNames.get(branchId) ?? `Branch ${branchId}`,
-      }))
-      .sort((left, right) => left.branch_name.localeCompare(right.branch_name));
+    const activeBranchRows = auth.assignedBranchIds.length
+      ? await db
+          .select({
+            branch_id: branch.branch_id,
+            branch_name: branch.branch_name,
+          })
+          .from(branch)
+          .where(and(inArray(branch.branch_id, auth.assignedBranchIds), eq(branch.status, "active")))
+          .orderBy(branch.branch_name)
+          .catch(() => [])
+      : [];
+
+    const branchOptions = activeBranchRows.map((row) => ({
+      branch_id: row.branch_id,
+      branch_name: row.branch_name,
+    }));
+
+    if (branchOptions.length === 0) {
+      return (
+        <main className="mx-auto min-h-screen w-full max-w-4xl p-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Record Expense</CardTitle>
+              <CardDescription>Active Branch Required</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-amber-700 dark:text-amber-400">
+                No active branch is available in your scope. Expenses can only be recorded for active branches.
+              </p>
+              <DashboardBackLink href={backNavigation.href} label={backNavigation.label} />
+            </CardContent>
+          </Card>
+        </main>
+      );
+    }
 
     return renderCreateExpenseWorkspace({
       form: <CreateExpenseForm branchOptions={branchOptions} canChooseBranch />,
@@ -151,6 +181,33 @@ export default async function CreateExpensePage({
           <CardContent className="space-y-3">
             <p className="text-sm text-amber-700 dark:text-amber-400">
               Active branch assignment points to an invalid branch.
+            </p>
+            <DashboardBackLink href={backNavigation.href} label={backNavigation.label} />
+          </CardContent>
+        </Card>
+      </main>
+    );
+  }
+
+  const activeBranchRow = await db
+    .select({ branch_id: branch.branch_id })
+    .from(branch)
+    .where(and(eq(branch.branch_id, branchId), eq(branch.status, "active")))
+    .limit(1)
+    .then((rows) => rows[0] ?? null)
+    .catch(() => null);
+
+  if (!activeBranchRow) {
+    return (
+      <main className="mx-auto min-h-screen w-full max-w-4xl p-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Record Expense</CardTitle>
+            <CardDescription>Branch Manager Expense Entry</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <p className="text-sm text-amber-700 dark:text-amber-400">
+              Your assigned branch is inactive. Expenses can only be recorded for active branches.
             </p>
             <DashboardBackLink href={backNavigation.href} label={backNavigation.label} />
           </CardContent>

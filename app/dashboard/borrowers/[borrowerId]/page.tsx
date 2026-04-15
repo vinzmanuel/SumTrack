@@ -268,6 +268,7 @@ export default async function BorrowerProfilePage({ params, searchParams }: Page
   const canManageDocs = isAdmin || isBranchManager || isSecretary;
   const canViewDocs = isAdmin || isBranchManager || isSecretary || isAuditor;
   const canCreateLoan = isAdmin || isBranchManager || isSecretary;
+  const canAssessBorrowerRisk = isAdmin || isBranchManager || isAuditor;
 
   if (isCollector) {
     return renderMessageCard({
@@ -484,6 +485,7 @@ export default async function BorrowerProfilePage({ params, searchParams }: Page
             dateCreated: borrower.date_created,
           }}
           borrowerId={borrower.user_id}
+          canAssessRisk={canAssessBorrowerRisk}
         />
       ) : activeTab === "loan-history" ? (
         <Suspense fallback={<TabSkeleton />}>

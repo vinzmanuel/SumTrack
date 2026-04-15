@@ -4,6 +4,7 @@ import { BorrowerRiskAssessmentCard } from "@/app/dashboard/borrowers/[borrowerI
 export function BorrowerProfileSummaryTab({
   borrower,
   borrowerId,
+  canAssessRisk,
 }: {
   borrower: {
     fullName: string;
@@ -18,6 +19,7 @@ export function BorrowerProfileSummaryTab({
     dateCreated: string | null;
   };
   borrowerId: string;
+  canAssessRisk: boolean;
 }) {
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -41,7 +43,7 @@ export function BorrowerProfileSummaryTab({
         hideHeader
       />
 
-      <BorrowerRiskAssessmentCard borrowerId={borrowerId} />
+      {canAssessRisk ? <BorrowerRiskAssessmentCard borrowerId={borrowerId} /> : null}
     </div>
   );
 }

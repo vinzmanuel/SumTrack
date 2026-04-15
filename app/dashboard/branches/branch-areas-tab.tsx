@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, MoreHorizontal, Search } from "lucide-react";
-import { AreaDeleteButton } from "@/app/dashboard/branches/area-delete-button";
 import { AreaStatusButton } from "@/app/dashboard/branches/area-status-button";
 import { BranchCreateAreaDialog } from "@/app/dashboard/branches/branch-create-area-dialog";
 import { BranchEditAreaDialog } from "@/app/dashboard/branches/branch-edit-area-dialog";
@@ -302,17 +301,6 @@ export function BranchAreasTab({
                                   {row.status === "active" ? "Deactivate" : "Reactivate"}
                                 </button>
                               }
-                            />
-                            <AreaDeleteButton
-                              areaCode={row.areaCode}
-                              areaId={row.areaId}
-                              branchCode={branchCode}
-                              onDeleted={() => {
-                                setLocalAreas((current) =>
-                                  current.filter((area) => area.areaId !== row.areaId),
-                                );
-                              }}
-                              trigger={<button className={rowActionItemClassName("red")} type="button">Delete</button>}
                             />
                           </DropdownMenuContent>
                         </DropdownMenu>

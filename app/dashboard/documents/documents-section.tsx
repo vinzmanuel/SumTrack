@@ -77,6 +77,7 @@ type DocumentsSectionProps = {
   docs: DocumentRow[];
   documentTypes: readonly string[];
   canManage: boolean;
+  canDelete?: boolean;
   canView: boolean;
   hasMore: boolean;
   currentPage: number;
@@ -231,6 +232,7 @@ export function DocumentsSection({
   docs,
   documentTypes,
   canManage,
+  canDelete = true,
   canView,
   hasMore,
   currentPage,
@@ -527,7 +529,7 @@ export function DocumentsSection({
                             Replace
                           </Button>
                         ) : null}
-                        {canManage ? (
+                        {canManage && canDelete ? (
                           <Button
                             onClick={() => setDeleteTarget(doc)}
                             size="sm"
@@ -693,7 +695,10 @@ export function DocumentsSection({
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog onOpenChange={(open) => (!open ? setDeleteTarget(null) : null)} open={Boolean(deleteTarget)}>
+      <AlertDialog
+        onOpenChange={(open) => (!open ? setDeleteTarget(null) : null)}
+        open={canManage && canDelete && Boolean(deleteTarget)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete document permanently?</AlertDialogTitle>

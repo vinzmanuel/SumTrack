@@ -3,10 +3,8 @@ import "server-only";
 import { eq, sql } from "drizzle-orm";
 import type { DashboardAuthContext } from "@/app/dashboard/auth";
 import { db } from "@/db";
-import { collections, loan_docs, loan_records } from "@/db/schema";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { collections, loan_records } from "@/db/schema";
 import { buildAuditActorFromAuth, logAuditEvent } from "@/lib/audit/logger";
-import { getAuditRequestContext } from "@/lib/audit/request-context";
 import {
   buildLoanComputedState,
   getManilaTodayDateString,
@@ -172,72 +170,7 @@ export async function deleteLoanRecord(
   auth: DashboardAuthContext,
   loanIdRaw: string,
 ): Promise<LoanLifecycleResult> {
-  const requestContext = await getAuditRequestContext();
-  const loanId = parseLoanId(loanIdRaw);
-  if (!loanId) {
-    return { ok: false, message: "Loan not found." };
-  }
-
-  if (auth.roleName !== "Admin") {
-    return { ok: false, message: "Only Admin can delete loans." };
-  }
-
-  const loan = await loadLoanLifecycleContext(loanId);
-  if (!loan) {
-    return { ok: false, message: "Loan not found." };
-  }
-
-  if (loan.collectionCount > 0) {
-    return { ok: false, message: "Loans with recorded collections cannot be deleted." };
-  }
-
-  const loanDocRows = await db
-    .select({
-      loanDocId: loan_docs.loan_doc_id,
-      filePath: loan_docs.file_path,
-    })
-    .from(loan_docs)
-    .where(eq(loan_docs.loan_id, loan.loanId))
-    .catch(() => []);
-
-  if (loanDocRows.length > 0) {
-    const adminClient = createAdminClient();
-    const removeResult = await adminClient.storage.from("loan-docs").remove(
-      loanDocRows.map((row) => row.filePath),
-    );
-
-    if (removeResult.error) {
-      return {
-        ok: false,
-        message: `Unable to delete loan documents from storage: ${removeResult.error.message}`,
-      };
-    }
-
-    await db.delete(loan_docs).where(eq(loan_docs.loan_id, loan.loanId));
-  }
-
-  await db.delete(loan_records).where(eq(loan_records.loan_id, loan.loanId));
-
-  await logAuditEvent({
-    action: "loan.deleted",
-    entityType: "loan",
-    entityId: loan.loanCode,
-    actor: buildAuditActorFromAuth(auth),
-    branchId: loan.branchId,
-    branchScope: [loan.branchId],
-    description: `Deleted loan ${loan.loanCode}.`,
-    requestContext,
-    metadata: {
-      loanCode: loan.loanCode,
-      previousStatus: loan.storedStatus,
-      collectionCount: loan.collectionCount,
-      totalCollected: loan.totalCollected,
-      dueDate: loan.dueDate,
-    },
-  });
-
-  return {
-    ok: true,
-    message: "Loan deleted successfully.",
-  };
+  void auth;
+  void loanIdRaw;
+  return { ok: false, message: "Loan deletion is disabled by current system policy." };
 }

@@ -151,6 +151,7 @@ export default async function CreateLoanPage({ searchParams }: CreateLoanPagePro
           areas={pageState.areas}
           branches={pageState.branches}
           borrowers={pageState.borrowers}
+          canUseCustomTerm={pageState.canUseCustomTerm}
           collectors={pageState.collectors}
           isAdmin={pageState.isAdmin}
           prefilledBorrower={pageState.prefilledBorrower}

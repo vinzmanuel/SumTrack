@@ -242,19 +242,9 @@ export function canDeleteManagedUser(
   scope: ManageUserAccountsScope,
   row: { roleName: string; userId: string },
 ) {
-  if (row.userId === scope.viewerUserId) {
-    return false;
-  }
-
-  if (isProtectedSuperAdminAccount(row.userId)) {
-    return false;
-  }
-
-  if (row.roleName === "Admin" && !scope.isSuperAdmin) {
-    return false;
-  }
-
-  return canEditManagedUser(scope, row);
+  void scope;
+  void row;
+  return false;
 }
 
 export function canManageManagedUserStatus(

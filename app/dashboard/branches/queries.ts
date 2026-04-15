@@ -1,7 +1,6 @@
 import "server-only";
 
 import { and, asc, eq, gte, inArray, isNull, lt, sql } from "drizzle-orm";
-import { LIVE_STORED_LOAN_STATUSES } from "@/app/dashboard/loans/loan-state";
 import { db } from "@/db";
 import {
   areas,
@@ -11,9 +10,6 @@ import {
   employee_area_assignment,
   employee_branch_assignment,
   employee_info,
-  expenses,
-  incentive_payout_batches,
-  incentive_rules,
   loan_records,
   roles,
   users,
@@ -91,10 +87,6 @@ function formatDisplayName(firstName: string | null, middleName: string | null, 
   const middleInitial = normalizedMiddle ? `${normalizedMiddle.charAt(0).toUpperCase()}.` : "";
 
   return [normalizedFirst, middleInitial, normalizedLast].filter(Boolean).join(" ").trim() || "Unassigned";
-}
-
-function pluralize(count: number, singular: string, plural = `${singular}s`) {
-  return `${count} ${count === 1 ? singular : plural}`;
 }
 
 function branchScopedEmployeeRoleNames() {
@@ -685,7 +677,7 @@ export function resolveBranchActionPermissions(
   return {
     canEditDetails: access.roleName === "Admin" || access.roleName === "Branch Manager",
     canManageLifecycle: access.roleName === "Admin",
-    canDelete: access.roleName === "Admin",
+    canDelete: false,
     canManageEmployees: access.roleName === "Admin" || access.roleName === "Branch Manager",
     canManageAreas: access.roleName === "Admin" || access.roleName === "Branch Manager",
   };
@@ -897,6 +889,10 @@ export async function deleteAreaByBranchCode(params: {
   branchCode: string;
   areaId: number;
 }): Promise<BranchMutationResult> {
+  void params;
+  return { ok: false, message: "Area deletion is disabled by current system policy." };
+
+  /*
   const target = await loadAreaMutationTarget(params);
   if (!target) {
     return { ok: false, message: "Area not found in this branch." };
@@ -970,6 +966,7 @@ export async function deleteAreaByBranchCode(params: {
   }
 
   return { ok: true, message: "Area deleted." };
+  */
 }
 
 export async function updateBranchDetailsByCode(params: {
@@ -1050,6 +1047,10 @@ export async function deleteBranchByCode(params: {
   access: Extract<BranchDetailAccessState, { view: "detail" }>;
   branchCode: string;
 }): Promise<BranchMutationResult> {
+  void params;
+  return { ok: false, message: "Branch deletion is disabled by current system policy." };
+
+  /*
   const target = await loadBranchMutationTarget(params.access, params.branchCode);
   if (!target) {
     return { ok: false, message: "Branch not found in your allowed scope." };
@@ -1189,6 +1190,7 @@ export async function deleteBranchByCode(params: {
       message: "This branch still has linked operational records and cannot be deleted.",
     };
   }
+  */
 }
 
 export async function loadBranchEmployeesTabDataByCode(

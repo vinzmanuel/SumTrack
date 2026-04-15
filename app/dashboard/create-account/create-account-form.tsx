@@ -235,21 +235,17 @@ export function CreateAccountForm({
   const [state, formAction] = useActionState(createAccountAction, initialCreateAccountState);
   const formRef = useRef<HTMLFormElement>(null);
   const confirmedSubmitRef = useRef(false);
+  const initialAccountCategory: AccountCategory =
+    borrowerOnly || prefillRole === "Borrower" ? "Borrower" : "Employee";
+  const initialRoleId =
+    prefillRole && prefillRole !== "Borrower"
+      ? String(roles.find((role) => role.role_name === prefillRole)?.role_id ?? "")
+      : "";
 
   const [accountCategory, setAccountCategory] = useState<AccountCategory>(
-    borrowerOnly 
-      ? "Borrower" 
-      : prefillRole === "Borrower" 
-        ? "Borrower" 
-        : "Employee"
+    initialAccountCategory,
   );
-  const [roleId, setRoleId] = useState(() => {
-    if (prefillRole && prefillRole !== "Borrower") {
-      const found = roles.find((r) => r.role_name === prefillRole);
-      return found ? String(found.role_id) : "";
-    }
-    return "";
-  });
+  const [roleId, setRoleId] = useState(initialRoleId);
   const [firstName, setFirstName] = useState("");
   const [middleName, setMiddleName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -413,9 +409,27 @@ export function CreateAccountForm({
     }
   }
 
+  function resetFormAfterSuccessClose() {
+    confirmedSubmitRef.current = false;
+    setIsConfirmOpen(false);
+    setSuccessDialogDismissed(true);
+    setShowPassword(false);
+    setAccountCategory(initialAccountCategory);
+    setRoleId(initialRoleId);
+    setFirstName("");
+    setMiddleName("");
+    setLastName("");
+    setContactNo("");
+    setEmail("");
+    setAddress("");
+    setSingleBranchId(fixedBranchId ?? "");
+    setAreaId("");
+    setAuditorBranchIds([]);
+  }
+
   function handleCloseWarningConfirm() {
     setIsCloseWarningOpen(false);
-    setSuccessDialogDismissed(true);
+    resetFormAfterSuccessClose();
   }
 
   async function handleCopy(text: string, label: string) {
@@ -548,6 +562,7 @@ export function CreateAccountForm({
                     aria-invalid={Boolean(state.fieldErrors?.first_name) || undefined}
                     className={CREATE_ACCOUNT_CONTROL_CLASS_NAME}
                     id="first_name"
+                    minLength={2}
                     name="first_name"
                     onChange={(event) => setFirstName(event.target.value)}
                     value={firstName}
@@ -582,6 +597,7 @@ export function CreateAccountForm({
                     aria-invalid={Boolean(state.fieldErrors?.last_name) || undefined}
                     className={CREATE_ACCOUNT_CONTROL_CLASS_NAME}
                     id="last_name"
+                    minLength={2}
                     name="last_name"
                     onChange={(event) => setLastName(event.target.value)}
                     value={lastName}

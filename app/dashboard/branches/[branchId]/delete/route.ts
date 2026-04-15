@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { getDashboardAuthContext } from "@/app/dashboard/auth";
-import { deleteBranchByCode } from "@/app/dashboard/branches/queries";
 import { resolveBranchDetailAccess } from "@/app/dashboard/branches/types";
 
 export async function POST(
@@ -17,15 +16,9 @@ export async function POST(
     );
   }
 
-  const branchCode = decodeURIComponent((await context.params).branchId).trim();
-
-  const result = await deleteBranchByCode({
-    access,
-    branchCode,
-  });
-
+  void context;
   return NextResponse.json(
-    { message: result.message },
-    { status: result.ok ? 200 : 400 },
+    { message: "Branch deletion is disabled by current system policy." },
+    { status: 403 },
   );
 }

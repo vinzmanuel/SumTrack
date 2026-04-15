@@ -44,6 +44,42 @@ function parsePositiveAmount(value: string) {
   return parsed;
 }
 
+function parseDateParts(value: string) {
+  const [yearRaw, monthRaw, dayRaw] = value.split("-");
+  const year = Number(yearRaw);
+  const month = Number(monthRaw);
+  const day = Number(dayRaw);
+
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) {
+    return null;
+  }
+
+  if (month < 1 || month > 12 || day < 1 || day > 31) {
+    return null;
+  }
+
+  return { year, month, day };
+}
+
+function toUtcDateFromDateInput(value: string) {
+  const parsed = parseDateParts(value);
+  if (!parsed) {
+    return null;
+  }
+
+  return new Date(Date.UTC(parsed.year, parsed.month - 1, parsed.day));
+}
+
+function getTodayDateStringInManila() {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  return formatter.format(new Date());
+}
+
 export async function createExpenseAction(
   _prevState: CreateExpenseState,
   formData: FormData,
@@ -75,6 +111,15 @@ export async function createExpenseAction(
 
   if (!expenseDate) {
     fieldErrors.expense_date = "Expense date is required.";
+  } else {
+    const parsedExpenseDate = toUtcDateFromDateInput(expenseDate);
+    const parsedToday = toUtcDateFromDateInput(getTodayDateStringInManila());
+
+    if (!parsedExpenseDate) {
+      fieldErrors.expense_date = "Expense date is invalid.";
+    } else if (parsedToday && parsedExpenseDate.getTime() > parsedToday.getTime()) {
+      fieldErrors.expense_date = "Expense date cannot be in the future.";
+    }
   }
 
   if (Object.keys(fieldErrors).length > 0) {
@@ -111,7 +156,7 @@ export async function createExpenseAction(
       }
 
       const branchRow = await db
-        .select({ branch_name: branch.branch_name })
+        .select({ branch_name: branch.branch_name, status: branch.status })
         .from(branch)
         .where(eq(branch.branch_id, branchId))
         .limit(1)
@@ -120,6 +165,8 @@ export async function createExpenseAction(
 
       if (!branchRow?.branch_name) {
         fieldErrors.branch_id = "Selected branch is invalid.";
+      } else if (branchRow.status !== "active") {
+        fieldErrors.branch_id = "Selected branch is inactive. Expenses can only be recorded for active branches.";
       } else {
         branchName = branchRow.branch_name;
       }
@@ -147,7 +194,29 @@ export async function createExpenseAction(
       };
     }
 
-    branchName = auth.activeBranchName;
+    const branchRow = await db
+      .select({ branch_name: branch.branch_name, status: branch.status })
+      .from(branch)
+      .where(eq(branch.branch_id, branchId))
+      .limit(1)
+      .then((rows) => rows[0] ?? null)
+      .catch(() => null);
+
+    if (!branchRow?.branch_name) {
+      return {
+        status: "error",
+        message: "Active branch assignment points to an invalid branch.",
+      };
+    }
+
+    if (branchRow.status !== "active") {
+      return {
+        status: "error",
+        message: "Your assigned branch is inactive. Expenses can only be recorded for active branches.",
+      };
+    }
+
+    branchName = branchRow.branch_name;
   } else {
     return {
       status: "error",

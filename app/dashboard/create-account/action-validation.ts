@@ -60,9 +60,13 @@ export function validateCreateAccountInput(input: ParsedCreateAccountInput): Act
   }
   if (!input.firstName) {
     fieldErrors.first_name = "First name is required.";
+  } else if (input.firstName.length < 2) {
+    fieldErrors.first_name = "First name must be at least 2 characters.";
   }
   if (!input.lastName) {
     fieldErrors.last_name = "Last name is required.";
+  } else if (input.lastName.length < 2) {
+    fieldErrors.last_name = "Last name must be at least 2 characters.";
   }
 
   if (input.email && !isValidEmailAddress(input.email)) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { Check } from "lucide-react";
+import { Calendar as CalendarIcon, Check, ChevronDown } from "lucide-react";
 import { useActionState, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useFormStatus } from "react-dom";
 import { UI_CONTROL_CLASS_NAME, UI_SURFACE_CLASS_NAME } from "@/app/dashboard/_components/ui-patterns";
@@ -15,9 +15,13 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import {
   Select,
   SelectContent,
+  SelectGroup,
+  SelectLabel,
   SelectItem,
   SelectTrigger,
   SelectValue,
@@ -95,6 +99,46 @@ function formatMoney(value: number) {
   })}`;
 }
 
+function formatDatePreview(value: string) {
+  if (!value) {
+    return "Select date";
+  }
+
+  const [year, month, day] = value.split("-");
+  if (!year || !month || !day) {
+    return value;
+  }
+
+  const formatted = new Date(`${year}-${month}-${day}T00:00:00`).toLocaleDateString("en-PH", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
+  return formatted;
+}
+
+function parseDateInputToDate(value: string) {
+  const [yearRaw, monthRaw, dayRaw] = value.split("-");
+  const year = Number(yearRaw);
+  const month = Number(monthRaw);
+  const day = Number(dayRaw);
+
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) {
+    return undefined;
+  }
+
+  const parsed = new Date(year, month - 1, day);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+}
+
+function formatDateToInputValue(value: Date) {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function sanitizeNumericInput(value: string) {
   const cleaned = value.replace(/[^0-9.]/g, "");
   const firstDotIndex = cleaned.indexOf(".");
@@ -138,8 +182,11 @@ export function CreateExpenseForm({
   const [description, setDescription] = useState("");
   const [amountRaw, setAmountRaw] = useState("");
   const [expenseDate, setExpenseDate] = useState(getTodayDateString());
+  const [isExpenseDateOpen, setIsExpenseDateOpen] = useState(false);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isSuccessOpen, setIsSuccessOpen] = useState(false);
+  const maxExpenseDate = getTodayDateString();
+  const maxExpenseDateValue = parseDateInputToDate(maxExpenseDate);
   const amountDisplay = formatMoneyDisplay(amountRaw);
   const amountPreview = amountDisplay ? `\u20B1${amountDisplay}` : "";
   const selectedBranchName =
@@ -195,6 +242,7 @@ export function CreateExpenseForm({
               </p>
             </div>
             <input name="amount" type="hidden" value={amountRaw} />
+            <input name="expense_date" type="hidden" value={expenseDate} />
             <input name="branch_id" type="hidden" value={canChooseBranch ? selectedBranchId : String(branchId ?? "")} />
             {canChooseBranch ? (
               <Field invalid={Boolean(state.fieldErrors?.branch_id)}>
@@ -203,18 +251,21 @@ export function CreateExpenseForm({
                   <SelectTrigger
                     aria-invalid={Boolean(state.fieldErrors?.branch_id) || undefined}
                     className={`${UI_CONTROL_CLASS_NAME} w-full`}
-                  >
-                    <SelectValue placeholder="Select branch" />
-                  </SelectTrigger>
-                  <SelectContent>
+                >
+                  <SelectValue placeholder="Select branch" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    <SelectLabel>Branch</SelectLabel>
                     {branchOptions.map((option) => (
                       <SelectItem key={option.branch_id} value={String(option.branch_id)}>
                         {option.branch_name}
                       </SelectItem>
                     ))}
-                  </SelectContent>
-                </Select>
-                {state.fieldErrors?.branch_id ? (
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+              {state.fieldErrors?.branch_id ? (
                   <p className="text-sm text-destructive" data-slot="field-error">{state.fieldErrors.branch_id}</p>
                 ) : null}
               </Field>
@@ -298,15 +349,43 @@ export function CreateExpenseForm({
 
               <Field invalid={Boolean(state.fieldErrors?.expense_date)}>
                 <Label htmlFor="expense_date">Expense Date</Label>
-                <Input
-                  aria-invalid={Boolean(state.fieldErrors?.expense_date) || undefined}
-                  className={UI_CONTROL_CLASS_NAME}
-                  id="expense_date"
-                  name="expense_date"
-                  onChange={(event) => setExpenseDate(event.target.value)}
-                  type="date"
-                  value={expenseDate}
-                />
+                <Popover onOpenChange={setIsExpenseDateOpen} open={isExpenseDateOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      aria-invalid={Boolean(state.fieldErrors?.expense_date) || undefined}
+                      className={`${UI_CONTROL_CLASS_NAME} w-full justify-between border-input font-normal text-foreground hover:bg-card`}
+                      id="expense_date"
+                      type="button"
+                      variant="outline"
+                    >
+                      <span className="inline-flex items-center gap-2 truncate">
+                        <CalendarIcon className="size-4 text-muted-foreground" />
+                        <span className="truncate">{formatDatePreview(expenseDate)}</span>
+                      </span>
+                      <ChevronDown className="size-4 text-muted-foreground" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="start" className="w-auto rounded-md p-0" sideOffset={6}>
+                    <Calendar
+                      aria-invalid={Boolean(state.fieldErrors?.expense_date) || undefined}
+                      disabled={(date) => {
+                        if (!maxExpenseDateValue) {
+                          return false;
+                        }
+                        return date > maxExpenseDateValue;
+                      }}
+                      mode="single"
+                      onSelect={(value) => {
+                        if (!value) {
+                          return;
+                        }
+                        setExpenseDate(formatDateToInputValue(value));
+                        setIsExpenseDateOpen(false);
+                      }}
+                      selected={parseDateInputToDate(expenseDate)}
+                    />
+                  </PopoverContent>
+                </Popover>
                 {state.fieldErrors?.expense_date ? (
                   <p className="text-sm text-destructive" data-slot="field-error">{state.fieldErrors.expense_date}</p>
                 ) : null}

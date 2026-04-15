@@ -4,7 +4,6 @@ import {
   parseManageUserAccountsFilters,
   resolveManageUserAccountsAccess,
 } from "@/app/dashboard/manage-user-accounts/filters";
-import { deleteManagedUserAccount } from "@/app/dashboard/manage-user-accounts/queries";
 
 export async function POST(
   _request: Request,
@@ -17,12 +16,9 @@ export async function POST(
     return NextResponse.json({ message: "You are not authorized to delete user accounts." }, { status: 403 });
   }
 
-  const { userId } = await context.params;
-  const result = await deleteManagedUserAccount(accessState, userId);
-
-  if (!result.ok) {
-    return NextResponse.json(result, { status: result.errorType === "reassignment_required" ? 409 : 400 });
-  }
-
-  return NextResponse.json({ ok: true });
+  void context;
+  return NextResponse.json(
+    { message: "Account deletion is disabled by current system policy." },
+    { status: 403 },
+  );
 }

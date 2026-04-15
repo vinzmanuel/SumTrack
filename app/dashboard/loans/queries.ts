@@ -225,7 +225,7 @@ function toLoanListRow(
           visibleStatus,
         }) !== null
       : false,
-    canDelete: scope.roleName === "Admin" && (Number(row.collection_count) || 0) === 0,
+    canDelete: false,
   };
 }
 

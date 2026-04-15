@@ -37,6 +37,8 @@ type FormFields = {
 type ActionFieldErrors = Partial<Record<keyof FormFields, string>>;
 
 const NEW_LOAN_STATUS = "active";
+const MAX_PRINCIPAL = 25_000;
+const INTEREST_INPUT_PATTERN = /^\d{1,2}(\.\d{1,2})?$/;
 
 function getTrimmed(formData: FormData, key: keyof FormFields) {
   return String(formData.get(key) ?? "").trim();
@@ -58,6 +60,88 @@ function parseNonNegativeNumber(value: string) {
   }
 
   return parsed;
+}
+
+function parseDateParts(value: string) {
+  const [yearRaw, monthRaw, dayRaw] = value.split("-");
+  const year = Number(yearRaw);
+  const month = Number(monthRaw);
+  const day = Number(dayRaw);
+
+  if (!Number.isInteger(year) || !Number.isInteger(month) || !Number.isInteger(day)) {
+    return null;
+  }
+
+  if (month < 1 || month > 12 || day < 1 || day > 31) {
+    return null;
+  }
+
+  return { year, month, day };
+}
+
+function toUtcDate(value: string) {
+  const parsed = parseDateParts(value);
+  if (!parsed) {
+    return null;
+  }
+
+  return new Date(Date.UTC(parsed.year, parsed.month - 1, parsed.day));
+}
+
+function getGoodFriday(year: number) {
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31);
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+  const easterSunday = new Date(Date.UTC(year, month - 1, day));
+  easterSunday.setUTCDate(easterSunday.getUTCDate() - 2);
+  return easterSunday;
+}
+
+function getBlockedCustomDateReason(value: string) {
+  const parsed = parseDateParts(value);
+  const date = toUtcDate(value);
+
+  if (!parsed || !date) {
+    return null;
+  }
+
+  if (date.getUTCDay() === 0) {
+    return "Sundays are not allowed for custom terms.";
+  }
+
+  const goodFriday = getGoodFriday(parsed.year);
+  if (
+    goodFriday.getUTCFullYear() === parsed.year &&
+    goodFriday.getUTCMonth() + 1 === parsed.month &&
+    goodFriday.getUTCDate() === parsed.day
+  ) {
+    return "Good Friday is not allowed for custom terms.";
+  }
+
+  if (parsed.month === 1 && parsed.day === 1) {
+    return "New Year's Day is not allowed for custom terms.";
+  }
+
+  if (parsed.month === 11 && parsed.day === 1) {
+    return "All Saints' Day is not allowed for custom terms.";
+  }
+
+  if (parsed.month === 12 && parsed.day === 25) {
+    return "Christmas Day is not allowed for custom terms.";
+  }
+
+  return null;
 }
 
 function escapeRegExp(value: string) {
@@ -123,10 +207,13 @@ export async function createLoanAction(
   if (principal === null) {
     fieldErrors.principal = "Principal must be a number greater than or equal to 0.";
   }
+  const principalClamped = principal === null ? null : Math.min(principal, MAX_PRINCIPAL);
 
   const interest = parseNonNegativeNumber(interestRaw);
   if (interest === null) {
     fieldErrors.interest = "Interest must be a number greater than or equal to 0.";
+  } else if (!INTEREST_INPUT_PATTERN.test(interestRaw)) {
+    fieldErrors.interest = "Interest must be up to 2 digits (max 99.99).";
   }
 
   if (!startDate) {
@@ -158,6 +245,7 @@ export async function createLoanAction(
   }
 
   const isAdmin = access.isAdmin;
+  const canUseCustomTerm = access.roleName === "Admin" || access.roleName === "Branch Manager";
   const allowedBranchId = access.fixedBranchId;
 
   const borrowerInfo = await db
@@ -393,7 +481,7 @@ export async function createLoanAction(
 
   let termDays: number | null = rawCalendarDayDiff;
 
-  if (!isAdmin && termDays !== 58 && termDays !== 60) {
+  if (!canUseCustomTerm && termDays !== 58 && termDays !== 60) {
     const expectedScheduleTerm = termOption === "58" || termOption === "60" ? Number(termOption) : null;
     if (expectedScheduleTerm === null) {
       return {
@@ -423,10 +511,23 @@ export async function createLoanAction(
     }
     termDays = Number(termOption);
   } else if (termOption === "custom") {
-    if (!isAdmin) {
+    if (!canUseCustomTerm) {
       return {
         status: "error",
-        message: "Only Admin can use custom loan terms.",
+        message: "Only Admin or Branch Manager can use custom loan terms.",
+      };
+    }
+
+    const blockedStartDateReason = getBlockedCustomDateReason(startDate);
+    const blockedDueDateReason = getBlockedCustomDateReason(dueDate);
+    if (blockedStartDateReason || blockedDueDateReason) {
+      return {
+        status: "error",
+        message: "Custom terms cannot use restricted dates.",
+        fieldErrors: {
+          ...(blockedStartDateReason ? { start_date: blockedStartDateReason } : {}),
+          ...(blockedDueDateReason ? { due_date: blockedDueDateReason } : {}),
+        },
       };
     }
   } else {
@@ -444,7 +545,7 @@ export async function createLoanAction(
     .values({
       loan_code: nextLoanCode,
       borrower_id: borrowerInfo.user_id,
-      principal: String(principal!),
+      principal: String(principalClamped!),
       interest: String(interest!),
       collector_id: collectorUser.user_id,
       start_date: startDate,
@@ -487,7 +588,7 @@ export async function createLoanAction(
       collectorName,
       branchId: borrowerInfo.borrower_branch_id,
       areaId: borrowerInfo.borrower_area_id,
-      principal: principal!,
+      principal: principalClamped!,
       interest: interest!,
       startDate,
       dueDate,
@@ -505,7 +606,7 @@ export async function createLoanAction(
       borrowerName,
       branchName: borrowerInfo.branch_name,
       collectorName,
-      principal: principal!,
+      principal: principalClamped!,
       interest: interest!,
       startDate,
       dueDate,
