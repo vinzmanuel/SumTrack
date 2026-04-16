@@ -188,14 +188,22 @@ export function ManagedUserAccountEditModal({
     (detail?.currentBranchId !== null && detail?.currentBranchId !== undefined
       ? String(detail.currentBranchId)
       : "");
-  const selectableBranchOptions =
-    detail
-      ? selectedRoleName === "Branch Manager"
-        ? detail.editableBranchOptions.filter((item) => !item.hasActiveBranchManager)
-        : selectedRoleName === "Auditor"
-          ? detail.editableBranchOptions.filter((item) => !item.hasActiveAuditor)
-          : detail.editableBranchOptions
-      : [];
+  const selectableBranchOptions = useMemo(
+    () =>
+      detail
+        ? selectedRoleName === "Branch Manager"
+          ? detail.editableBranchOptions.filter((item) => !item.hasActiveBranchManager)
+          : selectedRoleName === "Auditor"
+            ? detail.editableBranchOptions.filter((item) => !item.hasActiveAuditor)
+            : detail.editableBranchOptions
+        : [],
+    [detail, selectedRoleName],
+  );
+  const isFixedCollectorBranchScope =
+    showCollectorBranchSelector &&
+    selectedRoleName === "Collector" &&
+    selectableBranchOptions.length === 1;
+  const showCollectorBranchControl = showCollectorBranchSelector && !isFixedCollectorBranchScope;
   const visibleAreaOptions =
     detail && formState
       ? detail.editableAreaOptions.filter((item) =>
@@ -221,6 +229,26 @@ export function ManagedUserAccountEditModal({
       setAuditorBranchToAdd("");
     }
   }, [showAuditorBranchSelector]);
+
+  useEffect(() => {
+    if (!isFixedCollectorBranchScope || !formState) {
+      return;
+    }
+
+    const onlyBranchId = String(selectableBranchOptions[0]?.branchId ?? "");
+    if (!onlyBranchId || formState.branchId === onlyBranchId) {
+      return;
+    }
+
+    setFormState((previous) =>
+      previous
+        ? {
+            ...previous,
+            branchId: onlyBranchId,
+          }
+        : previous,
+    );
+  }, [formState, isFixedCollectorBranchScope, selectableBranchOptions]);
 
   function updateRole(value: string) {
     setFormState((previous) => {
@@ -411,7 +439,7 @@ export function ManagedUserAccountEditModal({
 
   const confirmationLines = [
     selectedRoleName ? `Role: ${selectedRoleName}` : null,
-    showCollectorBranchSelector || showSingleBranchSelector
+    showCollectorBranchControl || showSingleBranchSelector || isFixedCollectorBranchScope
       ? `Branch: ${
           detail?.editableBranchOptions.find((item) => String(item.branchId) === formState?.branchId)?.branchName ?? "None"
         }`
@@ -545,9 +573,6 @@ export function ManagedUserAccountEditModal({
                 <div className="space-y-3">
                   <div className="space-y-1">
                     <p className="text-sm font-medium">Role</p>
-                    <p className="text-xs text-muted-foreground">
-                      Borrower accounts stay locked. Other roles only show the transitions this editor can actually use.
-                    </p>
                   </div>
                   <div className="grid gap-4 md:grid-cols-2">
                     <div className="space-y-1.5">
@@ -564,18 +589,12 @@ export function ManagedUserAccountEditModal({
                           ))}
                         </SelectContent>
                       </Select>
-                      {detail.roleName === "Collector" &&
-                      detail.editableRoleOptions.some((item) => item.roleName === "Secretary") ? (
-                        <p className="text-xs text-muted-foreground">
-                          This editor can only promote this collector to secretary in this flow.
-                        </p>
-                      ) : null}
                     </div>
                   </div>
                 </div>
               ) : null}
 
-              {showCollectorBranchSelector ||
+              {showCollectorBranchControl ||
               showSingleBranchSelector ||
               showAreaAssignmentControl ||
               showAuditorBranchSelector ? (
@@ -589,44 +608,46 @@ export function ManagedUserAccountEditModal({
                     </p>
                   </div>
 
-                  {showCollectorBranchSelector || showSingleBranchSelector || showAreaAssignmentControl ? (
+                  {showCollectorBranchControl || showSingleBranchSelector || showAreaAssignmentControl ? (
                     <div
                       className={
-                        showCollectorBranchSelector && showAreaAssignmentControl
+                        showCollectorBranchControl && showAreaAssignmentControl
                           ? "grid gap-4 md:grid-cols-2"
                           : "grid gap-4"
                       }
                     >
-                      <div className="space-y-1.5">
-                        <Label htmlFor="edit-branch-assignment">
-                          {selectedRoleName === "Collector" ? "Branch" : "Branch Assignment"}
-                        </Label>
-                        <Select
-                          onValueChange={(value) =>
-                            setFormState((previous) =>
-                              previous
-                                ? {
-                                    ...previous,
-                                    branchId: value,
-                                    areaId: selectedRoleName === "Collector" ? "" : previous.areaId,
-                                  }
-                                : previous,
-                            )
-                          }
-                          value={formState.branchId || undefined}
-                        >
-                          <SelectTrigger id="edit-branch-assignment" className="w-full">
-                            <SelectValue placeholder="Select branch" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {selectableBranchOptions.map((item) => (
-                              <SelectItem key={String(item.branchId)} value={String(item.branchId)}>
-                                {branchLabel(item)}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
+                      {showCollectorBranchControl || showSingleBranchSelector ? (
+                        <div className="space-y-1.5">
+                          <Label htmlFor="edit-branch-assignment">
+                            {selectedRoleName === "Collector" ? "Branch" : "Branch Assignment"}
+                          </Label>
+                          <Select
+                            onValueChange={(value) =>
+                              setFormState((previous) =>
+                                previous
+                                  ? {
+                                      ...previous,
+                                      branchId: value,
+                                      areaId: selectedRoleName === "Collector" ? "" : previous.areaId,
+                                    }
+                                  : previous,
+                              )
+                            }
+                            value={formState.branchId || undefined}
+                          >
+                            <SelectTrigger id="edit-branch-assignment" className="w-full">
+                              <SelectValue placeholder="Select branch" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {selectableBranchOptions.map((item) => (
+                                <SelectItem key={String(item.branchId)} value={String(item.branchId)}>
+                                  {branchLabel(item)}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      ) : null}
 
                       {showAreaAssignmentControl ? (
                         <div className="space-y-1.5">
