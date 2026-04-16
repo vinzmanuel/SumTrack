@@ -16,16 +16,6 @@ type GeminiRiskPayload = {
   mitigating_signals: string[];
   confidence: BorrowerRiskAiConfidence;
 };
-type BorrowerRiskPromptContext = {
-  totalMissedPayments: number;
-  totalCollectionEntries: number;
-  missedPaymentRatio: number;
-  missedPaymentsLast30Days: number;
-  missedPaymentsLast90Days: number;
-  loansWithMissedPayments: number;
-  overdueLoans: number;
-  abandonedLoans: number;
-};
 
 const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta";
 const DEFAULT_GEMINI_MODEL = "gemini-3-flash-preview";
@@ -40,6 +30,70 @@ const ALLOWED_SIGNALS = new Set<BorrowerRiskSignalKind>([
   "repeated_promises",
   "other",
 ]);
+const RISK_RESPONSE_JSON_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    summary: {
+      type: "string",
+      description: "1-2 short sentences only. Keep it concise.",
+    },
+    overall_tone: {
+      type: "string",
+      enum: ["neutral", "mixed", "concerning", "severe"],
+    },
+    severity_score: {
+      type: "integer",
+      minimum: 1,
+      maximum: 50,
+    },
+    risk_signals: {
+      type: "array",
+      maxItems: 5,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          signal: {
+            type: "string",
+            enum: [
+              "income_instability",
+              "avoidance",
+              "health_issue",
+              "family_emergency",
+              "work_disruption",
+              "repeated_promises",
+              "other",
+            ],
+          },
+          evidence: {
+            type: "string",
+          },
+        },
+        required: ["signal", "evidence"],
+      },
+    },
+    mitigating_signals: {
+      type: "array",
+      maxItems: 3,
+      items: {
+        type: "string",
+      },
+    },
+    confidence: {
+      type: "string",
+      enum: ["low", "medium", "high"],
+    },
+  },
+  required: [
+    "summary",
+    "overall_tone",
+    "severity_score",
+    "risk_signals",
+    "mitigating_signals",
+    "confidence",
+  ],
+} as const;
 
 function extractGeminiTexts(responseBody: unknown) {
   if (!responseBody || typeof responseBody !== "object") {
@@ -291,20 +345,30 @@ function normalizeGeminiRiskPayload(value: unknown): GeminiRiskPayload | null {
   }
   const record = value as Record<string, unknown>;
 
-  const summary =
-    normalizeText(getRecordValue(record, ["summary", "Summary"])) ||
-    normalizeText(getRecordValue(record, ["explanation", "analysis", "reasoning"]));
+  const summary = normalizeText(
+    getRecordValue(record, [
+      "summary",
+      "Summary",
+      "explanation",
+      "analysis",
+      "reasoning",
+      "rationale",
+    ]),
+  );
+  const safeSummary = summary.slice(0, 600);
   const severityScore = parseSeverityScore(
     getRecordValue(record, ["severity_score", "severityScore", "score", "risk_score"]),
   );
   const overallTone =
     normalizeTone(getRecordValue(record, ["overall_tone", "overallTone", "tone"])) ||
     (severityScore !== null
-      ? severityScore >= 36
-        ? "severe"
-        : severityScore >= 11
-          ? "concerning"
-          : "mixed"
+      ? severityScore <= 3
+        ? "neutral"
+        : severityScore <= 10
+          ? "mixed"
+          : severityScore <= 35
+            ? "concerning"
+            : "severe"
       : null);
   const confidence =
     normalizeConfidence(getRecordValue(record, ["confidence", "confidence_level", "confidenceLevel"])) ||
@@ -316,7 +380,7 @@ function normalizeGeminiRiskPayload(value: unknown): GeminiRiskPayload | null {
     getRecordValue(record, ["mitigating_signals", "mitigatingSignals", "mitigations", "protective_factors", "protectiveFactors"]),
   );
 
-  if (!summary || summary.length > 600) {
+  if (!safeSummary) {
     return null;
   }
 
@@ -325,7 +389,7 @@ function normalizeGeminiRiskPayload(value: unknown): GeminiRiskPayload | null {
   }
 
   return {
-    summary,
+    summary: safeSummary,
     overall_tone: overallTone,
     severity_score: severityScore,
     risk_signals: riskSignals,
@@ -355,59 +419,15 @@ function extractPayloadCandidates(value: unknown) {
   return candidates;
 }
 
-function buildPrompt(notes: string[], context?: BorrowerRiskPromptContext) {
-  const ratioPercent = context ? (context.missedPaymentRatio * 100).toFixed(1) : "N/A";
-  const contextLines = context
-    ? [
-      `- total_missed_payments: ${context.totalMissedPayments}`,
-      `- total_collection_entries: ${context.totalCollectionEntries}`,
-      `- missed_payment_ratio_percent: ${ratioPercent}`,
-      `- missed_payments_last_30_days: ${context.missedPaymentsLast30Days}`,
-      `- missed_payments_last_90_days: ${context.missedPaymentsLast90Days}`,
-      `- loans_with_missed_payments: ${context.loansWithMissedPayments}`,
-      `- overdue_loans: ${context.overdueLoans}`,
-      `- abandoned_loans: ${context.abandonedLoans}`,
-    ]
-    : ["- context_unavailable"];
-
+function buildPrompt(notes: string[]) {
   return [
-    "You are helping a lending app review borrower missed-payment notes.",
-    "Analyze note text and borrower payment context below.",
-    "Do not invent facts that are not supported by the notes/context.",
-    "Return strict JSON only.",
-    "",
-    "Required JSON schema:",
-    "{",
-    '  "summary": "Concise 1-2 sentence explanation of the note pattern.",',
-    '  "overall_tone": "neutral | mixed | concerning | severe",',
-    '  "severity_score": 1,',
-    '  "risk_signals": [',
-    "    {",
-    '      "signal": "income_instability | avoidance | health_issue | family_emergency | work_disruption | repeated_promises | other",',
-    '      "evidence": "Short plain-language evidence from the notes"',
-    "    }",
-    "  ],",
-    '  "mitigating_signals": ["Short plain-language positive/contextual factors if present"],',
-    '  "confidence": "low | medium | high"',
-    "}",
-    "",
-    "Rules:",
-    "- severity_score must be an integer from 1 to 50.",
-    "- Most normal cases MUST stay in 1 to 10.",
-    "- Use 1 to 3 for isolated/light reasons with no strong avoidance pattern.",
-    "- Use 4 to 6 for moderate but explainable missed-payment reasons.",
-    "- Use 7 to 10 for repeated reliability concerns without confirmed severe evasion.",
-    "- Only use 11+ when there is strong evidence of serious risk behavior.",
-    "- Use 11 to 20 for persistent non-response/repeated avoidance patterns.",
-    "- Use 21 to 35 for deliberate evasion signs (e.g., sustained AWOL pattern, intentional disappearance indicators).",
-    "- Use 36 to 50 only for extreme/high-confidence cases such as fleeing, hiding to avoid legal process, or severe deliberate evasion with clear evidence.",
-    "- summary must stay short.",
-    "- risk_signals max 5.",
-    "- mitigating_signals max 3.",
-    "- If notes are repetitive, summarize the repeated pattern rather than inventing new facts.",
-    "",
-    "Borrower payment context:",
-    ...contextLines,
+    "Review the borrower missed-payment notes.",
+    "Use only evidence present in the note text.",
+    "Be conservative and do not exaggerate severity.",
+    "Most normal cases should remain in 1 to 10.",
+    "Use 11+ only when there is strong repeated avoidance or serious risk behavior.",
+    "Use 36+ only for extreme, high-confidence deliberate evasion.",
+    "Keep the summary short.",
     "",
     "Missed-payment notes:",
     ...notes.map((note, index) => `${index + 1}. ${note}`),
@@ -416,7 +436,6 @@ function buildPrompt(notes: string[], context?: BorrowerRiskPromptContext) {
 
 export async function analyzeBorrowerMissedPaymentNotes(
   notes: string[],
-  context?: BorrowerRiskPromptContext,
 ): Promise<BorrowerRiskAiResult> {
   const sanitizedNotes = notes.map((note) => note.trim()).filter(Boolean);
 
@@ -462,23 +481,28 @@ export async function analyzeBorrowerMissedPaymentNotes(
         contents: [
           {
             role: "user",
-            parts: [{ text: buildPrompt(sanitizedNotes, context) }],
+            parts: [{ text: buildPrompt(sanitizedNotes) }],
           },
         ],
         generationConfig: {
           responseMimeType: "application/json",
-          temperature: 0.2,
-          maxOutputTokens: 700,
+          responseJsonSchema: RISK_RESPONSE_JSON_SCHEMA,
+          temperature: 0.1,
+          maxOutputTokens: 400,
         },
       }),
       cache: "no-store",
     });
 
     if (!response.ok) {
+      const errorText = await response.text().catch(() => "");
+      const compactErrorText = errorText.trim().replace(/\s+/g, " ").slice(0, 800);
       const message =
         response.status === 429
           ? "Gemini is temporarily rate-limited right now. AI note analysis was unavailable for this assessment. Please wait a moment before trying again."
-          : `Gemini request failed with status ${response.status}.`;
+          : compactErrorText
+            ? `Gemini request failed with status ${response.status}. ${compactErrorText}`
+            : `Gemini request failed with status ${response.status}.`;
 
       return {
         status: "unavailable",
@@ -520,6 +544,10 @@ export async function analyzeBorrowerMissedPaymentNotes(
       .find((candidate): candidate is GeminiRiskPayload => Boolean(candidate));
 
     if (!normalizedPayload) {
+      if (process.env.NODE_ENV !== "production") {
+        console.error("Gemini raw text:", text);
+        console.error("Gemini parsed:", parsed);
+      }
       return {
         status: "unavailable",
         summary: "AI note analysis was unavailable for this assessment.",

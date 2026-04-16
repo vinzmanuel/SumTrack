@@ -349,16 +349,7 @@ export async function assessBorrowerReapprovalRisk(params: {
   }
 
   const notesForAi = selectNotesForAi(missedPaymentRows);
-  const aiAnalysis = await analyzeBorrowerMissedPaymentNotes(notesForAi, {
-    totalMissedPayments: metrics.totalMissedPayments,
-    totalCollectionEntries: metrics.totalCollectionEntries,
-    missedPaymentRatio: metrics.missedPaymentRatio,
-    missedPaymentsLast30Days: metrics.missedPaymentsLast30Days,
-    missedPaymentsLast90Days: metrics.missedPaymentsLast90Days,
-    loansWithMissedPayments: metrics.loansWithMissedPayments,
-    overdueLoans: metrics.currentLoanMix.overdue,
-    abandonedLoans: metrics.currentLoanMix.abandoned,
-  });
+  const aiAnalysis = await analyzeBorrowerMissedPaymentNotes(notesForAi);
   const scoreBreakdown = buildScoreBreakdown(metrics, aiAnalysis);
   const label = resolveFinalLabel(scoreBreakdown.total);
 

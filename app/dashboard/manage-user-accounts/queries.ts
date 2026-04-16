@@ -210,6 +210,14 @@ async function loadScopedUserIds(scope: ManageUserAccountsScope) {
     return [];
   }
 
+  const useHistoricalAssignments = scope.selectedStatus === "inactive";
+  const collectorAssignmentDateFilter = useHistoricalAssignments
+    ? sql`${employee_area_assignment.end_date} is not null`
+    : isNull(employee_area_assignment.end_date);
+  const branchAssignmentDateFilter = useHistoricalAssignments
+    ? sql`${employee_branch_assignment.end_date} is not null`
+    : isNull(employee_branch_assignment.end_date);
+
   const [borrowerRows, collectorRows, branchRows] = await Promise.all([
     db
       .select({ userId: borrower_info.user_id })
@@ -230,7 +238,7 @@ async function loadScopedUserIds(scope: ManageUserAccountsScope) {
       .innerJoin(areas, eq(areas.area_id, employee_area_assignment.area_id))
       .where(
         and(
-          isNull(employee_area_assignment.end_date),
+          collectorAssignmentDateFilter,
           inArray(areas.branch_id, scopedBranchIds),
           scope.selectedRoleName === "Collector" && scope.selectedAreaId
             ? eq(employee_area_assignment.area_id, scope.selectedAreaId)
@@ -243,7 +251,7 @@ async function loadScopedUserIds(scope: ManageUserAccountsScope) {
       .from(employee_branch_assignment)
       .where(
         and(
-          isNull(employee_branch_assignment.end_date),
+          branchAssignmentDateFilter,
           inArray(employee_branch_assignment.branch_id, scopedBranchIds),
         ),
       )

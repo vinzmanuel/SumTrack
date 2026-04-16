@@ -36,6 +36,22 @@ type AssessmentState =
   | { status: "success"; result: BorrowerRiskAssessmentResult; message: null }
   | { status: "error"; result: null; message: string };
 
+function isBorrowerRiskAssessmentResult(value: unknown): value is BorrowerRiskAssessmentResult {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const record = value as Record<string, unknown>;
+  return (
+    typeof record.label === "string" &&
+    typeof record.score === "number" &&
+    typeof record.explanation === "string" &&
+    typeof record.disclaimer === "string" &&
+    typeof record.aiAnalysis === "object" &&
+    record.aiAnalysis !== null
+  );
+}
+
 function formatRiskRatio(value: number) {
   return `${(value * 100).toFixed(1)}%`;
 }
@@ -316,9 +332,21 @@ export function BorrowerRiskAssessmentCard({ borrowerId }: BorrowerRiskAssessmen
       });
 
       const rawBody = await response.text().catch(() => "");
-      const payload = (rawBody
-        ? (JSON.parse(rawBody) as BorrowerRiskAssessmentResult | { message?: string })
-        : null) as BorrowerRiskAssessmentResult | { message?: string } | null;
+      const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+      let payload: BorrowerRiskAssessmentResult | { message?: string } | null = null;
+
+      if (rawBody) {
+        try {
+          payload = JSON.parse(rawBody) as BorrowerRiskAssessmentResult | { message?: string };
+        } catch {
+          payload = null;
+        }
+      }
+
+      const htmlResponseDetected =
+        contentType.includes("text/html") ||
+        rawBody.trimStart().startsWith("<!DOCTYPE") ||
+        rawBody.trimStart().startsWith("<html");
 
       if (!response.ok) {
         const responseTextMessage = rawBody.trim();
@@ -328,6 +356,8 @@ export function BorrowerRiskAssessmentCard({ borrowerId }: BorrowerRiskAssessmen
           message:
             payload && "message" in payload && typeof payload.message === "string"
               ? payload.message
+              : htmlResponseDetected
+                ? `Assessment endpoint returned HTML instead of JSON (HTTP ${response.status}). This usually means a production auth/session redirect or server route failure.`
               : responseTextMessage.length > 0
                 ? responseTextMessage.slice(0, 260)
                 : "Unable to complete the assessment right now.",
@@ -335,9 +365,20 @@ export function BorrowerRiskAssessmentCard({ borrowerId }: BorrowerRiskAssessmen
         return;
       }
 
+      if (!isBorrowerRiskAssessmentResult(payload)) {
+        setState({
+          status: "error",
+          result: null,
+          message: htmlResponseDetected
+            ? `Assessment endpoint returned HTML instead of JSON (HTTP ${response.status}). This usually means a production auth/session redirect or server route failure.`
+            : "Assessment response was not in the expected format.",
+        });
+        return;
+      }
+
       setState({
         status: "success",
-        result: payload as BorrowerRiskAssessmentResult,
+        result: payload,
         message: null,
       });
     } catch (error) {
