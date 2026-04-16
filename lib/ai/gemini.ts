@@ -188,6 +188,15 @@ function normalizeConfidence(value: unknown): BorrowerRiskAiConfidence | null {
   return null;
 }
 
+function getRecordValue(record: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    if (key in record) {
+      return record[key];
+    }
+  }
+  return undefined;
+}
+
 function normalizeSignalKind(value: unknown): BorrowerRiskSignalKind {
   const normalized = normalizeLooseKey(normalizeText(value));
   if (ALLOWED_SIGNALS.has(normalized as BorrowerRiskSignalKind)) {
@@ -198,12 +207,39 @@ function normalizeSignalKind(value: unknown): BorrowerRiskSignalKind {
 }
 
 function normalizeRiskSignals(value: unknown): BorrowerRiskSignal[] {
+  if (value && typeof value === "object" && !Array.isArray(value)) {
+    return Object.entries(value as Record<string, unknown>)
+      .map(([signalKey, evidenceValue]) => {
+        const evidence = normalizeText(evidenceValue);
+        if (!evidence) {
+          return null;
+        }
+        return {
+          signal: normalizeSignalKind(signalKey),
+          evidence,
+        };
+      })
+      .filter((entry): entry is BorrowerRiskSignal => Boolean(entry))
+      .slice(0, 5);
+  }
+
   if (!Array.isArray(value)) {
     return [];
   }
 
   return value
     .map((entry) => {
+      if (typeof entry === "string") {
+        const normalizedEvidence = normalizeText(entry);
+        if (!normalizedEvidence) {
+          return null;
+        }
+        return {
+          signal: "other" as const,
+          evidence: normalizedEvidence,
+        };
+      }
+
       if (!entry || typeof entry !== "object") {
         return null;
       }
@@ -226,6 +262,19 @@ function normalizeRiskSignals(value: unknown): BorrowerRiskSignal[] {
 }
 
 function normalizeMitigatingSignals(value: unknown): string[] {
+  if (typeof value === "string") {
+    const normalized = normalizeText(value);
+    if (!normalized) {
+      return [];
+    }
+
+    return normalized
+      .split(/[;\n]/)
+      .map((entry) => entry.trim())
+      .filter(Boolean)
+      .slice(0, 3);
+  }
+
   if (!Array.isArray(value)) {
     return [];
   }
@@ -240,17 +289,31 @@ function normalizeGeminiRiskPayload(value: unknown): GeminiRiskPayload | null {
   if (!value || typeof value !== "object") {
     return null;
   }
+  const record = value as Record<string, unknown>;
 
   const summary =
-    normalizeText((value as { summary?: unknown }).summary) ||
-    normalizeText((value as { explanation?: unknown }).explanation) ||
-    normalizeText((value as { analysis?: unknown }).analysis);
-  const overallTone = normalizeTone((value as { overall_tone?: unknown }).overall_tone);
-  const severityScore = parseSeverityScore((value as { severity_score?: unknown }).severity_score);
-  const confidence = normalizeConfidence((value as { confidence?: unknown }).confidence);
-  const riskSignals = normalizeRiskSignals((value as { risk_signals?: unknown }).risk_signals);
+    normalizeText(getRecordValue(record, ["summary", "Summary"])) ||
+    normalizeText(getRecordValue(record, ["explanation", "analysis", "reasoning"]));
+  const severityScore = parseSeverityScore(
+    getRecordValue(record, ["severity_score", "severityScore", "score", "risk_score"]),
+  );
+  const overallTone =
+    normalizeTone(getRecordValue(record, ["overall_tone", "overallTone", "tone"])) ||
+    (severityScore !== null
+      ? severityScore >= 36
+        ? "severe"
+        : severityScore >= 11
+          ? "concerning"
+          : "mixed"
+      : null);
+  const confidence =
+    normalizeConfidence(getRecordValue(record, ["confidence", "confidence_level", "confidenceLevel"])) ||
+    "medium";
+  const riskSignals = normalizeRiskSignals(
+    getRecordValue(record, ["risk_signals", "riskSignals", "signals", "riskIndicators"]),
+  );
   const mitigatingSignals = normalizeMitigatingSignals(
-    (value as { mitigating_signals?: unknown }).mitigating_signals,
+    getRecordValue(record, ["mitigating_signals", "mitigatingSignals", "mitigations", "protective_factors", "protectiveFactors"]),
   );
 
   if (!summary || summary.length > 600) {
@@ -272,6 +335,10 @@ function normalizeGeminiRiskPayload(value: unknown): GeminiRiskPayload | null {
 }
 
 function extractPayloadCandidates(value: unknown) {
+  if (Array.isArray(value)) {
+    return value;
+  }
+
   if (!value || typeof value !== "object") {
     return [];
   }

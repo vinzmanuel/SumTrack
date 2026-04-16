@@ -315,19 +315,22 @@ export function BorrowerRiskAssessmentCard({ borrowerId }: BorrowerRiskAssessmen
         cache: "no-store",
       });
 
-      const payload = (await response.json().catch(() => null)) as
-        | BorrowerRiskAssessmentResult
-        | { message?: string }
-        | null;
+      const rawBody = await response.text().catch(() => "");
+      const payload = (rawBody
+        ? (JSON.parse(rawBody) as BorrowerRiskAssessmentResult | { message?: string })
+        : null) as BorrowerRiskAssessmentResult | { message?: string } | null;
 
       if (!response.ok) {
+        const responseTextMessage = rawBody.trim();
         setState({
           status: "error",
           result: null,
           message:
             payload && "message" in payload && typeof payload.message === "string"
               ? payload.message
-              : "Unable to complete the assessment right now.",
+              : responseTextMessage.length > 0
+                ? responseTextMessage.slice(0, 260)
+                : "Unable to complete the assessment right now.",
         });
         return;
       }
@@ -337,11 +340,14 @@ export function BorrowerRiskAssessmentCard({ borrowerId }: BorrowerRiskAssessmen
         result: payload as BorrowerRiskAssessmentResult,
         message: null,
       });
-    } catch {
+    } catch (error) {
       setState({
         status: "error",
         result: null,
-        message: "Unable to complete the assessment right now.",
+        message:
+          error instanceof Error && error.message
+            ? error.message
+            : "Unable to complete the assessment right now.",
       });
     } finally {
       inFlightRef.current = false;
