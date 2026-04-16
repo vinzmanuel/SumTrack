@@ -466,9 +466,11 @@ export function DocumentsSection({
     <Card className="mb-6 rounded-md border-border/70 shadow-sm">
       <CardHeader className="flex flex-row items-center justify-between gap-3">
         <CardTitle>Documents</CardTitle>
-        <Button disabled={!canManage || uploading} onClick={() => openUploadDialog()} size="sm" type="button">
-          Upload Document
-        </Button>
+        {canManage ? (
+          <Button disabled={uploading} onClick={() => openUploadDialog()} size="sm" type="button">
+            Upload Document
+          </Button>
+        ) : null}
       </CardHeader>
       <CardContent className="space-y-3">
         {sortedDocs.length === 0 ? (
