@@ -513,10 +513,10 @@ export function CreateLoanForm({
             <input name="due_date" type="hidden" value={dueDate} />
             <input name="term_option" type="hidden" value={termOption} />
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className={`space-y-2 ${isAdmin ? "" : "md:col-span-2"}`}>
-                {isAdmin ? <Label>Branch</Label> : null}
-                {isAdmin ? (
+            <div className={`grid gap-4 ${isAdmin ? "md:grid-cols-2" : "grid-cols-1"}`}>
+              {isAdmin ? (
+                <div className="space-y-2">
+                  <Label>Branch</Label>
                   <Select disabled={isBorrowerLocked} onValueChange={handleBranchChange} value={selectedBranchId}>
                     <SelectTrigger className={`${CREATE_LOAN_CONTROL_CLASS_NAME} w-full`}>
                       <SelectValue placeholder="Select branch" />
@@ -532,11 +532,13 @@ export function CreateLoanForm({
                       </SelectGroup>
                     </SelectContent>
                   </Select>
-                ) : null}
-                {state.fieldErrors?.branch_id ? (
-                  <p className="text-sm text-destructive">{state.fieldErrors.branch_id}</p>
-                ) : null}
+                  {state.fieldErrors?.branch_id ? (
+                    <p className="text-sm text-destructive">{state.fieldErrors.branch_id}</p>
+                  ) : null}
+                </div>
+              ) : null}
 
+              <div className="space-y-2">
                 <Label>Area</Label>
                 <Select
                   disabled={!selectedBranchId || isBorrowerLocked}

@@ -144,63 +144,148 @@ function normalizeText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function isBorrowerRiskSignal(value: unknown): value is BorrowerRiskSignal {
-  if (!value || typeof value !== "object") {
-    return false;
-  }
-
-  const signal = normalizeText((value as { signal?: unknown }).signal);
-  const evidence = normalizeText((value as { evidence?: unknown }).evidence);
-
-  return ALLOWED_SIGNALS.has(signal as BorrowerRiskSignalKind) && evidence.length > 0;
+function normalizeLooseKey(value: string) {
+  return value.trim().toLowerCase().replace(/[\s-]+/g, "_");
 }
 
-function isGeminiRiskPayload(value: unknown): value is GeminiRiskPayload {
-  if (!value || typeof value !== "object") {
-    return false;
+function parseSeverityScore(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.max(1, Math.min(50, Math.round(value)));
   }
 
-  const summary = normalizeText((value as { summary?: unknown }).summary);
-  const overallTone = normalizeText((value as { overall_tone?: unknown }).overall_tone);
-  const severityScore = (value as { severity_score?: unknown }).severity_score;
-  const riskSignals = (value as { risk_signals?: unknown }).risk_signals;
-  const mitigatingSignals = (value as { mitigating_signals?: unknown }).mitigating_signals;
-  const confidence = normalizeText((value as { confidence?: unknown }).confidence);
+  if (typeof value === "string") {
+    const match = value.match(/-?\d+(\.\d+)?/);
+    if (!match) {
+      return null;
+    }
+
+    const parsed = Number(match[0]);
+    if (!Number.isFinite(parsed)) {
+      return null;
+    }
+
+    return Math.max(1, Math.min(50, Math.round(parsed)));
+  }
+
+  return null;
+}
+
+function normalizeTone(value: unknown): BorrowerRiskAiTone | null {
+  const normalized = normalizeLooseKey(normalizeText(value));
+  if (ALLOWED_TONES.has(normalized as BorrowerRiskAiTone)) {
+    return normalized as BorrowerRiskAiTone;
+  }
+
+  return null;
+}
+
+function normalizeConfidence(value: unknown): BorrowerRiskAiConfidence | null {
+  const normalized = normalizeLooseKey(normalizeText(value));
+  if (ALLOWED_CONFIDENCE.has(normalized as BorrowerRiskAiConfidence)) {
+    return normalized as BorrowerRiskAiConfidence;
+  }
+
+  return null;
+}
+
+function normalizeSignalKind(value: unknown): BorrowerRiskSignalKind {
+  const normalized = normalizeLooseKey(normalizeText(value));
+  if (ALLOWED_SIGNALS.has(normalized as BorrowerRiskSignalKind)) {
+    return normalized as BorrowerRiskSignalKind;
+  }
+
+  return "other";
+}
+
+function normalizeRiskSignals(value: unknown): BorrowerRiskSignal[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((entry) => {
+      if (!entry || typeof entry !== "object") {
+        return null;
+      }
+
+      const signal = normalizeSignalKind((entry as { signal?: unknown }).signal);
+      const evidence =
+        normalizeText((entry as { evidence?: unknown }).evidence) ||
+        normalizeText((entry as { reason?: unknown }).reason) ||
+        normalizeText((entry as { detail?: unknown }).detail) ||
+        normalizeText((entry as { text?: unknown }).text);
+
+      if (!evidence) {
+        return null;
+      }
+
+      return { signal, evidence };
+    })
+    .filter((entry): entry is BorrowerRiskSignal => Boolean(entry))
+    .slice(0, 5);
+}
+
+function normalizeMitigatingSignals(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((entry) => normalizeText(entry))
+    .filter(Boolean)
+    .slice(0, 3);
+}
+
+function normalizeGeminiRiskPayload(value: unknown): GeminiRiskPayload | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const summary =
+    normalizeText((value as { summary?: unknown }).summary) ||
+    normalizeText((value as { explanation?: unknown }).explanation) ||
+    normalizeText((value as { analysis?: unknown }).analysis);
+  const overallTone = normalizeTone((value as { overall_tone?: unknown }).overall_tone);
+  const severityScore = parseSeverityScore((value as { severity_score?: unknown }).severity_score);
+  const confidence = normalizeConfidence((value as { confidence?: unknown }).confidence);
+  const riskSignals = normalizeRiskSignals((value as { risk_signals?: unknown }).risk_signals);
+  const mitigatingSignals = normalizeMitigatingSignals(
+    (value as { mitigating_signals?: unknown }).mitigating_signals,
+  );
 
   if (!summary || summary.length > 600) {
-    return false;
+    return null;
   }
 
-  if (!ALLOWED_TONES.has(overallTone as BorrowerRiskAiTone)) {
-    return false;
+  if (!overallTone || severityScore === null || !confidence) {
+    return null;
   }
 
-  if (
-    typeof severityScore !== "number" ||
-    !Number.isFinite(severityScore) ||
-    severityScore < 1 ||
-    severityScore > 50
-  ) {
-    return false;
+  return {
+    summary,
+    overall_tone: overallTone,
+    severity_score: severityScore,
+    risk_signals: riskSignals,
+    mitigating_signals: mitigatingSignals,
+    confidence,
+  };
+}
+
+function extractPayloadCandidates(value: unknown) {
+  if (!value || typeof value !== "object") {
+    return [];
   }
 
-  if (!Array.isArray(riskSignals) || riskSignals.length > 5 || !riskSignals.every(isBorrowerRiskSignal)) {
-    return false;
+  const root = value as Record<string, unknown>;
+  const candidates: unknown[] = [root];
+
+  for (const key of ["result", "assessment", "data", "output", "response"]) {
+    if (root[key] && typeof root[key] === "object") {
+      candidates.push(root[key]);
+    }
   }
 
-  if (
-    !Array.isArray(mitigatingSignals) ||
-    mitigatingSignals.length > 3 ||
-    !mitigatingSignals.every((signal) => typeof signal === "string" && signal.trim().length > 0)
-  ) {
-    return false;
-  }
-
-  if (!ALLOWED_CONFIDENCE.has(confidence as BorrowerRiskAiConfidence)) {
-    return false;
-  }
-
-  return true;
+  return candidates;
 }
 
 function buildPrompt(notes: string[], context?: BorrowerRiskPromptContext) {
@@ -363,7 +448,11 @@ export async function analyzeBorrowerMissedPaymentNotes(
     }
 
     const parsed = parseJsonLikeText(text);
-    if (!isGeminiRiskPayload(parsed)) {
+    const normalizedPayload = extractPayloadCandidates(parsed)
+      .map((candidate) => normalizeGeminiRiskPayload(candidate))
+      .find((candidate): candidate is GeminiRiskPayload => Boolean(candidate));
+
+    if (!normalizedPayload) {
       return {
         status: "unavailable",
         summary: "AI note analysis was unavailable for this assessment.",
@@ -379,12 +468,12 @@ export async function analyzeBorrowerMissedPaymentNotes(
 
     return {
       status: "success",
-      summary: parsed.summary,
-      overallTone: parsed.overall_tone,
-      severityScore: Math.max(1, Math.min(50, Math.round(parsed.severity_score))),
-      confidence: parsed.confidence,
-      riskSignals: parsed.risk_signals,
-      mitigatingSignals: parsed.mitigating_signals.map((signal) => signal.trim()),
+      summary: normalizedPayload.summary,
+      overallTone: normalizedPayload.overall_tone,
+      severityScore: Math.max(1, Math.min(50, Math.round(normalizedPayload.severity_score))),
+      confidence: normalizedPayload.confidence,
+      riskSignals: normalizedPayload.risk_signals,
+      mitigatingSignals: normalizedPayload.mitigating_signals.map((signal) => signal.trim()),
       notesAnalyzedCount: sanitizedNotes.length,
       message: null,
     };
