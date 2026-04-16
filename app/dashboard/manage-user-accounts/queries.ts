@@ -211,58 +211,145 @@ async function loadScopedUserIds(scope: ManageUserAccountsScope) {
   }
 
   const useHistoricalAssignments = scope.selectedStatus === "inactive";
-  const collectorAssignmentDateFilter = useHistoricalAssignments
-    ? sql`${employee_area_assignment.end_date} is not null`
-    : isNull(employee_area_assignment.end_date);
-  const branchAssignmentDateFilter = useHistoricalAssignments
-    ? sql`${employee_branch_assignment.end_date} is not null`
-    : isNull(employee_branch_assignment.end_date);
+  const borrowerRowsPromise = db
+    .select({ userId: borrower_info.user_id })
+    .from(borrower_info)
+    .innerJoin(areas, eq(areas.area_id, borrower_info.area_id))
+    .where(
+      and(
+        inArray(areas.branch_id, scopedBranchIds),
+        scope.selectedRoleName === "Borrower" && scope.selectedAreaId
+          ? eq(borrower_info.area_id, scope.selectedAreaId)
+          : undefined,
+      ),
+    )
+    .catch(() => []);
 
-  const [borrowerRows, collectorRows, branchRows] = await Promise.all([
+  if (!useHistoricalAssignments) {
+    const [borrowerRows, collectorRows, branchRows] = await Promise.all([
+      borrowerRowsPromise,
+      db
+        .select({ userId: employee_area_assignment.employee_user_id })
+        .from(employee_area_assignment)
+        .innerJoin(areas, eq(areas.area_id, employee_area_assignment.area_id))
+        .where(
+          and(
+            isNull(employee_area_assignment.end_date),
+            inArray(areas.branch_id, scopedBranchIds),
+            scope.selectedRoleName === "Collector" && scope.selectedAreaId
+              ? eq(employee_area_assignment.area_id, scope.selectedAreaId)
+              : undefined,
+          ),
+        )
+        .catch(() => []),
+      db
+        .select({ userId: employee_branch_assignment.employee_user_id })
+        .from(employee_branch_assignment)
+        .where(
+          and(
+            isNull(employee_branch_assignment.end_date),
+            inArray(employee_branch_assignment.branch_id, scopedBranchIds),
+          ),
+        )
+        .catch(() => []),
+    ]);
+
+    return Array.from(
+      new Set([
+        ...borrowerRows.map((row) => row.userId),
+        ...collectorRows.map((row) => row.userId),
+        ...branchRows.map((row) => row.userId),
+      ]),
+    );
+  }
+
+  const [borrowerRows, historicalCollectorAssignments, historicalBranchAssignments] = await Promise.all([
+    borrowerRowsPromise,
     db
-      .select({ userId: borrower_info.user_id })
-      .from(borrower_info)
-      .innerJoin(areas, eq(areas.area_id, borrower_info.area_id))
-      .where(
-        and(
-          inArray(areas.branch_id, scopedBranchIds),
-          scope.selectedRoleName === "Borrower" && scope.selectedAreaId
-            ? eq(borrower_info.area_id, scope.selectedAreaId)
-            : undefined,
-        ),
-      )
-      .catch(() => []),
-    db
-      .select({ userId: employee_area_assignment.employee_user_id })
+      .select({
+        userId: employee_area_assignment.employee_user_id,
+        areaId: employee_area_assignment.area_id,
+        branchId: areas.branch_id,
+        endDate: employee_area_assignment.end_date,
+      })
       .from(employee_area_assignment)
       .innerJoin(areas, eq(areas.area_id, employee_area_assignment.area_id))
       .where(
         and(
-          collectorAssignmentDateFilter,
-          inArray(areas.branch_id, scopedBranchIds),
-          scope.selectedRoleName === "Collector" && scope.selectedAreaId
-            ? eq(employee_area_assignment.area_id, scope.selectedAreaId)
-            : undefined,
+          sql`${employee_area_assignment.end_date} is not null`,
         ),
       )
       .catch(() => []),
     db
-      .select({ userId: employee_branch_assignment.employee_user_id })
+      .select({
+        userId: employee_branch_assignment.employee_user_id,
+        branchId: employee_branch_assignment.branch_id,
+        endDate: employee_branch_assignment.end_date,
+      })
       .from(employee_branch_assignment)
       .where(
         and(
-          branchAssignmentDateFilter,
-          inArray(employee_branch_assignment.branch_id, scopedBranchIds),
+          sql`${employee_branch_assignment.end_date} is not null`,
         ),
       )
       .catch(() => []),
   ]);
 
+  const latestCollectorAssignmentByUser = new Map<
+    string,
+    { branchId: number; areaId: number; endDate: string }
+  >();
+  for (const row of historicalCollectorAssignments) {
+    if (!row.endDate) {
+      continue;
+    }
+    const current = latestCollectorAssignmentByUser.get(row.userId);
+    if (!current || row.endDate > current.endDate) {
+      latestCollectorAssignmentByUser.set(row.userId, {
+        branchId: row.branchId,
+        areaId: row.areaId,
+        endDate: row.endDate,
+      });
+    }
+  }
+
+  const latestBranchAssignmentByUser = new Map<string, { branchId: number; endDate: string }>();
+  for (const row of historicalBranchAssignments) {
+    if (!row.endDate) {
+      continue;
+    }
+    const current = latestBranchAssignmentByUser.get(row.userId);
+    if (!current || row.endDate > current.endDate) {
+      latestBranchAssignmentByUser.set(row.userId, {
+        branchId: row.branchId,
+        endDate: row.endDate,
+      });
+    }
+  }
+
+  const collectorUserIds = Array.from(latestCollectorAssignmentByUser.entries())
+    .filter(([, assignment]) => {
+      if (!scopedBranchIds.includes(assignment.branchId)) {
+        return false;
+      }
+
+      if (scope.selectedRoleName === "Collector" && scope.selectedAreaId) {
+        return assignment.areaId === scope.selectedAreaId;
+      }
+
+      return true;
+    })
+    .map(([userId]) => userId);
+
+  const branchUserIds = Array.from(latestBranchAssignmentByUser.entries())
+    .filter(([, assignment]) => scopedBranchIds.includes(assignment.branchId))
+    .map(([userId]) => userId);
+
   return Array.from(
     new Set([
       ...borrowerRows.map((row) => row.userId),
-      ...collectorRows.map((row) => row.userId),
-      ...branchRows.map((row) => row.userId),
+      ...collectorUserIds,
+      ...branchUserIds,
     ]),
   );
 }

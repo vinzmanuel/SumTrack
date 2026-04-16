@@ -109,7 +109,8 @@ export function ToggleAccountStatusButton({
       setErrorMessage(null);
 
       try {
-        const response = await fetch(`/dashboard/manage-user-accounts/${userId}/data`, {
+        const detailUrl = `/dashboard/manage-user-accounts/${userId}/data?status=${currentStatus}`;
+        const response = await fetch(detailUrl, {
           cache: "no-store",
           credentials: "same-origin",
           signal: controller.signal,
